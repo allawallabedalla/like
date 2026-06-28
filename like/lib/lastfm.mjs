@@ -54,6 +54,26 @@ export async function getSimilar(name, { limit = 30, key } = {}) {
   });
 }
 
+// Namensvorschläge für die Suche (Autocomplete). 1 Tag gecacht.
+export async function searchArtists(q, { limit = 6, key } = {}) {
+  key ??= await getKey();
+  return cached("search", q + "|" + limit, 1 * 864e5, async () => {
+    const url = new URL("https://ws.audioscrobbler.com/2.0/");
+    url.searchParams.set("method", "artist.search");
+    url.searchParams.set("artist", q);
+    url.searchParams.set("api_key", key);
+    url.searchParams.set("format", "json");
+    url.searchParams.set("limit", String(limit));
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    let list = data.results?.artistmatches?.artist || [];
+    if (!Array.isArray(list)) list = [list];
+    const seen = new Set();
+    return list.map((a) => a.name).filter((n) => n && !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase())).slice(0, limit);
+  });
+}
+
 // Top-Tags (Genres) eines Acts — funktioniert auch für Bands, die nicht (mehr) auftreten.
 const titleCase = (s) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 export async function getTopTags(name, { limit = 6, key } = {}) {

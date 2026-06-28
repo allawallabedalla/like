@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, mergeSimilar, materialize, addEvent, emptyGraph, upsertArtist, upsertEdge } from "./lib/store.mjs";
-import { getSimilar, getTopTags } from "./lib/lastfm.mjs";
+import { getSimilar, getTopTags, searchArtists } from "./lib/lastfm.mjs";
 import { fetchLineup } from "./lib/wikipedia.mjs";
 import { discoverAndScrape } from "./lib/discover.mjs";
 import { coAppearances } from "./lib/coappear.mjs";
@@ -217,6 +217,15 @@ const server = createServer(async (req, res) => {
       a.genres = genres;
       await saveGraph(GRAPH, g);
       return send(res, 200, { ok: true, genres });
+    }
+
+    // Suchvorschläge (Autocomplete).
+    if (req.method === "GET" && url.pathname === "/api/suggest") {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (q.length < 2) return send(res, 200, { names: [] });
+      let names = [];
+      try { names = await searchArtists(q); } catch {}
+      return send(res, 200, { names });
     }
 
     // Markierte Acts als CSV exportieren (Shortlist fürs Booking).
