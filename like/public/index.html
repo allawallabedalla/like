@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Like</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #ffffff;
+    --line: #000000;
+    --line-soft: #d9d9d9;
+    --text: #000000;
+    --muted: #666666;
+    --accent: #000000;         /* gesuchte Acts: schwarz */
+    --discovered: #b3b3b3;     /* noch nicht geöffnet: grau */
+    --edge-similar: #2f6df6;   /* ähnlicher Stil (Last.fm): blau */
+    --edge-together: #ff6a00;  /* zusammen aufgetreten (RA): orange */
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 14px/1.4 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; cursor: grab; }
+  canvas.grabbing { cursor: grabbing; }
+
+  .bar { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center;
+    gap: 12px; padding: 0 14px; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 10; }
+  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; }
+  .brand .bdot { color: var(--edge-together); }
+  .grow { flex: 1; }
+  input, textarea, button, select { font: inherit; color: var(--text); border-radius: 0; }
+  select { background: var(--bg); border: 1px solid var(--line-soft); padding: 8px 6px; }
+  .search { display: flex; gap: 0; }
+  .search input { width: 240px; background: var(--bg); border: 1px solid var(--line-soft);
+    padding: 8px 10px; outline: none; }
+  .search input:focus { border-color: var(--line); }
+  button { background: var(--bg); border: 1px solid var(--line-soft); border-left: none;
+    padding: 8px 12px; cursor: pointer; }
+  button:hover { background: #f2f2f2; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #ffffff; font-weight: 600; }
+  button.primary:hover { background: #222; }
+  button:disabled { opacity: .5; cursor: default; }
+  .counts { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .genres { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 14px; }
+  .genres span { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: 20px; color: var(--muted); }
+  .gfilter { width: 150px; background: var(--bg); border: 1px solid var(--line-soft); padding: 8px 10px; outline: none; }
+  .gfilter:focus { border-color: var(--line); }
+  .booking { font-size: 12px; margin: 0 0 14px; }
+  .booking .live { display: inline-block; background: #1a9e54; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-bottom: 8px; }
+  .booking .det { color: var(--muted); margin: 6px 0; line-height: 1.45; }
+  .booking .links a { display: inline-block; margin-right: 10px; color: var(--text); }
+  .toggle { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; }
+
+  .legend { position: fixed; left: 14px; bottom: 14px; background: var(--bg);
+    border: 1px solid var(--line-soft); padding: 10px 12px; font-size: 12px; z-index: 9; }
+  .legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.ring { background: #fff !important; border: 2px solid #000; }
+  .ln { width: 16px; height: 0; }
+
+  .panel { position: fixed; top: 52px; right: 0; bottom: 0; width: 320px; background: var(--panel);
+    border-left: 1px solid var(--line); padding: 18px; overflow-y: auto; z-index: 9;
+    transform: translateX(100%); transition: transform .15s ease; }
+  .panel.open { transform: none; }
+  .panel h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
+  .panel .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .panel a { color: var(--text); }
+  .field { margin: 14px 0; }
+  .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .panel textarea { width: 100%; min-height: 80px; resize: vertical; background: var(--bg);
+    border: 1px solid var(--line-soft); padding: 8px; outline: none; }
+  .panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .panel .row button { flex: 1; border-left: 1px solid var(--line-soft); }
+  .close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text);
+    font-size: 20px; cursor: pointer; padding: 4px; }
+  .neighbors { margin-top: 10px; }
+  .neighbors .nb { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line-soft);
+    cursor: pointer; }
+  .neighbors .nb:hover { color: var(--muted); }
+  .neighbors .nb small { color: var(--muted); }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--accent);
+    color: #fff; border: none; padding: 10px 16px; z-index: 20; opacity: 0;
+    transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 7px; margin-left: 6px; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .5px; }
+  .badge.known { background: #000; color: #fff; }
+  .badge.seed { background: #fff; color: #000; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <div class="bar">
+    <div class="brand">like<span class="bdot">.</span></div>
+    <div class="search">
+      <input id="q" placeholder="Act suchen…" autocomplete="off" />
+      <button class="primary" id="go">Suchen</button>
+    </div>
+    <div class="hint">Klick = Details · Doppelklick = weiter hangeln</div>
+    <div class="grow"></div>
+    <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" />
+    <label class="toggle"><input type="checkbox" id="dimKnown" /> Markierte abdunkeln</label>
+    <button id="export" title="Markierte Acts als CSV">⭳ CSV</button>
+    <select id="reset" title="Ansicht leeren">
+      <option value="">Leeren…</option>
+      <option value="discovered">Entdeckte Acts</option>
+      <option value="all">Alles</option>
+    </select>
+    <div class="counts" id="counts">–</div>
+  </div>
+
+  <div class="legend">
+    <div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ähnlicher Stil (Last.fm)</div>
+    <div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> zusammen aufgetreten (RA)</div>
+    <div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>
+    <div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>
+    <div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (angefragt/…)</div>
+    <div><span class="dot" style="background:#1a9e54"></span> tritt auf (kommende Shows)</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <button class="close" id="closePanel">×</button>
+    <h2 id="pName">–</h2>
+    <div class="sub" id="pSub"></div>
+    <div id="pGenres" class="genres"></div>
+    <div id="pBooking" class="booking"></div>
+    <div class="row">
+      <button class="primary" id="expand">Weiter erkunden</button>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select id="status">
+        <option value="">—</option>
+        <option value="shortlist">Shortlist</option>
+        <option value="contacted">angefragt</option>
+        <option value="confirmed">bestätigt</option>
+        <option value="declined">abgesagt</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Booking-Notiz</label>
+      <textarea id="note" placeholder="Kontakt, Agentur, letzte Show, Idee…"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="saveNote">Notiz speichern</button>
+        <button id="removeAct">Act entfernen</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Ähnlicher Stil</label>
+      <div class="neighbors" id="nbSimilar"></div>
+    </div>
+    <div class="field">
+      <label>Zusammen aufgetreten</label>
+      <div class="neighbors" id="nbTogether"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const POST = (path, body) => fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+const API = {
+  graph: () => fetch("/api/graph").then(r => r.json()),
+  explore: (name) => POST("/api/explore", { name }),
+  reset: (scope) => POST("/api/reset", { scope }),
+  remove: (id) => POST("/api/delete", { id }),
+  restore: (body) => POST("/api/restore", body),
+  genres: (id) => POST("/api/genres", { id }),
+  artist: (body) => POST("/api/artist", body),
+};
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
+function resize() {
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+addEventListener("resize", resize); resize();
+
+// ---- Zustand ----
+let graph = { artists: {}, edges: [] };
+let nodes = [];          // {id,name,x,y,vx,vy,deg,seed,known}
+let links = [];          // {a,b,type,weight}
+const nodeById = new Map();
+let view = { x: W / 2, y: H / 2, k: 1 };   // pan/zoom
+let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
+let busyId = null, filterGenre = "";
+const STATUS_COLOR = { shortlist: "#000000", contacted: "#ff6a00", confirmed: "#1a9e54", declined: "#9a9a9a" };
+const STATUS_LABEL = { "": "—", shortlist: "Shortlist", contacted: "angefragt", confirmed: "bestätigt", declined: "abgesagt" };
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 1800);
+}
+function toastUndo(msg, fn) {
+  const t = document.getElementById("toast");
+  t.innerHTML = msg + ' · <a href="#" id="undoLink" style="color:#fff;text-decoration:underline">Rückgängig</a>';
+  t.classList.add("show"); clearTimeout(t._t);
+  document.getElementById("undoLink").onclick = (e) => { e.preventDefault(); t.classList.remove("show"); fn(); };
+  t._t = setTimeout(() => t.classList.remove("show"), 6000);
+}
+
+function rebuild(prev) {
+  const arts = Object.values(graph.artists);
+  const deg = {};
+  for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
+  nodes = arts.map(a => {
+    const old = prev?.get(a.id);
+    return {
+      id: a.id, name: a.name, url: a.url, seed: !!a.seed, known: !!a.known, note: a.note || "",
+      status: a.status || "", booking: a.booking || null, active: !!a.active,
+      genres: a.genres || [], explored: !!a.explored,
+      deg: deg[a.id] || 0,
+      x: old?.x ?? (W / 2 + (Math.random() - .5) * 400),
+      y: old?.y ?? (H / 2 + (Math.random() - .5) * 400),
+      vx: old?.vx ?? 0, vy: old?.vy ?? 0,
+    };
+  });
+  nodeById.clear(); nodes.forEach(n => nodeById.set(n.id, n));
+  links = graph.edges.map(e => ({
+    a: nodeById.get(e.from), b: nodeById.get(e.to), type: e.type, weight: e.weight,
+    // strength (0..1) für die Feder
+    strength: e.type === "similar" ? (e.weight || 0.5) : Math.min(1, 0.5 + 0.12 * ((e.weight || 2) - 1)),
+  })).filter(l => l.a && l.b);
+  document.getElementById("counts").textContent = `${nodes.length} Acts · ${links.length} Kanten`;
+  reheat(1); // neues Layout durchrechnen lassen
+}
+
+// ---- Physik (einfacher Force-Layout mit Cooling, Zero-Dep) ----
+// alpha = "Energie": startet hoch, kühlt ab -> Layout kommt zur Ruhe (kein Dauer-Zittern).
+let alpha = 1;
+const ALPHA_MIN = 0.02, ALPHA_DECAY = 0.98;
+function reheat(a = 0.7) { alpha = Math.max(alpha, a); }
+
+function tick() {
+  if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
+  const REP = 5200, SPRING = 0.012, DAMP = 0.86;
+  const n = nodes.length;
+  for (let i = 0; i < n; i++) {
+    const a = nodes[i];
+    for (let j = i + 1; j < n; j++) {
+      const b = nodes[j];
+      let dx = a.x - b.x, dy = a.y - b.y;
+      let d2 = dx * dx + dy * dy || 0.01;
+      if (d2 > 160000) continue; // sehr weit entfernte ignorieren (Speed)
+      const d = Math.sqrt(d2);
+      const f = (REP / d2) * alpha;
+      const fx = (dx / d) * f, fy = (dy / d) * f;
+      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+    }
+  }
+  for (const l of links) {
+    const rest = 70 + (1 - l.strength) * 90;
+    let dx = l.b.x - l.a.x, dy = l.b.y - l.a.y;
+    const d = Math.hypot(dx, dy) || 0.01;
+    const f = (d - rest) * SPRING * alpha;
+    const fx = (dx / d) * f, fy = (dy / d) * f;
+    l.a.vx += fx; l.a.vy += fy; l.b.vx -= fx; l.b.vy -= fy;
+  }
+  for (const a of nodes) {
+    a.vx += (W / 2 - a.x) * 0.00024 * alpha;
+    a.vy += (H / 2 - a.y) * 0.00024 * alpha;
+    if (a === dragNode) { a.vx = 0; a.vy = 0; continue; }
+    a.vx *= DAMP; a.vy *= DAMP;
+    a.x += a.vx; a.y += a.vy;
+  }
+  alpha *= ALPHA_DECAY;
+}
+
+function world(p) { return { x: (p.x - view.x) / view.k, y: (p.y - view.y) / view.k }; }
+function radius(n) { return 5 + Math.min(12, Math.sqrt(n.deg) * 2.4); }
+function nodeColor(n) {
+  if (n.seed) return getCss("--accent");      // gesucht: schwarz
+  return getCss("--discovered");              // sonst grau (Status = farbiger Ring)
+}
+function getCss(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(view.x, view.y); ctx.scale(view.k, view.k);
+  const dim = document.getElementById("dimKnown").checked;
+
+  // Kanten: blau = ähnlicher Stil (similar), orange = zusammen aufgetreten (together)
+  const cSim = getCss("--edge-similar"), cTog = getCss("--edge-together");
+  for (const l of links) {
+    const hot = selected && (l.a.id === selected.id || l.b.id === selected.id);
+    const isSim = l.type === "similar";
+    ctx.strokeStyle = isSim ? cSim : cTog;
+    ctx.globalAlpha = hot ? 1 : (selected ? 0.07 : 0.55);
+    const base = isSim ? 1 : Math.min(3.4, 1 + (l.weight - 1) * 0.5); // together dicker = mehr Events
+    ctx.lineWidth = (hot ? base + 1 : base) / view.k;
+    ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Knoten
+  const fg = filterGenre.toLowerCase();
+  for (const n of nodes) {
+    const r = radius(n);
+    const sel = selected && n.id === selected.id;
+    const offFilter = fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg));
+    const faded = (!sel) && ((dim && n.status) || offFilter);
+    ctx.globalAlpha = faded ? 0.18 : 1;
+    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
+    ctx.fillStyle = nodeColor(n); ctx.fill();
+    const sCol = STATUS_COLOR[n.status];
+    if (sel) {
+      ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#000"; ctx.stroke();
+    } else if (sCol) {
+      ctx.lineWidth = 2.5 / view.k; ctx.strokeStyle = sCol; ctx.stroke(); // Ring = Status
+    } else if (hover && n.id === hover.id) {
+      ctx.lineWidth = 1.5 / view.k; ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.stroke();
+    }
+    if (n.active) { // tritt auf: kleiner grüner Punkt
+      ctx.globalAlpha = faded ? 0.18 : 1;
+      ctx.beginPath(); ctx.arc(n.x + r * 0.8, n.y - r * 0.8, 2.5 / view.k + 1, 0, 7);
+      ctx.fillStyle = "#1a9e54"; ctx.fill();
+    }
+    if (busyId === n.id) { // Lade-Indikator (pulsierender Ring)
+      const pulse = 0.4 + 0.4 * Math.sin(Date.now() / 150);
+      ctx.globalAlpha = pulse;
+      ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / view.k, 0, 7); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // Label: nur größere Knoten, oder bei Zoom / Hover / Auswahl
+    if (n.deg >= 3 || view.k > 1.3 || n === hover || (selected && n.id === selected.id)) {
+      ctx.textAlign = "center";
+      ctx.globalAlpha = faded ? 0.35 : 0.92;
+      ctx.fillStyle = getCss("--text");
+      ctx.font = `${12 / view.k}px Inter, system-ui, sans-serif`;
+      ctx.fillText(n.name, n.x, n.y + r + 12 / view.k);
+      if (n.genres && n.genres.length) { // Genres direkt unter dem Namen
+        ctx.globalAlpha = faded ? 0.3 : 0.6;
+        ctx.fillStyle = getCss("--muted");
+        ctx.font = `${9.5 / view.k}px Inter, system-ui, sans-serif`;
+        ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, n.y + r + 24 / view.k);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function loop() { tick(); draw(); requestAnimationFrame(loop); }
+
+// ---- Picking ----
+function pick(px, py) {
+  const w = world({ x: px, y: py });
+  let best = null, bestD = Infinity;
+  for (const n of nodes) {
+    const r = radius(n) + 4;
+    const d = (n.x - w.x) ** 2 + (n.y - w.y) ** 2;
+    if (d < r * r && d < bestD) { bestD = d; best = n; }
+  }
+  return best;
+}
+
+// ---- Maus ----
+// Einheitliche Canvas-Koordinaten (offsetX/Y wären relativ zum Element unter dem Cursor).
+function canvasXY(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+let dragStart = null;
+cv.addEventListener("mousedown", (e) => {
+  const p = canvasXY(e);
+  const n = pick(p.x, p.y);
+  dragging = true; moved = false;
+  if (n) { dragNode = n; }
+  cv.classList.add("grabbing");
+  dragStart = { x: p.x, y: p.y, vx: view.x, vy: view.y };
+});
+addEventListener("mousemove", (e) => {
+  const p = canvasXY(e);
+  if (!dragging) {
+    const overCanvas = p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
+    const n = overCanvas ? pick(p.x, p.y) : null;
+    if (n !== hover) { hover = n; cv.style.cursor = n ? "pointer" : "grab"; }
+    return;
+  }
+  const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
+  if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+  if (dragNode) {
+    const w = world(p);
+    dragNode.x = w.x; dragNode.y = w.y; dragNode.vx = 0; dragNode.vy = 0;
+    reheat();
+  } else {
+    view.x = dragStart.vx + dx; view.y = dragStart.vy + dy;
+  }
+});
+addEventListener("mouseup", (e) => {
+  if (dragging && !moved) {
+    const p = canvasXY(e);
+    const n = pick(p.x, p.y);
+    if (n) selectNode(n);      // einfacher Klick = nur Details rechts
+    else closePanel();
+  }
+  dragging = false; dragNode = null; cv.classList.remove("grabbing");
+});
+cv.addEventListener("dblclick", (e) => {
+  const p = canvasXY(e);
+  const n = pick(p.x, p.y);
+  if (n) { selectNode(n); exploreByName(n.name); } // Doppelklick = weiter hangeln
+});
+cv.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const p = canvasXY(e);
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  const wx = (p.x - view.x) / view.k, wy = (p.y - view.y) / view.k;
+  view.k = Math.max(0.2, Math.min(4, view.k * factor));
+  view.x = p.x - wx * view.k; view.y = p.y - wy * view.k;
+}, { passive: false });
+
+// ---- Panel ----
+function selectNode(n) {
+  selected = n;
+  document.getElementById("panel").classList.add("open");
+  document.getElementById("pName").innerHTML = n.name +
+    (n.seed ? ' <span class="badge seed">gesucht</span>' : '');
+  document.getElementById("pSub").innerHTML =
+    `${n.deg} Verbindungen` + (n.url ? ` · <a href="${n.url}" target="_blank" rel="noreferrer">Last.fm ↗</a>` : "");
+  document.getElementById("pGenres").innerHTML = (n.genres || []).slice(0, 6).map(x => `<span>${x}</span>`).join("");
+  document.getElementById("pBooking").innerHTML = bookingHtml(n);
+  document.getElementById("status").value = n.status || "";
+  document.getElementById("note").value = n.note || "";
+  if (!n.genres || !n.genres.length) loadGenres(n);  // Genres beim Anklicken nachladen
+
+  const rows = links.filter(l => l.a.id === n.id || l.b.id === n.id)
+    .map(l => ({ other: l.a.id === n.id ? l.b : l.a, w: l.weight, type: l.type }));
+  fillNeighbors("nbSimilar", rows.filter(r => r.type === "similar").sort((a, b) => b.w - a.w), r => `${(r.w * 100 | 0)}%`);
+  fillNeighbors("nbTogether", rows.filter(r => r.type !== "similar").sort((a, b) => b.w - a.w), r => `${r.w}×`);
+}
+function fillNeighbors(id, rows, tag) {
+  const el = document.getElementById(id);
+  const seen = new Set();
+  el.innerHTML = rows.filter(r => !seen.has(r.other.id) && seen.add(r.other.id))
+    .map(r => `<div class="nb" data-id="${r.other.id}"><span>${r.other.name}</span><small>${tag(r)}</small></div>`).join("")
+    || '<small style="color:var(--muted)">noch nichts geladen</small>';
+  el.querySelectorAll(".nb").forEach(d => d.onclick = () => {
+    const t = nodeById.get(d.dataset.id);
+    if (t) { centerOn(t); selectNode(t); }
+  });
+}
+function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); }
+function centerOn(n) { view.x = W / 2 - n.x * view.k; view.y = H / 2 - n.y * view.k; }
+
+function bookingHtml(n) {
+  const b = n.booking;
+  const live = n.active ? '<div class="live">tritt auf · kommende Shows</div>' : "";
+  if (!b) return live;
+  const links = [
+    b.ra && `<a href="${b.ra}" target="_blank" rel="noreferrer">RA ↗</a>`,
+    b.soundcloud && `<a href="${b.soundcloud}" target="_blank" rel="noreferrer">SoundCloud ↗</a>`,
+    b.instagram && `<a href="${b.instagram}" target="_blank" rel="noreferrer">Instagram ↗</a>`,
+    b.website && `<a href="${b.website}" target="_blank" rel="noreferrer">Website ↗</a>`,
+  ].filter(Boolean).join("");
+  const det = b.details ? `<div class="det">${b.details}</div>` : "";
+  return live + det + (links ? `<div class="links">${links}</div>` : "");
+}
+async function loadGenres(n) {
+  const res = await API.genres(n.id);
+  if (res.ok && res.genres?.length) {
+    n.genres = res.genres;
+    if (graph.artists[n.id]) graph.artists[n.id].genres = res.genres;
+    if (selected && selected.id === n.id) document.getElementById("pGenres").innerHTML = res.genres.slice(0, 6).map(x => `<span>${x}</span>`).join("");
+  }
+}
+
+document.getElementById("closePanel").onclick = closePanel;
+document.getElementById("status").onchange = async (e) => {
+  if (!selected) return;
+  const status = e.target.value;
+  const res = await API.artist({ id: selected.id, status });
+  if (res.ok) {
+    selected.status = status;
+    const a = graph.artists[selected.id]; if (a) { a.status = status; a.known = status !== ""; }
+    toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
+  }
+};
+document.getElementById("saveNote").onclick = async () => {
+  if (!selected) return;
+  const note = document.getElementById("note").value;
+  const res = await API.artist({ id: selected.id, note });
+  if (res.ok) { selected.note = note; graph.artists[selected.id].note = note; toast("Notiz gespeichert"); }
+};
+document.getElementById("expand").onclick = () => { if (selected) exploreByName(selected.name); };
+
+document.getElementById("removeAct").onclick = async () => {
+  if (!selected) return;
+  const id = selected.id;
+  const removed = { artist: graph.artists[id], edges: graph.edges.filter(e => e.from === id || e.to === id) };
+  const res = await API.remove(id);
+  if (res.error) { toast("Fehler: " + res.error); return; }
+  closePanel();
+  graph = res.graph; rebuild(new Map(nodes.map(n => [n.id, n])));
+  toastUndo(`„${removed.artist.name}" entfernt`, async () => {
+    const r = await API.restore(removed);
+    if (r.graph) { graph = r.graph; rebuild(new Map(nodes.map(n => [n.id, n]))); toast("Wiederhergestellt"); }
+  });
+};
+
+document.getElementById("dimKnown").onchange = () => {};
+document.getElementById("genreFilter").addEventListener("input", (e) => { filterGenre = e.target.value.trim(); });
+document.getElementById("export").onclick = () => { window.location.href = "/api/export.csv"; };
+
+// ---- Laden / Erkunden ----
+function slugify(s) { return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, ""); }
+
+async function reload(focusName) {
+  const prev = new Map(nodes.map(n => [n.id, n]));
+  graph = await API.graph();
+  rebuild(prev);
+  if (focusName) {
+    const k = slugify(focusName);
+    const n = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
+    if (n) { centerOn(n); selectNode(n); }
+  }
+}
+
+let busy = false;
+async function exploreByName(name) {
+  if (busy) return;
+  busy = true;
+  const k = slugify(name);
+  const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
+  busyId = node ? node.id : null; // pulsierender Lade-Ring am Knoten
+  toast(`Lade „${name}" … (ähnlicher Stil + Auftritte)`);
+  try {
+    const res = await API.explore(name);
+    if (res.error) { toast("Fehler: " + res.error); return; }
+    await reload(res.name);
+    toast(`${res.name}: ${res.similar} ähnliche · ${res.together} zusammen aufgetreten`);
+  } catch (e) {
+    toast("Fehler: " + e.message);
+  } finally { busy = false; busyId = null; }
+}
+
+document.getElementById("reset").onchange = async (e) => {
+  const scope = e.target.value;
+  e.target.value = "";
+  if (!scope) return;
+  const msg = {
+    all: "Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)",
+    discovered: "Noch nicht geöffnete Acts entfernen? Gesuchte, gebuchte/notierte Acts bleiben.",
+  }[scope];
+  if (!confirm(msg)) return;
+  const res = await API.reset(scope);
+  if (res.error) { toast("Fehler: " + res.error); return; }
+  closePanel();
+  graph = res.graph; rebuild();
+  toast("Geleert.");
+};
+
+document.getElementById("go").onclick = () => {
+  const v = document.getElementById("q").value.trim();
+  if (v) { exploreByName(v); document.getElementById("q").value = ""; }
+};
+document.getElementById("q").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("go").click(); });
+
+// ---- Start ----
+(async () => {
+  graph = await API.graph();
+  rebuild();
+  for (let i = 0; i < 120; i++) tick();
+  loop();
+})();
+</script>
+</body>
+</html>

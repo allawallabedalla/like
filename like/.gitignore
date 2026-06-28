@@ -1,0 +1,10 @@
+# API-Keys / app_ids niemals committen
+.lastfm-key
+.songkick-key
+.bandsintown-appid
+
+# lokaler Antwort-Cache (RA/Last.fm)
+cache/
+
+# lokaler Datenbestand (dein Schatz) – optional versionieren; standardmäßig ignoriert
+graph.json
