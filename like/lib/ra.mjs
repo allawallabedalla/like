@@ -52,6 +52,7 @@ export async function artistCoappear(id, { limit = 40 } = {}) {
   const d = await gql(
     `query($id:ID!,$l:Int!){ artist(id:$id){
        name contentUrl bookingDetails website soundcloud instagram facebook upcomingEventsCount
+       area{ name } country{ name }
        events(limit:$l, type:PREVIOUS){ artists{ name } genres{ name } }
      } }`,
     { id, l: limit }
@@ -75,6 +76,8 @@ export async function artistCoappear(id, { limit = 40 } = {}) {
       instagram: a.instagram || null,
       facebook: a.facebook || null,
       upcoming: a.upcomingEventsCount || 0,
+      area: a.area?.name || null,
+      country: a.country?.name || null,
     },
   };
 }

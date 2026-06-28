@@ -5,6 +5,26 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 
 ---
 
+## ✅ Erledigt (autonom, ohne Keys/Kosten)
+- Booking-Infos aus RA im Panel (Agentur/Kontakt, Region, Socials, Website)
+- „tritt auf?"-Badge (RA upcoming events) + grüner Punkt am Knoten
+- Genres für alle Acts (beim Anklicken via Last.fm-Tags nachgeladen)
+- Lade-Indikator am Knoten (pulsierender Ring)
+- Caching-Layer (RA + Last.fm, Datei-Cache mit TTL)
+- Status-Pipeline (Shortlist/angefragt/bestätigt/abgesagt) als farbige Ringe
+- Genre-Filter (Topbar), CSV-Export der markierten Acts (inkl. Kontakt/Region)
+- Karte als PNG exportieren
+- Einzel-Act löschen mit **Undo**, Datenputz-Migration alter Stände
+
+### Offen (braucht Keys/OAuth → nicht autonom)
+- Spotify Audio-Features (OAuth), Songkick/Bandsintown aktivieren (Key/app_id) — Adapter liegen bereit
+
+### Offen (größer, später)
+- Quadtree/Barnes-Hut fürs Layout (erst ab ~800 Knoten nötig), SQLite, Mobile/Touch,
+  Zeitachse, mehrere Projekte, Alias-/Dublettenabgleich
+
+---
+
 ## 🟢 Quick Wins (klein, hoher Nutzen)
 
 - **Booking-Infos aus RA ins Panel.** RAs Artist-Schema hat `bookingDetails` (Kontakt/Agentur),

@@ -108,6 +108,7 @@
     <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" />
     <label class="toggle"><input type="checkbox" id="dimKnown" /> Markierte abdunkeln</label>
     <button id="export" title="Markierte Acts als CSV">⭳ CSV</button>
+    <button id="exportPng" title="Karte als Bild (PNG)">⭳ PNG</button>
     <select id="reset" title="Ansicht leeren">
       <option value="">Leeren…</option>
       <option value="discovered">Entdeckte Acts</option>
@@ -462,6 +463,7 @@ function bookingHtml(n) {
   const b = n.booking;
   const live = n.active ? '<div class="live">tritt auf · kommende Shows</div>' : "";
   if (!b) return live;
+  const region = (b.area || b.country) ? `<div class="det">📍 ${[b.area, b.country].filter(Boolean).join(", ")}</div>` : "";
   const links = [
     b.ra && `<a href="${b.ra}" target="_blank" rel="noreferrer">RA ↗</a>`,
     b.soundcloud && `<a href="${b.soundcloud}" target="_blank" rel="noreferrer">SoundCloud ↗</a>`,
@@ -469,7 +471,7 @@ function bookingHtml(n) {
     b.website && `<a href="${b.website}" target="_blank" rel="noreferrer">Website ↗</a>`,
   ].filter(Boolean).join("");
   const det = b.details ? `<div class="det">${b.details}</div>` : "";
-  return live + det + (links ? `<div class="links">${links}</div>` : "");
+  return live + region + det + (links ? `<div class="links">${links}</div>` : "");
 }
 async function loadGenres(n) {
   const res = await API.genres(n.id);
@@ -516,6 +518,19 @@ document.getElementById("removeAct").onclick = async () => {
 document.getElementById("dimKnown").onchange = () => {};
 document.getElementById("genreFilter").addEventListener("input", (e) => { filterGenre = e.target.value.trim(); });
 document.getElementById("export").onclick = () => { window.location.href = "/api/export.csv"; };
+document.getElementById("exportPng").onclick = () => {
+  const tmp = document.createElement("canvas");
+  tmp.width = cv.width; tmp.height = cv.height;
+  const c = tmp.getContext("2d");
+  c.fillStyle = "#ffffff"; c.fillRect(0, 0, tmp.width, tmp.height);
+  c.drawImage(cv, 0, 0);
+  tmp.toBlob((blob) => {
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = u; a.download = "like-map.png"; a.click();
+    URL.revokeObjectURL(u);
+  });
+};
 
 // ---- Laden / Erkunden ----
 function slugify(s) { return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, ""); }

@@ -223,12 +223,13 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/export.csv") {
       const g = await loadGraph(GRAPH);
       const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-      const rows = [["Name", "Status", "Genres", "Aktiv", "Booking/Kontakt", "Notiz", "RA", "Soundcloud", "Instagram", "Website"]];
+      const rows = [["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz", "RA", "Soundcloud", "Instagram", "Website"]];
       for (const a of Object.values(g.artists)) {
         if (!a.status && !a.known && !a.note) continue; // nur kuratierte Acts
         const b = a.booking || {};
         rows.push([a.name, a.status || (a.known ? "shortlist" : ""), (a.genres || []).join("; "),
-          a.active ? "ja" : "", b.details || "", a.note || "", b.ra || "", b.soundcloud || "", b.instagram || "", b.website || ""]);
+          [b.area, b.country].filter(Boolean).join(", "), a.active ? "ja" : "", b.details || "", a.note || "",
+          b.ra || "", b.soundcloud || "", b.instagram || "", b.website || ""]);
       }
       const csv = "﻿" + rows.map((r) => r.map(esc).join(",")).join("\r\n");
       res.writeHead(200, { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="like-shortlist.csv"' });
