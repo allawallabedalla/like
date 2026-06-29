@@ -63,6 +63,26 @@ node server.mjs
 - Knoten: schwarz = gesucht · weiß mit Ring = bekannt/gebucht · grau = noch nicht geöffnet
 - Kanten: **blau** = ähnlicher Stil (Last.fm) · **orange** = zusammen aufgetreten (RA; dicker = mehr Events)
 
+## Statische Vorschau / GitHub Pages
+„like" braucht im Normalbetrieb den Node-Server (Last.fm-Key, RA, schreibt graph.json) —
+das läuft **nicht** auf GitHub Pages. Es gibt aber einen **read-only-Snapshot** der aktuellen
+Karte, der rein statisch funktioniert (zoomen, klicken, vergleichen, Pfade, Genre-Filter,
+Korb, PNG/CSV) — nur Live-Suche/Erweitern fehlt.
+
+```
+node export-static.mjs     # baut docs/index.html (Graph eingebettet) + docs/.nojekyll
+node serve-docs.mjs        # lokal ansehen: http://localhost:5174
+```
+
+**Auf GitHub Pages veröffentlichen** (wie bei Abseits, eigenes Site-Repo):
+1. `node export-static.mjs` ausführen.
+2. Neues GitHub-Repo anlegen (z.B. `like`).
+3. Den **Inhalt von `docs/`** ins Repo pushen (Branch `main`).
+4. Repo → Settings → Pages → Source: `main` / root → speichern.
+   (Alternativ Branch `gh-pages`.) Die `.nojekyll` verhindert Jekyll-Probleme.
+
+Bei jedem neuen Stand einfach `export-static.mjs` neu laufen lassen und pushen.
+
 ## Roadmap
 - [x] Suche + Durchklicken, zwei Kantenfarben, Genres
 - [x] „Zusammen aufgetreten" via Resident Advisor (Songkick/Bandsintown optional)
