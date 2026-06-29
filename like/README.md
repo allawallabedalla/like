@@ -24,11 +24,22 @@ Sind Key/app_id hinterlegt, werden diese Quellen automatisch mit RA zusammengef�
 *(Die früheren Wikipedia-/Auto-Lineup-Funktionen sind noch im Code (`scrape.mjs`,
 `auto.mjs`), aber aus der Oberfläche genommen.)*
 
-## Schnellstart
+## Lokal starten (Windows & Mac)
+Voraussetzung: [Node.js](https://nodejs.org) installiert.
 
-Node liegt hier unter vollem Pfad:
+- **Windows:** Doppelklick auf **`start.cmd`**
+- **macOS:** Doppelklick auf **`start.command`** (einmalig vorher im Terminal: `chmod +x start.command`)
+
+Beide starten den Server und öffnen den Browser auf http://localhost:5173 (voll funktionsfähig).
+Manuell geht immer: `node server.mjs` (optional `--open` öffnet den Browser).
+
+> **Nur `index.html` doppelklicken funktioniert NICHT** („failed to fetch") — die Live-App
+> braucht den Server. Für eine reine Doppelklick-Datei ohne Server: `docs/index.html`
+> (read-only Snapshot, siehe unten).
+
+## Schnellstart (manuell)
 ```
-"C:\Program Files\nodejs\node.exe"  ./server.mjs
+node server.mjs            # bzw. voller Pfad: "C:\Program Files\nodejs\node.exe" server.mjs
 ```
 
 ### 1. Ohne Key ausprobieren (Demo)

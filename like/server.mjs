@@ -251,6 +251,16 @@ const server = createServer(async (req, res) => {
   }
 });
 
+// Browser plattformübergreifend öffnen (Windows/macOS/Linux), wenn mit --open gestartet.
+function openBrowser(url) {
+  const cmd = process.platform === "win32" ? `start "" "${url}"`
+    : process.platform === "darwin" ? `open "${url}"`
+    : `xdg-open "${url}"`;
+  import("node:child_process").then(({ exec }) => exec(cmd, () => {}));
+}
+
 server.listen(PORT, () => {
-  console.log(`Like läuft auf http://localhost:${PORT}`);
+  const url = `http://localhost:${PORT}`;
+  console.log(`Like läuft auf ${url}`);
+  if (process.argv.includes("--open") || process.env.LIKE_OPEN) openBrowser(url);
 });
