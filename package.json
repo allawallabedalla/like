@@ -47,7 +47,6 @@
     },
     "win": {
       "icon": "build/icon.png",
-      "publisherName": "Nicolas Reis",
       "target": [
         {
           "target": "nsis",
