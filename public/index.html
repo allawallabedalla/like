@@ -276,10 +276,11 @@
   /* Onboarding-Intro (4 Slides, animierte SVG-Illustrationen — GIF-Feeling ohne GIF) */
   .introcard { position: relative; background: var(--bg); border: 1px solid var(--line);
     width: min(460px, calc(100vw - 32px)); padding: 26px 26px 18px; }
-  .introcard .iclose { position: absolute; top: 10px; right: 12px; background: none; border: none;
+  .introcard .iclose { position: absolute; top: 10px; right: 12px; z-index: 3; background: none; border: none;
     font-size: 20px; color: var(--muted); cursor: pointer; }
   .introcard .iclose:hover { color: var(--text); }
   .istage { position: relative; }
+  .iart svg { pointer-events: none; } /* Illustration ist reine Deko -> darf keine Klicks abfangen */
   .slide { display: none; }
   .slide.active { display: block; }
   .slide h3 { margin: 4px 0 8px; font-size: 20px; }
@@ -356,7 +357,7 @@
       </div>
       <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
-    <button id="themeBtn" class="iconbtn" title="Hell/Dunkel umschalten">◐</button>
+    <button id="themeBtn" class="iconbtn" title="Hell/Dunkel umschalten"></button>
     <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
     <div class="grow"></div>
@@ -505,7 +506,7 @@
             </svg>
           </div>
           <h3>Kleine Acts finden: das Radar</h3>
-          <p>Das <b>📡 Radar</b> schlägt dir <b>kleine, aufstrebende</b> Acts nahe deinem Geschmack
+          <p>Das <b>Radar</b> schlägt dir <b>kleine, aufstrebende</b> Acts nahe deinem Geschmack
           vor — mit Klartext-Begründung, 30-Sek-Hörprobe und „like!" in einem Klick.</p>
         </div>
         <!-- Slide 4: Sammeln -->
@@ -519,7 +520,7 @@
           </div>
           <h3>Sammeln &amp; exportieren</h3>
           <p>Mit <b>like!</b> wandern Favoriten in dein <b>Lineup</b> — als CSV exportierbar fürs
-          Booking. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß! 🎧</p>
+          Booking. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!</p>
         </div>
       </div>
       <div class="inav">
@@ -649,6 +650,8 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const SVG_PIN = '<svg class="ic" viewBox="0 0 16 16" style="margin-right:2px"><path d="M8 1.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 8.5 4.5 8.5s4.5-5.1 4.5-8.5A4.5 4.5 0 0 0 8 1.5zm0 6.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"/></svg>';
 const SVG_PLAY = '<svg class="ic" viewBox="0 0 16 16"><path d="M4 3l9 5-9 5z"/></svg>';
 const SVG_STOP = '<svg class="ic" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg>';
+const SVG_MOON = '<svg class="ic" viewBox="0 0 16 16"><path d="M11 10.5A5.5 5.5 0 0 1 5.5 5c0-1 .27-1.94.74-2.75A5.5 5.5 0 1 0 13.75 9.76 5.48 5.48 0 0 1 11 10.5z"/></svg>';
+const SVG_SUN = '<svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.4"/><g stroke="currentColor" stroke-width="1.4"><line x1="8" y1="1.5" x2="8" y2="3.4"/><line x1="8" y1="12.6" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="3.4" y2="8"/><line x1="12.6" y1="8" x2="14.5" y2="8"/><line x1="3.4" y1="3.4" x2="4.8" y2="4.8"/><line x1="11.2" y1="11.2" x2="12.6" y2="12.6"/><line x1="12.6" y1="3.4" x2="11.2" y2="4.8"/><line x1="4.8" y1="11.2" x2="3.4" y2="12.6"/></g></svg>';
 
 // ---- Klangprobe (30-Sekunden-Preview, Deezer/iTunes, gratis) ----
 const audio = new Audio();
@@ -1623,7 +1626,7 @@ addEventListener("keydown", (e) => {
 function applyTheme(dark) {
   document.body.classList.toggle("dark", dark);
   for (const k of Object.keys(cssCache)) delete cssCache[k];
-  document.getElementById("themeBtn").textContent = dark ? "☀" : "◐";
+  document.getElementById("themeBtn").innerHTML = dark ? SVG_SUN : SVG_MOON; // Mond=zu dunkel wechseln, Sonne=zu hell
   reheat(0.05); // ein Frame anstoßen, damit der Canvas neu färbt
   draw();
 }

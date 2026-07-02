@@ -1,6 +1,6 @@
 {
   "name": "like",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Like — Künstler-Nachbarschaften (Booking-/Entdeckungs-Tool)",
   "author": "Nicolas Reis",
   "main": "main.js",
