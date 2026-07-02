@@ -15,6 +15,8 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 - Genre-Filter (Topbar), CSV-Export der markierten Acts (inkl. Kontakt/Region)
 - Karte als PNG exportieren
 - Einzel-Act löschen mit **Undo**, Datenputz-Migration alter Stände
+- v1.7: Onboarding-Kurz-Tour beim Erststart (4 animierte SVG/CSS-Slides, kein GIF-File),
+  wieder aufrufbar über „?“
 - v1.6: Dark Mode, Graph-Backup (Export/Import mit Auto-Sicherung), Quellen-Diagnose
   (Live-Ping aller Quellen), Update-Hinweis, Ring-Auffächerung neu geladener Acts,
   gemerkte Ansicht; CI-Gate (Config-Schema-Check + Server-Smoke-Test vor dem Build)

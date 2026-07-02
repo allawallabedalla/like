@@ -84,6 +84,8 @@ Nutzung auf eigenes Risiko; fällt bei Formatänderungen still auf „aus" zurü
   welche antworten — praktisch, wenn im Betrieb mal etwas klemmt.
 - **Update-Hinweis**: die App prüft beim Start still, ob eine neuere Version verfügbar ist, und
   zeigt sie dezent neben dem Logo.
+- **Kurz-Tour**: Beim ersten Öffnen erklären 4 kurze, animierte Slides die Bedienung;
+  später jederzeit über „?“ → „Kurz-Tour ansehen“ erneut aufrufbar.
 - Neu geladene Acts **fächern sich im Ring um den angeklickten Act auf** statt sich zu überlagern;
   die letzte Ansicht (Zoom/Position) wird über Neustarts gemerkt.
 

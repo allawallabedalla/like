@@ -273,6 +273,69 @@
   .labels-list div:hover { color: var(--muted); }
   .labels-list small { color: var(--muted); }
 
+  /* Onboarding-Intro (4 Slides, animierte SVG-Illustrationen — GIF-Feeling ohne GIF) */
+  .introcard { position: relative; background: var(--bg); border: 1px solid var(--line);
+    width: min(460px, calc(100vw - 32px)); padding: 26px 26px 18px; }
+  .introcard .iclose { position: absolute; top: 10px; right: 12px; background: none; border: none;
+    font-size: 20px; color: var(--muted); cursor: pointer; }
+  .introcard .iclose:hover { color: var(--text); }
+  .istage { position: relative; }
+  .slide { display: none; }
+  .slide.active { display: block; }
+  .slide h3 { margin: 4px 0 8px; font-size: 20px; }
+  .slide p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted); }
+  .slide p b { color: var(--text); font-weight: 600; }
+  .iart { height: 148px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--line-soft); background: var(--panel-2); margin-bottom: 16px; }
+  .iart svg { width: 100%; height: 100%; }
+  .iart .nd { fill: var(--discovered); }
+  .iart .nd.seed { fill: var(--accent); }
+  .iart .e { stroke-width: 2; fill: none; }
+  .iart .e.sim { stroke: var(--edge-similar); }
+  .iart .e.tog { stroke: var(--edge-together); }
+
+  .inav { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
+  .idots { display: flex; gap: 6px; }
+  .idots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line-soft); }
+  .idots span.on { background: var(--accent); }
+  .ibtns { display: flex; gap: 8px; }
+  .ibtns button { padding: 8px 16px; }
+
+  /* Slide 1: sanftes Pulsieren des Netzes */
+  .slide.active .anim-net .nd { animation: netpulse 2.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+  .slide.active .anim-net .nd:nth-child(6) { animation-delay: .3s; }
+  .slide.active .anim-net .nd:nth-child(7) { animation-delay: .6s; }
+  .slide.active .anim-net .nd:nth-child(8) { animation-delay: .9s; }
+  @keyframes netpulse { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+
+  /* Slide 2: Nachbarn fächern im Ring auf (spiegelt das echte Verhalten) */
+  .slide.active .anim-fan .fan { opacity: 0; transform: scale(.2); transform-origin: 100px 60px; animation: fanin .5s ease-out forwards; }
+  .slide.active .anim-fan .e.f1, .slide.active .anim-fan .fan.f1 { animation-delay: .15s; }
+  .slide.active .anim-fan .e.f2, .slide.active .anim-fan .fan.f2 { animation-delay: .30s; }
+  .slide.active .anim-fan .e.f3, .slide.active .anim-fan .fan.f3 { animation-delay: .45s; }
+  .slide.active .anim-fan .e.f4, .slide.active .anim-fan .fan.f4 { animation-delay: .60s; }
+  .slide.active .anim-fan .e.f5, .slide.active .anim-fan .fan.f5 { animation-delay: .75s; }
+  .slide.active .anim-fan .e { opacity: 0; animation: edgein .4s ease-out forwards; }
+  @keyframes fanin { to { opacity: 1; transform: scale(1); } }
+  @keyframes edgein { to { opacity: .8; } }
+
+  /* Slide 3: Radar-Sweep dreht, Blips blitzen auf */
+  .slide.active .anim-radar .rring { fill: none; stroke: var(--line-soft); stroke-width: 1.5; }
+  .slide.active .anim-radar .sweep { stroke: var(--edge-together); stroke-width: 2; transform-origin: 100px 60px; animation: sweep 2.4s linear infinite; }
+  .slide.active .anim-radar .blip { fill: var(--edge-together); opacity: 0; }
+  .slide.active .anim-radar .b1 { animation: blip 2.4s linear infinite .3s; }
+  .slide.active .anim-radar .b2 { animation: blip 2.4s linear infinite 1.1s; }
+  .slide.active .anim-radar .b3 { animation: blip 2.4s linear infinite 1.8s; }
+  @keyframes sweep { to { transform: rotate(360deg); } }
+  @keyframes blip { 0% { opacity: 0; } 10% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* Slide 4: like!-Pille pulst, Stern fliegt hoch */
+  .slide.active .anim-like .likepill { fill: var(--edge-together); animation: pillpop .5s ease-out; transform-origin: center; transform-box: fill-box; }
+  .slide.active .anim-like .liketext { fill: #fff; font: 600 14px "Space Grotesk", sans-serif; }
+  .slide.active .anim-like .star { fill: var(--edge-together); font-size: 20px; animation: starfly 1.6s ease-in-out infinite; }
+  @keyframes pillpop { 0% { transform: scale(.6); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+  @keyframes starfly { 0%,100% { opacity: .4; transform: translateY(6px); } 50% { opacity: 1; transform: translateY(-4px); } }
+
   /* Statische Vorschau */
   .is-static .hideStatic { display: none !important; }
   .staticbanner { position: fixed; bottom: 14px; right: 14px; z-index: 12; background: var(--accent); color: var(--on-accent);
@@ -381,6 +444,92 @@
     <h4>Quellen-Diagnose</h4>
     <div class="hbtns"><button id="diagBtn" title="Alle Datenquellen live anpingen">Quellen testen</button></div>
     <div id="diagResult" class="diag"></div>
+    <h4>Einführung</h4>
+    <div class="hbtns"><button id="tourBtn" title="Die Kurz-Tour noch einmal ansehen">▸ Kurz-Tour ansehen</button></div>
+  </div>
+
+  <div class="modal-back" id="intro">
+    <div class="introcard">
+      <button class="iclose" id="introSkip" title="Überspringen">×</button>
+      <div class="istage">
+        <!-- Slide 1: Was ist like -->
+        <div class="slide active" data-s="0">
+          <div class="iart">
+            <svg viewBox="0 0 200 120" class="anim-net">
+              <line x1="60" y1="60" x2="110" y2="40" class="e sim"/>
+              <line x1="110" y1="40" x2="150" y2="70" class="e tog"/>
+              <line x1="60" y1="60" x2="95" y2="90" class="e sim"/>
+              <circle cx="60" cy="60" r="11" class="nd seed"/>
+              <circle cx="110" cy="40" r="8" class="nd"/>
+              <circle cx="150" cy="70" r="8" class="nd"/>
+              <circle cx="95" cy="90" r="7" class="nd"/>
+            </svg>
+          </div>
+          <h3>Willkommen bei like<span style="color:var(--edge-together)">.</span></h3>
+          <p>like zeigt Künstler:innen als klickbare <b>Karte</b>. Zwei Verbindungsarten:
+          <span style="color:var(--edge-similar)">— blau</span> = ähnlicher Stil,
+          <span style="color:var(--edge-together)">— orange</span> = zusammen aufgetreten.</p>
+        </div>
+        <!-- Slide 2: Suchen & Hangeln -->
+        <div class="slide" data-s="1">
+          <div class="iart">
+            <svg viewBox="0 0 200 120" class="anim-fan">
+              <line x1="100" y1="60" x2="55" y2="35" class="e sim f1"/>
+              <line x1="100" y1="60" x2="150" y2="35" class="e sim f2"/>
+              <line x1="100" y1="60" x2="45" y2="80" class="e tog f3"/>
+              <line x1="100" y1="60" x2="150" y2="85" class="e sim f4"/>
+              <line x1="100" y1="60" x2="100" y2="20" class="e tog f5"/>
+              <circle cx="55" cy="35" r="7" class="nd fan f1"/>
+              <circle cx="150" cy="35" r="7" class="nd fan f2"/>
+              <circle cx="45" cy="80" r="7" class="nd fan f3"/>
+              <circle cx="150" cy="85" r="7" class="nd fan f4"/>
+              <circle cx="100" cy="20" r="7" class="nd fan f5"/>
+              <circle cx="100" cy="60" r="12" class="nd seed"/>
+            </svg>
+          </div>
+          <h3>Suchen &amp; durchklicken</h3>
+          <p>Such oben einen Act, den du magst. <b>Doppelklick</b> auf einen Punkt lädt seine
+          Nachbarn — so hangelst du dich Schritt für Schritt durch die Szene.</p>
+        </div>
+        <!-- Slide 3: Radar -->
+        <div class="slide" data-s="2">
+          <div class="iart">
+            <svg viewBox="0 0 200 120" class="anim-radar">
+              <circle cx="100" cy="60" r="42" class="rring"/>
+              <circle cx="100" cy="60" r="26" class="rring"/>
+              <circle cx="100" cy="60" r="10" class="rring"/>
+              <line x1="100" y1="60" x2="142" y2="60" class="sweep"/>
+              <circle cx="70" cy="44" r="4" class="blip b1"/>
+              <circle cx="132" cy="78" r="4" class="blip b2"/>
+              <circle cx="118" cy="34" r="4" class="blip b3"/>
+            </svg>
+          </div>
+          <h3>Kleine Acts finden: das Radar</h3>
+          <p>Das <b>📡 Radar</b> schlägt dir <b>kleine, aufstrebende</b> Acts nahe deinem Geschmack
+          vor — mit Klartext-Begründung, 30-Sek-Hörprobe und „like!" in einem Klick.</p>
+        </div>
+        <!-- Slide 4: Sammeln -->
+        <div class="slide" data-s="3">
+          <div class="iart">
+            <svg viewBox="0 0 200 120" class="anim-like">
+              <rect x="66" y="42" width="68" height="26" rx="13" class="likepill"/>
+              <text x="100" y="59" text-anchor="middle" class="liketext">like!</text>
+              <text x="100" y="100" text-anchor="middle" class="star">★</text>
+            </svg>
+          </div>
+          <h3>Sammeln &amp; exportieren</h3>
+          <p>Mit <b>like!</b> wandern Favoriten in dein <b>Lineup</b> — als CSV exportierbar fürs
+          Booking. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß! 🎧</p>
+        </div>
+      </div>
+      <div class="inav">
+        <div class="idots" id="introDots"></div>
+        <div class="ibtns">
+          <button id="introBack" style="visibility:hidden">Zurück</button>
+          <button class="primary" id="introNext">Weiter</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal-back" id="keyModal">
@@ -1440,6 +1589,35 @@ document.getElementById("labelBtn").onclick = async () => {
 };
 document.getElementById("dimBig").onchange = () => {};
 
+// ---- Onboarding-Intro (4 animierte Slides) ----
+const introEl = document.getElementById("intro");
+const introSlides = [...introEl.querySelectorAll(".slide")];
+let introIdx = 0;
+const introDots = document.getElementById("introDots");
+introDots.innerHTML = introSlides.map(() => "<span></span>").join("");
+const introNextBtn = document.getElementById("introNext");
+const introBackBtn = document.getElementById("introBack");
+function renderIntro() {
+  introSlides.forEach((s, i) => s.classList.toggle("active", i === introIdx));
+  [...introDots.children].forEach((d, i) => d.classList.toggle("on", i === introIdx));
+  introBackBtn.style.visibility = introIdx === 0 ? "hidden" : "visible";
+  introNextBtn.textContent = introIdx === introSlides.length - 1 ? "Los geht's" : "Weiter";
+}
+function openIntro() { introIdx = 0; renderIntro(); introEl.classList.add("show"); }
+function closeIntro() { introEl.classList.remove("show"); try { localStorage.setItem("like_intro_seen", "1"); } catch {} }
+introNextBtn.onclick = () => { if (introIdx < introSlides.length - 1) { introIdx++; renderIntro(); } else closeIntro(); };
+introBackBtn.onclick = () => { if (introIdx > 0) { introIdx--; renderIntro(); } };
+document.getElementById("introSkip").onclick = closeIntro;
+introEl.addEventListener("mousedown", (e) => { if (e.target === introEl) closeIntro(); });
+document.getElementById("tourBtn").onclick = () => { helpEl.classList.remove("show"); openIntro(); };
+// Tastatur im Intro (capture, damit die App-Esc-Logik nicht dazwischenfunkt)
+addEventListener("keydown", (e) => {
+  if (!introEl.classList.contains("show")) return;
+  if (e.key === "Escape") { e.stopPropagation(); closeIntro(); }
+  else if (e.key === "ArrowRight" || e.key === "Enter") { e.stopPropagation(); introNextBtn.click(); }
+  else if (e.key === "ArrowLeft") { e.stopPropagation(); introBackBtn.click(); }
+}, true);
+
 // ---- Dark Mode ----
 // Farben werden im Canvas via getCss() gecacht -> beim Umschalten Cache leeren, neu zeichnen.
 function applyTheme(dark) {
@@ -1543,8 +1721,16 @@ async function checkKey() {
   try {
     const h = await fetch("/api/health").then(r => r.json());
     if (h.version) document.getElementById("ver").textContent = "v" + h.version;
-    if (!h.key) openKeyModal();
+    // Key-Dialog nicht gleichzeitig mit der Intro-Tour aufpoppen lassen
+    if (!h.key && !introEl.classList.contains("show")) openKeyModal();
   } catch {}
+}
+
+// Beim allerersten Start die Kurz-Tour zeigen (danach über „?" wieder aufrufbar).
+function maybeShowIntro() {
+  if (STATIC) return;
+  let seen = null; try { seen = localStorage.getItem("like_intro_seen"); } catch {}
+  if (!seen) openIntro();
 }
 
 // ---- Start ----
@@ -1564,6 +1750,7 @@ async function checkKey() {
   let savedView = null; try { savedView = JSON.parse(localStorage.getItem("like_view") || "null"); } catch {}
   if (savedView && Number.isFinite(savedView.k) && nodes.length) view = savedView; else fitAll();
   loop();
+  maybeShowIntro();
   checkKey();
   startupTasks();
 })();
