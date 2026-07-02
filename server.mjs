@@ -19,10 +19,11 @@ import { fetchLineup } from "./lib/wikipedia.mjs";
 import { discoverAndScrape } from "./lib/discover.mjs";
 import { coAppearances } from "./lib/coappear.mjs";
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
-import { relatedArtists, topTrackPreview } from "./lib/deezer.mjs";
+import { relatedArtists, topTrackPreview, artistByName as dzArtist } from "./lib/deezer.mjs";
 import { previewByName } from "./lib/itunes.mjs";
-import { labelmates } from "./lib/musicbrainz.mjs";
+import { labelmates, artistByName as mbArtist } from "./lib/musicbrainz.mjs";
 import { searchBand, discoverTag } from "./lib/bandcamp.mjs";
+import { sharedBills, hasKey as hasSetlistKey } from "./lib/setlistfm.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -99,6 +100,31 @@ const server = createServer(async (req, res) => {
       let key = !!process.env.LASTFM_API_KEY;
       if (!key) { try { await access(join(DATA_DIR, ".lastfm-key")); key = true; } catch {} }
       return send(res, 200, { ok: true, key, version: APP_VERSION });
+    }
+
+    // Quellen-Diagnose: alle externen Datenquellen live anpingen (mit Testkünstler),
+    // damit man im echten Betrieb sofort sieht, welche Quelle klemmt.
+    if (req.method === "POST" && url.pathname === "/api/diag") {
+      const T = "Radiohead"; // bei allen Quellen bekannt
+      const probe = async (name, fn, note = "") => {
+        const t0 = Date.now();
+        try {
+          const ok = await fn();
+          return { name, status: ok ? "ok" : "leer", ms: Date.now() - t0, note };
+        } catch (e) {
+          return { name, status: "fehler", ms: Date.now() - t0, note: String(e.message || e).slice(0, 80) };
+        }
+      };
+      const setlistNote = (await hasSetlistKey()) ? "" : "kein Key (optional)";
+      const sources = await Promise.all([
+        probe("Last.fm", async () => (await getArtistInfo(T))?.listeners > 0),
+        probe("Deezer", async () => !!(await dzArtist(T))),
+        probe("MusicBrainz", async () => !!(await mbArtist(T))),
+        probe("Bandcamp", async () => { await discoverTag("ambient", { limit: 1 }); return true; }),
+        probe("iTunes", async () => !!(await previewByName(T))),
+        probe("Setlist.fm", async () => (await hasSetlistKey()) ? !!(await sharedBills(T)) : true, setlistNote),
+      ]);
+      return send(res, 200, { ok: true, sources });
     }
 
     // Key aus der App heraus speichern (Erststart ohne eingebetteten Key).
@@ -211,6 +237,26 @@ const server = createServer(async (req, res) => {
       }
       await saveGraph(GRAPH, g);
       return send(res, 200, { ok: true, graph: materialize(g) });
+    }
+
+    // Ganzen Graphen importieren (Backup wiederherstellen / auf anderen Rechner mitnehmen).
+    // Der bisherige Stand wird vorher als graph.bak.json gesichert — kein Datenverlust.
+    if (req.method === "POST" && url.pathname === "/api/import") {
+      const body = await readBody(req);
+      const incoming = body?.graph ?? body;
+      if (!incoming || typeof incoming !== "object" || typeof incoming.artists !== "object" || !Array.isArray(incoming.edges)) {
+        return send(res, 400, { error: "Keine gültige Graph-Datei (erwartet { artists, edges })." });
+      }
+      try {
+        const cur = await readFile(GRAPH, "utf8");
+        await writeFile(join(DATA_DIR, "graph.bak.json"), cur, "utf8"); // Sicherung des alten Stands
+      } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
+      const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
+        events: incoming.events || [], sources: incoming.sources || [] };
+      await saveGraph(GRAPH, g);
+      radarCache = null;
+      const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
+      return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
     }
 
     if (req.method === "POST" && url.pathname === "/api/auto") {

@@ -18,7 +18,21 @@ permissions:
   contents: write
 
 jobs:
+  # Schnelles Vorab-Gate: electron-builder-Config gegen Schema prüfen + Server-Smoke-Test.
+  # Fängt Config-/Boot-Fehler ab, bevor teure Runner Electron herunterladen und bauen.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+
   build:
+    needs: check
     strategy:
       fail-fast: false
       matrix:

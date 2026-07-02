@@ -75,6 +75,18 @@ Quellen-Hinweis: Deezer und MusicBrainz sind offizielle, offene APIs. Bandcamp l
 (wie RA) über inoffizielle öffentliche Endpoints — nur lesend, gedrosselt, gecacht,
 Nutzung auf eigenes Risiko; fällt bei Formatänderungen still auf „aus" zurück.
 
+## Mehr Komfort
+- **Dark Mode** (Kopfzeile, ◐): hell/dunkel umschalten, Wahl wird gemerkt (Standard folgt dem System).
+- **Graph-Backup** (Hilfe „?" → Daten): den ganzen Bestand als JSON exportieren und wieder
+  importieren — z.B. um ihn auf einen anderen Rechner mitzunehmen. Beim Import wird der alte
+  Stand automatisch als `graph.bak.json` gesichert.
+- **Quellen-Diagnose** (Hilfe „?" → Quellen testen): pingt alle Datenquellen live an und zeigt,
+  welche antworten — praktisch, wenn im Betrieb mal etwas klemmt.
+- **Update-Hinweis**: die App prüft beim Start still, ob eine neuere Version verfügbar ist, und
+  zeigt sie dezent neben dem Logo.
+- Neu geladene Acts **fächern sich im Ring um den angeklickten Act auf** statt sich zu überlagern;
+  die letzte Ansicht (Zoom/Position) wird über Neustarts gemerkt.
+
 ## Lokal starten (Windows & Mac)
 Voraussetzung: [Node.js](https://nodejs.org) installiert.
 
