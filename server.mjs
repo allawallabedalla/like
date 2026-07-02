@@ -277,8 +277,10 @@ function openBrowser(url) {
   import("node:child_process").then(({ exec }) => exec(cmd, () => {}));
 }
 
-server.listen(PORT, () => {
-  const url = `http://localhost:${PORT}`;
+// nur lokal binden — der Server (inkl. eingebettetem Last.fm-Key) soll nicht im
+// LAN erreichbar sein. PORT=0 lässt das OS einen freien Port wählen (Electron nutzt das).
+server.listen(PORT, "127.0.0.1", () => {
+  const url = `http://127.0.0.1:${server.address().port}`;
   console.log(`Like läuft auf ${url}`);
   if (process.argv.includes("--open") || process.env.LIKE_OPEN) openBrowser(url);
 });

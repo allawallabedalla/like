@@ -1,36 +1,50 @@
-const { app, BrowserWindow } = require("electron");
-const { spawn, exec } = require("child_process");
+const { app, BrowserWindow, dialog } = require("electron");
+const { spawn } = require("child_process");
 const http = require("http");
+const net = require("net");
 const fs = require("fs");
 const path = require("path");
 
-let server;
+let server = null;
 let mainWindow = null;
+let serverUrl = null;
 
 // verhindert doppelte App-Instanzen (wichtig!)
 const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-}
+if (!gotTheLock) app.quit();
 
-// Port ggf. freimachen (verhindert EADDRINUSE)
-function killPort(port) {
-  exec(`lsof -ti:${port} | xargs kill -9`, () => {});
-}
-
-// wartet bis Server wirklich läuft
-function waitForServer(url, cb) {
-  const check = () => {
-    http.get(url, () => cb()).on("error", () => {
-      setTimeout(check, 200);
+// Freien Port vom Betriebssystem geben lassen — plattformübergreifend und ohne
+// den früheren "lsof/kill"-Hack (der nur auf macOS/Linux existierte und auf
+// Windows still fehlschlug). Kein fester Port 5173 mehr = keine EADDRINUSE-Kollision.
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.on("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
     });
-  };
-  check();
+  });
+}
+
+// Wartet, bis der lokale Server wirklich antwortet (mit Timeout statt Endlosschleife).
+function waitForServer(url, { tries = 100, delay = 150 } = {}) {
+  return new Promise((resolve, reject) => {
+    let n = 0;
+    const check = () => {
+      const req = http.get(url, (res) => { res.resume(); resolve(); });
+      req.on("error", () => {
+        if (++n >= tries) return reject(new Error("Server nicht erreichbar (Timeout)"));
+        setTimeout(check, delay);
+      });
+    };
+    check();
+  });
 }
 
 // Nutzdaten (graph.json, cache/, API-Key) leben außerhalb des App-Bundles, in einem
 // eigenen "data"-Unterordner von userData — sonst gehen sie bei jedem Rebuild verloren,
-// der Last.fm-Key würde im DMG landen, und unser "cache/" würde auf APFS
+// der Last.fm-Key würde im Build landen, und unser "cache/" würde auf APFS
 // (case-insensitive) mit Electrons eigenem "Cache"-Ordner kollidieren.
 function ensureDataDir() {
   const dataDir = path.join(app.getPath("userData"), "data");
@@ -39,7 +53,8 @@ function ensureDataDir() {
 }
 
 // Last.fm-Key kommt fertig mit der App (steht nicht im öffentlichen Git-Repo,
-// nur im gebauten .dmg) — Freund:innen müssen nichts eintragen, um zu suchen.
+// wird beim Bauen aus dem GitHub-Secret in .lastfm-key geschrieben) — Tester:innen
+// müssen nichts eintragen, um zu suchen.
 function bundledApiKey() {
   try {
     return fs.readFileSync(path.join(__dirname, ".lastfm-key"), "utf8").trim() || null;
@@ -48,66 +63,73 @@ function bundledApiKey() {
   }
 }
 
-function createWindow() {
+function createWindow(url) {
   if (mainWindow) return;
-
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     title: "Like",
     backgroundColor: "#ffffff",
-    webPreferences: {
-      contextIsolation: true
-    }
+    webPreferences: { contextIsolation: true },
   });
-
-  mainWindow.loadURL("http://localhost:5173");
-
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-    if (server) server.kill();
-  });
+  mainWindow.loadURL(url);
+  mainWindow.on("closed", () => { mainWindow = null; });
 }
 
-app.whenReady().then(() => {
-  // verhindert Port-Konflikte
-  killPort(5173);
-
+async function start() {
+  const port = await getFreePort();
+  serverUrl = `http://127.0.0.1:${port}`;
   const dataDir = ensureDataDir();
   const apiKey = bundledApiKey();
 
-  // startet Server über Electrons eingebautes Node (kein System-Node nötig,
-  // sonst schlägt spawn("node") fehl, weil GUI-Starts kein Homebrew-PATH haben)
+  // Server über Electrons eingebautes Node starten (kein System-Node nötig — sonst
+  // schlägt spawn("node") fehl, weil GUI-Starts keinen Homebrew-/PATH-Kontext haben).
   server = spawn(process.execPath, ["server.mjs"], {
     cwd: __dirname,
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
+      PORT: String(port),
       LIKE_DATA_DIR: dataDir,
-      ...(apiKey ? { LASTFM_API_KEY: apiKey } : {})
+      ...(apiKey ? { LASTFM_API_KEY: apiKey } : {}),
     },
-    stdio: "inherit"
+    stdio: "inherit",
   });
 
   server.on("error", (err) => {
-    console.error("Server konnte nicht gestartet werden:", err);
+    dialog.showErrorBox("Like", "Server konnte nicht gestartet werden:\n" + err.message);
   });
 
-  // wartet sauber auf Server
-  waitForServer("http://localhost:5173", createWindow);
-});
+  try {
+    await waitForServer(serverUrl);
+    createWindow(serverUrl);
+  } catch (err) {
+    dialog.showErrorBox("Like", "Der lokale Server ist nicht gestartet.\n" + err.message);
+    app.quit();
+  }
+}
 
-app.on("before-quit", () => {
-  if (server) server.kill();
-});
+app.whenReady().then(start);
 
-app.on("window-all-closed", () => {
-  if (server) server.kill();
-  app.quit();
-});
-
+// zweite Instanz -> bestehendes Fenster in den Vordergrund holen
 app.on("second-instance", () => {
   if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
   }
+});
+
+// macOS: Klick aufs Dock-Icon öffnet das Fenster wieder (Server läuft weiter)
+app.on("activate", () => {
+  if (!mainWindow && serverUrl) createWindow(serverUrl);
+});
+
+// Fenster zu: auf Windows/Linux beenden; auf macOS App im Dock lassen (Konvention)
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
+
+// beim Beenden den Server-Kindprozess sauber stoppen
+app.on("before-quit", () => {
+  if (server) { server.kill(); server = null; }
 });

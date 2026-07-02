@@ -1,0 +1,73 @@
+name: Build & Release
+
+# Baut die Downloads auf echten Windows- + macOS-Runnern und hängt sie an ein
+# GitHub-Release. Auslöser: ein Tag-Push wie "v1.2.0". Manuell testbar über
+# "Run workflow" (dann landen die Dateien nur als Build-Artefakte, ohne Release).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: "dist:mac"
+            pattern: "dist/*.dmg"
+          - os: windows-latest
+            script: "dist:win"
+            pattern: "dist/*.exe"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Last.fm-Key aus dem Repo-Secret in .lastfm-key schreiben, damit die
+      # gebauten Apps out-of-the-box suchen können. Fehlt das Secret, wird die
+      # App trotzdem gebaut (Nutzer bringt dann eigenen Key mit).
+      - name: Last.fm-Key einbetten
+        shell: bash
+        env:
+          LASTFM_KEY: ${{ secrets.LASTFM_KEY }}
+        run: |
+          if [ -n "$LASTFM_KEY" ]; then
+            printf '%s' "$LASTFM_KEY" > .lastfm-key
+            echo "Key eingebettet."
+          else
+            echo "Kein LASTFM_KEY-Secret gesetzt — App wird ohne eingebetteten Key gebaut."
+          fi
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run ${{ matrix.script }}
+        env:
+          # macOS ad-hoc-signiert via scripts/afterSign.js — electron-builders
+          # eigene Signatursuche (Developer-ID) hier abschalten.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      # Immer als Build-Artefakt ablegen (auch bei manuellem Lauf ohne Tag).
+      - name: Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: like-${{ matrix.os }}
+          path: ${{ matrix.pattern }}
+          if-no-files-found: error
+
+      # Nur bei Tag-Push: an das Release des Tags anhängen.
+      - name: An Release anhängen
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.pattern }}
+          fail_on_unmatched_files: true

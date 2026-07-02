@@ -3,10 +3,16 @@
 Persönliches Booking-/Kurations-Tool. Findet ähnliche Musiker\*innen und zeigt sie als
 klickbare Karte. **Zero Dependencies** — nur Node (eingebautes `fetch` + `http`), kein npm install.
 
-## Mac-App herunterladen
-**[Neueste Version (Apple Silicon, .dmg)](https://github.com/allawallabedalla/like/releases/latest)**
-— App ist nicht signiert: nach dem Öffnen der `.dmg` per Rechtsklick auf `Like.app` → „Öffnen" bestätigen.
-Für die Live-Suche braucht's einen kostenlosen [Last.fm-API-Key](https://www.last.fm/api/account/create).
+## App herunterladen (Windows & Mac)
+**[Neueste Version →](https://github.com/allawallabedalla/like/releases/latest)** — eigenständige
+Downloads, **kein Node.js nötig** (Server + Browser sind eingebaut):
+
+- **Windows:** `Like-<version>-portable.exe` — Doppelklick, läuft ohne Installation.
+  Beim ersten Start warnt SmartScreen (unsigniert) → „Weitere Informationen" → „Trotzdem ausführen".
+- **macOS:** `Like-<version>-universal.dmg` — läuft auf Apple Silicon **und** Intel.
+  Nicht signiert: nach dem Öffnen der `.dmg` per Rechtsklick auf `Like.app` → „Öffnen" bestätigen.
+
+Der Last.fm-Key ist in den Release-Builds eingebettet — Suche funktioniert sofort, ohne eigenen Key.
 
 ## So funktioniert's
 **Einen Act suchen → durch das Netz klicken.** Jeder Klick auf einen Punkt lädt seine
@@ -98,6 +104,27 @@ node serve-docs.mjs        # lokal ansehen: http://localhost:5174
    (Alternativ Branch `gh-pages`.) Die `.nojekyll` verhindert Jekyll-Probleme.
 
 Bei jedem neuen Stand einfach `export-static.mjs` neu laufen lassen und pushen.
+
+## Neue Downloads bauen (Release)
+Die `.exe` und `.dmg` werden **automatisch von GitHub Actions** auf echten Windows-/Mac-Runnern
+gebaut (`.github/workflows/release.yml`) — du brauchst dafür weder einen Mac noch eine lokale
+Toolchain.
+
+**Einmalig einrichten:** Repo → Settings → Secrets and variables → Actions → *New repository secret*
+`LASTFM_KEY` = dein Last.fm-Key (wird beim Bauen in `.lastfm-key` geschrieben und in die Apps
+eingebettet). Ohne das Secret wird trotzdem gebaut, dann ohne eingebetteten Key.
+
+**Release auslösen:** einen Versions-Tag pushen —
+```
+git tag v1.2.0
+git push origin v1.2.0
+```
+Actions baut beide Plattformen und hängt `Like-1.2.0-portable.exe` + `Like-1.2.0-universal.dmg`
+an das GitHub-Release des Tags. (Über *Actions → Build & Release → Run workflow* lässt sich der
+Bau auch manuell testen — die Dateien landen dann als Build-Artefakte, ohne Release.)
+
+**Lokal bauen** (optional, falls gewünscht): `npm ci` und dann `npm run dist:win` (auf Windows)
+bzw. `npm run dist:mac` (auf einem Mac). Ergebnis liegt in `dist/`.
 
 ## Roadmap
 - [x] Suche + Durchklicken, zwei Kantenfarben, Genres
