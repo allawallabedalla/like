@@ -8,6 +8,7 @@ cache/
 
 # lokaler Datenbestand (dein Schatz) – optional versionieren; standardmäßig ignoriert
 graph.json
+stats.json
 
 # Build-Output / lokale Tool-Configs, nicht Teil des Quellcodes
 node_modules/

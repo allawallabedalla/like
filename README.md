@@ -35,6 +35,26 @@ Sind Key/app_id hinterlegt, werden diese Quellen automatisch mit RA zusammengef�
 *(Die früheren Wikipedia-/Auto-Lineup-Funktionen sind noch im Code (`scrape.mjs`,
 `auto.mjs`), aber aus der Oberfläche genommen.)*
 
+## Kleine Acts finden: Radar, Hörerzahlen, Label-Umfeld
+**like** ist auf das Entdecken *kleiner* Künstler:innen ausgelegt — alles ohne laufende Kosten:
+
+- **Hörerzahlen + Momentum**: Beim Anklicken lädt jeder Act seine Last.fm-Hörerzahl.
+  Die Zahlen werden lokal historisiert (`stats.json`) — nach ein paar Wochen zeigt das
+  Panel Wachstum („▲ +38 %/Monat") = Acts im Aufwind, bevor es alle wissen.
+- **📡 Radar** (Topbar): Geheimtipp-Score aus Nähe zu deinen Likes × Kleinheit ×
+  Momentum × Boni (zusammen aufgetreten, tritt auf). Kandidaten kommen aus deinem
+  Graphen, von **Deezer** (Related Artists inkl. Fananzahl, ganz ohne Key) und aus
+  frischen **Bandcamp**-Releases in deinen dominanten Genres. Jeder Vorschlag mit
+  Klartext-Begründung.
+- **Label-Umfeld** (Panel): Labels des Acts + wer dort noch veröffentlicht — via
+  **MusicBrainz** (offene Daten). Kleine Labels signen kleine Acts.
+- **Ort**: Fehlt die RA-Region, springt die Bandcamp-Ortsangabe ein (📍 im Panel).
+- **„Große dämpfen"** (Topbar): blendet Acts mit ≥20k Hörern aus — nur die Kleinen leuchten.
+
+Quellen-Hinweis: Deezer und MusicBrainz sind offizielle, offene APIs. Bandcamp läuft
+(wie RA) über inoffizielle öffentliche Endpoints — nur lesend, gedrosselt, gecacht,
+Nutzung auf eigenes Risiko; fällt bei Formatänderungen still auf „aus" zurück.
+
 ## Lokal starten (Windows & Mac)
 Voraussetzung: [Node.js](https://nodejs.org) installiert.
 

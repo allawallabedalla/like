@@ -14,10 +14,14 @@ import { readFile, writeFile, access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, mergeSimilar, materialize, addEvent, emptyGraph, upsertArtist, upsertEdge } from "./lib/store.mjs";
-import { getSimilar, getTopTags, searchArtists, clearKeyCache } from "./lib/lastfm.mjs";
+import { getSimilar, getTopTags, getArtistInfo, searchArtists, clearKeyCache } from "./lib/lastfm.mjs";
 import { fetchLineup } from "./lib/wikipedia.mjs";
 import { discoverAndScrape } from "./lib/discover.mjs";
 import { coAppearances } from "./lib/coappear.mjs";
+import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
+import { relatedArtists } from "./lib/deezer.mjs";
+import { labelmates } from "./lib/musicbrainz.mjs";
+import { searchBand, discoverTag } from "./lib/bandcamp.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -238,6 +242,160 @@ const server = createServer(async (req, res) => {
       if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
       await saveGraph(GRAPH, g);
       return send(res, 200, { ok: true, artist: a });
+    }
+
+    // Act-Steckbrief beim Anklicken nachladen: Genres + Hörerzahl (+ Momentum-
+    // Snapshot) + Bandcamp-Ort als Fallback, wenn RA keine Region kennt.
+    if (req.method === "POST" && url.pathname === "/api/enrich") {
+      const { id } = await readBody(req);
+      const g = await loadGraph(GRAPH);
+      const a = g.artists[id];
+      if (!a) return send(res, 404, { error: "unbekannt" });
+      let changed = false;
+      if (!a.genres || !a.genres.length) {
+        try { const t = await getTopTags(a.name); if (t.length) { a.genres = t; changed = true; } } catch {}
+      }
+      let growth = null;
+      try {
+        const info = await getArtistInfo(a.name);
+        if (info?.listeners) {
+          if (a.listeners !== info.listeners) { a.listeners = info.listeners; changed = true; }
+          const stats = await loadStats();
+          if (addSnapshot(stats, id, info.listeners)) await saveStats(stats);
+          growth = growthPerMonth(stats, id);
+        }
+      } catch { /* kein Key / Act unbekannt -> ohne Hörerzahl weiter */ }
+      if (!a.booking?.area && !a.bcLocation) {
+        try { const b = await searchBand(a.name); if (b?.location) { a.bcLocation = b.location; a.bcUrl = b.url; changed = true; } } catch {}
+      }
+      if (changed) await saveGraph(GRAPH, g);
+      return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+    }
+
+    // Label-Umfeld eines Acts (MusicBrainz, offene Daten): Labels + Roster-Kolleg:innen.
+    if (req.method === "POST" && url.pathname === "/api/labelmates") {
+      const { id } = await readBody(req);
+      const g = await loadGraph(GRAPH);
+      const a = g.artists[id];
+      if (!a) return send(res, 404, { error: "unbekannt" });
+      try {
+        const r = await labelmates(a.name);
+        return send(res, 200, { ok: true, labels: r.labels, mates: r.mates });
+      } catch (err) {
+        return send(res, 502, { error: err.message });
+      }
+    }
+
+    // Radar: Geheimtipp-Score 2.0 — kleine Acts nah an deinen Likes, mit Begründung.
+    // Kandidaten: (a) unerforschte Graph-Nachbarn deiner Likes, (b) Deezer-Related
+    // deiner Top-Likes (auch Acts, die noch gar nicht auf der Karte sind),
+    // (c) frische Bandcamp-Releases in deinen dominanten Genres.
+    if (req.method === "POST" && url.pathname === "/api/radar") {
+      const { limit = 10, extraLikes = [] } = await readBody(req);
+      const g = await loadGraph(GRAPH);
+      const extra = new Set(extraLikes);
+      const likes = new Set(Object.values(g.artists)
+        .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
+        .map((a) => a.id));
+      if (!likes.size) return send(res, 400, { error: "Erst ein paar Acts suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann." });
+
+      const norm = (s) => String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const inGraph = new Set(Object.values(g.artists).map((a) => norm(a.name)));
+      const likeName = (id) => g.artists[id]?.name || id;
+
+      // (a) Graph-Nachbarn: Nähe = Summe der Kantengewichte zu Likes
+      const cand = new Map();
+      for (const e of g.edges) {
+        const [l, o] = likes.has(e.from) && !likes.has(e.to) ? [e.from, e.to]
+                     : likes.has(e.to) && !likes.has(e.from) ? [e.to, e.from] : [null, null];
+        if (!o || !g.artists[o]) continue;
+        const c = cand.get(o) ?? { id: o, closeness: 0, together: false, vias: new Set() };
+        c.closeness += e.type === "similar" ? (e.weight || 0.5) : Math.min(1, 0.4 + 0.1 * (e.weight || 1));
+        if (e.type !== "similar") c.together = true;
+        c.vias.add(likeName(l));
+        cand.set(o, c);
+      }
+      const graphCands = [...cand.values()].sort((x, y) => y.closeness - x.closeness).slice(0, 30);
+
+      // Hörerzahlen für die Top-Kandidaten (gecacht; Snapshots fürs Momentum)
+      const stats = await loadStats();
+      let statsChanged = false, graphChanged = false;
+      for (const c of graphCands.slice(0, 25)) {
+        const a = g.artists[c.id];
+        try {
+          const info = await getArtistInfo(a.name);
+          if (info?.listeners) {
+            if (a.listeners !== info.listeners) { a.listeners = info.listeners; graphChanged = true; }
+            if (addSnapshot(stats, c.id, info.listeners)) statsChanged = true;
+          }
+        } catch { /* ohne Hörerzahl weiter */ }
+      }
+      if (statsChanged) await saveStats(stats);
+      if (graphChanged) await saveGraph(GRAPH, g);
+
+      // (b) Deezer-Related der Top-4-Likes (nach Grad) — bringt NEUE Namen mit Fananzahl
+      const deg = {};
+      for (const e of g.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
+      const topLikes = [...likes].sort((a, b) => (deg[b] || 0) - (deg[a] || 0)).slice(0, 4);
+      const dzCands = [];
+      const seenNew = new Set();
+      for (const id of topLikes) {
+        try {
+          for (const r of await relatedArtists(likeName(id), { limit: 20 })) {
+            const k = norm(r.name);
+            if (inGraph.has(k) || seenNew.has(k)) continue;
+            seenNew.add(k);
+            dzCands.push({ name: r.name, fans: r.fans, link: r.link, via: likeName(id) });
+          }
+        } catch { /* Deezer down -> weiter */ }
+      }
+
+      // (c) Bandcamp "new arrivals" in den dominanten Genres deiner Likes
+      const genreCount = new Map();
+      for (const id of likes) for (const gn of g.artists[id]?.genres || []) {
+        const k = gn.toLowerCase(); genreCount.set(k, (genreCount.get(k) || 0) + 1);
+      }
+      const topGenres = [...genreCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k);
+      const bcCands = [];
+      for (const tag of topGenres) {
+        const items = await discoverTag(tag, { limit: 8 });
+        for (const it of items) {
+          const k = norm(it.artist);
+          if (inGraph.has(k) || seenNew.has(k)) continue;
+          seenNew.add(k);
+          bcCands.push(it);
+        }
+      }
+
+      // Scoring: Nähe × Kleinheit × Momentum × Boni — mit Klartext-Begründung
+      const small = (n) => n == null ? 0.5 : n < 3000 ? 1 : n < 10000 ? 0.85 : n < 30000 ? 0.65 : n < 100000 ? 0.4 : n < 300000 ? 0.2 : 0.08;
+      const fmtNum = (n) => n >= 1000 ? (n / 1000).toFixed(n < 10000 ? 1 : 0) + "k" : String(n);
+      const out = [];
+      for (const c of graphCands) {
+        const a = g.artists[c.id];
+        const growth = growthPerMonth(stats, c.id);
+        const mom = growth == null ? 1 : growth >= 25 ? 1.25 : growth >= 10 ? 1.12 : growth < 0 ? 0.92 : 1;
+        const score = Math.min(c.closeness, 3) / 3 * small(a.listeners) * mom * (c.together ? 1.15 : 1) * (a.active ? 1.1 : 1);
+        const reasons = [`nah an ${[...c.vias].slice(0, 2).join(" & ")}`];
+        if (a.listeners != null) reasons.push(`${fmtNum(a.listeners)} Hörer`);
+        if (growth != null && growth >= 10) reasons.push(`▲ +${growth}%/Monat`);
+        if (c.together) reasons.push("hat mit deinem Like gespielt");
+        if (a.active) reasons.push("tritt auf");
+        out.push({ name: a.name, id: c.id, inGraph: true, listeners: a.listeners ?? null, growth, score, reasons, url: a.bcUrl || a.url || null });
+      }
+      for (const d of dzCands) {
+        const reasons = [`Deezer-Nachbar von ${d.via}`];
+        if (d.fans != null) reasons.push(`${fmtNum(d.fans)} Fans`);
+        reasons.push("noch nicht auf deiner Karte");
+        out.push({ name: d.name, id: null, inGraph: false, fans: d.fans, score: 0.55 * small(d.fans), reasons, url: d.link });
+      }
+      for (const b of bcCands) {
+        out.push({ name: b.artist, id: null, inGraph: false, score: 0.45,
+          reasons: [`frisch auf Bandcamp (${b.genre})`, b.title ? `Release: „${b.title}"` : null, "noch nicht auf deiner Karte"].filter(Boolean),
+          url: b.url });
+      }
+      out.sort((x, y) => y.score - x.score);
+      return send(res, 200, { ok: true, likes: likes.size, radar: out.slice(0, Math.max(3, Math.min(30, limit))) });
     }
 
     // Genres für einen bereits vorhandenen Act nachladen (Last.fm-Tags) — beim Anklicken.

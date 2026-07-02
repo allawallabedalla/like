@@ -195,6 +195,25 @@
   .modal .row { display: flex; gap: 8px; margin-top: 14px; }
   .modal .row button { flex: 1; border-left: 1px solid var(--line-soft); }
 
+  /* Radar-Panel (Geheimtipp-Score: kleine Acts nah an deinen Likes) */
+  .radarbox { position: fixed; top: 60px; left: 14px; z-index: 34; background: var(--bg); border: 1px solid var(--line);
+    width: 340px; max-height: calc(100vh - 80px); overflow-y: auto; display: none; font-size: 13px; }
+  .radarbox.show { display: block; }
+  .radarbox h3 { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center; }
+  .radarbox h3 button { border: none; background: none; font-size: 16px; padding: 0 4px; }
+  .radarbox .rentry { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+  .radarbox .rentry b { font-size: 14px; }
+  .radarbox .rentry .rmeta { color: var(--muted); font-size: 12px; margin: 3px 0 6px; line-height: 1.5; }
+  .radarbox .rentry .racts { display: flex; gap: 6px; }
+  .radarbox .rentry .racts button { font-size: 12px; padding: 4px 10px; border-left: 1px solid var(--line-soft); }
+  .radarbox .rstate { padding: 16px 14px; color: var(--muted); }
+  .listeners { color: var(--muted); }
+  .listeners .up { color: #1a9e54; font-weight: 600; }
+  .labels-list div { padding: 5px 0; border-top: 1px solid var(--line-soft); cursor: pointer; display: flex; justify-content: space-between; }
+  .labels-list div:hover { color: var(--muted); }
+  .labels-list small { color: var(--muted); }
+
   /* Statische Vorschau */
   .is-static .hideStatic { display: none !important; }
   .staticbanner { position: fixed; bottom: 14px; right: 14px; z-index: 12; background: var(--accent); color: #fff;
@@ -215,11 +234,13 @@
       </div>
       <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
+    <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts nah an deinen Likes — mit Begründung">📡 Radar</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
     <div class="grow"></div>
     <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" title="Karte nach Genre filtern (Textsuche, z.B. „techno“)" />
     <label class="toggle" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
     <label class="toggle" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
+    <label class="toggle" title="Acts mit ≥20k Last.fm-Hörern abdunkeln (sobald die Hörerzahl geladen ist) — nur die Kleinen leuchten"><input type="checkbox" id="dimBig" /> Große dämpfen</label>
     <button id="export" title="Markierte Acts als CSV">⭳ CSV</button>
     <button id="exportPng" title="Karte als Bild (PNG)">⭳ PNG</button>
     <select id="reset" class="hideStatic" title="Ansicht leeren">
@@ -259,6 +280,11 @@
       bringt gleich sein Umfeld mit: ähnlicher Stil + zusammen aufgetreten.</p>
       <p>Dann: <b>Doppelklick</b> auf einen Punkt lädt dessen Nachbarn —<br>so hangelst du dich durch die Szene.</p>
     </div>
+  </div>
+
+  <div class="radarbox" id="radarbox">
+    <h3>📡 Radar — Geheimtipps <button id="radarClose" title="Schließen">×</button></h3>
+    <div id="radarBody" class="rstate">–</div>
   </div>
 
   <div class="helpbox" id="helpbox">
@@ -326,6 +352,11 @@
       </div>
     </div>
     <div class="field">
+      <label>Label-Umfeld <small style="text-transform:none;letter-spacing:0">(MusicBrainz)</small></label>
+      <div class="row"><button id="labelBtn" title="Labels dieses Acts + wer noch dort veröffentlicht — kleine Labels, kleine Acts, große Funde">Label-Kolleg:innen laden</button></div>
+      <div id="pLabels" class="labels-list"></div>
+    </div>
+    <div class="field">
       <label>Ähnlicher Stil</label>
       <div class="neighbors" id="nbSimilar"></div>
     </div>
@@ -351,6 +382,9 @@ const API = {
   remove: (id) => POST("/api/delete", { id }),
   restore: (body) => POST("/api/restore", body),
   genres: (id) => POST("/api/genres", { id }),
+  enrich: (id) => POST("/api/enrich", { id }),
+  radar: (extraLikes) => POST("/api/radar", { extraLikes }),
+  labelmates: (id) => POST("/api/labelmates", { id }),
   artist: (body) => POST("/api/artist", body),
   suggest: (q) => fetch("/api/suggest?q=" + encodeURIComponent(q)).then(r => r.json()),
 };
@@ -415,6 +449,7 @@ function rebuild(prev) {
       id: a.id, name: a.name, url: a.url, seed: !!a.seed, known: !!a.known, note: a.note || "",
       status: a.status || "", booking: a.booking || null, active: !!a.active,
       genres: a.genres || [], explored: !!a.explored,
+      listeners: a.listeners ?? null, bcLocation: a.bcLocation || null,
       deg: deg[a.id] || 0,
       x: old?.x ?? (W / 2 + (Math.random() - .5) * 400),
       y: old?.y ?? (H / 2 + (Math.random() - .5) * 400),
@@ -583,6 +618,7 @@ function draw() {
   ctx.save();
   ctx.translate(view.x, view.y); ctx.scale(view.k, view.k);
   const dim = document.getElementById("dimKnown").checked;
+  const dimBig = document.getElementById("dimBig").checked;
   const fg = filterGenre.toLowerCase();
   const fs = focusSet();
   const hi = pathHi ? pathHi.nodes : (compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null));
@@ -594,6 +630,7 @@ function draw() {
     if (fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg))) return true;
     if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
     if (dim && n.status) return true;
+    if (dimBig && n.listeners != null && n.listeners >= 20000) return true;
     if (hi && !hi.has(n.id)) return true;
     return false;
   };
@@ -774,16 +811,14 @@ function selectNode(n) {
   document.body.classList.add("panel-open");
   document.getElementById("pName").innerHTML = n.name +
     (n.seed ? ' <span class="badge seed">gesucht</span>' : '');
-  document.getElementById("pSub").innerHTML =
-    `${n.deg} Verbindungen` +
-    (n.url ? ` · <a href="${n.url}" target="_blank" rel="noreferrer">Last.fm ↗</a>` : "") +
-    ` · <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(n.name + " music")}" target="_blank" rel="noreferrer">YouTube ↗</a>`;
+  renderSub(n, null);
   renderGenrePills(n.genres);
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
   document.getElementById("status").value = n.status || "";
   document.getElementById("note").value = n.note || "";
   refreshLikeBtn();
-  if (!STATIC && (!n.genres || !n.genres.length)) loadGenres(n);  // Genres beim Anklicken nachladen
+  document.getElementById("pLabels").innerHTML = "";
+  if (!STATIC) loadDetails(n);  // Genres + Hörerzahl + Ort beim Anklicken nachladen
 
   const rows = links.filter(l => l.a.id === n.id || l.b.id === n.id)
     .map(l => ({ other: l.a.id === n.id ? l.b : l.a, w: l.weight, type: l.type, shows: l.shows || [] }));
@@ -840,13 +875,34 @@ function bookingHtml(n) {
   const det = b.details ? `<div class="det">${b.details}</div>` : "";
   return live + region + det + (links ? `<div class="links">${links}</div>` : "");
 }
-async function loadGenres(n) {
-  const res = await API.genres(n.id);
-  if (res.ok && res.genres?.length) {
-    n.genres = res.genres;
-    if (graph.artists[n.id]) graph.artists[n.id].genres = res.genres;
-    if (selected && selected.id === n.id) renderGenrePills(res.genres);
+// Sub-Zeile im Panel: Verbindungen · Hörerzahl (▲ Momentum) · Ort · Links
+const fmtListeners = (n) => n >= 1000 ? (n / 1000).toFixed(n < 10000 ? 1 : 0) + "k" : String(n);
+function renderSub(n, growth) {
+  const bits = [`${n.deg} ${n.deg === 1 ? "Verbindung" : "Verbindungen"}`];
+  if (n.listeners != null) {
+    let l = `<span class="listeners">${fmtListeners(n.listeners)} Hörer`;
+    if (growth != null && growth >= 10) l += ` <span class="up" title="Hörer-Wachstum pro Monat (aus deinen eigenen Verlaufsdaten)">▲ +${growth}%</span>`;
+    bits.push(l + "</span>");
   }
+  const loc = n.booking?.area || n.bcLocation;
+  if (loc) bits.push(`📍 ${loc}`);
+  if (n.url) bits.push(`<a href="${n.url}" target="_blank" rel="noreferrer">Last.fm ↗</a>`);
+  bits.push(`<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(n.name + " music")}" target="_blank" rel="noreferrer">YouTube ↗</a>`);
+  document.getElementById("pSub").innerHTML = bits.join(" · ");
+}
+// Steckbrief nachladen: Genres + Hörerzahl (+ Momentum) + Bandcamp-Ort
+async function loadDetails(n) {
+  try {
+    const res = await API.enrich(n.id);
+    if (!res.ok) return;
+    if (res.genres?.length) {
+      n.genres = res.genres;
+      if (graph.artists[n.id]) graph.artists[n.id].genres = res.genres;
+    }
+    if (res.listeners != null) { n.listeners = res.listeners; if (graph.artists[n.id]) graph.artists[n.id].listeners = res.listeners; }
+    if (res.location && !n.booking?.area) n.bcLocation = res.location;
+    if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); }
+  } catch {}
 }
 
 document.getElementById("closePanel").onclick = closePanel;
@@ -984,6 +1040,7 @@ function updateTooltip(n, e) {
   if (!n) { tipEl.classList.remove("show"); return; }
   const parts = [`<b>${n.name}</b>`];
   if (n.active) parts.push('<span style="color:#7CFC9E">● tritt auf</span>');
+  if (n.listeners != null) parts.push(`<span class="g">${fmtListeners(n.listeners)} Hörer</span>`);
   if (n.genres && n.genres.length) parts.push(`<span class="g">${n.genres.slice(0, 3).join(" · ")}</span>`);
   const b = n.booking; if (b && (b.area || b.country)) parts.push(`<span class="g">📍 ${[b.area, b.country].filter(Boolean).join(", ")}</span>`);
   tipEl.innerHTML = parts.join("<br>");
@@ -1129,6 +1186,58 @@ qEl.addEventListener("keydown", (e) => {
 });
 qEl.addEventListener("blur", () => setTimeout(closeSug, 150));
 
+// ---- Radar (Geheimtipp-Score 2.0) ----
+const radarEl = document.getElementById("radarbox");
+const radarBody = document.getElementById("radarBody");
+let radarBusy = false;
+function closeRadar() { radarEl.classList.remove("show"); }
+document.getElementById("radarClose").onclick = closeRadar;
+document.getElementById("radarBtn").onclick = async () => {
+  if (radarEl.classList.contains("show")) { closeRadar(); return; }
+  radarEl.classList.add("show");
+  if (radarBusy) return;
+  radarBusy = true;
+  radarBody.className = "rstate";
+  radarBody.textContent = "Radar wird berechnet … (erste Berechnung lädt Hörerzahlen, dauert etwas)";
+  try {
+    const res = await API.radar([...basket]);
+    if (res.error) { radarBody.textContent = res.error; return; }
+    if (!res.radar.length) { radarBody.textContent = "Nichts gefunden — erkunde erst ein paar Acts, dann hat das Radar Futter."; return; }
+    radarBody.className = "";
+    radarBody.innerHTML = res.radar.map((r, i) => {
+      const meta = r.reasons.join(" · ");
+      const acts = [
+        `<button data-explore="${encodeURIComponent(r.name)}" title="Act laden und auf der Karte zeigen">Erkunden</button>`,
+        r.inGraph ? `<button data-goto="${r.id}" title="Auf der Karte zeigen">Zeigen</button>` : "",
+        r.url ? `<a href="${r.url}" target="_blank" rel="noreferrer"><button title="Anhören / Profil öffnen">↗ Öffnen</button></a>` : "",
+      ].join("");
+      return `<div class="rentry"><b>${i + 1}. ${r.name}</b><div class="rmeta">${meta}</div><div class="racts">${acts}</div></div>`;
+    }).join("");
+    radarBody.querySelectorAll("[data-explore]").forEach((b) => b.onclick = () => { exploreByName(decodeURIComponent(b.dataset.explore)); });
+    radarBody.querySelectorAll("[data-goto]").forEach((b) => b.onclick = () => {
+      const n = nodeById.get(b.dataset.goto); if (n) { centerOn(n); selectNode(n); }
+    });
+  } catch (e) {
+    radarBody.textContent = "Fehler: " + e.message;
+  } finally { radarBusy = false; }
+};
+
+// ---- Label-Umfeld (MusicBrainz) ----
+document.getElementById("labelBtn").onclick = async () => {
+  if (!selected) return;
+  if (STATIC) { toast("Nur im lokalen Tool"); return; }
+  const el = document.getElementById("pLabels");
+  el.innerHTML = '<small style="color:var(--muted)">Lade Label-Umfeld … (MusicBrainz drosselt auf 1 Anfrage/Sekunde)</small>';
+  const res = await API.labelmates(selected.id);
+  if (res.error) { el.innerHTML = `<small style="color:var(--muted)">Fehler: ${res.error}</small>`; return; }
+  if (!res.mates?.length) { el.innerHTML = '<small style="color:var(--muted)">Kein Label-Umfeld gefunden (Act oder Labels nicht in MusicBrainz).</small>'; return; }
+  const labels = (res.labels || []).map((l) => l.name).join(", ");
+  el.innerHTML = (labels ? `<small style="color:var(--muted)">Labels: ${labels}</small>` : "") +
+    res.mates.map((m) => `<div data-n="${encodeURIComponent(m.name)}" title="Klick: diesen Act erkunden"><span>${m.name}</span><small>${m.label}${m.releases > 1 ? ` · ${m.releases} Releases` : ""}</small></div>`).join("");
+  el.querySelectorAll("[data-n]").forEach((d) => d.onclick = () => exploreByName(decodeURIComponent(d.dataset.n)));
+};
+document.getElementById("dimBig").onchange = () => {};
+
 // ---- Hilfe-Popover ----
 const helpEl = document.getElementById("helpbox");
 function toggleHelp() { helpEl.classList.toggle("show"); }
@@ -1139,7 +1248,7 @@ addEventListener("keydown", (e) => {
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
-  else if (e.key === "Escape") { hideCtx(); if (helpEl.classList.contains("show")) toggleHelp(); else if (pathFrom) { pathFrom = null; updateModebar(); } else if (pathHi) clearPath(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
+  else if (e.key === "Escape") { hideCtx(); if (radarEl.classList.contains("show")) closeRadar(); else if (helpEl.classList.contains("show")) toggleHelp(); else if (pathFrom) { pathFrom = null; updateModebar(); } else if (pathHi) clearPath(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
   else if (e.key === "e" && selected) exploreByName(selected.name);
   else if (e.key === "f" && selected) toggleFocus(selected);
   else if (e.key === "b" && selected) toggleBasket(selected);
