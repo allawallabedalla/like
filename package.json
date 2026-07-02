@@ -1,6 +1,6 @@
 {
   "name": "like",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Like Desktop",
   "main": "main.js",
   "scripts": {
@@ -20,7 +20,7 @@
       "server.mjs",
       "lib/**/*",
       "public/**/*",
-      "!.lastfm-key",
+      ".lastfm-key",
       "!.songkick-key",
       "!.bandsintown-appid",
       "!cache/**",

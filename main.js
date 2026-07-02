@@ -38,6 +38,16 @@ function ensureDataDir() {
   return dataDir;
 }
 
+// Last.fm-Key kommt fertig mit der App (steht nicht im öffentlichen Git-Repo,
+// nur im gebauten .dmg) — Freund:innen müssen nichts eintragen, um zu suchen.
+function bundledApiKey() {
+  try {
+    return fs.readFileSync(path.join(__dirname, ".lastfm-key"), "utf8").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function createWindow() {
   if (mainWindow) return;
 
@@ -63,12 +73,18 @@ app.whenReady().then(() => {
   killPort(5173);
 
   const dataDir = ensureDataDir();
+  const apiKey = bundledApiKey();
 
   // startet Server über Electrons eingebautes Node (kein System-Node nötig,
   // sonst schlägt spawn("node") fehl, weil GUI-Starts kein Homebrew-PATH haben)
   server = spawn(process.execPath, ["server.mjs"], {
     cwd: __dirname,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", LIKE_DATA_DIR: dataDir },
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+      LIKE_DATA_DIR: dataDir,
+      ...(apiKey ? { LASTFM_API_KEY: apiKey } : {})
+    },
     stdio: "inherit"
   });
 
