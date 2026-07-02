@@ -116,16 +116,22 @@
   .playbtn { flex: none; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line-soft); background: var(--bg);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; }
   .playbtn:hover { border-color: var(--edge-together); color: var(--edge-together); }
+  .panel .sub .subwrap { display: flex; flex-direction: column; min-width: 0; }
   .panel .sub .subtext { padding-top: 5px; }
-  /* Streaming-Logos: rahmenlos, größer, monochrom — Markenfarbe nur beim Hover */
-  .svc { display: inline-flex; gap: 9px; vertical-align: -6px; }
+  /* Streaming-Logos: rahmenlos, monochrom — mit Namenszeile darüber (ohne Hover zuzuordnen) */
+  .svcrow { margin-top: 9px; }
+  .svc-names { display: block; font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 5px; }
+  .svc { display: inline-flex; gap: 9px; }
   .svc a { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center;
-    color: var(--text); opacity: .8; transition: opacity .12s, color .12s, transform .12s; }
+    color: var(--text); opacity: .92; transition: opacity .12s, color .12s, transform .12s; }
   .svc a svg { width: 21px; height: 21px; }
   .svc a:hover { opacity: 1; transform: scale(1.12); }
   .svc a.yt:hover { color: #ff0000; }
   .svc a.sp:hover { color: #1db954; }
   .svc a.td:hover { color: #00a0b4; }
+  .svc a.bc:hover { color: #1da0c3; }
+  .svc a.sc:hover { color: #ff5500; }
   .panel a { color: var(--text); }
   .field { margin: 14px 0; }
   .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
@@ -669,6 +675,10 @@ const SVG_YT = '<svg viewBox="0 0 24 24"><path d="M23 7.5a3 3 0 0 0-2.1-2.1C19 5
 const SVG_SPOTIFY = '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.6 14.4a.62.62 0 0 1-.86.2c-2.35-1.44-5.3-1.76-8.8-.96a.62.62 0 1 1-.28-1.2c3.83-.88 7.1-.5 9.74 1.1.3.18.4.57.2.86zm1.23-2.74a.78.78 0 0 1-1.07.26c-2.7-1.66-6.8-2.14-9.99-1.17a.78.78 0 1 1-.45-1.49c3.64-1.1 8.16-.57 11.25 1.33.37.22.49.7.26 1.07zm.1-2.85C14.76 8.87 9.5 8.7 6.4 9.64a.94.94 0 1 1-.54-1.8c3.56-1.07 9.36-.86 13.05 1.33a.94.94 0 0 1-.96 1.61z"/></svg>';
 // TIDAL-Mark: drei überlappende Rauten (flach, als Outline).
 const SVG_TIDAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 9.5L11.5 13L8 16.5L4.5 13Z"/><path d="M16 9.5L19.5 13L16 16.5L12.5 13Z"/><path d="M12 5L15.5 8.5L12 12L8.5 8.5Z"/></svg>';
+// Bandcamp-Mark: schräges Parallelogramm (die klassische „bc"-Form).
+const SVG_BANDCAMP = '<svg viewBox="0 0 24 24"><path d="M3 16.5l4.5-9h13.5l-4.5 9z"/></svg>';
+// SoundCloud: Wellenform-Balken + Wolke rechts (vereinfacht, aber erkennbar).
+const SVG_SOUNDCLOUD = '<svg viewBox="0 0 24 24"><g fill="currentColor"><rect x="2" y="12" width="1.5" height="5" rx=".7"/><rect x="5" y="9.5" width="1.5" height="7.5" rx=".7"/><rect x="8" y="8" width="1.5" height="9" rx=".7"/><rect x="11" y="10.5" width="1.5" height="6.5" rx=".7"/><path d="M14 17V9.5a3.6 3.6 0 0 1 6.8 1.3A2.8 2.8 0 0 1 20.4 17z"/></g></svg>';
 const SVG_STOP = '<svg class="ic" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg>';
 const SVG_MOON = '<svg class="ic" viewBox="0 0 16 16"><path d="M11 10.5A5.5 5.5 0 0 1 5.5 5c0-1 .27-1.94.74-2.75A5.5 5.5 0 1 0 13.75 9.76 5.48 5.48 0 0 1 11 10.5z"/></svg>';
 const SVG_SUN = '<svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.4"/><g stroke="currentColor" stroke-width="1.4"><line x1="8" y1="1.5" x2="8" y2="3.4"/><line x1="8" y1="12.6" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="3.4" y2="8"/><line x1="12.6" y1="8" x2="14.5" y2="8"/><line x1="3.4" y1="3.4" x2="4.8" y2="4.8"/><line x1="11.2" y1="11.2" x2="12.6" y2="12.6"/><line x1="12.6" y1="3.4" x2="11.2" y2="4.8"/><line x1="4.8" y1="11.2" x2="3.4" y2="12.6"/></g></svg>';
@@ -1252,18 +1262,23 @@ function renderSub(n, growth) {
   const loc = n.booking?.area || n.bcLocation;
   if (loc) bits.push(`${SVG_PIN}${esc(loc)}`);
   if (n.url) bits.push(`<a href="${esc(n.url)}" target="_blank" rel="noreferrer">Last.fm ↗</a>`);
-  // Streaming-Dienste als kleine Logo-Buttons (reine Such-Links, keine API nötig)
+  // Streaming-Dienste als kleine Logo-Buttons (reine Such-Links, keine API nötig).
+  // Namenszeile darüber, damit die Logos auch ohne Hover zuzuordnen sind.
   const q = encodeURIComponent(n.name);
   const svc =
+    `<div class="svcrow">` +
+    `<span class="svc-names">YouTube · Spotify · Tidal · Bandcamp · SoundCloud</span>` +
     `<span class="svc">` +
     `<a class="yt" href="https://www.youtube.com/results?search_query=${encodeURIComponent(n.name + " music")}" target="_blank" rel="noreferrer" title="Auf YouTube suchen">${SVG_YT}</a>` +
     `<a class="sp" href="https://open.spotify.com/search/${q}" target="_blank" rel="noreferrer" title="Auf Spotify suchen">${SVG_SPOTIFY}</a>` +
     `<a class="td" href="https://listen.tidal.com/search?q=${q}" target="_blank" rel="noreferrer" title="Auf Tidal suchen">${SVG_TIDAL}</a>` +
-    `</span>`;
-  bits.push(svc);
-  // Klangprobe-Button (30s) vor die Sub-Zeile
+    `<a class="bc" href="https://bandcamp.com/search?q=${q}" target="_blank" rel="noreferrer" title="Auf Bandcamp suchen">${SVG_BANDCAMP}</a>` +
+    `<a class="sc" href="https://soundcloud.com/search?q=${q}" target="_blank" rel="noreferrer" title="Auf SoundCloud suchen">${SVG_SOUNDCLOUD}</a>` +
+    `</span>` +
+    `</div>`;
+  // Klangprobe-Button (30s) vor die Sub-Zeile; Streaming-Logos als eigene Zeile darunter
   const play = `<button class="playbtn" data-preview="${encodeURIComponent(n.name)}" title="30-Sekunden-Klangprobe abspielen">${SVG_PLAY}</button>`;
-  document.getElementById("pSub").innerHTML = play + `<span class="subtext">` + bits.join(" · ") + `</span>`;
+  document.getElementById("pSub").innerHTML = play + `<span class="subwrap"><span class="subtext">` + bits.join(" · ") + `</span>` + svc + `</span>`;
   refreshPreviewButtons();
 }
 // Steckbrief nachladen: Genres + Hörerzahl (+ Momentum) + Bandcamp-Ort
