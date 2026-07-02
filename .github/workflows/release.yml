@@ -62,13 +62,16 @@ jobs:
           # eigene Signatursuche (Developer-ID) hier abschalten.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      # SHA256-Prüfsummen zum Verifizieren (shasum gibt's auf mac + windows-bash).
+      # SHA256-Prüfsummen zum Verifizieren. Über Node berechnet — plattformneutral
+      # (shasum fehlt im Windows-Git-Bash, sha256sum auf macOS; Node läuft überall).
       - name: Prüfsummen (SHA256)
         shell: bash
         run: |
           cd dist
           shopt -s nullglob
-          for f in *.exe *.dmg; do shasum -a 256 "$f" | tee "$f.sha256"; done
+          for f in *.exe *.dmg; do
+            node -e "const c=require('crypto'),fs=require('fs'),f=process.argv[1];console.log(c.createHash('sha256').update(fs.readFileSync(f)).digest('hex')+'  '+f)" "$f" | tee "$f.sha256"
+          done
 
       # Immer als Build-Artefakt ablegen (auch bei manuellem Lauf ohne Tag).
       - name: Artefakt hochladen
