@@ -189,6 +189,20 @@
   .modebar.show { display: flex; }
   .modebar a { color: var(--on-accent); text-decoration: underline; cursor: pointer; }
 
+  /* Brücke-Regler: schwebt unten mittig, während Kandidaten als Geister-Knoten liegen */
+  .bridgebar { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 13;
+    display: none; flex-direction: column; gap: 8px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line-soft); border-radius: 12px; padding: 12px 16px; width: 340px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.18); }
+  .bridgebar.show { display: flex; }
+  .bridgebar .bhead { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+  .bridgebar .bhead b { font-size: 13px; }
+  .bridgebar .bhead .x { margin-left: auto; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; }
+  .bridgebar input[type=range] { width: 100%; accent-color: var(--text); margin: 2px 0 0; cursor: pointer; }
+  .bridgebar .blabels { display: flex; justify-content: space-between; font-size: 10px;
+    letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .bridgebar .bhint { font-size: 11px; color: var(--muted); }
+
   /* Lineup-Korb (lebt im .leftstack über der Legende) */
   .basket { width: 230px; background: var(--bg); border: 1px solid var(--line);
     font-size: 12px; display: none; }
@@ -399,6 +413,12 @@
 
   <div id="trail" class="trail"></div>
   <div id="modebar" class="modebar"></div>
+  <div id="bridgebar" class="bridgebar">
+    <div class="bhead"><b id="bridgeTitle">Brücke</b><span class="x" id="bridgeClose" title="Abbrechen">✕</span></div>
+    <input type="range" id="bridgeSlider" min="0" max="100" value="50" title="Reihenfolge der Brücken-Acts">
+    <div class="blabels"><span>naheliegend</span><span>spannend</span></div>
+    <div class="bhint" id="bridgeHint">Klick einen der hellen Kandidaten, um ihn einzufügen.</div>
+  </div>
 
   <div class="leftstack">
     <div id="basket" class="basket"></div>
@@ -447,7 +467,7 @@
     <div><span>Klick auf Punkt</span><span>Details öffnen</span></div>
     <div><span>Doppelklick</span><span>Nachbarn laden (weiter hangeln)</span></div>
     <div><span>Shift-Klick</span><span>Acts vergleichen (Schnittmenge)</span></div>
-    <div><span>Rechtsklick</span><span>Menü (Fokus, Pfad, Lineup …)</span></div>
+    <div><span>Rechtsklick</span><span>Menü (Fokus, Brücke, Lineup …)</span></div>
     <div><span>Punkt ziehen</span><span>Position fixieren</span></div>
     <div><span>Fläche ziehen / Mausrad</span><span>verschieben / zoomen</span></div>
     <h4>Tastatur</h4>
@@ -581,7 +601,7 @@
     </div>
     <div class="row" style="margin-top:8px">
       <button id="basketBtn" title="In dein Lineup aufnehmen (Taste b)">like!</button>
-      <button id="pathBtn" title="Verbindung zwischen zwei Acts: hier klicken, dann Ziel wählen">Pfad von hier…</button>
+      <button id="bridgeBtn" title="Welcher Act verbindet diesen mit einem anderen? Hier klicken, dann Ziel-Act wählen">Brücke bauen…</button>
     </div>
     <div class="field">
       <label>Status</label>
@@ -640,6 +660,8 @@ const API = {
   import: (graph) => POST("/api/import", { graph }),
   preview: (name) => POST("/api/preview", { name }),
   labelmates: (id) => POST("/api/labelmates", { id }),
+  bridge: (from, to) => POST("/api/bridge", { from, to }),
+  bridgeAdd: (from, to, via, fromId, toId) => POST("/api/bridge/add", { from, to, via, fromId, toId }),
   artist: (body) => POST("/api/artist", body),
   suggest: (q) => fetch("/api/suggest?q=" + encodeURIComponent(q)).then(r => r.json()),
 };
@@ -727,10 +749,10 @@ let busyId = null, filterGenre = "";
 const activeGenres = new Set(); // per Pill-Klick ausgewählte Genres (ODER-verknüpft), filtert die Karte
 let compareSet = new Set();      // Schnittmengen-Vergleich (Shift-Klick)
 let focusId = null;              // Fokus-Modus: nur Nachbarschaft dieses Knotens
-let pathHi = null;              // { nodes:Set, edges:Set } für Verbindungspfad
 let secretMode = false;          // Geheimtipp-Hervorhebung
 let trail = [];                  // Breadcrumb der erkundeten Acts
-let pathFrom = null;             // Startknoten für "Pfad von hier…"
+let bridgeFrom = null;           // Start-Act für "Brücke bauen…" (Ziel wird als Nächstes geklickt)
+let bridge = null;               // aktive Brücken-Session: { a, b, cands:[{via,strength}], sort }
 const adj = new Map();           // Adjazenz id -> Set(nachbar-id)
 let basket = new Set();          // Lineup-Korb (ids)
 try { basket = new Set(JSON.parse(localStorage.getItem("like_basket") || "[]")); } catch {}
@@ -850,21 +872,6 @@ function commonNeighbors(ids) {
   for (let i = 1; i < arr.length; i++) acc = new Set([...acc].filter(x => arr[i].has(x)));
   for (const id of ids) acc.delete(id);
   return acc;
-}
-// kürzester Pfad (BFS) zwischen zwei ids
-function bfsPath(a, b) {
-  if (a === b) return [a];
-  const prev = new Map([[a, null]]); const q = [a];
-  while (q.length) {
-    const cur = q.shift();
-    for (const nb of (adj.get(cur) || [])) {
-      if (prev.has(nb)) continue;
-      prev.set(nb, cur);
-      if (nb === b) { const path = [b]; let c = cur; while (c != null) { path.push(c); c = prev.get(c); } return path.reverse(); }
-      q.push(nb);
-    }
-  }
-  return null;
 }
 // Geheimtipps: mit deinem Kosmos (gesucht/markiert) verbunden, aber selbst klein
 function secretIds() {
@@ -990,8 +997,8 @@ function draw() {
   const dimBig = document.getElementById("dimBig").checked;
   const fg = filterGenre.toLowerCase();
   const fs = focusSet();
-  const hi = pathHi ? pathHi.nodes : (compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null));
-  const pe = pathHi ? pathHi.edges : null;
+  const hi = compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null);
+  const pe = null;
   const hidden = (id) => fs && !fs.has(id);
   const dimNode = (n) => {
     if (selected && n.id === selected.id) return false;
@@ -1077,6 +1084,42 @@ function draw() {
       }
     }
   }
+
+  // Brücken-Kandidaten als helle "Geister" zwischen A und B (noch nicht Teil des Graphen)
+  if (bridge && bridge.cands && bridge.cands.length) {
+    const ranked = bridgeRanked();
+    const acc = getCss("--edge-together");
+    for (let i = 0; i < ranked.length; i++) {
+      const g = ghostGeom(i, ranked.length);
+      const c = ranked[i], best = i === 0;
+      // gestrichelte Verbindung A — Geist — B
+      ctx.setLineDash([5 / view.k, 4 / view.k]);
+      ctx.strokeStyle = acc; ctx.globalAlpha = best ? 0.5 : 0.22; ctx.lineWidth = (best ? 1.6 : 1) / view.k;
+      ctx.beginPath(); ctx.moveTo(bridge.a.x, bridge.a.y); ctx.lineTo(g.x, g.y); ctx.lineTo(bridge.b.x, bridge.b.y); ctx.stroke();
+      ctx.setLineDash([]);
+      // Geister-Knoten (hohl, gestrichelt) — signalisiert "Vorschlag, noch nicht gesetzt"
+      ctx.globalAlpha = best ? 1 : 0.72;
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, 7);
+      ctx.fillStyle = getCss("--panel"); ctx.fill();
+      ctx.setLineDash([4 / view.k, 3 / view.k]); ctx.lineWidth = (best ? 2.4 : 1.6) / view.k; ctx.strokeStyle = acc;
+      ctx.stroke(); ctx.setLineDash([]);
+      // Beschriftung: Name (+ evtl. 2. Zwischen-Act) und Hörerzahl
+      const label = c.via.map((v) => v.name).join(" → ");
+      const li = c.via.map((v) => v.listeners).filter((x) => x != null);
+      const small = li.length ? fmtListeners(Math.max(...li)) + " Hörer" : "";
+      ctx.textAlign = "center"; ctx.lineJoin = "round"; ctx.strokeStyle = getCss("--bg");
+      ctx.font = `${11.5 / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3.5 / view.k;
+      const ly = g.y + g.r + 12 / view.k;
+      ctx.globalAlpha = 1; ctx.strokeText(label, g.x, ly);
+      ctx.fillStyle = getCss("--text"); ctx.fillText(label, g.x, ly);
+      if (small) {
+        ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3 / view.k;
+        ctx.strokeText(small, g.x, ly + 12 / view.k);
+        ctx.fillStyle = getCss("--muted"); ctx.fillText(small, g.x, ly + 12 / view.k);
+      }
+    }
+  }
+
   ctx.globalAlpha = 1;
   ctx.restore();
 }
@@ -1148,12 +1191,16 @@ addEventListener("mouseup", (e) => {
   hideCtx();
   if (dragging && !moved) {
     const p = canvasXY(e);
-    const n = pick(p.x, p.y);
-    if (n) {
-      if (pathFrom) { finishPath(n); }            // Pfad-Ziel wählen
-      else if (e.shiftKey) toggleCompare(n);      // Shift = vergleichen
-      else selectNode(n);                         // sonst: Details
-    } else { closePanel(); }
+    const gi = (bridge && bridge.cands.length) ? pickGhost(p.x, p.y) : -1;
+    if (gi >= 0) { addBridge(gi); }               // Brücken-Kandidat gewählt -> einfügen
+    else {
+      const n = pick(p.x, p.y);
+      if (n) {
+        if (bridgeFrom) finishBridge(n);          // Brücken-Ziel wählen
+        else if (e.shiftKey) toggleCompare(n);    // Shift = vergleichen
+        else selectNode(n);                       // sonst: Details
+      } else if (!bridge) { closePanel(); }       // Leerklick: Panel zu (nicht während Brücke)
+    }
   }
   if (dragNode && moved) dragNode.pinned = true;  // gezogen = fixiert (Rechtsklick löst)
   dragging = false; dragNode = null; cv.classList.remove("grabbing");
@@ -1471,7 +1518,7 @@ function showCtx(n, x, y) {
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
     [basket.has(n.id) ? "Aus dem Lineup" : "like! (ins Lineup)", () => toggleBasket(n)],
     [compareSet.has(n.id) ? "Aus Vergleich" : "Zum Vergleich", () => toggleCompare(n)],
-    ["Pfad von hier…", () => startPath(n)],
+    ["Brücke bauen…", () => startBridge(n)],
     [n.pinned ? "Fixierung lösen" : "Position fixieren", () => { n.pinned = !n.pinned; if (!n.pinned) reheat(0.3); }],
     ["Entfernen", () => removeNode(n)],
   ];
@@ -1483,20 +1530,104 @@ function showCtx(n, x, y) {
   ctxEl.style.top = Math.min(y, innerHeight - ctxEl.offsetHeight - 8) + "px";
 }
 
-// ---- Vergleich / Pfad / Fokus / Geheimtipp ----
+// ---- Vergleich / Brücke / Fokus / Geheimtipp ----
 function toggleCompare(n) { compareSet.has(n.id) ? compareSet.delete(n.id) : compareSet.add(n.id); updateModebar(); }
 function clearCompare() { compareSet.clear(); updateModebar(); }
-function startPath(n) { pathFrom = n; pathHi = null; updateModebar(); toast(`Pfad von „${n.name}": Ziel anklicken`); }
-function finishPath(n) {
-  const path = bfsPath(pathFrom.id, n.id);
-  pathFrom = null;
-  if (!path) { toast("Keine Verbindung gefunden"); updateModebar(); return; }
-  const ns = new Set(path), es = new Set();
-  for (let i = 0; i < path.length - 1; i++) { const a = path[i], b = path[i + 1]; es.add(a < b ? a + "|" + b : b + "|" + a); }
-  pathHi = { nodes: ns, edges: es }; updateModebar();
-  toast(`Pfad: ${path.length - 1} Schritte`);
+// ---- Brücke bauen: welcher (kleine?) Act verbindet A und B? ----
+function startBridge(n) {
+  clearBridge();
+  bridgeFrom = n;
+  updateModebar();
+  toast(`Brücke von „${n.name}": Ziel-Act anklicken`);
 }
-function clearPath() { pathHi = null; pathFrom = null; updateModebar(); }
+async function finishBridge(target) {
+  const a = bridgeFrom; bridgeFrom = null;
+  if (!a || target.id === a.id) { updateModebar(); return; }
+  if (STATIC) { toast("Brücke-Suche nur im lokalen Tool"); updateModebar(); return; }
+  bridge = { a, b: target, cands: [], sort: 0.5, loading: true };
+  updateModebar(); requestDraw();
+  busyId = target.id;
+  toast(`Suche Brücke: „${a.name}" ↔ „${target.name}" …`);
+  try {
+    const res = await API.bridge(a.name, target.name);
+    if (res.error) { toast("Fehler: " + res.error); clearBridge(); return; }
+    // Acts, die schon auf der Karte liegen, sind keine "fehlende" Brücke -> rausfiltern
+    const present = (name) => { const k = slugify(name); return nodeById.has(k) || nodes.some((n) => slugify(n.name) === k); };
+    const cands = (res.candidates || []).filter((c) => !c.via.some((v) => present(v.name)));
+    if (!cands.length) {
+      toast(res.candidates?.length ? "Die verbindenden Acts sind schon auf der Karte." : "Kein verbindender Act gefunden (auch nicht über zwei Schritte).");
+      clearBridge(); return;
+    }
+    bridge.cands = cands; bridge.loading = false; bridge.mode = res.mode;
+    showBridgeBar();
+    fitBridgeIntoView();
+    toast(`${res.candidates.length} Brücken-Kandidat${res.candidates.length === 1 ? "" : "en"}${res.mode === "two" ? " (zwei Schritte)" : ""} — hell markiert`);
+  } catch (e) {
+    toast("Fehler: " + e.message); clearBridge();
+  } finally { busyId = null; requestDraw(); }
+}
+function clearBridge() {
+  bridge = null; bridgeFrom = null;
+  document.getElementById("bridgebar").classList.remove("show");
+  updateModebar(); requestDraw();
+}
+const BRIDGE_SHOWN = 6; // wie viele Geister gleichzeitig sichtbar sind
+// Kandidaten nach Regler mischen: 0 = naheliegend (Verbindungsstärke), 1 = spannend (klein)
+function bridgeRanked() {
+  const cs = bridge.cands, t = bridge.sort;
+  const listOf = (c) => { const li = c.via.map((v) => v.listeners).filter((x) => x != null); return li.length ? Math.max(...li) : null; };
+  const logs = cs.map(listOf).filter((x) => x != null).map((l) => Math.log10(Math.max(1, l)));
+  const lo = logs.length ? Math.min(...logs) : 0, hi = logs.length ? Math.max(...logs) : 1;
+  const smallness = (c) => { const l = listOf(c); if (l == null) return 0.5; if (hi <= lo) return 0.5; return 1 - (Math.log10(Math.max(1, l)) - lo) / (hi - lo); };
+  return cs.map((c) => ({ ...c, score: (1 - t) * c.strength + t * smallness(c) }))
+    .sort((x, y) => y.score - x.score).slice(0, BRIDGE_SHOWN);
+}
+// Position eines Geists: senkrecht zur A–B-Achse aufgefächert, bester Kandidat mittig
+function ghostGeom(i, k) {
+  const a = bridge.a, b = bridge.b;
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  let dx = b.x - a.x, dy = b.y - a.y; const len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len, py = dx / len; // Senkrechte
+  const s = Math.ceil(i / 2), sign = i % 2 === 1 ? 1 : -1;
+  const off = sign * s * 66;
+  return { x: mx + px * off, y: my + py * off, r: 11 };
+}
+function pickGhost(sx, sy) {
+  if (!bridge || !bridge.cands.length) return -1;
+  const w = world({ x: sx, y: sy }), k = bridgeRanked().length;
+  for (let i = 0; i < k; i++) {
+    const g = ghostGeom(i, k), r = Math.max(g.r + 4, 14 / view.k);
+    if ((g.x - w.x) ** 2 + (g.y - w.y) ** 2 < r * r) return i;
+  }
+  return -1;
+}
+async function addBridge(i) {
+  const ranked = bridgeRanked(); const c = ranked[i]; if (!c) return;
+  const a = bridge.a, b = bridge.b, via = c.via.map((v) => v.name);
+  clearBridge();
+  toast(`Setze Brücke: ${via.join(" → ")} …`);
+  try {
+    const res = await API.bridgeAdd(a.name, b.name, via, a.id, b.id);
+    if (res.error) { toast("Fehler: " + res.error); return; }
+    await reload(via[0]);
+    toast(`„${via.join(" → ")}" verbindet jetzt ${a.name} und ${b.name}`);
+  } catch (e) { toast("Fehler: " + e.message); }
+}
+function showBridgeBar() {
+  const bar = document.getElementById("bridgebar");
+  document.getElementById("bridgeTitle").textContent = `Brücke: ${bridge.a.name} → ${bridge.b.name}`;
+  const sl = document.getElementById("bridgeSlider"); sl.value = Math.round(bridge.sort * 100);
+  bar.classList.add("show");
+}
+// A und B (und die Geister dazwischen) sichtbar machen, falls sie weit auseinanderliegen
+function fitBridgeIntoView() {
+  const a = bridge.a, b = bridge.b, pad = 180;
+  const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x), minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y);
+  const bw = Math.max(maxX - minX, 60), bh = Math.max(maxY - minY, 60);
+  const k = Math.max(0.2, Math.min((W - pad * 2) / bw, (H - 52 - pad * 2) / bh, 1.1));
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  view.k = k; view.x = W / 2 - cx * k; view.y = (H + 52) / 2 - cy * k; requestDraw();
+}
 function toggleFocus(n) { focusId = (focusId === n.id) ? null : n.id; updateModebar(); }
 function clearFocus() { focusId = null; updateModebar(); }
 document.getElementById("secret").onchange = (e) => { secretMode = e.target.checked; updateModebar(); };
@@ -1507,12 +1638,12 @@ function updateModebar() {
   if (focusId && nodeById.has(focusId)) parts.push(`Fokus: ${nodeById.get(focusId).name} <a id="mFocus">✕</a>`);
   if (compareSet.size >= 2) parts.push(`Vergleich: ${compareSet.size} Acts → ${commonNeighbors(compareSet).size} gemeinsame <a id="mCmp">✕</a>`);
   else if (compareSet.size === 1) parts.push(`Vergleich: 1 Act (Shift-Klick für mehr) <a id="mCmp">✕</a>`);
-  if (pathHi) parts.push(`Pfad markiert <a id="mPath">✕</a>`);
+  if (bridgeFrom) parts.push(`Brücke von „${bridgeFrom.name}": Ziel anklicken <a id="mBridge">✕</a>`);
   if (secretMode) parts.push(`Geheimtipps hervorgehoben <a id="mSec">✕</a>`);
   if (!parts.length) { m.classList.remove("show"); m.innerHTML = ""; return; }
   m.innerHTML = parts.join("  ·  "); m.classList.add("show");
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-  bind("mFocus", clearFocus); bind("mCmp", clearCompare); bind("mPath", clearPath);
+  bind("mFocus", clearFocus); bind("mCmp", clearCompare); bind("mBridge", clearBridge);
   bind("mSec", () => { secretMode = false; document.getElementById("secret").checked = false; updateModebar(); });
 }
 
@@ -1564,10 +1695,12 @@ function exportBasketCsv() {
   const a = document.createElement("a"); a.href = u; a.download = "like-lineup.csv"; a.click(); URL.revokeObjectURL(u);
 }
 
-// Panel-Buttons (Fokus/Korb/Pfad)
+// Panel-Buttons (Fokus/Korb/Brücke)
 document.getElementById("focusBtn").onclick = () => { if (selected) toggleFocus(selected); };
 document.getElementById("basketBtn").onclick = () => { if (selected) toggleBasket(selected); };
-document.getElementById("pathBtn").onclick = () => { if (selected) startPath(selected); };
+document.getElementById("bridgeBtn").onclick = () => { if (selected) startBridge(selected); };
+document.getElementById("bridgeClose").onclick = clearBridge;
+document.getElementById("bridgeSlider").oninput = (e) => { if (bridge) { bridge.sort = e.target.value / 100; requestDraw(); } };
 function removeNode(n) { selected = n; document.getElementById("removeAct").click(); }
 
 // ---- Autocomplete ----
@@ -1789,7 +1922,7 @@ addEventListener("keydown", (e) => {
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
-  else if (e.key === "Escape") { hideCtx(); if (radarEl.classList.contains("show")) closeRadar(); else if (helpEl.classList.contains("show")) toggleHelp(); else if (pathFrom) { pathFrom = null; updateModebar(); } else if (pathHi) clearPath(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
+  else if (e.key === "Escape") { hideCtx(); if (radarEl.classList.contains("show")) closeRadar(); else if (helpEl.classList.contains("show")) toggleHelp(); else if (bridgeFrom || bridge) clearBridge(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
   else if (e.key === "e" && selected) exploreByName(selected.name);
   else if (e.key === "f" && selected) toggleFocus(selected);
   else if (e.key === "b" && selected) toggleBasket(selected);

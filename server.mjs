@@ -194,6 +194,80 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, name: canonical, similar: similar.length, together: coacts.length, sources, graph: materialize(g) });
     }
 
+    // Brücke bauen: welcher Act verbindet zwei (noch) getrennte Künstler? Sucht über
+    // Last.fm-Ähnlichkeit von beiden Seiten (meet-in-the-middle): erst gemeinsame
+    // direkte Nachbarn (A—X—B), sonst eine Ebene tiefer (A—X—Y—B). Hörerzahlen der
+    // Zwischen-Acts kommen mit, damit der Client nach „naheliegend ↔ spannend" (klein)
+    // sortieren kann. Nur Suche — nichts wird gespeichert.
+    if (req.method === "POST" && url.pathname === "/api/bridge") {
+      const { from, to } = await readBody(req);
+      if (!from || !to) return send(res, 400, { error: "from/to fehlt" });
+      try {
+        const [ra, rb] = await Promise.all([
+          getSimilar(from, { limit: 60 }), getSimilar(to, { limit: 60 }),
+        ]);
+        const A = ra.sourceName, B = rb.sourceName;
+        const lc = (s) => s.toLowerCase();
+        const skip = new Set([lc(A), lc(B), lc(from), lc(to)]);
+        const mapB = new Map(rb.similar.map((s) => [lc(s.name), s]));
+        let mode = "direct", cands = [];
+        for (const s of ra.similar) {
+          const t = mapB.get(lc(s.name));
+          if (t && !skip.has(lc(s.name)))
+            cands.push({ via: [{ name: s.name, url: s.url || t.url || null }], strength: (s.match + t.match) / 2 });
+        }
+        cands.sort((x, y) => y.strength - x.strength);
+        cands = cands.slice(0, 15);
+        // Fallback: keine direkte Brücke -> zwei Zwischenstationen (A—X—Y—B)
+        if (!cands.length) {
+          mode = "two";
+          const topA = ra.similar.slice(0, 6);
+          const exps = await Promise.all(topA.map((x) => getSimilar(x.name, { limit: 40 }).catch(() => null)));
+          const seen = new Set(), chains = [];
+          exps.forEach((exp, i) => {
+            if (!exp) return;
+            const X = topA[i];
+            for (const y of exp.similar) {
+              const t = mapB.get(lc(y.name));
+              if (!t || skip.has(lc(y.name)) || lc(y.name) === lc(X.name)) continue;
+              const key = lc(X.name) + "|" + lc(y.name);
+              if (seen.has(key)) continue;
+              seen.add(key);
+              chains.push({ via: [{ name: X.name, url: X.url || null }, { name: y.name, url: y.url || t.url || null }],
+                strength: (X.match + y.match + t.match) / 3 });
+            }
+          });
+          chains.sort((x, y) => y.strength - x.strength);
+          cands = chains.slice(0, 12);
+        }
+        // Hörerzahlen der Zwischen-Acts (gecacht/gedrosselt) für die Kleinheits-Sortierung
+        const names = [...new Set(cands.flatMap((c) => c.via.map((v) => v.name)))];
+        const info = {};
+        await Promise.all(names.map(async (n) => { try { info[n] = (await getArtistInfo(n)).listeners ?? null; } catch { info[n] = null; } }));
+        for (const c of cands) for (const v of c.via) v.listeners = info[v.name] ?? null;
+        return send(res, 200, { ok: true, from: A, to: B, mode, candidates: cands });
+      } catch (err) {
+        return send(res, 502, { error: err.message });
+      }
+    }
+
+    // Gewählte Brücke wirklich in den Graphen einfügen: die Zwischen-Acts anlegen und
+    // die Kette A — via… — B als „similar"-Kanten verbinden (Ähnlichkeit ist real:
+    // jeder Schritt stammt aus Last.fms getSimilar). from/to existieren schon auf der Karte.
+    if (req.method === "POST" && url.pathname === "/api/bridge/add") {
+      const { from, to, via = [], fromId, toId } = await readBody(req);
+      if (!from || !to || !via.length) return send(res, 400, { error: "from/to/via fehlt" });
+      const g = await loadGraph(GRAPH);
+      // A und B über ihre echten IDs referenzieren (der Client kennt sie) — nur zur Not
+      // per Name anlegen. So verbinden wir garantiert die bestehenden Knoten, nicht Duplikate.
+      const aNode = (fromId && g.artists[fromId]) || upsertArtist(g, { name: from });
+      const bNode = (toId && g.artists[toId]) || upsertArtist(g, { name: to });
+      const chain = [aNode, ...via.map((name) => upsertArtist(g, { name })), bNode];
+      for (let i = 0; i < chain.length - 1; i++) addEdge(g, chain[i].id, chain[i + 1].id, "similar", 0.5, "bridge");
+      await persist(g);
+      return send(res, 200, { ok: true, graph: materialize(g) });
+    }
+
     if (req.method === "POST" && url.pathname === "/api/delete") {
       const { id } = await readBody(req);
       const g = await loadGraph(GRAPH);
