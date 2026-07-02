@@ -84,6 +84,11 @@
     cursor: pointer; }
   .neighbors .nb:hover { color: var(--muted); }
   .neighbors .nb small { color: var(--muted); }
+  .neighbors .nb small.wo { cursor: pointer; white-space: nowrap; }
+  .neighbors .nb small.wo:hover { color: var(--text); }
+  .neighbors .shows { display: none; padding: 2px 0 8px 10px; border-left: 2px solid var(--edge-together); margin: 0 0 4px 2px; }
+  .neighbors .shows.open { display: block; }
+  .neighbors .shows div { font-size: 11px; color: var(--muted); padding: 2px 0; }
   .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--accent);
     color: #fff; border: none; padding: 10px 16px; z-index: 20; opacity: 0;
     transition: opacity .2s; pointer-events: none; }
@@ -312,7 +317,7 @@ function rebuild(prev) {
   });
   nodeById.clear(); nodes.forEach(n => nodeById.set(n.id, n));
   links = graph.edges.map(e => ({
-    a: nodeById.get(e.from), b: nodeById.get(e.to), type: e.type, weight: e.weight,
+    a: nodeById.get(e.from), b: nodeById.get(e.to), type: e.type, weight: e.weight, shows: e.shows || [],
     // strength (0..1) für die Feder
     strength: e.type === "similar" ? (e.weight || 0.5) : Math.min(1, 0.5 + 0.12 * ((e.weight || 2) - 1)),
   })).filter(l => l.a && l.b);
@@ -602,9 +607,9 @@ function selectNode(n) {
   if (!STATIC && (!n.genres || !n.genres.length)) loadGenres(n);  // Genres beim Anklicken nachladen
 
   const rows = links.filter(l => l.a.id === n.id || l.b.id === n.id)
-    .map(l => ({ other: l.a.id === n.id ? l.b : l.a, w: l.weight, type: l.type }));
+    .map(l => ({ other: l.a.id === n.id ? l.b : l.a, w: l.weight, type: l.type, shows: l.shows || [] }));
   fillNeighbors("nbSimilar", rows.filter(r => r.type === "similar").sort((a, b) => b.w - a.w), r => `${(r.w * 100 | 0)}%`);
-  fillNeighbors("nbTogether", rows.filter(r => r.type !== "similar").sort((a, b) => b.w - a.w), r => `${r.w}×`);
+  fillTogether(rows.filter(r => r.type !== "similar").sort((a, b) => b.w - a.w));
 }
 function fillNeighbors(id, rows, tag) {
   const el = document.getElementById(id);
@@ -615,6 +620,28 @@ function fillNeighbors(id, rows, tag) {
   el.querySelectorAll(".nb").forEach(d => d.onclick = () => {
     const t = nodeById.get(d.dataset.id);
     if (t) { centerOn(t); selectNode(t); }
+  });
+}
+// "Zusammen aufgetreten" mit aufklappbaren Auftrittsorten (wo/wann)
+function fillTogether(rows) {
+  const el = document.getElementById("nbTogether");
+  const seen = new Set();
+  const uniq = rows.filter(r => !seen.has(r.other.id) && seen.add(r.other.id));
+  el.innerHTML = uniq.map(r => {
+    const shows = (r.shows || []).map(s => {
+      const parts = [s.venue, s.city, s.date].filter(Boolean);
+      return `<div>${parts.join(" · ") || "(Ort unbekannt)"}</div>`;
+    }).join("");
+    const wo = r.shows && r.shows.length ? `${r.w}× ▾` : `${r.w}×`;
+    return `<div class="nbrow"><div class="nb" data-id="${r.other.id}"><span>${r.other.name}</span><small class="wo">${wo}</small></div>` +
+      (shows ? `<div class="shows">${shows}</div>` : "") + `</div>`;
+  }).join("") || '<small style="color:var(--muted)">noch nichts geladen</small>';
+  el.querySelectorAll(".nbrow").forEach(row => {
+    const nb = row.querySelector(".nb");
+    nb.onclick = () => { const t = nodeById.get(nb.dataset.id); if (t) { centerOn(t); selectNode(t); } };
+    const wo = row.querySelector(".wo");
+    const sh = row.querySelector(".shows");
+    if (wo && sh) wo.onclick = (e) => { e.stopPropagation(); sh.classList.toggle("open"); };
   });
 }
 function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); }

@@ -53,20 +53,27 @@ export async function artistCoappear(id, { limit = 40 } = {}) {
     `query($id:ID!,$l:Int!){ artist(id:$id){
        name contentUrl bookingDetails website soundcloud instagram facebook upcomingEventsCount
        area{ name } country{ name }
-       events(limit:$l, type:PREVIOUS){ artists{ name } genres{ name } }
+       events(limit:$l, type:PREVIOUS){ title date artists{ name } genres{ name } venue{ name } area{ name } }
      } }`,
     { id, l: limit }
   );
   const a = d.artist;
   if (!a) return { name: null, coacts: [], genres: [], booking: null };
-  const co = new Map(), gen = new Map();
+  const co = new Map(), gen = new Map(); // name -> { weight, shows[] }
   for (const e of a.events || []) {
-    for (const ar of e.artists || []) if (ar.name && ar.name !== a.name) co.set(ar.name, (co.get(ar.name) || 0) + 1);
+    const show = { event: e.title || null, date: e.date ? String(e.date).slice(0, 10) : null, venue: e.venue?.name || null, city: e.area?.name || null };
+    for (const ar of e.artists || []) {
+      if (!ar.name || ar.name === a.name) continue;
+      let rec = co.get(ar.name);
+      if (!rec) { rec = { weight: 0, shows: [] }; co.set(ar.name, rec); }
+      rec.weight++;
+      if (rec.shows.length < 12) rec.shows.push(show);
+    }
     for (const g of e.genres || []) gen.set(g.name, (gen.get(g.name) || 0) + 1);
   }
   return {
     name: a.name,
-    coacts: [...co.entries()].sort((x, y) => y[1] - x[1]).map(([name, weight]) => ({ name, weight })),
+    coacts: [...co.entries()].sort((x, y) => y[1].weight - x[1].weight).map(([name, r]) => ({ name, weight: r.weight, shows: r.shows })),
     genres: [...gen.entries()].sort((x, y) => y[1] - x[1]).map(([name]) => name),
     booking: {
       ra: a.contentUrl ? "https://ra.co" + a.contentUrl : null,

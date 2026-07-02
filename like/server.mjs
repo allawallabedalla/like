@@ -20,12 +20,29 @@ import { discoverAndScrape } from "./lib/discover.mjs";
 import { coAppearances } from "./lib/coappear.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
-function addEdge(g, a, b, type, weight, source) {
+function addEdge(g, a, b, type, weight, source, shows) {
   if (a === b) return;
   const [from, to] = a < b ? [a, b] : [b, a];
   const e = g.edges.find((x) => x.type === type && x.from === from && x.to === to);
-  if (e) { e.weight = Math.max(e.weight, weight); return; }
-  g.edges.push({ from, to, type, weight, source });
+  if (e) {
+    e.weight = Math.max(e.weight, weight);
+    if (shows?.length) e.shows = mergeShows(e.shows, shows);
+    return;
+  }
+  const edge = { from, to, type, weight, source };
+  if (shows?.length) edge.shows = shows.slice(0, 12);
+  g.edges.push(edge);
+}
+// Auftrittsorte zusammenführen (dedupe über event+date+venue, max 12)
+function mergeShows(a = [], b = []) {
+  const out = [], seen = new Set();
+  for (const s of [...a, ...b]) {
+    const k = `${s.event}|${s.date}|${s.venue}`;
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(s);
+    if (out.length >= 12) break;
+  }
+  return out;
 }
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -109,7 +126,7 @@ const server = createServer(async (req, res) => {
       }
       for (const c of coacts.slice(0, 25)) {
         const t = upsertArtist(g, { name: c.name });
-        addEdge(g, src.id, t.id, "together", c.weight, sources.join("+") || "ra");
+        addEdge(g, src.id, t.id, "together", c.weight, sources.join("+") || "ra", c.shows);
       }
       await saveGraph(GRAPH, g);
       return send(res, 200, { ok: true, name: canonical, similar: similar.length, together: coacts.length, sources, graph: materialize(g) });

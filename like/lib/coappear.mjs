@@ -12,7 +12,15 @@ export async function coAppearances(name) {
   const sources = [];
   let booking = null;
 
-  const merge = (list) => { for (const c of list || []) co.set(c.name, (co.get(c.name) || 0) + c.weight); };
+  // co: name -> { weight, shows[] } (shows = wo/wann sie zusammen auftraten)
+  const merge = (list) => {
+    for (const c of list || []) {
+      let rec = co.get(c.name);
+      if (!rec) { rec = { weight: 0, shows: [] }; co.set(c.name, rec); }
+      rec.weight += c.weight;
+      for (const s of c.shows || []) if (rec.shows.length < 12) rec.shows.push(s);
+    }
+  };
 
   try {
     const r = await ra.coappearByName(name);
@@ -31,7 +39,7 @@ export async function coAppearances(name) {
     name,
     sources,
     booking,
-    coacts: [...co.entries()].sort((a, b) => b[1] - a[1]).map(([name, weight]) => ({ name, weight })),
+    coacts: [...co.entries()].sort((a, b) => b[1].weight - a[1].weight).map(([name, r]) => ({ name, weight: r.weight, shows: r.shows })),
     genres: [...genres.keys()],
   };
 }
