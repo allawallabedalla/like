@@ -4,9 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Like</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='14' cy='16' r='11' fill='%23000'/%3E%3Ccircle cx='27' cy='25' r='4' fill='%23ff6a00'/%3E%3C/svg%3E" />
 <style>
   :root {
     --bg: #ffffff;
@@ -22,8 +20,9 @@
     --edge-together: #ff6a00;  /* zusammen aufgetreten (RA): orange */
   }
   * { box-sizing: border-box; }
+  /* Systemschrift statt Google Fonts: lädt sofort, funktioniert offline (Desktop-App!) */
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
-    font: 14px/1.4 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
   #app { position: fixed; inset: 0; }
   canvas { display: block; cursor: grab; }
   canvas.grabbing { cursor: grabbing; }
@@ -36,7 +35,7 @@
   input, textarea, button, select { font: inherit; color: var(--text); border-radius: 0; }
   select { background: var(--bg); border: 1px solid var(--line-soft); padding: 8px 6px; }
   .search { display: flex; gap: 0; }
-  .search input { width: 240px; background: var(--bg); border: 1px solid var(--line-soft);
+  .search input { width: clamp(140px, 16vw, 240px); background: var(--bg); border: 1px solid var(--line-soft);
     padding: 8px 10px; outline: none; }
   .search input:focus { border-color: var(--line); }
   button { background: var(--bg); border: 1px solid var(--line-soft); border-left: none;
@@ -46,13 +45,17 @@
   button.primary:hover { background: #222; }
   button:disabled { opacity: .5; cursor: default; }
   .counts { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .iconbtn { border: 1px solid var(--line-soft); border-left: 1px solid var(--line-soft); width: 30px; height: 30px;
+    padding: 0; border-radius: 50%; font-weight: 600; flex: none; }
+  /* schmalere Fenster: Zähler weicht zuerst, dann kürzen die Toggle-Labels */
+  @media (max-width: 1220px) { .counts { display: none; } }
+  @media (max-width: 1080px) { .toggle .tlong { display: none; } }
   .genres { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 14px; }
   .genres span { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: 20px; color: var(--muted);
     cursor: pointer; user-select: none; }
   .genres span:hover { border-color: var(--line); color: var(--text); }
   .genres span.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .gfilter { width: 150px; background: var(--bg); border: 1px solid var(--line-soft); padding: 8px 10px; outline: none; }
+  .gfilter { width: clamp(90px, 11vw, 150px); background: var(--bg); border: 1px solid var(--line-soft); padding: 8px 10px; outline: none; }
   .gfilter:focus { border-color: var(--line); }
   .booking { font-size: 12px; margin: 0 0 14px; }
   .booking .live { display: inline-block; background: #1a9e54; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-bottom: 8px; }
@@ -60,8 +63,10 @@
   .booking .links a { display: inline-block; margin-right: 10px; color: var(--text); }
   .toggle { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; }
 
-  .legend { position: fixed; left: 14px; bottom: 14px; background: var(--bg);
-    border: 1px solid var(--line-soft); padding: 10px 12px; font-size: 12px; z-index: 9; }
+  /* Korb + Legende teilen sich die linke untere Ecke als Stapel — nie mehr Überlappung */
+  .leftstack { position: fixed; left: 14px; bottom: 14px; z-index: 9; display: flex; flex-direction: column;
+    gap: 10px; align-items: flex-start; max-height: calc(100vh - 80px); }
+  .legend { background: var(--bg); border: 1px solid var(--line-soft); padding: 10px 12px; font-size: 12px; }
   .legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--muted); }
   .dot { width: 10px; height: 10px; border-radius: 50%; }
   .dot.ring { background: #fff !important; border: 2px solid #000; }
@@ -126,9 +131,9 @@
   .modebar.show { display: flex; }
   .modebar a { color: #fff; text-decoration: underline; cursor: pointer; }
 
-  /* Lineup-Korb */
-  .basket { position: fixed; left: 14px; bottom: 120px; width: 230px; background: var(--bg); border: 1px solid var(--line);
-    z-index: 9; font-size: 12px; display: none; }
+  /* Lineup-Korb (lebt im .leftstack über der Legende) */
+  .basket { width: 230px; background: var(--bg); border: 1px solid var(--line);
+    font-size: 12px; display: none; }
   .basket.show { display: block; }
   .basket h3 { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); font-size: 12px; display: flex; justify-content: space-between; }
   .basket ul { list-style: none; margin: 0; padding: 4px 0; max-height: 200px; overflow-y: auto; }
@@ -151,6 +156,45 @@
   .ctxmenu div { padding: 7px 12px; cursor: pointer; font-size: 13px; }
   .ctxmenu div:hover { background: #f0f0f0; }
 
+  /* Zoom-/Ansicht-Controls (rutschen nach links, wenn das Panel offen ist) */
+  .zoomctl { position: fixed; right: 14px; bottom: 14px; z-index: 11; display: flex; flex-direction: column; gap: 0; }
+  body.panel-open .zoomctl { right: 334px; }
+  .zoomctl button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line-soft); border-top: none;
+    background: var(--bg); font-size: 16px; line-height: 1; }
+  .zoomctl button:first-child { border-top: 1px solid var(--line-soft); }
+  .zoomctl button:hover { background: #f2f2f2; }
+
+  /* Leerer Graph: freundlicher Startpunkt statt weißer Fläche */
+  .empty { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5;
+    pointer-events: none; }
+  .empty.show { display: flex; }
+  .empty .box { text-align: center; color: var(--muted); max-width: 420px; padding: 24px; }
+  .empty .box h3 { color: var(--text); font-size: 20px; margin: 0 0 10px; }
+  .empty .box p { margin: 6px 0; font-size: 13px; line-height: 1.6; }
+  .empty kbd { border: 1px solid var(--line-soft); padding: 1px 6px; font: 12px inherit; border-radius: 3px; }
+
+  /* Hilfe-Popover (Shortcuts & Bedienung) */
+  .helpbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
+    padding: 14px 16px; font-size: 12.5px; display: none; width: 320px; max-height: calc(100vh - 80px); overflow-y: auto; }
+  .helpbox.show { display: block; }
+  .helpbox h4 { margin: 10px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .helpbox h4:first-child { margin-top: 0; }
+  .helpbox div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+  .helpbox div span:last-child { color: var(--muted); text-align: right; }
+  .helpbox kbd { border: 1px solid var(--line-soft); padding: 0 5px; font: 11px inherit; border-radius: 3px; white-space: nowrap; }
+
+  /* API-Key-Dialog (Erststart ohne eingebetteten Key) */
+  .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50; display: none;
+    align-items: center; justify-content: center; }
+  .modal-back.show { display: flex; }
+  .modal { background: var(--bg); border: 1px solid var(--line); width: min(440px, calc(100vw - 40px)); padding: 22px; }
+  .modal h3 { margin: 0 0 10px; font-size: 17px; }
+  .modal p { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 8px 0; }
+  .modal input { width: 100%; background: var(--bg); border: 1px solid var(--line-soft); padding: 9px 10px; outline: none; }
+  .modal input:focus { border-color: var(--line); }
+  .modal .row { display: flex; gap: 8px; margin-top: 14px; }
+  .modal .row button { flex: 1; border-left: 1px solid var(--line-soft); }
+
   /* Statische Vorschau */
   .is-static .hideStatic { display: none !important; }
   .staticbanner { position: fixed; bottom: 14px; right: 14px; z-index: 12; background: var(--accent); color: #fff;
@@ -171,11 +215,11 @@
       </div>
       <button class="primary" id="go">Suchen</button>
     </div>
-    <div class="hint" title="Klick = Details · Doppelklick = weiter hangeln · Shift-Klick = vergleichen · Rechtsklick = Menü">Doppelklick = weiter · Rechtsklick = Menü</div>
+    <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
     <div class="grow"></div>
     <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" />
     <label class="toggle" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
-    <label class="toggle"><input type="checkbox" id="dimKnown" /> Markierte abdunkeln</label>
+    <label class="toggle" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
     <button id="export" title="Markierte Acts als CSV">⭳ CSV</button>
     <button id="exportPng" title="Karte als Bild (PNG)">⭳ PNG</button>
     <select id="reset" class="hideStatic" title="Ansicht leeren">
@@ -189,14 +233,64 @@
   <div id="trail" class="trail"></div>
   <div id="modebar" class="modebar"></div>
 
-  <div class="legend">
-    <div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ähnlicher Stil (Last.fm)</div>
-    <div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> zusammen aufgetreten (RA)</div>
-    <div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>
-    <div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>
-    <div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (angefragt/…)</div>
-    <div><span class="dot" style="background:#1a9e54"></span> tritt auf (kommende Shows)</div>
-    <div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>
+  <div class="leftstack">
+    <div id="basket" class="basket"></div>
+    <div class="legend">
+      <div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ähnlicher Stil (Last.fm)</div>
+      <div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> zusammen aufgetreten (RA)</div>
+      <div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>
+      <div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>
+      <div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (angefragt/…)</div>
+      <div><span class="dot" style="background:#1a9e54"></span> tritt auf (kommende Shows)</div>
+      <div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>
+    </div>
+  </div>
+
+  <div class="zoomctl">
+    <button id="zoomIn" title="Hineinzoomen (+)">+</button>
+    <button id="zoomOut" title="Herauszoomen (−)">−</button>
+    <button id="zoomFit" title="Alles zeigen (0)">⛶</button>
+  </div>
+
+  <div class="empty" id="empty">
+    <div class="box">
+      <h3>Noch keine Acts auf der Karte</h3>
+      <p>Such oben nach einem Act (<kbd>/</kbd> springt ins Suchfeld) — jeder Treffer<br>
+      bringt gleich sein Umfeld mit: ähnlicher Stil + zusammen aufgetreten.</p>
+      <p>Dann: <b>Doppelklick</b> auf einen Punkt lädt dessen Nachbarn —<br>so hangelst du dich durch die Szene.</p>
+    </div>
+  </div>
+
+  <div class="helpbox" id="helpbox">
+    <h4>Karte</h4>
+    <div><span>Klick auf Punkt</span><span>Details öffnen</span></div>
+    <div><span>Doppelklick</span><span>Nachbarn laden (weiter hangeln)</span></div>
+    <div><span>Shift-Klick</span><span>Acts vergleichen (Schnittmenge)</span></div>
+    <div><span>Rechtsklick</span><span>Menü (Fokus, Pfad, Lineup …)</span></div>
+    <div><span>Punkt ziehen</span><span>Position fixieren</span></div>
+    <div><span>Fläche ziehen / Mausrad</span><span>verschieben / zoomen</span></div>
+    <h4>Tastatur</h4>
+    <div><span><kbd>/</kbd></span><span>Suche fokussieren</span></div>
+    <div><span><kbd>e</kbd></span><span>gewählten Act weiter erkunden</span></div>
+    <div><span><kbd>f</kbd></span><span>Fokus auf Nachbarschaft</span></div>
+    <div><span><kbd>b</kbd></span><span>like! (ins Lineup)</span></div>
+    <div><span><kbd>Entf</kbd></span><span>Act entfernen (mit Undo)</span></div>
+    <div><span><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></span><span>zoomen · alles zeigen</span></div>
+    <div><span><kbd>Esc</kbd></span><span>Modus/Panel schließen</span></div>
+  </div>
+
+  <div class="modal-back" id="keyModal">
+    <div class="modal">
+      <h3>Last.fm-Key einrichten</h3>
+      <p>Für die Live-Suche braucht like einen kostenlosen Last.fm-API-Key.
+      <a href="https://www.last.fm/api/account/create" target="_blank" rel="noreferrer">Hier in 1 Minute erstellen ↗</a>
+      — dann den Key unten einfügen. Er wird lokal gespeichert, einmalig.</p>
+      <input id="keyInput" placeholder="API-Key einfügen…" autocomplete="off" spellcheck="false" />
+      <div class="row">
+        <button class="primary" id="keySave">Speichern</button>
+        <button id="keyLater">Später</button>
+      </div>
+    </div>
   </div>
 
   <div class="panel" id="panel">
@@ -241,7 +335,6 @@
     </div>
   </div>
 
-  <div id="basket" class="basket"></div>
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
@@ -279,7 +372,11 @@ let graph = { artists: {}, edges: [] };
 let nodes = [];          // {id,name,x,y,vx,vy,deg,seed,known}
 let links = [];          // {a,b,type,weight}
 const nodeById = new Map();
-let view = { x: W / 2, y: H / 2, k: 1 };   // pan/zoom
+// Start-View: identische Abbildung (kein Offset!) — Knoten spawnen um (W/2,H/2)
+// in Weltkoordinaten, mit view={W/2,H/2} landete das Zentrum früher unten rechts
+// in der Bildschirm-Ecke. Nach dem Laden zieht fitAll() die Karte passend auf.
+let view = { x: 0, y: 0, k: 1 };   // pan/zoom
+const CANVAS_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
 let busyId = null, filterGenre = "";
 const activeGenres = new Set(); // per Pill-Klick ausgewählte Genres (ODER-verknüpft), filtert die Karte
@@ -339,9 +436,33 @@ function rebuild(prev) {
     adj.get(l.a.id).add(l.b.id); adj.get(l.b.id).add(l.a.id);
   }
   document.getElementById("counts").textContent = `${nodes.length} Acts · ${links.length} Kanten`;
+  document.getElementById("empty").classList.toggle("show", nodes.length === 0);
   renderBasket();
   reheat(1); // neues Layout durchrechnen lassen
 }
+
+// ---- Ansicht: alles zeigen / zoomen ----
+function fitAll() {
+  if (!nodes.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
+    if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
+  }
+  const pad = 90, bw = Math.max(maxX - minX, 60), bh = Math.max(maxY - minY, 60);
+  const k = Math.max(0.2, Math.min((W - pad * 2) / bw, (H - 52 - pad * 2) / bh, 1.4));
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  view.k = k; view.x = W / 2 - cx * k; view.y = (H + 52) / 2 - cy * k; // 52 = Topbar
+}
+function zoomBy(factor) {
+  const px = W / 2, py = H / 2; // um die Bildschirmmitte zoomen
+  const wx = (px - view.x) / view.k, wy = (py - view.y) / view.k;
+  view.k = Math.max(0.2, Math.min(4, view.k * factor));
+  view.x = px - wx * view.k; view.y = py - wy * view.k;
+}
+document.getElementById("zoomIn").onclick = () => zoomBy(1.3);
+document.getElementById("zoomOut").onclick = () => zoomBy(1 / 1.3);
+document.getElementById("zoomFit").onclick = fitAll;
 
 // gemeinsame Nachbarn aller Knoten in `ids`
 function commonNeighbors(ids) {
@@ -521,7 +642,7 @@ function draw() {
     }
     if (basket.has(n.id)) {
       ctx.globalAlpha = faded ? 0.2 : 1; ctx.fillStyle = "#000";
-      ctx.font = `${12 / view.k}px Inter, sans-serif`; ctx.textAlign = "center";
+      ctx.font = `${12 / view.k}px system-ui, sans-serif`; ctx.textAlign = "center";
       ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
     }
     if (busyId === n.id) {
@@ -532,11 +653,11 @@ function draw() {
     if (n.deg >= 3 || view.k > 1.3 || n === hover || sel || glow || compareSet.has(n.id)) {
       ctx.textAlign = "center";
       ctx.globalAlpha = faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
-      ctx.font = `${12 / view.k}px Inter, system-ui, sans-serif`;
+      ctx.font = `${12 / view.k}px system-ui, sans-serif`;
       ctx.fillText(n.name, n.x, n.y + r + 12 / view.k);
       if (n.genres && n.genres.length) {
         ctx.globalAlpha = faded ? 0.25 : 0.6; ctx.fillStyle = getCss("--muted");
-        ctx.font = `${9.5 / view.k}px Inter, system-ui, sans-serif`;
+        ctx.font = `${9.5 / view.k}px system-ui, sans-serif`;
         ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, n.y + r + 24 / view.k);
       }
     }
@@ -650,6 +771,7 @@ function renderGenrePills(genres) {
 function selectNode(n) {
   selected = n;
   document.getElementById("panel").classList.add("open");
+  document.body.classList.add("panel-open");
   document.getElementById("pName").innerHTML = n.name +
     (n.seed ? ' <span class="badge seed">gesucht</span>' : '');
   document.getElementById("pSub").innerHTML =
@@ -701,7 +823,7 @@ function fillTogether(rows) {
     if (wo && sh) wo.onclick = (e) => { e.stopPropagation(); sh.classList.toggle("open"); };
   });
 }
-function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); }
+function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); document.body.classList.remove("panel-open"); }
 function centerOn(n) { view.x = W / 2 - n.x * view.k; view.y = H / 2 - n.y * view.k; }
 
 function bookingHtml(n) {
@@ -819,7 +941,12 @@ async function exploreByName(name) {
   toast(`Lade „${name}" … (ähnlicher Stil + Auftritte)`);
   try {
     const res = await API.explore(name);
-    if (res.error) { toast("Fehler: " + res.error); return; }
+    if (res.error) {
+      // fehlender Key -> direkt den Einrichtungs-Dialog zeigen statt nur Fehlertext
+      if (/API-Key/i.test(res.error)) { openKeyModal(); toast("Erst den Last.fm-Key einrichten"); }
+      else toast("Fehler: " + res.error);
+      return;
+    }
     await reload(res.name);
     addTrail(res.name);
     toast(`${res.name}: ${res.similar} ähnliche · ${res.together} zusammen aufgetreten`);
@@ -860,8 +987,11 @@ function updateTooltip(n, e) {
   if (n.genres && n.genres.length) parts.push(`<span class="g">${n.genres.slice(0, 3).join(" · ")}</span>`);
   const b = n.booking; if (b && (b.area || b.country)) parts.push(`<span class="g">📍 ${[b.area, b.country].filter(Boolean).join(", ")}</span>`);
   tipEl.innerHTML = parts.join("<br>");
-  tipEl.style.left = (e.clientX + 14) + "px"; tipEl.style.top = (e.clientY + 14) + "px";
   tipEl.classList.add("show");
+  // erst rendern, dann messen: Tooltip darf nicht aus dem Fenster laufen
+  const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tw - 8) + "px";
+  tipEl.style.top = Math.min(e.clientY + 14, innerHeight - th - 8) + "px";
 }
 
 // ---- Kontextmenü ----
@@ -880,8 +1010,10 @@ function showCtx(n, x, y) {
   ];
   ctxEl.innerHTML = "";
   for (const [label, fn] of items) { const d = document.createElement("div"); d.textContent = label; d.onclick = () => { hideCtx(); fn(); }; ctxEl.appendChild(d); }
-  ctxEl.style.left = Math.min(x, innerWidth - 180) + "px"; ctxEl.style.top = Math.min(y, innerHeight - 230) + "px";
   ctxEl.classList.add("show");
+  // nach dem Rendern messen und ans Fenster clampen (statt geschätzter Fixwerte)
+  ctxEl.style.left = Math.min(x, innerWidth - ctxEl.offsetWidth - 8) + "px";
+  ctxEl.style.top = Math.min(y, innerHeight - ctxEl.offsetHeight - 8) + "px";
 }
 
 // ---- Vergleich / Pfad / Fokus / Geheimtipp ----
@@ -996,17 +1128,49 @@ qEl.addEventListener("keydown", (e) => {
 });
 qEl.addEventListener("blur", () => setTimeout(closeSug, 150));
 
+// ---- Hilfe-Popover ----
+const helpEl = document.getElementById("helpbox");
+function toggleHelp() { helpEl.classList.toggle("show"); }
+document.getElementById("helpBtn").onclick = toggleHelp;
+
 // ---- Tastatur-Shortcuts ----
 addEventListener("keydown", (e) => {
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
-  else if (e.key === "Escape") { hideCtx(); if (pathFrom) { pathFrom = null; updateModebar(); } else if (pathHi) clearPath(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
+  else if (e.key === "Escape") { hideCtx(); if (helpEl.classList.contains("show")) toggleHelp(); else if (pathFrom) { pathFrom = null; updateModebar(); } else if (pathHi) clearPath(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
   else if (e.key === "e" && selected) exploreByName(selected.name);
   else if (e.key === "f" && selected) toggleFocus(selected);
   else if (e.key === "b" && selected) toggleBasket(selected);
   else if (e.key === "Delete" && selected) removeNode(selected);
+  else if (e.key === "+" || e.key === "=") zoomBy(1.3);
+  else if (e.key === "-") zoomBy(1 / 1.3);
+  else if (e.key === "0") fitAll();
+  else if (e.key === "?") toggleHelp();
 });
+
+// ---- API-Key-Dialog (Erststart ohne eingebetteten Key) ----
+const keyModal = document.getElementById("keyModal");
+function openKeyModal() { keyModal.classList.add("show"); document.getElementById("keyInput").focus(); }
+function closeKeyModal() { keyModal.classList.remove("show"); }
+document.getElementById("keyLater").onclick = closeKeyModal;
+keyModal.addEventListener("mousedown", (e) => { if (e.target === keyModal) closeKeyModal(); });
+document.getElementById("keyInput").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("keySave").click(); });
+document.getElementById("keySave").onclick = async () => {
+  const key = document.getElementById("keyInput").value.trim();
+  if (!key) { toast("Bitte Key einfügen"); return; }
+  const res = await POST("/api/key", { key });
+  if (res.ok) { closeKeyModal(); toast("Key gespeichert — Suche ist startklar!"); }
+  else toast("Fehler: " + (res.error || "Key konnte nicht gespeichert werden"));
+};
+// beim Start prüfen, ob ein Key da ist — wenn nicht, freundlich danach fragen
+async function checkKey() {
+  if (STATIC) return;
+  try {
+    const h = await fetch("/api/health").then(r => r.json());
+    if (!h.key) openKeyModal();
+  } catch {}
+}
 
 // ---- Start ----
 (async () => {
@@ -1021,7 +1185,9 @@ addEventListener("keydown", (e) => {
   graph = await API.graph();
   rebuild();
   for (let i = 0; i < 120; i++) tick();
+  fitAll(); // Karte passend einblenden statt irgendwo in der Ecke
   loop();
+  checkKey();
 })();
 </script>
 </body>

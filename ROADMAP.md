@@ -15,6 +15,10 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 - Genre-Filter (Topbar), CSV-Export der markierten Acts (inkl. Kontakt/Region)
 - Karte als PNG exportieren
 - Einzel-Act löschen mit **Undo**, Datenputz-Migration alter Stände
+- UX-Politur (v1.2): Karte startet zentriert + „Alles zeigen", Zoom-Buttons, Empty-State
+  beim Erststart, Hilfe-Popover (alle Shortcuts), API-Key-Dialog in der App (Erststart ohne
+  eingebetteten Key), Systemschrift statt Google Fonts (offline-fähig), responsive Topbar,
+  Korb/Legende ohne Überlappung, Tooltip/Kontextmenü bleiben im Fenster
 
 ### Offen (braucht Keys/OAuth → nicht autonom)
 - Spotify Audio-Features (OAuth), Songkick/Bandsintown aktivieren (Key/app_id) — Adapter liegen bereit

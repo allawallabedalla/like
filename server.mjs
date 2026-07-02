@@ -10,11 +10,11 @@
 //   POST /api/artist       { id, known?, note? }  -> Booking-Metadaten speichern
 
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, mergeSimilar, materialize, addEvent, emptyGraph, upsertArtist, upsertEdge } from "./lib/store.mjs";
-import { getSimilar, getTopTags, searchArtists } from "./lib/lastfm.mjs";
+import { getSimilar, getTopTags, searchArtists, clearKeyCache } from "./lib/lastfm.mjs";
 import { fetchLineup } from "./lib/wikipedia.mjs";
 import { discoverAndScrape } from "./lib/discover.mjs";
 import { coAppearances } from "./lib/coappear.mjs";
@@ -78,6 +78,23 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       const html = await readFile(join(ROOT, "public", "index.html"));
       return send(res, 200, html, "text/html; charset=utf-8");
+    }
+
+    // Selbstauskunft: hat der Server einen Last.fm-Key? (fürs Frontend beim Start)
+    if (req.method === "GET" && url.pathname === "/api/health") {
+      let key = !!process.env.LASTFM_API_KEY;
+      if (!key) { try { await access(join(DATA_DIR, ".lastfm-key")); key = true; } catch {} }
+      return send(res, 200, { ok: true, key });
+    }
+
+    // Key aus der App heraus speichern (Erststart ohne eingebetteten Key).
+    if (req.method === "POST" && url.pathname === "/api/key") {
+      const { key } = await readBody(req);
+      const k = String(key || "").trim();
+      if (!/^[a-f0-9]{32}$/i.test(k)) return send(res, 400, { error: "Das sieht nicht wie ein Last.fm-API-Key aus (32 Zeichen, hex)." });
+      await writeFile(join(DATA_DIR, ".lastfm-key"), k, "utf8");
+      clearKeyCache();
+      return send(res, 200, { ok: true });
     }
 
     if (req.method === "GET" && url.pathname === "/api/graph") {
