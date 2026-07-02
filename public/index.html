@@ -79,8 +79,11 @@
   .panel textarea { width: 100%; min-height: 80px; resize: vertical; background: var(--bg);
     border: 1px solid var(--line-soft); padding: 8px; outline: none; }
   .panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .panel .row button { flex: 1; border-left: 1px solid var(--line-soft); }
-  .panel .row button.small { flex: 0 0 auto; padding: 5px 10px; font-size: 12px; background: var(--bg); color: var(--text); }
+  .panel .row button { flex: 1 1 0; min-width: 0; border-left: 1px solid var(--line-soft); }
+  /* like! = Hauptaktion: orange wie der Marken-Punkt, klar erkennbar */
+  #basketBtn { background: var(--edge-together); border-color: var(--edge-together); color: #fff; font-weight: 600; }
+  #basketBtn:hover { background: #e65f00; }
+  #basketBtn.inlineup { background: var(--bg); color: var(--edge-together); border: 1px solid var(--edge-together); }
   .close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text);
     font-size: 20px; cursor: pointer; padding: 4px; }
   .neighbors { margin-top: 10px; }
@@ -193,6 +196,7 @@
     <div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>
     <div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (angefragt/…)</div>
     <div><span class="dot" style="background:#1a9e54"></span> tritt auf (kommende Shows)</div>
+    <div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>
   </div>
 
   <div class="panel" id="panel">
@@ -202,7 +206,7 @@
     <div id="pGenres" class="genres"></div>
     <div id="pBooking" class="booking"></div>
     <div class="row">
-      <button class="small" id="expand">Weiter erkunden</button>
+      <button id="expand">Weiter erkunden</button>
       <button id="focusBtn" title="Nur die Nachbarschaft zeigen">Fokus</button>
     </div>
     <div class="row" style="margin-top:8px">
@@ -318,6 +322,7 @@ function rebuild(prev) {
       x: old?.x ?? (W / 2 + (Math.random() - .5) * 400),
       y: old?.y ?? (H / 2 + (Math.random() - .5) * 400),
       vx: old?.vx ?? 0, vy: old?.vy ?? 0,
+      pinned: old?.pinned ?? false,
     };
   });
   nodeById.clear(); nodes.forEach(n => nodeById.set(n.id, n));
@@ -383,19 +388,37 @@ function reheat(a = 0.7) { alpha = Math.max(alpha, a); }
 
 function tick() {
   if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
-  const REP = 5200, SPRING = 0.012, DAMP = 0.86;
+  const REP = 5200, SPRING = 0.012, DAMP = 0.86, CUT = 400, CUT2 = CUT * CUT;
   const n = nodes.length;
+  // Abstoßung wirkt eh nur bis CUT — Knoten in ein Gitter mit Zellgröße CUT
+  // einsortieren und nur die 3×3-Nachbarzellen prüfen statt aller Paare
+  // (vorher O(n²): blockierte bei wachsendem Graph den Main-Thread -> Maus-Lag)
+  const grid = new Map();
   for (let i = 0; i < n; i++) {
     const a = nodes[i];
-    for (let j = i + 1; j < n; j++) {
-      const b = nodes[j];
-      let dx = a.x - b.x, dy = a.y - b.y;
-      let d2 = dx * dx + dy * dy || 0.01;
-      if (d2 > 160000) continue; // sehr weit entfernte ignorieren (Speed)
-      const d = Math.sqrt(d2);
-      const f = (REP / d2) * alpha;
-      const fx = (dx / d) * f, fy = (dy / d) * f;
-      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+    const key = Math.floor(a.x / CUT) * 100000 + Math.floor(a.y / CUT);
+    const cell = grid.get(key);
+    if (cell) cell.push(i); else grid.set(key, [i]);
+  }
+  for (let i = 0; i < n; i++) {
+    const a = nodes[i];
+    const cx = Math.floor(a.x / CUT), cy = Math.floor(a.y / CUT);
+    for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        const cell = grid.get(gx * 100000 + gy);
+        if (!cell) continue;
+        for (const j of cell) {
+          if (j <= i) continue; // jedes Paar nur einmal
+          const b = nodes[j];
+          let dx = a.x - b.x, dy = a.y - b.y;
+          let d2 = dx * dx + dy * dy || 0.01;
+          if (d2 > CUT2) continue;
+          const d = Math.sqrt(d2);
+          const f = (REP / d2) * alpha;
+          const fx = (dx / d) * f, fy = (dy / d) * f;
+          a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+        }
+      }
     }
   }
   for (const l of links) {
@@ -409,7 +432,9 @@ function tick() {
   for (const a of nodes) {
     a.vx += (W / 2 - a.x) * 0.00024 * alpha;
     a.vy += (H / 2 - a.y) * 0.00024 * alpha;
-    if (a === dragNode) { a.vx = 0; a.vy = 0; continue; }
+    // fixierte Knoten (nach manuellem Ziehen) bleiben stehen, stoßen aber weiter ab —
+    // so lässt sich das Netz von Hand sortieren, ohne dass die Physik es zurückzieht
+    if (a === dragNode || a.pinned) { a.vx = 0; a.vy = 0; continue; }
     a.vx *= DAMP; a.vy *= DAMP;
     a.x += a.vx; a.y += a.vy;
   }
@@ -422,7 +447,9 @@ function nodeColor(n) {
   if (n.seed) return getCss("--accent");      // gesucht: schwarz
   return getCss("--discovered");              // sonst grau (Status = farbiger Ring)
 }
-function getCss(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+// gecacht: getComputedStyle ist teuer und lief vorher pro Knoten pro Frame (Maus-Lag)
+const cssCache = {};
+function getCss(v) { return cssCache[v] ??= getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
 function focusSet() {
   if (!focusId || !nodeById.has(focusId)) return null;
@@ -487,6 +514,11 @@ function draw() {
       ctx.beginPath(); ctx.arc(n.x + r * 0.8, n.y - r * 0.8, 2.5 / view.k + 1, 0, 7);
       ctx.fillStyle = "#1a9e54"; ctx.fill();
     }
+    if (n.pinned) { // fixiert (nach Ziehen): kleiner grauer Punkt unten links
+      ctx.globalAlpha = faded ? 0.15 : 1;
+      ctx.beginPath(); ctx.arc(n.x - r * 0.8, n.y + r * 0.8, 2 / view.k + 1, 0, 7);
+      ctx.fillStyle = getCss("--muted"); ctx.fill();
+    }
     if (basket.has(n.id)) {
       ctx.globalAlpha = faded ? 0.2 : 1; ctx.fillStyle = "#000";
       ctx.font = `${12 / view.k}px Inter, sans-serif`; ctx.textAlign = "center";
@@ -522,7 +554,8 @@ function pick(px, py) {
   let best = null, bestD = Infinity;
   for (const n of nodes) {
     if (fs && !fs.has(n.id)) continue;
-    const r = radius(n) + 4;
+    // mind. ~12 Bildschirm-Pixel Trefferfläche, sonst sind Knoten rausgezoomt kaum klickbar
+    const r = Math.max(radius(n) + 4, 12 / view.k);
     const d = (n.x - w.x) ** 2 + (n.y - w.y) ** 2;
     if (d < r * r && d < bestD) { bestD = d; best = n; }
   }
@@ -559,7 +592,7 @@ addEventListener("mousemove", (e) => {
     if (!moved) return; // reines Klicken darf den Knoten nicht schon verschieben/aufheizen
     const w = world(p);
     dragNode.x = w.x; dragNode.y = w.y; dragNode.vx = 0; dragNode.vy = 0;
-    reheat();
+    reheat(0.3); // nur sanft: die Nachbarschaft rückt nach, der Rest des Netzes bleibt ruhig
   } else {
     view.x = dragStart.vx + dx; view.y = dragStart.vy + dy;
   }
@@ -575,6 +608,7 @@ addEventListener("mouseup", (e) => {
       else selectNode(n);                         // sonst: Details
     } else { closePanel(); }
   }
+  if (dragNode && moved) dragNode.pinned = true;  // gezogen = fixiert (Rechtsklick löst)
   dragging = false; dragNode = null; cv.classList.remove("grabbing");
 });
 cv.addEventListener("dblclick", (e) => {
@@ -626,6 +660,7 @@ function selectNode(n) {
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
   document.getElementById("status").value = n.status || "";
   document.getElementById("note").value = n.note || "";
+  refreshLikeBtn();
   if (!STATIC && (!n.genres || !n.genres.length)) loadGenres(n);  // Genres beim Anklicken nachladen
 
   const rows = links.filter(l => l.a.id === n.id || l.b.id === n.id)
@@ -837,9 +872,10 @@ function showCtx(n, x, y) {
     ["Weiter erkunden", () => exploreByName(n.name)],
     ["Details öffnen", () => selectNode(n)],
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
-    [basket.has(n.id) ? "Aus Korb" : "In Korb", () => toggleBasket(n)],
+    [basket.has(n.id) ? "Aus dem Lineup" : "like! (ins Lineup)", () => toggleBasket(n)],
     [compareSet.has(n.id) ? "Aus Vergleich" : "Zum Vergleich", () => toggleCompare(n)],
     ["Pfad von hier…", () => startPath(n)],
+    [n.pinned ? "Fixierung lösen" : "Position fixieren", () => { n.pinned = !n.pinned; if (!n.pinned) reheat(0.3); }],
     ["Entfernen", () => removeNode(n)],
   ];
   ctxEl.innerHTML = "";
@@ -894,12 +930,20 @@ function renderTrail() {
 
 // ---- Lineup-Korb ----
 function saveBasket() { try { localStorage.setItem("like_basket", JSON.stringify([...basket])); } catch {} }
-function toggleBasket(n) { basket.has(n.id) ? basket.delete(n.id) : basket.add(n.id); saveBasket(); renderBasket(); }
+function toggleBasket(n) { basket.has(n.id) ? basket.delete(n.id) : basket.add(n.id); saveBasket(); renderBasket(); refreshLikeBtn(); }
+// like!-Button spiegelt, ob der gewählte Act schon im Lineup ist
+function refreshLikeBtn() {
+  if (!selected) return;
+  const b = document.getElementById("basketBtn");
+  const inL = basket.has(selected.id);
+  b.textContent = inL ? "✓ im Lineup" : "like!";
+  b.classList.toggle("inlineup", inL);
+}
 function renderBasket() {
   const el = document.getElementById("basket");
   const items = [...basket].map(id => graph.artists[id]).filter(Boolean);
   if (!items.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
-  el.innerHTML = `<h3>Lineup-Korb <span>${items.length}</span></h3><ul>` +
+  el.innerHTML = `<h3>Lineup <span>${items.length}</span></h3><ul>` +
     items.map(a => `<li data-id="${a.id}"><b>${a.name}</b><a data-rm="${a.id}">✕</a></li>`).join("") +
     `</ul><div class="actions"><button id="bExport">CSV</button><button id="bClear">Leeren</button></div>`;
   el.classList.add("show");

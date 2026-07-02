@@ -55,6 +55,7 @@ function createWindow() {
     width: 1400,
     height: 900,
     title: "Like",
+    backgroundColor: "#ffffff",
     webPreferences: {
       contextIsolation: true
     }
