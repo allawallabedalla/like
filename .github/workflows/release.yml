@@ -62,12 +62,22 @@ jobs:
           # eigene Signatursuche (Developer-ID) hier abschalten.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
+      # SHA256-Prüfsummen zum Verifizieren (shasum gibt's auf mac + windows-bash).
+      - name: Prüfsummen (SHA256)
+        shell: bash
+        run: |
+          cd dist
+          shopt -s nullglob
+          for f in *.exe *.dmg; do shasum -a 256 "$f" | tee "$f.sha256"; done
+
       # Immer als Build-Artefakt ablegen (auch bei manuellem Lauf ohne Tag).
       - name: Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
           name: like-${{ matrix.os }}
-          path: ${{ matrix.pattern }}
+          path: |
+            ${{ matrix.pattern }}
+            dist/*.sha256
           if-no-files-found: error
 
       # Bei Tag-Push ODER manuellem Lauf mit Tag-Input: Release erstellen/befüllen.
@@ -78,5 +88,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag }}
-          files: ${{ matrix.pattern }}
+          files: |
+            ${{ matrix.pattern }}
+            dist/*.sha256
           fail_on_unmatched_files: true

@@ -15,6 +15,8 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 - Genre-Filter (Topbar), CSV-Export der markierten Acts (inkl. Kontakt/Region)
 - Karte als PNG exportieren
 - Einzel-Act löschen mit **Undo**, Datenputz-Migration alter Stände
+- v1.5.1: Windows auch als NSIS-Installer (weniger AV-Fehlalarme als Portable),
+  Publisher-Metadaten, SHA256-Prüfsummen im Release, Verifizieren-/Meldehinweise
 - v1.5: 30-Sekunden-Klangprobe (Deezer-Preview, Fallback iTunes) — ▶ im Panel
   und je Radar-Eintrag; Versionsnummer im Header
 - v1.4: Radar-Cache + Aktualisieren-Button + Zeitstempel, like!/▶(YouTube) je

@@ -1,7 +1,8 @@
 {
   "name": "like",
-  "version": "1.5.0",
-  "description": "Like Desktop",
+  "version": "1.5.1",
+  "description": "Like — Künstler-Nachbarschaften (Booking-/Entdeckungs-Tool)",
+  "author": "Nicolas Reis",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -46,12 +47,24 @@
     },
     "win": {
       "icon": "build/icon.png",
+      "publisherName": "Nicolas Reis",
       "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
         {
           "target": "portable",
           "arch": ["x64"]
         }
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Like-${version}-setup.exe",
+      "shortcutName": "Like"
     },
     "portable": {
       "artifactName": "Like-${version}-portable.exe"

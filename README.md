@@ -7,12 +7,20 @@ klickbare Karte. **Zero Dependencies** — nur Node (eingebautes `fetch` + `http
 **[Neueste Version →](https://github.com/allawallabedalla/like/releases/latest)** — eigenständige
 Downloads, **kein Node.js nötig** (Server + Browser sind eingebaut):
 
-- **Windows:** `Like-<version>-portable.exe` — Doppelklick, läuft ohne Installation.
-  Beim ersten Start warnt SmartScreen (unsigniert) → „Weitere Informationen" → „Trotzdem ausführen".
+- **Windows (empfohlen):** `Like-<version>-setup.exe` — normaler Installer (pro Benutzer,
+  kein Admin nötig). Wird von Virenscannern seltener fehl-erkannt als die Portable-Variante.
+- **Windows (portable):** `Like-<version>-portable.exe` — Doppelklick, ohne Installation.
 - **macOS:** `Like-<version>-universal.dmg` — läuft auf Apple Silicon **und** Intel.
   Nicht signiert: nach dem Öffnen der `.dmg` per Rechtsklick auf `Like.app` → „Öffnen" bestätigen.
 
 Der Last.fm-Key ist in den Release-Builds eingebettet — Suche funktioniert sofort, ohne eigenen Key.
+
+> **Warnung beim ersten Start?** Die Builds sind (noch) **nicht code-signiert** — daher zeigt
+> Windows evtl. „Windows hat Ihren PC geschützt" (SmartScreen) → „Weitere Informationen" →
+> „Trotzdem ausführen". Das ist **kein Virusfund**, nur die fehlende Signatur + fehlende
+> Reputation einer neuen Datei. Zu jeder Datei liegt eine `.sha256`-Prüfsumme im Release
+> (unter *Assets*) zum Verifizieren. Ein echter Fehlalarm eines Scanners lässt sich bei
+> Microsoft kostenlos melden: https://www.microsoft.com/wdsi/filesubmission
 
 ## So funktioniert's
 **Einen Act suchen → durch das Netz klicken.** Jeder Klick auf einen Punkt lädt seine
