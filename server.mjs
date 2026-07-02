@@ -65,6 +65,10 @@ try { APP_VERSION = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"
 let radarCache = null; // { at, key, payload }
 const RADAR_TTL = 10 * 60 * 1000;
 
+// Graph speichern UND den Radar-Cache verwerfen — jede Mutation geht hier durch,
+// damit das Radar nie veraltete Vorschläge zeigt.
+function persist(g) { radarCache = null; return saveGraph(GRAPH, g); }
+
 function send(res, code, body, type = "application/json") {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
   res.writeHead(code, { "content-type": type, "cache-control": "no-store" });
@@ -150,7 +154,7 @@ const server = createServer(async (req, res) => {
       try {
         const { sourceName, similar } = await getSimilar(name, { limit: 30 });
         mergeSimilar(g, { sourceName, similar, seed: true });
-        await saveGraph(GRAPH, g);
+        await persist(g);
         return send(res, 200, { ok: true, sourceName, added: similar.length, graph: materialize(g) });
       } catch (err) {
         return send(res, 502, { error: err.message });
@@ -186,7 +190,7 @@ const server = createServer(async (req, res) => {
         const t = upsertArtist(g, { name: c.name });
         addEdge(g, src.id, t.id, "together", c.weight, sources.join("+") || "ra", c.shows);
       }
-      await saveGraph(GRAPH, g);
+      await persist(g);
       return send(res, 200, { ok: true, name: canonical, similar: similar.length, together: coacts.length, sources, graph: materialize(g) });
     }
 
@@ -196,7 +200,7 @@ const server = createServer(async (req, res) => {
       if (!g.artists[id]) return send(res, 404, { error: "Act unbekannt" });
       delete g.artists[id];
       g.edges = g.edges.filter((e) => e.from !== id && e.to !== id);
-      await saveGraph(GRAPH, g);
+      await persist(g);
       return send(res, 200, { ok: true, graph: materialize(g) });
     }
 
@@ -208,7 +212,7 @@ const server = createServer(async (req, res) => {
       for (const e of edges) {
         if (!g.edges.find((x) => x.type === e.type && x.from === e.from && x.to === e.to)) g.edges.push(e);
       }
-      await saveGraph(GRAPH, g);
+      await persist(g);
       return send(res, 200, { ok: true, graph: materialize(g) });
     }
 
@@ -235,7 +239,7 @@ const server = createServer(async (req, res) => {
       } else {
         return send(res, 400, { error: "scope muss all|lineups|discovered sein" });
       }
-      await saveGraph(GRAPH, g);
+      await persist(g);
       return send(res, 200, { ok: true, graph: materialize(g) });
     }
 
@@ -253,7 +257,7 @@ const server = createServer(async (req, res) => {
       } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
       const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
         events: incoming.events || [], sources: incoming.sources || [] };
-      await saveGraph(GRAPH, g);
+      await persist(g);
       radarCache = null;
       const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
       return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
@@ -264,7 +268,7 @@ const server = createServer(async (req, res) => {
       const g = await loadGraph(GRAPH);
       try {
         const summary = await discoverAndScrape(g, { lang, maxArtists, minArtists, maxFestivals });
-        await saveGraph(GRAPH, g);
+        await persist(g);
         return send(res, 200, { ok: true, summary, graph: materialize(g) });
       } catch (err) {
         return send(res, 502, { error: err.message });
@@ -281,7 +285,7 @@ const server = createServer(async (req, res) => {
         const { event, artistCount } = addEvent(g, {
           name: name || r.eventName, date, place, lineup: r.lineup, sourceUrl: r.sourceUrl,
         });
-        await saveGraph(GRAPH, g);
+        await persist(g);
         return send(res, 200, { ok: true, eventName: event.name, artistCount, graph: materialize(g) });
       } catch (err) {
         return send(res, 502, { error: err.message });
@@ -296,7 +300,7 @@ const server = createServer(async (req, res) => {
       if (typeof known === "boolean") a.known = known;
       if (typeof note === "string") a.note = note;
       if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
-      await saveGraph(GRAPH, g);
+      await persist(g);
       return send(res, 200, { ok: true, artist: a });
     }
 
@@ -324,7 +328,7 @@ const server = createServer(async (req, res) => {
       if (!a.booking?.area && !a.bcLocation) {
         try { const b = await searchBand(a.name); if (b?.location) { a.bcLocation = b.location; a.bcUrl = b.url; changed = true; } } catch {}
       }
-      if (changed) await saveGraph(GRAPH, g);
+      if (changed) await persist(g);
       return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
     }
 
@@ -405,7 +409,7 @@ const server = createServer(async (req, res) => {
         } catch { /* ohne Hörerzahl weiter */ }
       }
       if (statsChanged) await saveStats(stats);
-      if (graphChanged) await saveGraph(GRAPH, g);
+      if (graphChanged) await persist(g);
 
       // (b) Deezer-Related der Top-4-Likes (nach Grad) — bringt NEUE Namen mit Fananzahl
       const deg = {};
@@ -498,7 +502,7 @@ const server = createServer(async (req, res) => {
         } catch { /* ohne Hörerzahl weiter */ }
       }
       if (statsChanged) await saveStats(stats);
-      if (graphChanged) await saveGraph(GRAPH, g);
+      if (graphChanged) await persist(g);
       return send(res, 200, { ok: true, snapshotted: n, marked: marked.length });
     }
 
@@ -539,7 +543,7 @@ const server = createServer(async (req, res) => {
       let genres = [];
       try { genres = await getTopTags(a.name); } catch {}
       a.genres = genres;
-      await saveGraph(GRAPH, g);
+      await persist(g);
       return send(res, 200, { ok: true, genres });
     }
 

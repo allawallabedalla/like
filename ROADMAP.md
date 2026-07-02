@@ -15,6 +15,9 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 - Genre-Filter (Topbar), CSV-Export der markierten Acts (inkl. Kontakt/Region)
 - Karte als PNG exportieren
 - Einzel-Act löschen mit **Undo**, Datenputz-Migration alter Stände
+- v1.7.2: Robustheit/Performance-Review — Last.fm-Drossel (kein 429 bei Radar/Snapshot),
+  Radar-Cache wird bei jeder Graph-Mutation geleert (persist-Wrapper), Karten-Shortcuts
+  bei offenem Modal deaktiviert, Render-on-Demand (Leerlauf ~7 statt 60 fps -> weniger CPU/Akku)
 - v1.7: Onboarding-Kurz-Tour beim Erststart (4 animierte SVG/CSS-Slides, kein GIF-File),
   wieder aufrufbar über „?“
 - v1.6: Dark Mode, Graph-Backup (Export/Import mit Auto-Sicherung), Quellen-Diagnose

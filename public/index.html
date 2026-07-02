@@ -789,6 +789,7 @@ function rebuild(prev) {
 
 // ---- Ansicht: alles zeigen / zoomen ----
 function fitAll() {
+  requestDraw();
   if (!nodes.length) return;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const n of nodes) {
@@ -800,7 +801,7 @@ function fitAll() {
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   view.k = k; view.x = W / 2 - cx * k; view.y = (H + 52) / 2 - cy * k; // 52 = Topbar
 }
-function zoomBy(factor) {
+function zoomBy(factor) { requestDraw();
   const px = W / 2, py = H / 2; // um die Bildschirmmitte zoomen
   const wx = (px - view.x) / view.k, wy = (py - view.y) / view.k;
   view.k = Math.max(0.2, Math.min(4, view.k * factor));
@@ -851,7 +852,9 @@ function secretIds() {
 // alpha = "Energie": startet hoch, kühlt ab -> Layout kommt zur Ruhe (kein Dauer-Zittern).
 let alpha = 1;
 const ALPHA_MIN = 0.02, ALPHA_DECAY = 0.98;
-function reheat(a = 0.7) { alpha = Math.max(alpha, a); }
+let dirty = true;                       // "muss neu gezeichnet werden"
+function requestDraw() { dirty = true; } // von jeder Interaktion aufrufen, die die Darstellung ändert
+function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
 
 function tick() {
   if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
@@ -1016,7 +1019,18 @@ function draw() {
   ctx.restore();
 }
 
-function loop() { tick(); draw(); requestAnimationFrame(loop); }
+// Render-on-Demand: dauernd zeichnen nur solange sich etwas bewegt (Layout aktiv,
+// Ziehen, Lade-Puls). Im Ruhezustand nur bei „dirty" (Interaktion) — plus ein
+// langsamer Sicherheits-Heartbeat (~7 fps), falls irgendwo requestDraw() vergessen
+// wurde: dann max. ~150 ms Verzug statt Einfrieren. Spart im Leerlauf viel CPU/Akku.
+let idleTick = 0;
+function loop() {
+  tick();
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null;
+  if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
+  else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
+  requestAnimationFrame(loop);
+}
 
 // ---- Picking ----
 function pick(px, py) {
@@ -1053,7 +1067,7 @@ addEventListener("mousemove", (e) => {
   if (!dragging) {
     const overCanvas = p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
     const n = overCanvas ? pick(p.x, p.y) : null;
-    if (n !== hover) { hover = n; cv.style.cursor = n ? "pointer" : "grab"; }
+    if (n !== hover) { hover = n; cv.style.cursor = n ? "pointer" : "grab"; requestDraw(); } // Hover-Highlight neu zeichnen
     updateTooltip(n, e);
     return;
   }
@@ -1065,7 +1079,7 @@ addEventListener("mousemove", (e) => {
     dragNode.x = w.x; dragNode.y = w.y; dragNode.vx = 0; dragNode.vy = 0;
     reheat(0.3); // nur sanft: die Nachbarschaft rückt nach, der Rest des Netzes bleibt ruhig
   } else {
-    view.x = dragStart.vx + dx; view.y = dragStart.vy + dy;
+    view.x = dragStart.vx + dx; view.y = dragStart.vy + dy; requestDraw(); // Verschieben
   }
 });
 addEventListener("mouseup", (e) => {
@@ -1091,7 +1105,7 @@ cv.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   const p = canvasXY(e);
   const n = pick(p.x, p.y);
-  if (n) { selected = n; showCtx(n, e.clientX, e.clientY); }
+  if (n) { selected = n; requestDraw(); showCtx(n, e.clientX, e.clientY); }
 });
 cv.addEventListener("wheel", (e) => {
   e.preventDefault();
@@ -1100,6 +1114,7 @@ cv.addEventListener("wheel", (e) => {
   const wx = (p.x - view.x) / view.k, wy = (p.y - view.y) / view.k;
   view.k = Math.max(0.2, Math.min(4, view.k * factor));
   view.x = p.x - wx * view.k; view.y = p.y - wy * view.k;
+  requestDraw(); // Zoom
 }, { passive: false });
 
 // ---- Panel ----
@@ -1114,7 +1129,7 @@ function renderGenrePills(genres) {
     s.onclick = () => {
       const g = s.dataset.g;
       if (activeGenres.has(g)) activeGenres.delete(g); else activeGenres.add(g);
-      s.classList.toggle("active");
+      s.classList.toggle("active"); requestDraw();
     };
   });
 }
@@ -1122,6 +1137,7 @@ function selectNode(n) {
   selected = n;
   document.getElementById("panel").classList.add("open");
   document.body.classList.add("panel-open");
+  requestDraw();
   document.getElementById("pName").innerHTML = esc(n.name) +
     (n.seed ? ' <span class="badge seed">gesucht</span>' : '');
   renderSub(n, null);
@@ -1171,8 +1187,8 @@ function fillTogether(rows) {
     if (wo && sh) wo.onclick = (e) => { e.stopPropagation(); sh.classList.toggle("open"); };
   });
 }
-function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); document.body.classList.remove("panel-open"); }
-function centerOn(n) { view.x = W / 2 - n.x * view.k; view.y = (H + 52) / 2 - n.y * view.k; } // +52 = Topbar
+function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); document.body.classList.remove("panel-open"); requestDraw(); }
+function centerOn(n) { view.x = W / 2 - n.x * view.k; view.y = (H + 52) / 2 - n.y * view.k; requestDraw(); } // +52 = Topbar
 
 function bookingHtml(n) {
   const b = n.booking;
@@ -1230,6 +1246,7 @@ document.getElementById("status").onchange = async (e) => {
   if (res.ok) {
     selected.status = status;
     const a = graph.artists[selected.id]; if (a) { a.status = status; a.known = status !== ""; }
+    requestDraw(); // Status-Farbring am Knoten aktualisieren
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
 };
@@ -1257,8 +1274,8 @@ document.getElementById("removeAct").onclick = async () => {
   });
 };
 
-document.getElementById("dimKnown").onchange = () => {};
-document.getElementById("genreFilter").addEventListener("input", (e) => { filterGenre = e.target.value.trim(); });
+document.getElementById("dimKnown").onchange = requestDraw;
+document.getElementById("genreFilter").addEventListener("input", (e) => { filterGenre = e.target.value.trim(); requestDraw(); });
 document.getElementById("export").onclick = () => {
   // alle kuratierten Acts (Status/Notiz) als CSV — clientseitig, funktioniert auch statisch
   const rows = [["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz", "RA", "Soundcloud", "Instagram", "Website"]];
@@ -1409,6 +1426,7 @@ function clearFocus() { focusId = null; updateModebar(); }
 document.getElementById("secret").onchange = (e) => { secretMode = e.target.checked; updateModebar(); };
 
 function updateModebar() {
+  requestDraw();
   const m = document.getElementById("modebar"); const parts = [];
   if (focusId && nodeById.has(focusId)) parts.push(`Fokus: ${nodeById.get(focusId).name} <a id="mFocus">✕</a>`);
   if (compareSet.size >= 2) parts.push(`Vergleich: ${compareSet.size} Acts → ${commonNeighbors(compareSet).size} gemeinsame <a id="mCmp">✕</a>`);
@@ -1436,7 +1454,7 @@ function renderTrail() {
 
 // ---- Lineup-Korb ----
 function saveBasket() { try { localStorage.setItem("like_basket", JSON.stringify([...basket])); } catch {} }
-function toggleBasket(n) { basket.has(n.id) ? basket.delete(n.id) : basket.add(n.id); saveBasket(); renderBasket(); refreshLikeBtn(); }
+function toggleBasket(n) { basket.has(n.id) ? basket.delete(n.id) : basket.add(n.id); saveBasket(); renderBasket(); refreshLikeBtn(); requestDraw(); }
 // like!-Button spiegelt, ob der gewählte Act schon im Lineup ist
 function refreshLikeBtn() {
   if (!selected) return;
@@ -1590,7 +1608,7 @@ document.getElementById("labelBtn").onclick = async () => {
     res.mates.map((m) => `<div data-n="${encodeURIComponent(m.name)}" title="Klick: diesen Act erkunden"><span>${esc(m.name)}</span><small>${esc(m.label)}${m.releases > 1 ? ` · ${m.releases} Releases` : ""}</small></div>`).join("");
   el.querySelectorAll("[data-n]").forEach((d) => d.onclick = () => exploreByName(decodeURIComponent(d.dataset.n)));
 };
-document.getElementById("dimBig").onchange = () => {};
+document.getElementById("dimBig").onchange = requestDraw;
 
 // ---- Onboarding-Intro (4 animierte Slides) ----
 const introEl = document.getElementById("intro");
@@ -1690,6 +1708,8 @@ document.getElementById("helpBtn").onclick = toggleHelp;
 
 // ---- Tastatur-Shortcuts ----
 addEventListener("keydown", (e) => {
+  // Bei offenem Modal (Intro/Key) keine Karten-Shortcuts — die haben eigene Handler.
+  if (introEl.classList.contains("show") || keyModal.classList.contains("show")) return;
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
