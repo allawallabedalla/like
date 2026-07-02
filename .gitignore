@@ -1,6 +1,7 @@
 # API-Keys / app_ids niemals committen
 .lastfm-key
 .songkick-key
+.setlistfm-key
 .bandsintown-appid
 
 # lokaler Antwort-Cache (RA/Last.fm)
@@ -9,6 +10,7 @@ cache/
 # lokaler Datenbestand (dein Schatz) – optional versionieren; standardmäßig ignoriert
 graph.json
 stats.json
+digest.json
 
 # Build-Output / lokale Tool-Configs, nicht Teil des Quellcodes
 node_modules/

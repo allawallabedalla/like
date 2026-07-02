@@ -15,6 +15,10 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 - Genre-Filter (Topbar), CSV-Export der markierten Acts (inkl. Kontakt/Region)
 - Karte als PNG exportieren
 - Einzel-Act löschen mit **Undo**, Datenputz-Migration alter Stände
+- v1.4: Radar-Cache + Aktualisieren-Button + Zeitstempel, like!/▶(YouTube) je
+  Radar-Eintrag, Auto-Snapshot beim Start, Wochen-Digest (Momentum-Zusammenfassung),
+  Setlist.fm-Adapter (geteilte Bühnen/Opener, optionaler Gratis-Key), Space-Grotesk-
+  Schrift (offline eingebettet), flache monochrome Icons statt Emoji, Millionen-Formatierung
 - Kleine-Acts-Paket (v1.3): Hörerzahlen (Last.fm getInfo) + Momentum-Zeitreihe
   (stats.json), 📡 Radar mit Geheimtipp-Score 2.0 (Nähe × Kleinheit × Momentum × Boni,
   Kandidaten aus Graph + Deezer-Related + Bandcamp-New-Arrivals), Label-Umfeld via

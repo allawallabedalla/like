@@ -52,7 +52,12 @@ function mergeShows(a = [], b = []) {
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.LIKE_DATA_DIR || ROOT;
 const GRAPH = join(DATA_DIR, "graph.json");
+const DIGEST = join(DATA_DIR, "digest.json");
 const PORT = process.env.PORT || 5173;
+
+// Radar ist teuer (viele Hörerzahl-Lookups) -> 10 Min im Speicher cachen.
+let radarCache = null; // { at, key, payload }
+const RADAR_TTL = 10 * 60 * 1000;
 
 function send(res, code, body, type = "application/json") {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -291,13 +296,20 @@ const server = createServer(async (req, res) => {
     // deiner Top-Likes (auch Acts, die noch gar nicht auf der Karte sind),
     // (c) frische Bandcamp-Releases in deinen dominanten Genres.
     if (req.method === "POST" && url.pathname === "/api/radar") {
-      const { limit = 10, extraLikes = [] } = await readBody(req);
+      const { limit = 10, extraLikes = [], force = false } = await readBody(req);
       const g = await loadGraph(GRAPH);
       const extra = new Set(extraLikes);
       const likes = new Set(Object.values(g.artists)
         .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
         .map((a) => a.id));
       if (!likes.size) return send(res, 400, { error: "Erst ein paar Acts suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann." });
+
+      // 10-Min-Cache: gleiche Likes -> gleicher Vorschlag, ohne erneut alle
+      // Hörerzahlen abzufragen. force=true (Aktualisieren-Button) umgeht ihn.
+      const cacheKey = [...likes].sort().join(",") + "|" + limit;
+      if (!force && radarCache && radarCache.key === cacheKey && Date.now() - radarCache.at < RADAR_TTL) {
+        return send(res, 200, { ...radarCache.payload, cached: true, computedAt: radarCache.at });
+      }
 
       const norm = (s) => String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const inGraph = new Set(Object.values(g.artists).map((a) => norm(a.name)));
@@ -369,7 +381,7 @@ const server = createServer(async (req, res) => {
 
       // Scoring: Nähe × Kleinheit × Momentum × Boni — mit Klartext-Begründung
       const small = (n) => n == null ? 0.5 : n < 3000 ? 1 : n < 10000 ? 0.85 : n < 30000 ? 0.65 : n < 100000 ? 0.4 : n < 300000 ? 0.2 : 0.08;
-      const fmtNum = (n) => n >= 1000 ? (n / 1000).toFixed(n < 10000 ? 1 : 0) + "k" : String(n);
+      const fmtNum = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1000 ? Math.round(n / 1000) + "k" : String(n);
       const out = [];
       for (const c of graphCands) {
         const a = g.artists[c.id];
@@ -395,7 +407,64 @@ const server = createServer(async (req, res) => {
           url: b.url });
       }
       out.sort((x, y) => y.score - x.score);
-      return send(res, 200, { ok: true, likes: likes.size, radar: out.slice(0, Math.max(3, Math.min(30, limit))) });
+      const radar = out.slice(0, Math.max(3, Math.min(30, limit)));
+      // gesehene Radar-Namen fürs Digest ("neue Treffer seit letzter Woche") merken
+      try {
+        let dg = {}; try { dg = JSON.parse(await readFile(DIGEST, "utf8")); } catch {}
+        dg.seenRadar = [...new Set([...(dg.seenRadar || []), ...radar.map((r) => r.name)])].slice(-400);
+        await writeFile(DIGEST, JSON.stringify(dg), "utf8");
+      } catch {}
+      const payload = { ok: true, likes: likes.size, radar, computedAt: Date.now() };
+      radarCache = { at: payload.computedAt, key: cacheKey, payload };
+      return send(res, 200, payload);
+    }
+
+    // Beim App-Start: Hörerzahlen der markierten Acts still snapshotten, damit sich
+    // die Momentum-Zeitreihe von allein füllt (gecacht -> meist ohne Netz-Call).
+    if (req.method === "POST" && url.pathname === "/api/snapshot") {
+      const g = await loadGraph(GRAPH);
+      const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
+      const stats = await loadStats();
+      let statsChanged = false, graphChanged = false, n = 0;
+      for (const a of marked) {
+        try {
+          const info = await getArtistInfo(a.name);
+          if (info?.listeners) {
+            if (a.listeners !== info.listeners) { a.listeners = info.listeners; graphChanged = true; }
+            if (addSnapshot(stats, a.id, info.listeners)) { statsChanged = true; n++; }
+          }
+        } catch { /* ohne Hörerzahl weiter */ }
+      }
+      if (statsChanged) await saveStats(stats);
+      if (graphChanged) await saveGraph(GRAPH, g);
+      return send(res, 200, { ok: true, snapshotted: n, marked: marked.length });
+    }
+
+    // Wochen-Digest: welche deiner markierten Acts sind gewachsen/geschrumpft,
+    // seit wann läuft der Verlauf, und wie viele Radar-Treffer gab es zuletzt.
+    if (req.method === "POST" && url.pathname === "/api/digest") {
+      const g = await loadGraph(GRAPH);
+      const stats = await loadStats();
+      const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
+      const grown = [], shrunk = [];
+      let oldest = Date.now();
+      for (const a of marked) {
+        const arr = stats[a.id];
+        if (arr?.length) oldest = Math.min(oldest, arr[0].t);
+        const gr = growthPerMonth(stats, a.id);
+        if (gr == null) continue;
+        if (gr >= 10) grown.push({ name: a.name, id: a.id, growth: gr, listeners: a.listeners ?? null });
+        else if (gr < 0) shrunk.push({ name: a.name, id: a.id, growth: gr });
+      }
+      grown.sort((x, y) => y.growth - x.growth);
+      shrunk.sort((x, y) => x.growth - y.growth);
+      const historyDays = Math.round((Date.now() - oldest) / 864e5);
+      // seit letztem Öffnen des Digests vergangene Tage
+      let dg = {}; try { dg = JSON.parse(await readFile(DIGEST, "utf8")); } catch {}
+      const sinceDays = dg.lastOpen ? Math.round((Date.now() - dg.lastOpen) / 864e5) : null;
+      dg.lastOpen = Date.now();
+      try { await writeFile(DIGEST, JSON.stringify(dg), "utf8"); } catch {}
+      return send(res, 200, { ok: true, grown: grown.slice(0, 6), shrunk: shrunk.slice(0, 3), marked: marked.length, historyDays, sinceDays });
     }
 
     // Genres für einen bereits vorhandenen Act nachladen (Last.fm-Tags) — beim Anklicken.

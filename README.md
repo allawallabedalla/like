@@ -50,6 +50,15 @@ Sind Key/app_id hinterlegt, werden diese Quellen automatisch mit RA zusammengef�
   **MusicBrainz** (offene Daten). Kleine Labels signen kleine Acts.
 - **Ort**: Fehlt die RA-Region, springt die Bandcamp-Ortsangabe ein (📍 im Panel).
 - **„Große dämpfen"** (Topbar): blendet Acts mit ≥20k Hörern aus — nur die Kleinen leuchten.
+- **Radar-Cache + Aktualisieren**: Vorschläge werden 10 Min gecacht (mit Zeitstempel);
+  der ↻-Button rechnet mit frischen Hörerzahlen neu. Aus jedem Radar-Eintrag direkt
+  **like!** (ins Lineup), **▶** (auf YouTube hören) oder das Profil öffnen.
+- **Auto-Snapshot + Wochen-Digest**: Beim Start snapshottet like still die Hörerzahlen
+  deiner markierten Acts (füttert das Momentum) und zeigt oben einen Digest-Streifen
+  („▲ Act X +38 %/Monat und 2 weitere im Aufwind").
+- **Setlist.fm (optional, Gratis-Key)**: „Wer hat mit X gespielt / für X geöffnet?" —
+  geteilte Bühnen fließen in „zusammen aufgetreten" ein. Key in `.setlistfm-key` oder
+  ENV `SETLISTFM_KEY`; ohne Key ist das Feature einfach aus.
 
 Quellen-Hinweis: Deezer und MusicBrainz sind offizielle, offene APIs. Bandcamp läuft
 (wie RA) über inoffizielle öffentliche Endpoints — nur lesend, gedrosselt, gecacht,
