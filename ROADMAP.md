@@ -15,6 +15,10 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 - Genre-Filter (Topbar), CSV-Export der markierten Acts (inkl. Kontakt/Region)
 - Karte als PNG exportieren
 - Einzel-Act löschen mit **Undo**, Datenputz-Migration alter Stände
+- v1.8: Streaming-Logo-Buttons (YouTube/Spotify/Tidal-Suche, flach/rahmenlos), externe
+  Links öffnen im System-Browser (shell.openExternal statt In-App-Fenster), Label-Halo
+  gegen Text-Überlappung bei Hubs, dezente Knotengröße nach Hörerzahl, Topbar-Buttons
+  ohne Rahmen-Überlappung
 - v1.7.2: Robustheit/Performance-Review — Last.fm-Drossel (kein 429 bei Radar/Snapshot),
   Radar-Cache wird bei jeder Graph-Mutation geleert (persist-Wrapper), Karten-Shortcuts
   bei offenem Modal deaktiviert, Render-on-Demand (Leerlauf ~7 statt 60 fps -> weniger CPU/Akku)

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require("electron");
+const { app, BrowserWindow, dialog, shell } = require("electron");
 const { spawn } = require("child_process");
 const http = require("http");
 const net = require("net");
@@ -74,6 +74,17 @@ function createWindow(url) {
   });
   mainWindow.loadURL(url);
   mainWindow.on("closed", () => { mainWindow = null; });
+
+  // Externe Links (YouTube, Spotify, Tidal, Last.fm, RA …) im SYSTEM-Browser öffnen,
+  // nicht in einem App-internen Fenster — so greifen die dortigen Logins/Cookies.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: "deny" }; // niemals ein neues App-Fenster aufmachen
+  });
+  // Falls ein Link doch versucht, das Hauptfenster wegzunavigieren: abfangen.
+  mainWindow.webContents.on("will-navigate", (e, target) => {
+    if (target !== url) { e.preventDefault(); if (/^https?:\/\//i.test(target)) shell.openExternal(target); }
+  });
 }
 
 async function start() {
