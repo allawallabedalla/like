@@ -55,6 +55,10 @@ const GRAPH = join(DATA_DIR, "graph.json");
 const DIGEST = join(DATA_DIR, "digest.json");
 const PORT = process.env.PORT || 5173;
 
+// Version aus package.json lesen (bleibt so automatisch synchron mit dem Release).
+let APP_VERSION = "";
+try { APP_VERSION = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")).version || ""; } catch {}
+
 // Radar ist teuer (viele Hörerzahl-Lookups) -> 10 Min im Speicher cachen.
 let radarCache = null; // { at, key, payload }
 const RADAR_TTL = 10 * 60 * 1000;
@@ -93,7 +97,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/health") {
       let key = !!process.env.LASTFM_API_KEY;
       if (!key) { try { await access(join(DATA_DIR, ".lastfm-key")); key = true; } catch {} }
-      return send(res, 200, { ok: true, key });
+      return send(res, 200, { ok: true, key, version: APP_VERSION });
     }
 
     // Key aus der App heraus speichern (Erststart ohne eingebetteten Key).
