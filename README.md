@@ -3,6 +3,11 @@
 Persönliches Booking-/Kurations-Tool. Findet ähnliche Musiker\*innen und zeigt sie als
 klickbare Karte. **Zero Dependencies** — nur Node (eingebautes `fetch` + `http`), kein npm install.
 
+## Mac-App herunterladen
+**[Neueste Version (Apple Silicon, .dmg)](https://github.com/allawallabedalla/like/releases/latest)**
+— App ist nicht signiert: nach dem Öffnen der `.dmg` per Rechtsklick auf `Like.app` → „Öffnen" bestätigen.
+Für die Live-Suche braucht's einen kostenlosen [Last.fm-API-Key](https://www.last.fm/api/account/create).
+
 ## So funktioniert's
 **Einen Act suchen → durch das Netz klicken.** Jeder Klick auf einen Punkt lädt seine
 Nachbarn. Zwei Kantenfarben:
