@@ -118,20 +118,21 @@
   .playbtn:hover { border-color: var(--edge-together); color: var(--edge-together); }
   .panel .sub .subwrap { display: flex; flex-direction: column; min-width: 0; }
   .panel .sub .subtext { padding-top: 5px; }
-  /* Streaming-Logos: rahmenlos, monochrom — mit Namenszeile darüber (ohne Hover zuzuordnen) */
-  .svcrow { margin-top: 9px; }
-  .svc-names { display: block; font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
-    color: var(--muted); margin-bottom: 5px; }
-  .svc { display: inline-flex; gap: 9px; }
-  .svc a { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center;
-    color: var(--text); opacity: .92; transition: opacity .12s, color .12s, transform .12s; }
-  .svc a svg { width: 21px; height: 21px; }
-  .svc a:hover { opacity: 1; transform: scale(1.12); }
-  .svc a.yt:hover { color: #ff0000; }
-  .svc a.sp:hover { color: #1db954; }
-  .svc a.td:hover { color: #00a0b4; }
-  .svc a.bc:hover { color: #1da0c3; }
-  .svc a.sc:hover { color: #ff5500; }
+  /* Streaming-Links als Hybrid-Chips: Logo + Kurzname, umbrechend. Monochrom,
+     Markenfarbe nur beim Hover. Bandcamp/SoundCloud erscheinen nur, wenn wir dort
+     tatsächlich ein Profil kennen — sonst führt der Knopf ins Leere. */
+  .svcrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .svcrow a { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; line-height: 1;
+    color: var(--text); text-decoration: none; border: 1px solid var(--line-soft);
+    padding: 4px 9px 4px 7px; border-radius: 20px; opacity: .9;
+    transition: border-color .12s, color .12s, opacity .12s; }
+  .svcrow a svg { width: 14px; height: 14px; }
+  .svcrow a:hover { border-color: currentColor; opacity: 1; }
+  .svcrow a.yt:hover { color: #ff0000; }
+  .svcrow a.sp:hover { color: #1db954; }
+  .svcrow a.td:hover { color: #00a0b4; }
+  .svcrow a.bc:hover { color: #1da0c3; }
+  .svcrow a.sc:hover { color: #ff5500; }
   .panel a { color: var(--text); }
   .field { margin: 14px 0; }
   .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
@@ -761,7 +762,7 @@ function rebuild(prev) {
       id: a.id, name: a.name, url: a.url, seed: !!a.seed, known: !!a.known, note: a.note || "",
       status: a.status || "", booking: a.booking || null, active: !!a.active,
       genres: a.genres || [], explored: !!a.explored,
-      listeners: a.listeners ?? null, bcLocation: a.bcLocation || null,
+      listeners: a.listeners ?? null, bcLocation: a.bcLocation || null, bcUrl: a.bcUrl || null,
       deg: deg[a.id] || 0,
       x: old?.x ?? null, y: old?.y ?? null, // neue Knoten werden unten platziert
       vx: old?.vx ?? 0, vy: old?.vy ?? 0,
@@ -889,7 +890,11 @@ function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
 function tick() {
   if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
   const REP = 6000, SPRING = 0.012, DAMP = 0.86, CUT = 400, CUT2 = CUT * CUT;
+  const COLLIDE_PAD = 22; // Mindestluft zwischen zwei Blasen (Radien + Puffer für Labels)
   const n = nodes.length;
+  // Radien einmal pro Frame vorberechnen (radius() liest Grad/Hörerzahl) — für die Kollision
+  const rad = new Array(n);
+  for (let i = 0; i < n; i++) rad[i] = radius(nodes[i]);
   // Abstoßung wirkt eh nur bis CUT — Knoten in ein Gitter mit Zellgröße CUT
   // einsortieren und nur die 3×3-Nachbarzellen prüfen statt aller Paare
   // (vorher O(n²): blockierte bei wachsendem Graph den Main-Thread -> Maus-Lag)
@@ -917,6 +922,17 @@ function tick() {
           const f = (REP / d2) * alpha;
           const fx = (dx / d) * f, fy = (dy / d) * f;
           a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+          // Harte Kollision: zwei Blasen dürfen sich nicht überlappen. Die reine
+          // Abstoßung lässt einen Rest-Overlap zu (Feder zieht neue Acts zum Anker
+          // zurück) — hier schieben wir überlappende Knoten direkt auseinander,
+          // unabhängig von alpha, damit sie am Ende garantiert Abstand haben.
+          const minD = rad[i] + rad[j] + COLLIDE_PAD;
+          if (d < minD) {
+            const push = (minD - d) * 0.5, ux = dx / d, uy = dy / d;
+            const aFixed = a === dragNode || a.pinned, bFixed = b === dragNode || b.pinned;
+            if (!aFixed) { a.x += ux * push * (bFixed ? 2 : 1); a.y += uy * push * (bFixed ? 2 : 1); }
+            if (!bFixed) { b.x -= ux * push * (aFixed ? 2 : 1); b.y -= uy * push * (aFixed ? 2 : 1); }
+          }
         }
       }
     }
@@ -1262,20 +1278,20 @@ function renderSub(n, growth) {
   const loc = n.booking?.area || n.bcLocation;
   if (loc) bits.push(`${SVG_PIN}${esc(loc)}`);
   if (n.url) bits.push(`<a href="${esc(n.url)}" target="_blank" rel="noreferrer">Last.fm ↗</a>`);
-  // Streaming-Dienste als kleine Logo-Buttons (reine Such-Links, keine API nötig).
-  // Namenszeile darüber, damit die Logos auch ohne Hover zuzuordnen sind.
+  // Streaming-Links als Hybrid-Chips (Logo + Name). YouTube/Spotify/Tidal sind
+  // Such-Links (dort ist praktisch jede:r Act, kein API-Check nötig). Bandcamp und
+  // SoundCloud zeigen wir nur, wenn wir dort ein echtes Profil kennen — Bandcamp aus
+  // dem Enrich-Scan (n.bcUrl), SoundCloud aus Resident-Advisor-Daten — und verlinken
+  // dann direkt aufs Profil statt auf eine Suche, die vielleicht ins Leere läuft.
   const q = encodeURIComponent(n.name);
-  const svc =
-    `<div class="svcrow">` +
-    `<span class="svc-names">YouTube · Spotify · Tidal · Bandcamp · SoundCloud</span>` +
-    `<span class="svc">` +
-    `<a class="yt" href="https://www.youtube.com/results?search_query=${encodeURIComponent(n.name + " music")}" target="_blank" rel="noreferrer" title="Auf YouTube suchen">${SVG_YT}</a>` +
-    `<a class="sp" href="https://open.spotify.com/search/${q}" target="_blank" rel="noreferrer" title="Auf Spotify suchen">${SVG_SPOTIFY}</a>` +
-    `<a class="td" href="https://listen.tidal.com/search?q=${q}" target="_blank" rel="noreferrer" title="Auf Tidal suchen">${SVG_TIDAL}</a>` +
-    `<a class="bc" href="https://bandcamp.com/search?q=${q}" target="_blank" rel="noreferrer" title="Auf Bandcamp suchen">${SVG_BANDCAMP}</a>` +
-    `<a class="sc" href="https://soundcloud.com/search?q=${q}" target="_blank" rel="noreferrer" title="Auf SoundCloud suchen">${SVG_SOUNDCLOUD}</a>` +
-    `</span>` +
-    `</div>`;
+  const chips = [
+    `<a class="yt" href="https://www.youtube.com/results?search_query=${encodeURIComponent(n.name + " music")}" target="_blank" rel="noreferrer" title="Auf YouTube suchen">${SVG_YT}YouTube</a>`,
+    `<a class="sp" href="https://open.spotify.com/search/${q}" target="_blank" rel="noreferrer" title="Auf Spotify suchen">${SVG_SPOTIFY}Spotify</a>`,
+    `<a class="td" href="https://listen.tidal.com/search?q=${q}" target="_blank" rel="noreferrer" title="Auf Tidal suchen">${SVG_TIDAL}Tidal</a>`,
+  ];
+  if (n.bcUrl) chips.push(`<a class="bc" href="${esc(n.bcUrl)}" target="_blank" rel="noreferrer" title="Auf Bandcamp ansehen">${SVG_BANDCAMP}Bandcamp</a>`);
+  if (n.booking?.soundcloud) chips.push(`<a class="sc" href="${esc(n.booking.soundcloud)}" target="_blank" rel="noreferrer" title="Auf SoundCloud ansehen">${SVG_SOUNDCLOUD}SoundCloud</a>`);
+  const svc = `<div class="svcrow">` + chips.join("") + `</div>`;
   // Klangprobe-Button (30s) vor die Sub-Zeile; Streaming-Logos als eigene Zeile darunter
   const play = `<button class="playbtn" data-preview="${encodeURIComponent(n.name)}" title="30-Sekunden-Klangprobe abspielen">${SVG_PLAY}</button>`;
   document.getElementById("pSub").innerHTML = play + `<span class="subwrap"><span class="subtext">` + bits.join(" · ") + `</span>` + svc + `</span>`;
@@ -1292,6 +1308,7 @@ async function loadDetails(n) {
     }
     if (res.listeners != null) { n.listeners = res.listeners; if (graph.artists[n.id]) graph.artists[n.id].listeners = res.listeners; }
     if (res.location && !n.booking?.area) n.bcLocation = res.location;
+    if (res.bcUrl) { n.bcUrl = res.bcUrl; if (graph.artists[n.id]) graph.artists[n.id].bcUrl = res.bcUrl; }
     if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); }
   } catch {}
 }
