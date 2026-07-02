@@ -19,7 +19,8 @@ import { fetchLineup } from "./lib/wikipedia.mjs";
 import { discoverAndScrape } from "./lib/discover.mjs";
 import { coAppearances } from "./lib/coappear.mjs";
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
-import { relatedArtists } from "./lib/deezer.mjs";
+import { relatedArtists, topTrackPreview } from "./lib/deezer.mjs";
+import { previewByName } from "./lib/itunes.mjs";
 import { labelmates } from "./lib/musicbrainz.mjs";
 import { searchBand, discoverTag } from "./lib/bandcamp.mjs";
 
@@ -279,6 +280,17 @@ const server = createServer(async (req, res) => {
       }
       if (changed) await saveGraph(GRAPH, g);
       return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+    }
+
+    // Klangprobe: 30-Sekunden-Vorschau (Deezer zuerst, sonst iTunes) — beide gratis.
+    if (req.method === "POST" && url.pathname === "/api/preview") {
+      const { name } = await readBody(req);
+      if (!name) return send(res, 400, { error: "name fehlt" });
+      let p = null;
+      try { p = await topTrackPreview(name); } catch {}
+      if (!p?.url) { try { p = await previewByName(name); } catch {} }
+      if (!p?.url) return send(res, 200, { ok: false });
+      return send(res, 200, { ok: true, url: p.url, track: p.track, artist: p.artist });
     }
 
     // Label-Umfeld eines Acts (MusicBrainz, offene Daten): Labels + Roster-Kolleg:innen.

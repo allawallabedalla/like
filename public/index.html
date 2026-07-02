@@ -90,7 +90,11 @@
     transform: translateX(100%); transition: transform .15s ease; }
   .panel.open { transform: none; }
   .panel h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
-  .panel .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .panel .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 8px; }
+  .playbtn { flex: none; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line-soft); background: var(--bg);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; }
+  .playbtn:hover { border-color: var(--edge-together); color: var(--edge-together); }
+  .panel .sub .subtext { padding-top: 5px; }
   .panel a { color: var(--text); }
   .field { margin: 14px 0; }
   .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
@@ -425,6 +429,7 @@ const API = {
   radar: (extraLikes, force) => POST("/api/radar", { extraLikes, force }),
   snapshot: () => POST("/api/snapshot", {}),
   digest: () => POST("/api/digest", {}),
+  preview: (name) => POST("/api/preview", { name }),
   labelmates: (id) => POST("/api/labelmates", { id }),
   artist: (body) => POST("/api/artist", body),
   suggest: (q) => fetch("/api/suggest?q=" + encodeURIComponent(q)).then(r => r.json()),
@@ -457,6 +462,46 @@ const CANVAS_FONT = '"Space Grotesk", system-ui, -apple-system, sans-serif';
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const SVG_PIN = '<svg class="ic" viewBox="0 0 16 16" style="margin-right:2px"><path d="M8 1.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 8.5 4.5 8.5s4.5-5.1 4.5-8.5A4.5 4.5 0 0 0 8 1.5zm0 6.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"/></svg>';
 const SVG_PLAY = '<svg class="ic" viewBox="0 0 16 16"><path d="M4 3l9 5-9 5z"/></svg>';
+const SVG_STOP = '<svg class="ic" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg>';
+
+// ---- Klangprobe (30-Sekunden-Preview, Deezer/iTunes, gratis) ----
+const audio = new Audio();
+audio.preload = "none";
+let previewName = null; // welcher Act läuft/lädt gerade
+// alle Preview-Buttons (Panel + Radar) tragen data-preview="<name>" — Zustand
+// wird zentral über den DOM gesetzt, damit nichts auseinanderläuft.
+function refreshPreviewButtons(loadingName) {
+  document.querySelectorAll("[data-preview]").forEach((b) => {
+    const name = decodeURIComponent(b.dataset.preview);
+    if (name === loadingName) { b.innerHTML = "…"; return; }
+    const playing = name === previewName && !audio.paused;
+    b.innerHTML = playing ? SVG_STOP : SVG_PLAY;
+    b.title = playing ? "Klangprobe stoppen" : "30-Sekunden-Klangprobe abspielen";
+  });
+}
+audio.addEventListener("ended", () => { previewName = null; refreshPreviewButtons(); });
+audio.addEventListener("pause", () => refreshPreviewButtons());
+audio.addEventListener("play", () => refreshPreviewButtons());
+async function togglePreview(name) {
+  if (previewName === name && !audio.paused) { audio.pause(); return; }
+  if (previewName === name && audio.paused && audio.src) { audio.play().catch(() => {}); return; }
+  previewName = name;
+  refreshPreviewButtons(name); // "…" am gewählten Button
+  try {
+    const res = await API.preview(name);
+    if (!res.ok || !res.url) { toast(`Keine Klangprobe für „${name}" gefunden`); previewName = null; refreshPreviewButtons(); return; }
+    audio.src = res.url; audio.currentTime = 0;
+    await audio.play();
+    toast(`▶ ${res.artist || name}${res.track ? " — " + res.track : ""} (30 s)`);
+  } catch {
+    toast("Vorschau nicht abspielbar"); previewName = null; refreshPreviewButtons();
+  }
+}
+// zentrale Klick-Delegation für alle Preview-Buttons
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-preview]");
+  if (b) { e.preventDefault(); togglePreview(decodeURIComponent(b.dataset.preview)); }
+});
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
 let busyId = null, filterGenre = "";
 const activeGenres = new Set(); // per Pill-Klick ausgewählte Genres (ODER-verknüpft), filtert die Karte
@@ -934,7 +979,10 @@ function renderSub(n, growth) {
   if (loc) bits.push(`${SVG_PIN}${esc(loc)}`);
   if (n.url) bits.push(`<a href="${esc(n.url)}" target="_blank" rel="noreferrer">Last.fm ↗</a>`);
   bits.push(`<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(n.name + " music")}" target="_blank" rel="noreferrer">YouTube ↗</a>`);
-  document.getElementById("pSub").innerHTML = bits.join(" · ");
+  // Klangprobe-Button (30s) vor die Sub-Zeile
+  const play = `<button class="playbtn" data-preview="${encodeURIComponent(n.name)}" title="30-Sekunden-Klangprobe abspielen">${SVG_PLAY}</button>`;
+  document.getElementById("pSub").innerHTML = play + `<span class="subtext">` + bits.join(" · ") + `</span>`;
+  refreshPreviewButtons();
 }
 // Steckbrief nachladen: Genres + Hörerzahl (+ Momentum) + Bandcamp-Ort
 async function loadDetails(n) {
@@ -1275,14 +1323,14 @@ async function runRadar(force) {
       const acts = [
         `<button class="${liked ? "liked" : ""}" data-like="${encodeURIComponent(r.name)}" data-id="${esc(r.id || "")}" title="${liked ? "Im Lineup — klick zum Entfernen" : "like! — in dein Lineup"}">${liked ? "✓ Lineup" : "like!"}</button>`,
         `<button data-explore="${encodeURIComponent(r.name)}" title="Act laden und auf der Karte zeigen">Erkunden</button>`,
-        `<button data-yt="${encodeURIComponent(r.name)}" title="Auf YouTube anhören">${SVG_PLAY}</button>`,
+        `<button data-preview="${encodeURIComponent(r.name)}" title="30-Sekunden-Klangprobe abspielen">${SVG_PLAY}</button>`,
         r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer"><button title="Profil / Bandcamp öffnen">↗</button></a>` : "",
       ].join("");
       return `<div class="rentry"><b>${i + 1}. ${esc(r.name)}</b><div class="rmeta">${meta}</div><div class="racts">${acts}</div></div>`;
     }).join("");
+    refreshPreviewButtons();
     radarBody.querySelectorAll("[data-explore]").forEach((b) => b.onclick = () => exploreByName(decodeURIComponent(b.dataset.explore)));
-    radarBody.querySelectorAll("[data-yt]").forEach((b) => b.onclick = () =>
-      window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(decodeURIComponent(b.dataset.yt) + " music"), "_blank", "noreferrer"));
+    // Klangprobe-Buttons laufen über die zentrale [data-preview]-Delegation
     radarBody.querySelectorAll("[data-like]").forEach((b) => b.onclick = async () => {
       const name = decodeURIComponent(b.dataset.like);
       // in-graph: direkt liken und NUR diesen Button umschalten (Liste stabil halten —

@@ -52,10 +52,13 @@ Sind Key/app_id hinterlegt, werden diese Quellen automatisch mit RA zusammengef�
 - **„Große dämpfen"** (Topbar): blendet Acts mit ≥20k Hörern aus — nur die Kleinen leuchten.
 - **Radar-Cache + Aktualisieren**: Vorschläge werden 10 Min gecacht (mit Zeitstempel);
   der ↻-Button rechnet mit frischen Hörerzahlen neu. Aus jedem Radar-Eintrag direkt
-  **like!** (ins Lineup), **▶** (auf YouTube hören) oder das Profil öffnen.
+  **like!** (ins Lineup), **▶** (30-Sekunden-Klangprobe direkt in der App) oder das Profil öffnen.
 - **Auto-Snapshot + Wochen-Digest**: Beim Start snapshottet like still die Hörerzahlen
   deiner markierten Acts (füttert das Momentum) und zeigt oben einen Digest-Streifen
   („▲ Act X +38 %/Monat und 2 weitere im Aufwind").
+- **Klangprobe (30 s)**: Ein ▶-Knopf im Panel (neben dem Namen) und an jedem
+  Radar-Eintrag spielt eine 30-Sekunden-Vorschau direkt in der App — über
+  **Deezer** (kein Key), Fallback **iTunes**. Beides gratis; nochmal klicken stoppt.
 - **Setlist.fm (optional, Gratis-Key)**: „Wer hat mit X gespielt / für X geöffnet?" —
   geteilte Bühnen fließen in „zusammen aufgetreten" ein. Key in `.setlistfm-key` oder
   ENV `SETLISTFM_KEY`; ohne Key ist das Feature einfach aus.
