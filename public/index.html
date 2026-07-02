@@ -210,14 +210,14 @@
     <div class="brand">like<span class="bdot">.</span></div>
     <div class="search hideStatic">
       <div class="searchwrap">
-        <input id="q" placeholder="Act suchen…   ( / )" autocomplete="off" />
+        <input id="q" placeholder="Act suchen…   ( / )" autocomplete="off" title="Act bei Last.fm suchen — lädt ähnliche Acts + gemeinsame Auftritte (Taste /)" />
         <div id="suggest" class="suggest"></div>
       </div>
-      <button class="primary" id="go">Suchen</button>
+      <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
     <div class="grow"></div>
-    <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" />
+    <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" title="Karte nach Genre filtern (Textsuche, z.B. „techno“)" />
     <label class="toggle" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
     <label class="toggle" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
     <button id="export" title="Markierte Acts als CSV">⭳ CSV</button>
@@ -227,7 +227,7 @@
       <option value="discovered">Entdeckte Acts</option>
       <option value="all">Alles</option>
     </select>
-    <div class="counts" id="counts">–</div>
+    <div class="counts" id="counts" title="Größe der Karte: Acts und Verbindungen">–</div>
   </div>
 
   <div id="trail" class="trail"></div>
@@ -294,22 +294,22 @@
   </div>
 
   <div class="panel" id="panel">
-    <button class="close" id="closePanel">×</button>
+    <button class="close" id="closePanel" title="Panel schließen (Esc)">×</button>
     <h2 id="pName">–</h2>
     <div class="sub" id="pSub"></div>
     <div id="pGenres" class="genres"></div>
     <div id="pBooking" class="booking"></div>
     <div class="row">
-      <button id="expand">Weiter erkunden</button>
-      <button id="focusBtn" title="Nur die Nachbarschaft zeigen">Fokus</button>
+      <button id="expand" title="Nachbarn dieses Acts laden: ähnlicher Stil + gemeinsame Auftritte (Taste e)">Weiter erkunden</button>
+      <button id="focusBtn" title="Nur diesen Act + direkte Nachbarn zeigen (Taste f)">Fokus</button>
     </div>
     <div class="row" style="margin-top:8px">
-      <button id="basketBtn">like!</button>
+      <button id="basketBtn" title="In dein Lineup aufnehmen (Taste b)">like!</button>
       <button id="pathBtn" title="Verbindung zwischen zwei Acts: hier klicken, dann Ziel wählen">Pfad von hier…</button>
     </div>
     <div class="field">
       <label>Status</label>
-      <select id="status">
+      <select id="status" title="Booking-Stand: färbt den Ring des Acts auf der Karte">
         <option value="">—</option>
         <option value="shortlist">Shortlist</option>
         <option value="contacted">angefragt</option>
@@ -321,8 +321,8 @@
       <label>Booking-Notiz</label>
       <textarea id="note" placeholder="Kontakt, Agentur, letzte Show, Idee…"></textarea>
       <div class="row" style="margin-top:8px">
-        <button id="saveNote">Notiz speichern</button>
-        <button id="removeAct">Act entfernen</button>
+        <button id="saveNote" title="Notiz in graph.json sichern (bleibt dauerhaft)">Notiz speichern</button>
+        <button id="removeAct" title="Act von der Karte nehmen — mit Rückgängig (Taste Entf)">Act entfernen</button>
       </div>
     </div>
     <div class="field">
@@ -758,7 +758,7 @@ cv.addEventListener("wheel", (e) => {
 function renderGenrePills(genres) {
   const el = document.getElementById("pGenres");
   el.innerHTML = (genres || []).slice(0, 6).map(x =>
-    `<span class="${activeGenres.has(x) ? "active" : ""}" data-g="${x}">${x}</span>`
+    `<span class="${activeGenres.has(x) ? "active" : ""}" data-g="${x}" title="Klick: Karte auf dieses Genre filtern (nochmal = aus)">${x}</span>`
   ).join("");
   el.querySelectorAll("span").forEach(s => {
     s.onclick = () => {
@@ -794,7 +794,7 @@ function fillNeighbors(id, rows, tag) {
   const el = document.getElementById(id);
   const seen = new Set();
   el.innerHTML = rows.filter(r => !seen.has(r.other.id) && seen.add(r.other.id))
-    .map(r => `<div class="nb" data-id="${r.other.id}"><span>${r.other.name}</span><small>${tag(r)}</small></div>`).join("")
+    .map(r => `<div class="nb" data-id="${r.other.id}" title="Klick: hinspringen und Details öffnen"><span>${r.other.name}</span><small title="Ähnlichkeit laut Last.fm">${tag(r)}</small></div>`).join("")
     || '<small style="color:var(--muted)">noch nichts geladen</small>';
   el.querySelectorAll(".nb").forEach(d => d.onclick = () => {
     const t = nodeById.get(d.dataset.id);
@@ -812,7 +812,7 @@ function fillTogether(rows) {
       return `<div>${parts.join(" · ") || "(Ort unbekannt)"}</div>`;
     }).join("");
     const wo = r.shows && r.shows.length ? `${r.w}× ▾` : `${r.w}×`;
-    return `<div class="nbrow"><div class="nb" data-id="${r.other.id}"><span>${r.other.name}</span><small class="wo">${wo}</small></div>` +
+    return `<div class="nbrow"><div class="nb" data-id="${r.other.id}" title="Klick: hinspringen und Details öffnen"><span>${r.other.name}</span><small class="wo" title="Anzahl gemeinsamer Events — Klick zeigt wo/wann">${wo}</small></div>` +
       (shows ? `<div class="shows">${shows}</div>` : "") + `</div>`;
   }).join("") || '<small style="color:var(--muted)">noch nichts geladen</small>';
   el.querySelectorAll(".nbrow").forEach(row => {
@@ -1052,7 +1052,7 @@ function updateModebar() {
 function addTrail(name) { trail = trail.filter(x => x !== name); trail.push(name); if (trail.length > 12) trail.shift(); renderTrail(); }
 function renderTrail() {
   const t = document.getElementById("trail");
-  t.innerHTML = trail.map((n, i) => `<span class="${i === trail.length - 1 ? "cur" : ""}" data-n="${encodeURIComponent(n)}">${n}</span>`).join("");
+  t.innerHTML = trail.map((n, i) => `<span class="${i === trail.length - 1 ? "cur" : ""}" data-n="${encodeURIComponent(n)}" title="Zuletzt erkundet — Klick springt hin">${n}</span>`).join("");
   t.querySelectorAll("span").forEach(s => s.onclick = () => {
     const nm = decodeURIComponent(s.dataset.n), k = slugify(nm);
     const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
@@ -1069,15 +1069,16 @@ function refreshLikeBtn() {
   const b = document.getElementById("basketBtn");
   const inL = basket.has(selected.id);
   b.textContent = inL ? "✓ im Lineup" : "like!";
+  b.title = inL ? "Wieder aus dem Lineup nehmen (Taste b)" : "In dein Lineup aufnehmen (Taste b)";
   b.classList.toggle("inlineup", inL);
 }
 function renderBasket() {
   const el = document.getElementById("basket");
   const items = [...basket].map(id => graph.artists[id]).filter(Boolean);
   if (!items.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
-  el.innerHTML = `<h3>Lineup <span>${items.length}</span></h3><ul>` +
-    items.map(a => `<li data-id="${a.id}"><b>${a.name}</b><a data-rm="${a.id}">✕</a></li>`).join("") +
-    `</ul><div class="actions"><button id="bExport">CSV</button><button id="bClear">Leeren</button></div>`;
+  el.innerHTML = `<h3 title="Dein Lineup-Korb — mit like! oder Taste b füllen">Lineup <span>${items.length}</span></h3><ul>` +
+    items.map(a => `<li data-id="${a.id}" title="Klick: hinspringen"><b>${a.name}</b><a data-rm="${a.id}" title="Aus dem Lineup nehmen">✕</a></li>`).join("") +
+    `</ul><div class="actions"><button id="bExport" title="Lineup als CSV exportieren (Name, Genres, Kontakt …)">CSV</button><button id="bClear" title="Lineup-Korb leeren">Leeren</button></div>`;
   el.classList.add("show");
   el.querySelectorAll("li").forEach(li => li.onclick = (e) => {
     if (e.target.dataset.rm) { basket.delete(e.target.dataset.rm); saveBasket(); renderBasket(); return; }
