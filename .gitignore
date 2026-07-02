@@ -1,0 +1,20 @@
+# API-Keys / app_ids niemals committen
+.lastfm-key
+.songkick-key
+.bandsintown-appid
+
+# lokaler Antwort-Cache (RA/Last.fm)
+cache/
+
+# lokaler Datenbestand (dein Schatz) – optional versionieren; standardmäßig ignoriert
+graph.json
+
+# Build-Output / lokale Tool-Configs, nicht Teil des Quellcodes
+node_modules/
+dist/
+.DS_Store
+.claude/
+
+# statischer Export bettet den echten Graph (Acts/Booking-Kontakte) direkt als JS ein –
+# genau die Daten, die graph.json oben schon schützt. Bei Bedarf separat/gescrubbt teilen.
+docs/

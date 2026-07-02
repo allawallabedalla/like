@@ -1,0 +1,3 @@
+# Shell-Starter müssen LF behalten (sonst bricht der Mac-Shebang mit CRLF)
+*.command text eol=lf
+*.sh      text eol=lf

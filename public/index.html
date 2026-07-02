@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Like</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #ffffff;
+    --line: #000000;
+    --line-soft: #d9d9d9;
+    --text: #000000;
+    --muted: #666666;
+    --accent: #000000;         /* gesuchte Acts: schwarz */
+    --discovered: #b3b3b3;     /* noch nicht geöffnet: grau */
+    --edge-similar: #2f6df6;   /* ähnlicher Stil (Last.fm): blau */
+    --edge-together: #ff6a00;  /* zusammen aufgetreten (RA): orange */
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 14px/1.4 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; cursor: grab; }
+  canvas.grabbing { cursor: grabbing; }
+
+  .bar { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center;
+    gap: 12px; padding: 0 14px; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 10; }
+  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; }
+  .brand .bdot { color: var(--edge-together); }
+  .grow { flex: 1; }
+  input, textarea, button, select { font: inherit; color: var(--text); border-radius: 0; }
+  select { background: var(--bg); border: 1px solid var(--line-soft); padding: 8px 6px; }
+  .search { display: flex; gap: 0; }
+  .search input { width: 240px; background: var(--bg); border: 1px solid var(--line-soft);
+    padding: 8px 10px; outline: none; }
+  .search input:focus { border-color: var(--line); }
+  button { background: var(--bg); border: 1px solid var(--line-soft); border-left: none;
+    padding: 8px 12px; cursor: pointer; }
+  button:hover { background: #f2f2f2; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #ffffff; font-weight: 600; }
+  button.primary:hover { background: #222; }
+  button:disabled { opacity: .5; cursor: default; }
+  .counts { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .genres { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 14px; }
+  .genres span { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: 20px; color: var(--muted);
+    cursor: pointer; user-select: none; }
+  .genres span:hover { border-color: var(--line); color: var(--text); }
+  .genres span.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .gfilter { width: 150px; background: var(--bg); border: 1px solid var(--line-soft); padding: 8px 10px; outline: none; }
+  .gfilter:focus { border-color: var(--line); }
+  .booking { font-size: 12px; margin: 0 0 14px; }
+  .booking .live { display: inline-block; background: #1a9e54; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-bottom: 8px; }
+  .booking .det { color: var(--muted); margin: 6px 0; line-height: 1.45; }
+  .booking .links a { display: inline-block; margin-right: 10px; color: var(--text); }
+  .toggle { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; }
+
+  .legend { position: fixed; left: 14px; bottom: 14px; background: var(--bg);
+    border: 1px solid var(--line-soft); padding: 10px 12px; font-size: 12px; z-index: 9; }
+  .legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.ring { background: #fff !important; border: 2px solid #000; }
+  .ln { width: 16px; height: 0; }
+
+  .panel { position: fixed; top: 52px; right: 0; bottom: 0; width: 320px; background: var(--panel);
+    border-left: 1px solid var(--line); padding: 18px; overflow-y: auto; z-index: 9;
+    transform: translateX(100%); transition: transform .15s ease; }
+  .panel.open { transform: none; }
+  .panel h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
+  .panel .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .panel a { color: var(--text); }
+  .field { margin: 14px 0; }
+  .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .panel textarea { width: 100%; min-height: 80px; resize: vertical; background: var(--bg);
+    border: 1px solid var(--line-soft); padding: 8px; outline: none; }
+  .panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .panel .row button { flex: 1; border-left: 1px solid var(--line-soft); }
+  .panel .row button.small { flex: 0 0 auto; padding: 5px 10px; font-size: 12px; background: var(--bg); color: var(--text); }
+  .close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text);
+    font-size: 20px; cursor: pointer; padding: 4px; }
+  .neighbors { margin-top: 10px; }
+  .neighbors .nb { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line-soft);
+    cursor: pointer; }
+  .neighbors .nb:hover { color: var(--muted); }
+  .neighbors .nb small { color: var(--muted); }
+  .neighbors .nb small.wo { cursor: pointer; white-space: nowrap; }
+  .neighbors .nb small.wo:hover { color: var(--text); }
+  .neighbors .shows { display: none; padding: 2px 0 8px 10px; border-left: 2px solid var(--edge-together); margin: 0 0 4px 2px; }
+  .neighbors .shows.open { display: block; }
+  .neighbors .shows div { font-size: 11px; color: var(--muted); padding: 2px 0; }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--accent);
+    color: #fff; border: none; padding: 10px 16px; z-index: 20; opacity: 0;
+    transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 7px; margin-left: 6px; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .5px; }
+  .badge.known { background: #000; color: #fff; }
+  .badge.seed { background: #fff; color: #000; }
+
+  /* Autocomplete */
+  .searchwrap { position: relative; }
+  .suggest { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg); border: 1px solid var(--line);
+    border-top: none; z-index: 30; display: none; max-height: 240px; overflow-y: auto; }
+  .suggest.open { display: block; }
+  .suggest div { padding: 7px 10px; cursor: pointer; }
+  .suggest div:hover, .suggest div.active { background: #f0f0f0; }
+
+  /* Breadcrumb */
+  .trail { position: fixed; top: 52px; left: 14px; right: 340px; z-index: 8; display: flex; gap: 6px;
+    flex-wrap: nowrap; overflow-x: auto; padding: 6px 0; pointer-events: none; }
+  .trail span { pointer-events: auto; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 20px;
+    padding: 3px 10px; font-size: 12px; white-space: nowrap; cursor: pointer; color: var(--muted); }
+  .trail span:hover { border-color: var(--line); color: var(--text); }
+  .trail span.cur { color: var(--text); border-color: var(--line); }
+
+  /* Modus-Leiste (Vergleich/Fokus/Pfad/Geheimtipp) */
+  .modebar { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 12; display: none;
+    background: var(--accent); color: #fff; border-radius: 20px; padding: 6px 14px; font-size: 12px; align-items: center; gap: 12px; }
+  .modebar.show { display: flex; }
+  .modebar a { color: #fff; text-decoration: underline; cursor: pointer; }
+
+  /* Lineup-Korb */
+  .basket { position: fixed; left: 14px; bottom: 120px; width: 230px; background: var(--bg); border: 1px solid var(--line);
+    z-index: 9; font-size: 12px; display: none; }
+  .basket.show { display: block; }
+  .basket h3 { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); font-size: 12px; display: flex; justify-content: space-between; }
+  .basket ul { list-style: none; margin: 0; padding: 4px 0; max-height: 200px; overflow-y: auto; }
+  .basket li { padding: 4px 10px; display: flex; justify-content: space-between; gap: 6px; cursor: pointer; }
+  .basket li:hover { background: #f2f2f2; }
+  .basket li b { font-weight: 400; }
+  .basket li a { color: var(--muted); cursor: pointer; }
+  .basket .actions { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line-soft); }
+  .basket .actions button { flex: 1; border-left: 1px solid var(--line-soft); }
+
+  /* Hover-Tooltip */
+  .tooltip { position: fixed; z-index: 40; background: var(--accent); color: #fff; padding: 6px 9px; font-size: 12px;
+    pointer-events: none; display: none; max-width: 220px; }
+  .tooltip.show { display: block; }
+  .tooltip .g { color: #bbb; font-size: 11px; }
+
+  /* Kontextmenü */
+  .ctxmenu { position: fixed; z-index: 41; background: var(--bg); border: 1px solid var(--line); display: none; min-width: 160px; }
+  .ctxmenu.show { display: block; }
+  .ctxmenu div { padding: 7px 12px; cursor: pointer; font-size: 13px; }
+  .ctxmenu div:hover { background: #f0f0f0; }
+
+  /* Statische Vorschau */
+  .is-static .hideStatic { display: none !important; }
+  .staticbanner { position: fixed; bottom: 14px; right: 14px; z-index: 12; background: var(--accent); color: #fff;
+    font-size: 12px; padding: 6px 12px; }
+  .staticbanner b { color: var(--edge-together); }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <div class="bar">
+    <div class="brand">like<span class="bdot">.</span></div>
+    <div class="search hideStatic">
+      <div class="searchwrap">
+        <input id="q" placeholder="Act suchen…   ( / )" autocomplete="off" />
+        <div id="suggest" class="suggest"></div>
+      </div>
+      <button class="primary" id="go">Suchen</button>
+    </div>
+    <div class="hint" title="Klick = Details · Doppelklick = weiter hangeln · Shift-Klick = vergleichen · Rechtsklick = Menü">Doppelklick = weiter · Rechtsklick = Menü</div>
+    <div class="grow"></div>
+    <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" />
+    <label class="toggle" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
+    <label class="toggle"><input type="checkbox" id="dimKnown" /> Markierte abdunkeln</label>
+    <button id="export" title="Markierte Acts als CSV">⭳ CSV</button>
+    <button id="exportPng" title="Karte als Bild (PNG)">⭳ PNG</button>
+    <select id="reset" class="hideStatic" title="Ansicht leeren">
+      <option value="">Leeren…</option>
+      <option value="discovered">Entdeckte Acts</option>
+      <option value="all">Alles</option>
+    </select>
+    <div class="counts" id="counts">–</div>
+  </div>
+
+  <div id="trail" class="trail"></div>
+  <div id="modebar" class="modebar"></div>
+
+  <div class="legend">
+    <div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ähnlicher Stil (Last.fm)</div>
+    <div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> zusammen aufgetreten (RA)</div>
+    <div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>
+    <div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>
+    <div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (angefragt/…)</div>
+    <div><span class="dot" style="background:#1a9e54"></span> tritt auf (kommende Shows)</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <button class="close" id="closePanel">×</button>
+    <h2 id="pName">–</h2>
+    <div class="sub" id="pSub"></div>
+    <div id="pGenres" class="genres"></div>
+    <div id="pBooking" class="booking"></div>
+    <div class="row">
+      <button class="small" id="expand">Weiter erkunden</button>
+      <button id="focusBtn" title="Nur die Nachbarschaft zeigen">Fokus</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="basketBtn">like!</button>
+      <button id="pathBtn" title="Verbindung zwischen zwei Acts: hier klicken, dann Ziel wählen">Pfad von hier…</button>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select id="status">
+        <option value="">—</option>
+        <option value="shortlist">Shortlist</option>
+        <option value="contacted">angefragt</option>
+        <option value="confirmed">bestätigt</option>
+        <option value="declined">abgesagt</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Booking-Notiz</label>
+      <textarea id="note" placeholder="Kontakt, Agentur, letzte Show, Idee…"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="saveNote">Notiz speichern</button>
+        <button id="removeAct">Act entfernen</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Ähnlicher Stil</label>
+      <div class="neighbors" id="nbSimilar"></div>
+    </div>
+    <div class="field">
+      <label>Zusammen aufgetreten</label>
+      <div class="neighbors" id="nbTogether"></div>
+    </div>
+  </div>
+
+  <div id="basket" class="basket"></div>
+  <div id="tooltip" class="tooltip"></div>
+  <div id="ctxmenu" class="ctxmenu"></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+// Statischer Modus (GitHub Pages): graph wird eingebettet, Live-/Schreib-Aktionen sind aus.
+const STATIC = !!window.LIKE_GRAPH;
+const POST = (path, body) => fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+const API = {
+  graph: () => STATIC ? Promise.resolve(window.LIKE_GRAPH) : fetch("/api/graph").then(r => r.json()),
+  explore: (name) => POST("/api/explore", { name }),
+  reset: (scope) => POST("/api/reset", { scope }),
+  remove: (id) => POST("/api/delete", { id }),
+  restore: (body) => POST("/api/restore", body),
+  genres: (id) => POST("/api/genres", { id }),
+  artist: (body) => POST("/api/artist", body),
+  suggest: (q) => fetch("/api/suggest?q=" + encodeURIComponent(q)).then(r => r.json()),
+};
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
+function resize() {
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+addEventListener("resize", resize); resize();
+addEventListener("load", () => { resize(); reheat(0.3); }); // Fallback: Fenstergröße steht spät
+
+// ---- Zustand ----
+let graph = { artists: {}, edges: [] };
+let nodes = [];          // {id,name,x,y,vx,vy,deg,seed,known}
+let links = [];          // {a,b,type,weight}
+const nodeById = new Map();
+let view = { x: W / 2, y: H / 2, k: 1 };   // pan/zoom
+let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
+let busyId = null, filterGenre = "";
+const activeGenres = new Set(); // per Pill-Klick ausgewählte Genres (ODER-verknüpft), filtert die Karte
+let compareSet = new Set();      // Schnittmengen-Vergleich (Shift-Klick)
+let focusId = null;              // Fokus-Modus: nur Nachbarschaft dieses Knotens
+let pathHi = null;              // { nodes:Set, edges:Set } für Verbindungspfad
+let secretMode = false;          // Geheimtipp-Hervorhebung
+let trail = [];                  // Breadcrumb der erkundeten Acts
+let pathFrom = null;             // Startknoten für "Pfad von hier…"
+const adj = new Map();           // Adjazenz id -> Set(nachbar-id)
+let basket = new Set();          // Lineup-Korb (ids)
+try { basket = new Set(JSON.parse(localStorage.getItem("like_basket") || "[]")); } catch {}
+const STATUS_COLOR = { shortlist: "#000000", contacted: "#ff6a00", confirmed: "#1a9e54", declined: "#9a9a9a" };
+const STATUS_LABEL = { "": "—", shortlist: "Shortlist", contacted: "angefragt", confirmed: "bestätigt", declined: "abgesagt" };
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 1800);
+}
+function toastUndo(msg, fn) {
+  const t = document.getElementById("toast");
+  t.innerHTML = msg + ' · <a href="#" id="undoLink" style="color:#fff;text-decoration:underline">Rückgängig</a>';
+  t.classList.add("show"); clearTimeout(t._t);
+  document.getElementById("undoLink").onclick = (e) => { e.preventDefault(); t.classList.remove("show"); fn(); };
+  t._t = setTimeout(() => t.classList.remove("show"), 6000);
+}
+
+function rebuild(prev) {
+  const arts = Object.values(graph.artists);
+  const deg = {};
+  for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
+  nodes = arts.map(a => {
+    const old = prev?.get(a.id);
+    return {
+      id: a.id, name: a.name, url: a.url, seed: !!a.seed, known: !!a.known, note: a.note || "",
+      status: a.status || "", booking: a.booking || null, active: !!a.active,
+      genres: a.genres || [], explored: !!a.explored,
+      deg: deg[a.id] || 0,
+      x: old?.x ?? (W / 2 + (Math.random() - .5) * 400),
+      y: old?.y ?? (H / 2 + (Math.random() - .5) * 400),
+      vx: old?.vx ?? 0, vy: old?.vy ?? 0,
+    };
+  });
+  nodeById.clear(); nodes.forEach(n => nodeById.set(n.id, n));
+  links = graph.edges.map(e => ({
+    a: nodeById.get(e.from), b: nodeById.get(e.to), type: e.type, weight: e.weight, shows: e.shows || [],
+    // strength (0..1) für die Feder
+    strength: e.type === "similar" ? (e.weight || 0.5) : Math.min(1, 0.5 + 0.12 * ((e.weight || 2) - 1)),
+  })).filter(l => l.a && l.b);
+  // Adjazenz für Schnittmengen / Pfade
+  adj.clear();
+  for (const l of links) {
+    if (!adj.has(l.a.id)) adj.set(l.a.id, new Set());
+    if (!adj.has(l.b.id)) adj.set(l.b.id, new Set());
+    adj.get(l.a.id).add(l.b.id); adj.get(l.b.id).add(l.a.id);
+  }
+  document.getElementById("counts").textContent = `${nodes.length} Acts · ${links.length} Kanten`;
+  renderBasket();
+  reheat(1); // neues Layout durchrechnen lassen
+}
+
+// gemeinsame Nachbarn aller Knoten in `ids`
+function commonNeighbors(ids) {
+  const arr = [...ids].map(id => adj.get(id) || new Set());
+  if (!arr.length) return new Set();
+  let acc = new Set(arr[0]);
+  for (let i = 1; i < arr.length; i++) acc = new Set([...acc].filter(x => arr[i].has(x)));
+  for (const id of ids) acc.delete(id);
+  return acc;
+}
+// kürzester Pfad (BFS) zwischen zwei ids
+function bfsPath(a, b) {
+  if (a === b) return [a];
+  const prev = new Map([[a, null]]); const q = [a];
+  while (q.length) {
+    const cur = q.shift();
+    for (const nb of (adj.get(cur) || [])) {
+      if (prev.has(nb)) continue;
+      prev.set(nb, cur);
+      if (nb === b) { const path = [b]; let c = cur; while (c != null) { path.push(c); c = prev.get(c); } return path.reverse(); }
+      q.push(nb);
+    }
+  }
+  return null;
+}
+// Geheimtipps: mit deinem Kosmos (gesucht/markiert) verbunden, aber selbst klein
+function secretIds() {
+  const core = new Set(nodes.filter(n => n.seed || n.status).map(n => n.id));
+  const out = new Set();
+  for (const n of nodes) {
+    if (core.has(n.id)) continue;
+    let toCore = 0;
+    for (const nb of (adj.get(n.id) || [])) if (core.has(nb)) toCore++;
+    if (toCore >= 1 && n.deg <= 4 && !n.active) out.add(n.id); // gut angebunden, aber kein Hub & nicht groß
+  }
+  return out;
+}
+
+// ---- Physik (einfacher Force-Layout mit Cooling, Zero-Dep) ----
+// alpha = "Energie": startet hoch, kühlt ab -> Layout kommt zur Ruhe (kein Dauer-Zittern).
+let alpha = 1;
+const ALPHA_MIN = 0.02, ALPHA_DECAY = 0.98;
+function reheat(a = 0.7) { alpha = Math.max(alpha, a); }
+
+function tick() {
+  if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
+  const REP = 5200, SPRING = 0.012, DAMP = 0.86;
+  const n = nodes.length;
+  for (let i = 0; i < n; i++) {
+    const a = nodes[i];
+    for (let j = i + 1; j < n; j++) {
+      const b = nodes[j];
+      let dx = a.x - b.x, dy = a.y - b.y;
+      let d2 = dx * dx + dy * dy || 0.01;
+      if (d2 > 160000) continue; // sehr weit entfernte ignorieren (Speed)
+      const d = Math.sqrt(d2);
+      const f = (REP / d2) * alpha;
+      const fx = (dx / d) * f, fy = (dy / d) * f;
+      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+    }
+  }
+  for (const l of links) {
+    const rest = 70 + (1 - l.strength) * 90;
+    let dx = l.b.x - l.a.x, dy = l.b.y - l.a.y;
+    const d = Math.hypot(dx, dy) || 0.01;
+    const f = (d - rest) * SPRING * alpha;
+    const fx = (dx / d) * f, fy = (dy / d) * f;
+    l.a.vx += fx; l.a.vy += fy; l.b.vx -= fx; l.b.vy -= fy;
+  }
+  for (const a of nodes) {
+    a.vx += (W / 2 - a.x) * 0.00024 * alpha;
+    a.vy += (H / 2 - a.y) * 0.00024 * alpha;
+    if (a === dragNode) { a.vx = 0; a.vy = 0; continue; }
+    a.vx *= DAMP; a.vy *= DAMP;
+    a.x += a.vx; a.y += a.vy;
+  }
+  alpha *= ALPHA_DECAY;
+}
+
+function world(p) { return { x: (p.x - view.x) / view.k, y: (p.y - view.y) / view.k }; }
+function radius(n) { return 5 + Math.min(12, Math.sqrt(n.deg) * 2.4); }
+function nodeColor(n) {
+  if (n.seed) return getCss("--accent");      // gesucht: schwarz
+  return getCss("--discovered");              // sonst grau (Status = farbiger Ring)
+}
+function getCss(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function focusSet() {
+  if (!focusId || !nodeById.has(focusId)) return null;
+  const s = new Set([focusId]);
+  for (const nb of (adj.get(focusId) || [])) s.add(nb);
+  return s;
+}
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(view.x, view.y); ctx.scale(view.k, view.k);
+  const dim = document.getElementById("dimKnown").checked;
+  const fg = filterGenre.toLowerCase();
+  const fs = focusSet();
+  const hi = pathHi ? pathHi.nodes : (compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null));
+  const pe = pathHi ? pathHi.edges : null;
+  const hidden = (id) => fs && !fs.has(id);
+  const dimNode = (n) => {
+    if (selected && n.id === selected.id) return false;
+    if (compareSet.has(n.id)) return false;
+    if (fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg))) return true;
+    if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
+    if (dim && n.status) return true;
+    if (hi && !hi.has(n.id)) return true;
+    return false;
+  };
+
+  // Kanten
+  const cSim = getCss("--edge-similar"), cTog = getCss("--edge-together");
+  for (const l of links) {
+    if (hidden(l.a.id) || hidden(l.b.id)) continue;
+    const key = l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
+    const onPath = pe && pe.has(key);
+    const hot = onPath || (selected && (l.a.id === selected.id || l.b.id === selected.id));
+    const isSim = l.type === "similar";
+    ctx.strokeStyle = onPath ? "#000" : (isSim ? cSim : cTog);
+    ctx.globalAlpha = hot ? 1 : ((selected || hi || pe) ? 0.06 : 0.55);
+    const base = isSim ? 1 : Math.min(3.4, 1 + (l.weight - 1) * 0.5);
+    ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
+    ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Knoten
+  for (const n of nodes) {
+    if (hidden(n.id)) continue;
+    const r = radius(n);
+    const sel = selected && n.id === selected.id;
+    const glow = hi && hi.has(n.id);
+    const faded = !sel && !glow && dimNode(n);
+    ctx.globalAlpha = faded ? 0.15 : 1;
+    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
+    ctx.fillStyle = nodeColor(n); ctx.fill();
+    const sCol = STATUS_COLOR[n.status];
+    if (sel) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#000"; ctx.stroke(); }
+    else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
+    else if (glow) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--edge-together"); ctx.stroke(); }
+    else if (sCol) { ctx.lineWidth = 2.5 / view.k; ctx.strokeStyle = sCol; ctx.stroke(); }
+    else if (hover && n.id === hover.id) { ctx.lineWidth = 1.5 / view.k; ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.stroke(); }
+    if (n.active) {
+      ctx.globalAlpha = faded ? 0.15 : 1;
+      ctx.beginPath(); ctx.arc(n.x + r * 0.8, n.y - r * 0.8, 2.5 / view.k + 1, 0, 7);
+      ctx.fillStyle = "#1a9e54"; ctx.fill();
+    }
+    if (basket.has(n.id)) {
+      ctx.globalAlpha = faded ? 0.2 : 1; ctx.fillStyle = "#000";
+      ctx.font = `${12 / view.k}px Inter, sans-serif`; ctx.textAlign = "center";
+      ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
+    }
+    if (busyId === n.id) {
+      const pulse = 0.4 + 0.4 * Math.sin(Date.now() / 150);
+      ctx.globalAlpha = pulse; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / view.k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (n.deg >= 3 || view.k > 1.3 || n === hover || sel || glow || compareSet.has(n.id)) {
+      ctx.textAlign = "center";
+      ctx.globalAlpha = faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
+      ctx.font = `${12 / view.k}px Inter, system-ui, sans-serif`;
+      ctx.fillText(n.name, n.x, n.y + r + 12 / view.k);
+      if (n.genres && n.genres.length) {
+        ctx.globalAlpha = faded ? 0.25 : 0.6; ctx.fillStyle = getCss("--muted");
+        ctx.font = `${9.5 / view.k}px Inter, system-ui, sans-serif`;
+        ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, n.y + r + 24 / view.k);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function loop() { tick(); draw(); requestAnimationFrame(loop); }
+
+// ---- Picking ----
+function pick(px, py) {
+  const w = world({ x: px, y: py });
+  const fs = focusSet();
+  let best = null, bestD = Infinity;
+  for (const n of nodes) {
+    if (fs && !fs.has(n.id)) continue;
+    const r = radius(n) + 4;
+    const d = (n.x - w.x) ** 2 + (n.y - w.y) ** 2;
+    if (d < r * r && d < bestD) { bestD = d; best = n; }
+  }
+  return best;
+}
+
+// ---- Maus ----
+// Einheitliche Canvas-Koordinaten (offsetX/Y wären relativ zum Element unter dem Cursor).
+function canvasXY(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+let dragStart = null;
+cv.addEventListener("mousedown", (e) => {
+  const p = canvasXY(e);
+  const n = pick(p.x, p.y);
+  dragging = true; moved = false;
+  if (n) { dragNode = n; }
+  cv.classList.add("grabbing");
+  dragStart = { x: p.x, y: p.y, vx: view.x, vy: view.y };
+});
+addEventListener("mousemove", (e) => {
+  const p = canvasXY(e);
+  if (!dragging) {
+    const overCanvas = p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
+    const n = overCanvas ? pick(p.x, p.y) : null;
+    if (n !== hover) { hover = n; cv.style.cursor = n ? "pointer" : "grab"; }
+    updateTooltip(n, e);
+    return;
+  }
+  const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
+  if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+  if (dragNode) {
+    if (!moved) return; // reines Klicken darf den Knoten nicht schon verschieben/aufheizen
+    const w = world(p);
+    dragNode.x = w.x; dragNode.y = w.y; dragNode.vx = 0; dragNode.vy = 0;
+    reheat();
+  } else {
+    view.x = dragStart.vx + dx; view.y = dragStart.vy + dy;
+  }
+});
+addEventListener("mouseup", (e) => {
+  hideCtx();
+  if (dragging && !moved) {
+    const p = canvasXY(e);
+    const n = pick(p.x, p.y);
+    if (n) {
+      if (pathFrom) { finishPath(n); }            // Pfad-Ziel wählen
+      else if (e.shiftKey) toggleCompare(n);      // Shift = vergleichen
+      else selectNode(n);                         // sonst: Details
+    } else { closePanel(); }
+  }
+  dragging = false; dragNode = null; cv.classList.remove("grabbing");
+});
+cv.addEventListener("dblclick", (e) => {
+  const p = canvasXY(e);
+  const n = pick(p.x, p.y);
+  if (n) { selectNode(n); exploreByName(n.name); } // Doppelklick = weiter hangeln
+});
+cv.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  const p = canvasXY(e);
+  const n = pick(p.x, p.y);
+  if (n) { selected = n; showCtx(n, e.clientX, e.clientY); }
+});
+cv.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const p = canvasXY(e);
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  const wx = (p.x - view.x) / view.k, wy = (p.y - view.y) / view.k;
+  view.k = Math.max(0.2, Math.min(4, view.k * factor));
+  view.x = p.x - wx * view.k; view.y = p.y - wy * view.k;
+}, { passive: false });
+
+// ---- Panel ----
+// Genre-Pills im Panel: Klick toggelt das Genre als Karten-Filter (ODER-verknüpft
+// mit anderen ausgewählten Genres, so wie der Genre-Filter oben in der Topbar).
+function renderGenrePills(genres) {
+  const el = document.getElementById("pGenres");
+  el.innerHTML = (genres || []).slice(0, 6).map(x =>
+    `<span class="${activeGenres.has(x) ? "active" : ""}" data-g="${x}">${x}</span>`
+  ).join("");
+  el.querySelectorAll("span").forEach(s => {
+    s.onclick = () => {
+      const g = s.dataset.g;
+      if (activeGenres.has(g)) activeGenres.delete(g); else activeGenres.add(g);
+      s.classList.toggle("active");
+    };
+  });
+}
+function selectNode(n) {
+  selected = n;
+  document.getElementById("panel").classList.add("open");
+  document.getElementById("pName").innerHTML = n.name +
+    (n.seed ? ' <span class="badge seed">gesucht</span>' : '');
+  document.getElementById("pSub").innerHTML =
+    `${n.deg} Verbindungen` +
+    (n.url ? ` · <a href="${n.url}" target="_blank" rel="noreferrer">Last.fm ↗</a>` : "") +
+    ` · <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(n.name + " music")}" target="_blank" rel="noreferrer">YouTube ↗</a>`;
+  renderGenrePills(n.genres);
+  document.getElementById("pBooking").innerHTML = bookingHtml(n);
+  document.getElementById("status").value = n.status || "";
+  document.getElementById("note").value = n.note || "";
+  if (!STATIC && (!n.genres || !n.genres.length)) loadGenres(n);  // Genres beim Anklicken nachladen
+
+  const rows = links.filter(l => l.a.id === n.id || l.b.id === n.id)
+    .map(l => ({ other: l.a.id === n.id ? l.b : l.a, w: l.weight, type: l.type, shows: l.shows || [] }));
+  fillNeighbors("nbSimilar", rows.filter(r => r.type === "similar").sort((a, b) => b.w - a.w), r => `${(r.w * 100 | 0)}%`);
+  fillTogether(rows.filter(r => r.type !== "similar").sort((a, b) => b.w - a.w));
+}
+function fillNeighbors(id, rows, tag) {
+  const el = document.getElementById(id);
+  const seen = new Set();
+  el.innerHTML = rows.filter(r => !seen.has(r.other.id) && seen.add(r.other.id))
+    .map(r => `<div class="nb" data-id="${r.other.id}"><span>${r.other.name}</span><small>${tag(r)}</small></div>`).join("")
+    || '<small style="color:var(--muted)">noch nichts geladen</small>';
+  el.querySelectorAll(".nb").forEach(d => d.onclick = () => {
+    const t = nodeById.get(d.dataset.id);
+    if (t) { centerOn(t); selectNode(t); }
+  });
+}
+// "Zusammen aufgetreten" mit aufklappbaren Auftrittsorten (wo/wann)
+function fillTogether(rows) {
+  const el = document.getElementById("nbTogether");
+  const seen = new Set();
+  const uniq = rows.filter(r => !seen.has(r.other.id) && seen.add(r.other.id));
+  el.innerHTML = uniq.map(r => {
+    const shows = (r.shows || []).map(s => {
+      const parts = [s.venue, s.city, s.date].filter(Boolean);
+      return `<div>${parts.join(" · ") || "(Ort unbekannt)"}</div>`;
+    }).join("");
+    const wo = r.shows && r.shows.length ? `${r.w}× ▾` : `${r.w}×`;
+    return `<div class="nbrow"><div class="nb" data-id="${r.other.id}"><span>${r.other.name}</span><small class="wo">${wo}</small></div>` +
+      (shows ? `<div class="shows">${shows}</div>` : "") + `</div>`;
+  }).join("") || '<small style="color:var(--muted)">noch nichts geladen</small>';
+  el.querySelectorAll(".nbrow").forEach(row => {
+    const nb = row.querySelector(".nb");
+    nb.onclick = () => { const t = nodeById.get(nb.dataset.id); if (t) { centerOn(t); selectNode(t); } };
+    const wo = row.querySelector(".wo");
+    const sh = row.querySelector(".shows");
+    if (wo && sh) wo.onclick = (e) => { e.stopPropagation(); sh.classList.toggle("open"); };
+  });
+}
+function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); }
+function centerOn(n) { view.x = W / 2 - n.x * view.k; view.y = H / 2 - n.y * view.k; }
+
+function bookingHtml(n) {
+  const b = n.booking;
+  const live = n.active ? '<div class="live">tritt auf · kommende Shows</div>' : "";
+  if (!b) return live;
+  const region = (b.area || b.country) ? `<div class="det">📍 ${[b.area, b.country].filter(Boolean).join(", ")}</div>` : "";
+  const links = [
+    b.ra && `<a href="${b.ra}" target="_blank" rel="noreferrer">RA ↗</a>`,
+    b.soundcloud && `<a href="${b.soundcloud}" target="_blank" rel="noreferrer">SoundCloud ↗</a>`,
+    b.instagram && `<a href="${b.instagram}" target="_blank" rel="noreferrer">Instagram ↗</a>`,
+    b.website && `<a href="${b.website}" target="_blank" rel="noreferrer">Website ↗</a>`,
+  ].filter(Boolean).join("");
+  const det = b.details ? `<div class="det">${b.details}</div>` : "";
+  return live + region + det + (links ? `<div class="links">${links}</div>` : "");
+}
+async function loadGenres(n) {
+  const res = await API.genres(n.id);
+  if (res.ok && res.genres?.length) {
+    n.genres = res.genres;
+    if (graph.artists[n.id]) graph.artists[n.id].genres = res.genres;
+    if (selected && selected.id === n.id) renderGenrePills(res.genres);
+  }
+}
+
+document.getElementById("closePanel").onclick = closePanel;
+document.getElementById("status").onchange = async (e) => {
+  if (!selected) return;
+  if (STATIC) { toast("Nur im lokalen Tool änderbar"); return; }
+  const status = e.target.value;
+  const res = await API.artist({ id: selected.id, status });
+  if (res.ok) {
+    selected.status = status;
+    const a = graph.artists[selected.id]; if (a) { a.status = status; a.known = status !== ""; }
+    toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
+  }
+};
+document.getElementById("saveNote").onclick = async () => {
+  if (!selected) return;
+  if (STATIC) { toast("Nur im lokalen Tool änderbar"); return; }
+  const note = document.getElementById("note").value;
+  const res = await API.artist({ id: selected.id, note });
+  if (res.ok) { selected.note = note; graph.artists[selected.id].note = note; toast("Notiz gespeichert"); }
+};
+document.getElementById("expand").onclick = () => { if (selected) exploreByName(selected.name); };
+
+document.getElementById("removeAct").onclick = async () => {
+  if (!selected) return;
+  if (STATIC) { toast("Nur im lokalen Tool änderbar"); return; }
+  const id = selected.id;
+  const removed = { artist: graph.artists[id], edges: graph.edges.filter(e => e.from === id || e.to === id) };
+  const res = await API.remove(id);
+  if (res.error) { toast("Fehler: " + res.error); return; }
+  closePanel();
+  graph = res.graph; rebuild(new Map(nodes.map(n => [n.id, n])));
+  toastUndo(`„${removed.artist.name}" entfernt`, async () => {
+    const r = await API.restore(removed);
+    if (r.graph) { graph = r.graph; rebuild(new Map(nodes.map(n => [n.id, n]))); toast("Wiederhergestellt"); }
+  });
+};
+
+document.getElementById("dimKnown").onchange = () => {};
+document.getElementById("genreFilter").addEventListener("input", (e) => { filterGenre = e.target.value.trim(); });
+document.getElementById("export").onclick = () => {
+  // alle kuratierten Acts (Status/Notiz) als CSV — clientseitig, funktioniert auch statisch
+  const rows = [["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz", "RA", "Soundcloud", "Instagram", "Website"]];
+  for (const a of Object.values(graph.artists)) {
+    if (!a.status && !a.known && !a.note) continue;
+    const b = a.booking || {};
+    rows.push([a.name, a.status || (a.known ? "shortlist" : ""), (a.genres || []).join("; "),
+      [b.area, b.country].filter(Boolean).join(", "), a.active ? "ja" : "", b.details || "", a.note || "",
+      b.ra || "", b.soundcloud || "", b.instagram || "", b.website || ""]);
+  }
+  if (rows.length === 1) { toast("Noch keine markierten Acts"); return; }
+  const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const u = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a"); a.href = u; a.download = "like-shortlist.csv"; a.click(); URL.revokeObjectURL(u);
+};
+document.getElementById("exportPng").onclick = () => {
+  const tmp = document.createElement("canvas");
+  tmp.width = cv.width; tmp.height = cv.height;
+  const c = tmp.getContext("2d");
+  c.fillStyle = "#ffffff"; c.fillRect(0, 0, tmp.width, tmp.height);
+  c.drawImage(cv, 0, 0);
+  tmp.toBlob((blob) => {
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = u; a.download = "like-map.png"; a.click();
+    URL.revokeObjectURL(u);
+  });
+};
+
+// ---- Laden / Erkunden ----
+function slugify(s) { return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, ""); }
+
+async function reload(focusName) {
+  const prev = new Map(nodes.map(n => [n.id, n]));
+  graph = await API.graph();
+  rebuild(prev);
+  if (focusName) {
+    const k = slugify(focusName);
+    const n = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
+    if (n) { centerOn(n); selectNode(n); }
+  }
+}
+
+let busy = false;
+async function exploreByName(name) {
+  if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
+  if (busy) return;
+  busy = true;
+  const k = slugify(name);
+  const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
+  busyId = node ? node.id : null; // pulsierender Lade-Ring am Knoten
+  toast(`Lade „${name}" … (ähnlicher Stil + Auftritte)`);
+  try {
+    const res = await API.explore(name);
+    if (res.error) { toast("Fehler: " + res.error); return; }
+    await reload(res.name);
+    addTrail(res.name);
+    toast(`${res.name}: ${res.similar} ähnliche · ${res.together} zusammen aufgetreten`);
+  } catch (e) {
+    toast("Fehler: " + e.message);
+  } finally { busy = false; busyId = null; }
+}
+
+document.getElementById("reset").onchange = async (e) => {
+  const scope = e.target.value;
+  e.target.value = "";
+  if (!scope) return;
+  if (STATIC) { toast("Nur im lokalen Tool"); return; }
+  const msg = {
+    all: "Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)",
+    discovered: "Noch nicht geöffnete Acts entfernen? Gesuchte, gebuchte/notierte Acts bleiben.",
+  }[scope];
+  if (!confirm(msg)) return;
+  const res = await API.reset(scope);
+  if (res.error) { toast("Fehler: " + res.error); return; }
+  closePanel();
+  graph = res.graph; rebuild();
+  toast("Geleert.");
+};
+
+function doSearch() {
+  const v = document.getElementById("q").value.trim();
+  if (v) { closeSug(); document.getElementById("q").value = ""; exploreByName(v); }
+}
+document.getElementById("go").onclick = doSearch;
+
+// ---- Tooltip ----
+const tipEl = document.getElementById("tooltip");
+function updateTooltip(n, e) {
+  if (!n) { tipEl.classList.remove("show"); return; }
+  const parts = [`<b>${n.name}</b>`];
+  if (n.active) parts.push('<span style="color:#7CFC9E">● tritt auf</span>');
+  if (n.genres && n.genres.length) parts.push(`<span class="g">${n.genres.slice(0, 3).join(" · ")}</span>`);
+  const b = n.booking; if (b && (b.area || b.country)) parts.push(`<span class="g">📍 ${[b.area, b.country].filter(Boolean).join(", ")}</span>`);
+  tipEl.innerHTML = parts.join("<br>");
+  tipEl.style.left = (e.clientX + 14) + "px"; tipEl.style.top = (e.clientY + 14) + "px";
+  tipEl.classList.add("show");
+}
+
+// ---- Kontextmenü ----
+const ctxEl = document.getElementById("ctxmenu");
+function hideCtx() { ctxEl.classList.remove("show"); }
+function showCtx(n, x, y) {
+  const items = [
+    ["Weiter erkunden", () => exploreByName(n.name)],
+    ["Details öffnen", () => selectNode(n)],
+    [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
+    [basket.has(n.id) ? "Aus Korb" : "In Korb", () => toggleBasket(n)],
+    [compareSet.has(n.id) ? "Aus Vergleich" : "Zum Vergleich", () => toggleCompare(n)],
+    ["Pfad von hier…", () => startPath(n)],
+    ["Entfernen", () => removeNode(n)],
+  ];
+  ctxEl.innerHTML = "";
+  for (const [label, fn] of items) { const d = document.createElement("div"); d.textContent = label; d.onclick = () => { hideCtx(); fn(); }; ctxEl.appendChild(d); }
+  ctxEl.style.left = Math.min(x, innerWidth - 180) + "px"; ctxEl.style.top = Math.min(y, innerHeight - 230) + "px";
+  ctxEl.classList.add("show");
+}
+
+// ---- Vergleich / Pfad / Fokus / Geheimtipp ----
+function toggleCompare(n) { compareSet.has(n.id) ? compareSet.delete(n.id) : compareSet.add(n.id); updateModebar(); }
+function clearCompare() { compareSet.clear(); updateModebar(); }
+function startPath(n) { pathFrom = n; pathHi = null; updateModebar(); toast(`Pfad von „${n.name}": Ziel anklicken`); }
+function finishPath(n) {
+  const path = bfsPath(pathFrom.id, n.id);
+  pathFrom = null;
+  if (!path) { toast("Keine Verbindung gefunden"); updateModebar(); return; }
+  const ns = new Set(path), es = new Set();
+  for (let i = 0; i < path.length - 1; i++) { const a = path[i], b = path[i + 1]; es.add(a < b ? a + "|" + b : b + "|" + a); }
+  pathHi = { nodes: ns, edges: es }; updateModebar();
+  toast(`Pfad: ${path.length - 1} Schritte`);
+}
+function clearPath() { pathHi = null; pathFrom = null; updateModebar(); }
+function toggleFocus(n) { focusId = (focusId === n.id) ? null : n.id; updateModebar(); }
+function clearFocus() { focusId = null; updateModebar(); }
+document.getElementById("secret").onchange = (e) => { secretMode = e.target.checked; updateModebar(); };
+
+function updateModebar() {
+  const m = document.getElementById("modebar"); const parts = [];
+  if (focusId && nodeById.has(focusId)) parts.push(`Fokus: ${nodeById.get(focusId).name} <a id="mFocus">✕</a>`);
+  if (compareSet.size >= 2) parts.push(`Vergleich: ${compareSet.size} Acts → ${commonNeighbors(compareSet).size} gemeinsame <a id="mCmp">✕</a>`);
+  else if (compareSet.size === 1) parts.push(`Vergleich: 1 Act (Shift-Klick für mehr) <a id="mCmp">✕</a>`);
+  if (pathHi) parts.push(`Pfad markiert <a id="mPath">✕</a>`);
+  if (secretMode) parts.push(`Geheimtipps hervorgehoben <a id="mSec">✕</a>`);
+  if (!parts.length) { m.classList.remove("show"); m.innerHTML = ""; return; }
+  m.innerHTML = parts.join("  ·  "); m.classList.add("show");
+  const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  bind("mFocus", clearFocus); bind("mCmp", clearCompare); bind("mPath", clearPath);
+  bind("mSec", () => { secretMode = false; document.getElementById("secret").checked = false; updateModebar(); });
+}
+
+// ---- Breadcrumb ----
+function addTrail(name) { trail = trail.filter(x => x !== name); trail.push(name); if (trail.length > 12) trail.shift(); renderTrail(); }
+function renderTrail() {
+  const t = document.getElementById("trail");
+  t.innerHTML = trail.map((n, i) => `<span class="${i === trail.length - 1 ? "cur" : ""}" data-n="${encodeURIComponent(n)}">${n}</span>`).join("");
+  t.querySelectorAll("span").forEach(s => s.onclick = () => {
+    const nm = decodeURIComponent(s.dataset.n), k = slugify(nm);
+    const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
+    if (node) { centerOn(node); selectNode(node); }
+  });
+}
+
+// ---- Lineup-Korb ----
+function saveBasket() { try { localStorage.setItem("like_basket", JSON.stringify([...basket])); } catch {} }
+function toggleBasket(n) { basket.has(n.id) ? basket.delete(n.id) : basket.add(n.id); saveBasket(); renderBasket(); }
+function renderBasket() {
+  const el = document.getElementById("basket");
+  const items = [...basket].map(id => graph.artists[id]).filter(Boolean);
+  if (!items.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
+  el.innerHTML = `<h3>Lineup-Korb <span>${items.length}</span></h3><ul>` +
+    items.map(a => `<li data-id="${a.id}"><b>${a.name}</b><a data-rm="${a.id}">✕</a></li>`).join("") +
+    `</ul><div class="actions"><button id="bExport">CSV</button><button id="bClear">Leeren</button></div>`;
+  el.classList.add("show");
+  el.querySelectorAll("li").forEach(li => li.onclick = (e) => {
+    if (e.target.dataset.rm) { basket.delete(e.target.dataset.rm); saveBasket(); renderBasket(); return; }
+    const node = nodeById.get(li.dataset.id); if (node) { centerOn(node); selectNode(node); }
+  });
+  document.getElementById("bClear").onclick = () => { basket.clear(); saveBasket(); renderBasket(); };
+  document.getElementById("bExport").onclick = exportBasketCsv;
+}
+function exportBasketCsv() {
+  const rows = [["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz"]];
+  for (const id of basket) { const a = graph.artists[id]; if (!a) continue; const b = a.booking || {};
+    rows.push([a.name, a.status || "", (a.genres || []).join("; "), [b.area, b.country].filter(Boolean).join(", "), a.active ? "ja" : "", b.details || "", a.note || ""]); }
+  const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv" }), u = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = u; a.download = "like-lineup.csv"; a.click(); URL.revokeObjectURL(u);
+}
+
+// Panel-Buttons (Fokus/Korb/Pfad)
+document.getElementById("focusBtn").onclick = () => { if (selected) toggleFocus(selected); };
+document.getElementById("basketBtn").onclick = () => { if (selected) toggleBasket(selected); };
+document.getElementById("pathBtn").onclick = () => { if (selected) startPath(selected); };
+function removeNode(n) { selected = n; document.getElementById("removeAct").click(); }
+
+// ---- Autocomplete ----
+const sugEl = document.getElementById("suggest"); let sugItems = [], sugIdx = -1, sugTimer = null;
+const qEl = document.getElementById("q");
+qEl.addEventListener("input", () => {
+  if (STATIC) return;
+  clearTimeout(sugTimer); const v = qEl.value.trim();
+  if (v.length < 2) { closeSug(); return; }
+  sugTimer = setTimeout(async () => { const r = await API.suggest(v); sugItems = r.names || []; sugIdx = -1; renderSug(); }, 200);
+});
+function renderSug() {
+  if (!sugItems.length) { closeSug(); return; }
+  sugEl.innerHTML = sugItems.map((n, i) => `<div class="${i === sugIdx ? "active" : ""}" data-i="${i}">${n}</div>`).join("");
+  sugEl.classList.add("open");
+  sugEl.querySelectorAll("div").forEach(d => d.onmousedown = (e) => { e.preventDefault(); chooseSug(+d.dataset.i); });
+}
+function closeSug() { sugEl.classList.remove("open"); sugItems = []; sugIdx = -1; }
+function chooseSug(i) { const n = sugItems[i]; if (n) { qEl.value = ""; closeSug(); exploreByName(n); } }
+qEl.addEventListener("keydown", (e) => {
+  if (sugEl.classList.contains("open")) {
+    if (e.key === "ArrowDown") { e.preventDefault(); sugIdx = Math.min(sugIdx + 1, sugItems.length - 1); renderSug(); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); sugIdx = Math.max(sugIdx - 1, 0); renderSug(); return; }
+    if (e.key === "Enter") { e.preventDefault(); sugIdx >= 0 ? chooseSug(sugIdx) : doSearch(); return; }
+    if (e.key === "Escape") { closeSug(); return; }
+  } else if (e.key === "Enter") doSearch();
+});
+qEl.addEventListener("blur", () => setTimeout(closeSug, 150));
+
+// ---- Tastatur-Shortcuts ----
+addEventListener("keydown", (e) => {
+  const t = e.target.tagName;
+  if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
+  if (e.key === "/") { e.preventDefault(); qEl.focus(); }
+  else if (e.key === "Escape") { hideCtx(); if (pathFrom) { pathFrom = null; updateModebar(); } else if (pathHi) clearPath(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
+  else if (e.key === "e" && selected) exploreByName(selected.name);
+  else if (e.key === "f" && selected) toggleFocus(selected);
+  else if (e.key === "b" && selected) toggleBasket(selected);
+  else if (e.key === "Delete" && selected) removeNode(selected);
+});
+
+// ---- Start ----
+(async () => {
+  if (STATIC) {
+    document.body.classList.add("is-static");
+    const b = document.createElement("div");
+    b.className = "staticbanner";
+    b.innerHTML = "like<b>.</b> · statische Vorschau (read-only)";
+    document.body.appendChild(b);
+  }
+  resize(); // sicherstellen, dass das Canvas vermessen ist, bevor Knoten platziert werden
+  graph = await API.graph();
+  rebuild();
+  for (let i = 0; i < 120; i++) tick();
+  loop();
+})();
+</script>
+</body>
+</html>

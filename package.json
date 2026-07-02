@@ -1,0 +1,47 @@
+{
+  "name": "like",
+  "version": "1.0.0",
+  "description": "Like Desktop",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^37.10.3",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "de.nicolasreis.like",
+    "productName": "Like",
+    "asar": false,
+    "files": [
+      "main.js",
+      "server.mjs",
+      "lib/**/*",
+      "public/**/*",
+      "!.lastfm-key",
+      "!.songkick-key",
+      "!.bandsintown-appid",
+      "!cache/**",
+      "!graph.json",
+      "!.claude/**",
+      "!.git/**",
+      "!docs/**",
+      "!dist/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        }
+      ]
+    }
+  },
+  "allowScripts": {
+    "electron@37.10.3": true,
+    "electron-winstaller@5.4.0": true
+  }
+}
