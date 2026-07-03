@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "attention is all you need (vaswani 2017)": {
+      "id": "attention is all you need (vaswani 2017)",
+      "name": "Attention Is All You Need (Vaswani 2017)",
+      "seed": true,
+      "genres": [
+        "Deep Learning",
+        "NLP"
+      ],
+      "listeners": 120000
+    },
+    "bert (devlin 2019)": {
+      "id": "bert (devlin 2019)",
+      "name": "BERT (Devlin 2019)",
+      "seed": false,
+      "genres": [
+        "NLP"
+      ],
+      "listeners": 90000
+    },
+    "gpt-3 (brown 2020)": {
+      "id": "gpt-3 (brown 2020)",
+      "name": "GPT-3 (Brown 2020)",
+      "seed": false,
+      "genres": [
+        "NLP"
+      ],
+      "listeners": 40000
+    },
+    "resnet (he 2016)": {
+      "id": "resnet (he 2016)",
+      "name": "ResNet (He 2016)",
+      "seed": false,
+      "genres": [
+        "Vision"
+      ],
+      "listeners": 180000
+    },
+    "transformer-xl (dai 2019)": {
+      "id": "transformer-xl (dai 2019)",
+      "name": "Transformer-XL (Dai 2019)",
+      "seed": false,
+      "genres": [
+        "NLP"
+      ],
+      "listeners": 6000
+    },
+    "set transformer (lee 2019)": {
+      "id": "set transformer (lee 2019)",
+      "name": "Set Transformer (Lee 2019)",
+      "seed": false,
+      "genres": [
+        "ML"
+      ],
+      "listeners": 2000
+    }
+  },
+  "edges": [
+    {
+      "from": "attention is all you need (vaswani 2017)",
+      "to": "bert (devlin 2019)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "attention is all you need (vaswani 2017)",
+      "to": "gpt-3 (brown 2020)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "attention is all you need (vaswani 2017)",
+      "to": "resnet (he 2016)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "attention is all you need (vaswani 2017)",
+      "to": "transformer-xl (dai 2019)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "attention is all you need (vaswani 2017)",
+      "to": "set transformer (lee 2019)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "bert (devlin 2019)",
+      "to": "gpt-3 (brown 2020)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    }
+  ]
+}

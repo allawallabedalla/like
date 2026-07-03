@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "paris, texas (1984)": {
+      "id": "paris, texas (1984)",
+      "name": "Paris, Texas (1984)",
+      "seed": true,
+      "genres": [
+        "Drama",
+        "Roadmovie"
+      ],
+      "listeners": 2100
+    },
+    "der himmel uber berlin (1987)": {
+      "id": "der himmel uber berlin (1987)",
+      "name": "Der Himmel über Berlin (1987)",
+      "seed": false,
+      "genres": [
+        "Drama"
+      ],
+      "listeners": 1800
+    },
+    "stranger than paradise (1984)": {
+      "id": "stranger than paradise (1984)",
+      "name": "Stranger Than Paradise (1984)",
+      "seed": false,
+      "genres": [
+        "Drama"
+      ],
+      "listeners": 900
+    },
+    "badlands (1973)": {
+      "id": "badlands (1973)",
+      "name": "Badlands (1973)",
+      "seed": false,
+      "genres": [
+        "Drama"
+      ],
+      "listeners": 1400
+    },
+    "don't come knocking (2005)": {
+      "id": "don't come knocking (2005)",
+      "name": "Don't Come Knocking (2005)",
+      "seed": false,
+      "genres": [
+        "Drama"
+      ],
+      "listeners": 300
+    },
+    "alice in den stadten (1974)": {
+      "id": "alice in den stadten (1974)",
+      "name": "Alice in den Städten (1974)",
+      "seed": false,
+      "genres": [
+        "Roadmovie"
+      ],
+      "listeners": 400
+    }
+  },
+  "edges": [
+    {
+      "from": "paris, texas (1984)",
+      "to": "der himmel uber berlin (1987)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "paris, texas (1984)",
+      "to": "stranger than paradise (1984)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "paris, texas (1984)",
+      "to": "badlands (1973)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "paris, texas (1984)",
+      "to": "don't come knocking (2005)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "paris, texas (1984)",
+      "to": "alice in den stadten (1974)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "badlands (1973)",
+      "to": "stranger than paradise (1984)",
+      "type": "similar",
+      "weight": 0.4,
+      "source": "demo"
+    }
+  ]
+}

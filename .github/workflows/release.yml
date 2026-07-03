@@ -1,16 +1,30 @@
 name: Build & Release
 
-# Baut die Downloads auf echten Windows- + macOS-Runnern und hängt sie an ein
-# GitHub-Release. Auslöser: ein Tag-Push wie "v1.2.0" ODER "Run workflow" mit
-# ausgefülltem Tag-Feld (erstellt den Tag serverseitig gleich mit). "Run workflow"
-# ohne Tag = reiner Test-Build (Dateien nur als Artefakte, kein Release).
+# Baut die Desktop-Downloads (Windows + macOS) je Domain-Pack und hängt sie an ein
+# GitHub-Release. Getrennte Tags pro Pack, damit klar ist, welches Tool welchen Stand hat:
+#   v1.9.0            -> Musik-Pack (klassischer Name, rückwärtskompatibel)
+#   books-v0.2.0      -> Bücher-Pack
+#   movies-v0.1.0     -> Filme-Pack   usw.
+#
+# Auslöser:
+#   - Tag-Push "v*" oder "<pack>-v*"      -> baut GENAU dieses Pack, erstellt Release
+#   - workflow_dispatch:
+#       pack = "all"     -> alle Packs bauen (für Kern-Änderungen: „alle neu releasen")
+#       pack = "<name>"  -> nur dieses Pack
+#       tag  = "..."     -> Release-Tag (leer = reiner Test-Build ohne Release)
 on:
   push:
-    tags: ["v*"]
+    tags:
+      - "v*"
+      - "*-v*"
   workflow_dispatch:
     inputs:
+      pack:
+        description: "Pack bauen (all | music | books | movies | plants | papers | boardgames | podcasts | games)"
+        required: true
+        default: "all"
       tag:
-        description: "Release-Tag (z.B. v1.2.0) — leer lassen für reinen Test-Build"
+        description: "Release-Tag (z.B. v1.9.0 oder books-v0.2.0) — leer = Test-Build"
         required: false
         default: ""
 
@@ -18,9 +32,33 @@ permissions:
   contents: write
 
 jobs:
-  # Schnelles Vorab-Gate: electron-builder-Config gegen Schema prüfen + Server-Smoke-Test.
-  # Fängt Config-/Boot-Fehler ab, bevor teure Runner Electron herunterladen und bauen.
+  # Bestimmt anhand des Auslösers, welche Packs gebaut werden -> Matrix-JSON.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      packs: ${{ steps.pick.outputs.packs }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        shell: bash
+        run: |
+          ALL='["music","books","movies","plants","papers","boardgames","podcasts","games"]'
+          if [ "${{ github.event_name }}" = "push" ]; then
+            REF="${GITHUB_REF_NAME}"
+            if [[ "$REF" == v* ]]; then PACK="music";
+            else PACK="${REF%%-v*}"; fi
+            echo "packs=[\"$PACK\"]" >> "$GITHUB_OUTPUT"
+          else
+            if [ "${{ inputs.pack }}" = "all" ]; then
+              echo "packs=$ALL" >> "$GITHUB_OUTPUT"
+            else
+              echo "packs=[\"${{ inputs.pack }}\"]" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  # Vorab-Gate: electron-builder-Config validieren + alle Packs boot-testen.
   check:
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,52 +70,47 @@ jobs:
       - run: npm run check
 
   build:
-    needs: check
+    needs: [prepare, check]
     strategy:
       fail-fast: false
       matrix:
+        pack: ${{ fromJSON(needs.prepare.outputs.packs) }}
         include:
           - os: macos-latest
-            script: "dist:mac"
+            platform: mac
             pattern: "dist/*.dmg"
           - os: windows-latest
-            script: "dist:win"
+            platform: win
             pattern: "dist/*.exe"
+        # jedes Pack auf beiden Plattformen bauen
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      # Last.fm-Key aus dem Repo-Secret in .lastfm-key schreiben, damit die
-      # gebauten Apps out-of-the-box suchen können. Fehlt das Secret, wird die
-      # App trotzdem gebaut (Nutzer bringt dann eigenen Key mit).
-      - name: Last.fm-Key einbetten
+      # Eingebettete Keys aus Repo-Secrets in die Key-Dateien schreiben, damit die
+      # gebauten Apps out-of-the-box funktionieren. Fehlt ein Secret, wird ohne Key
+      # gebaut (Nutzer bringt dann eigenen Key mit). Nur die für das Pack relevanten.
+      - name: Keys einbetten
         shell: bash
         env:
           LASTFM_KEY: ${{ secrets.LASTFM_KEY }}
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+          TASTEDIVE_KEY: ${{ secrets.TASTEDIVE_KEY }}
         run: |
-          if [ -n "$LASTFM_KEY" ]; then
-            printf '%s' "$LASTFM_KEY" > .lastfm-key
-            echo "Key eingebettet."
-          else
-            echo "Kein LASTFM_KEY-Secret gesetzt — App wird ohne eingebetteten Key gebaut."
-          fi
+          [ -n "$LASTFM_KEY" ] && printf '%s' "$LASTFM_KEY" > .lastfm-key || true
+          [ -n "$TMDB_KEY" ] && printf '%s' "$TMDB_KEY" > .tmdb-key || true
+          [ -n "$TASTEDIVE_KEY" ] && printf '%s' "$TASTEDIVE_KEY" > .tastedive-key || true
+          echo "Keys (soweit als Secret vorhanden) eingebettet."
 
       - run: npm ci
 
-      - name: Build
-        run: npm run ${{ matrix.script }}
-        env:
-          # macOS ad-hoc-signiert via scripts/afterSign.js — electron-builders
-          # eigene Signatursuche (Developer-ID) hier abschalten.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Build (${{ matrix.pack }} / ${{ matrix.platform }})
+        run: node scripts/build-pack.mjs ${{ matrix.pack }} ${{ matrix.platform }}
 
-      # SHA256-Prüfsummen zum Verifizieren. Über Node berechnet — plattformneutral
-      # (shasum fehlt im Windows-Git-Bash, sha256sum auf macOS; Node läuft überall).
       - name: Prüfsummen (SHA256)
         shell: bash
         run: |
@@ -87,19 +120,18 @@ jobs:
             node -e "const c=require('crypto'),fs=require('fs'),f=process.argv[1];console.log(c.createHash('sha256').update(fs.readFileSync(f)).digest('hex')+'  '+f)" "$f" | tee "$f.sha256"
           done
 
-      # Immer als Build-Artefakt ablegen (auch bei manuellem Lauf ohne Tag).
       - name: Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: like-${{ matrix.os }}
+          name: like-${{ matrix.pack }}-${{ matrix.os }}
           path: |
             ${{ matrix.pattern }}
             dist/*.sha256
           if-no-files-found: error
 
-      # Bei Tag-Push ODER manuellem Lauf mit Tag-Input: Release erstellen/befüllen.
-      # Beim manuellen Lauf legt die Action den Tag serverseitig an (auf dem
-      # gebauten Commit) — lokales Taggen/Pushen ist nicht nötig.
+      # Release nur bei Tag-Push oder manuellem Lauf mit Tag. Der Tag bestimmt das Release;
+      # bei pack=all + Tag würden alle Packs an DASSELBE Release gehängt — sinnvoll für
+      # einen Kern-Sammelrelease. Für getrennte Pack-Releases je Pack einzeln taggen.
       - name: An Release anhängen
         if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
         uses: softprops/action-gh-release@v2

@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "der prozess (franz kafka)": {
+      "id": "der prozess (franz kafka)",
+      "name": "Der Prozess (Franz Kafka)",
+      "seed": true,
+      "genres": [
+        "Klassiker",
+        "Existenzialismus"
+      ],
+      "listeners": 4200
+    },
+    "der fremde (albert camus)": {
+      "id": "der fremde (albert camus)",
+      "name": "Der Fremde (Albert Camus)",
+      "seed": false,
+      "genres": [
+        "Existenzialismus"
+      ],
+      "listeners": 3800
+    },
+    "das schloss (franz kafka)": {
+      "id": "das schloss (franz kafka)",
+      "name": "Das Schloss (Franz Kafka)",
+      "seed": false,
+      "genres": [
+        "Klassiker"
+      ],
+      "listeners": 2100
+    },
+    "1984 (george orwell)": {
+      "id": "1984 (george orwell)",
+      "name": "1984 (George Orwell)",
+      "seed": false,
+      "genres": [
+        "Dystopie"
+      ],
+      "listeners": 9000
+    },
+    "die verwandlung (franz kafka)": {
+      "id": "die verwandlung (franz kafka)",
+      "name": "Die Verwandlung (Franz Kafka)",
+      "seed": false,
+      "genres": [
+        "Klassiker"
+      ],
+      "listeners": 3300
+    },
+    "amerika (franz kafka)": {
+      "id": "amerika (franz kafka)",
+      "name": "Amerika (Franz Kafka)",
+      "seed": false,
+      "genres": [
+        "Klassiker"
+      ],
+      "listeners": 900
+    },
+    "das urteil (franz kafka)": {
+      "id": "das urteil (franz kafka)",
+      "name": "Das Urteil (Franz Kafka)",
+      "seed": false,
+      "genres": [
+        "Klassiker"
+      ],
+      "listeners": 700
+    }
+  },
+  "edges": [
+    {
+      "from": "der prozess (franz kafka)",
+      "to": "der fremde (albert camus)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "der prozess (franz kafka)",
+      "to": "das schloss (franz kafka)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "der prozess (franz kafka)",
+      "to": "1984 (george orwell)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "der prozess (franz kafka)",
+      "to": "die verwandlung (franz kafka)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "der prozess (franz kafka)",
+      "to": "amerika (franz kafka)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "der prozess (franz kafka)",
+      "to": "das urteil (franz kafka)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "der fremde (albert camus)",
+      "to": "1984 (george orwell)",
+      "type": "similar",
+      "weight": 0.4,
+      "source": "demo"
+    }
+  ]
+}

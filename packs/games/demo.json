@@ -1,0 +1,130 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "hades": {
+      "id": "hades",
+      "name": "Hades",
+      "seed": true,
+      "genres": [
+        "Roguelike",
+        "Action"
+      ],
+      "listeners": 3500000
+    },
+    "dead cells": {
+      "id": "dead cells",
+      "name": "Dead Cells",
+      "seed": false,
+      "genres": [
+        "Roguelike"
+      ],
+      "listeners": 2800000
+    },
+    "bastion": {
+      "id": "bastion",
+      "name": "Bastion",
+      "seed": false,
+      "genres": [
+        "Action"
+      ],
+      "listeners": 2000000
+    },
+    "transistor": {
+      "id": "transistor",
+      "name": "Transistor",
+      "seed": false,
+      "genres": [
+        "Action"
+      ],
+      "listeners": 1500000
+    },
+    "cult of the lamb": {
+      "id": "cult of the lamb",
+      "name": "Cult of the Lamb",
+      "seed": false,
+      "genres": [
+        "Roguelike"
+      ],
+      "listeners": 900000
+    },
+    "pyre": {
+      "id": "pyre",
+      "name": "Pyre",
+      "seed": false,
+      "genres": [
+        "RPG"
+      ],
+      "listeners": 400000
+    },
+    "hades ii": {
+      "id": "hades ii",
+      "name": "Hades II",
+      "seed": false,
+      "genres": [
+        "Roguelike"
+      ],
+      "listeners": 800000
+    }
+  },
+  "edges": [
+    {
+      "from": "hades",
+      "to": "dead cells",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "hades",
+      "to": "bastion",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "hades",
+      "to": "transistor",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "hades",
+      "to": "cult of the lamb",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "hades",
+      "to": "pyre",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "hades",
+      "to": "hades ii",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "bastion",
+      "to": "transistor",
+      "type": "together",
+      "weight": 3,
+      "source": "demo"
+    },
+    {
+      "from": "dead cells",
+      "to": "cult of the lamb",
+      "type": "similar",
+      "weight": 0.5,
+      "source": "demo"
+    }
+  ]
+}
