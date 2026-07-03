@@ -59,7 +59,9 @@
 
   .bar { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center;
     gap: 12px; padding: 0 14px; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 10; }
-  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; }
+  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; cursor: pointer; user-select: none; }
+  .brand:hover .bdot { transform: scale(1.4); display: inline-block; }
+  .brand .bdot { transition: transform .15s; }
   .brand .bdot { color: var(--edge-together); }
   .packswitch { margin-left: 10px; padding: 4px 8px; font: inherit; font-size: 13px; font-weight: 600;
     background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
@@ -422,7 +424,7 @@
   <canvas id="cv"></canvas>
 
   <div class="bar">
-    <div class="brand"><span id="brandName">like</span><span class="bdot">.</span><span class="ver" id="ver" title="installierte Version"></span></div>
+    <div class="brand" id="brand" title="Zur Übersicht"><span id="brandName">like</span><span class="bdot">.</span><span class="ver" id="ver" title="installierte Version"></span></div>
     <select id="packSwitch" class="packswitch hideStatic" title="Domäne wechseln — jede hat ihre eigene Sammlung"></select>
     <div class="search hideStatic">
       <div class="searchwrap">
@@ -2266,6 +2268,15 @@ document.getElementById("themeBtn").onclick = () => {
 })();
 
 // ---- Cluster-Färbung (Farben-Toggle) ----
+// Logo-Klick: in den Previews zurück zur Übersicht (Landing), in der App als „Home"-
+// Geste die ganze Karte einpassen + Panel/Modi schließen.
+document.getElementById("brand").onclick = () => {
+  if (STATIC) { location.href = "../"; return; } // docs/<pack>/ -> docs/ (Übersicht)
+  closePanel(); if (typeof clearFocus === "function") clearFocus();
+  filterGenre = ""; document.getElementById("genreFilter").value = "";
+  activeGenres.clear(); fitAll();
+};
+
 const clusterToggleEl = document.getElementById("clusterToggle");
 clusterToggleEl.checked = clusterMode;
 clusterToggleEl.onchange = (e) => {

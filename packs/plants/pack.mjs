@@ -1,7 +1,9 @@
 // packs/plants/pack.mjs — Pflanzen-Nachbarschaften über iNaturalist + GBIF (beide offen, kein Key).
 //   blau   = botanisch verwandt (gleiche Gattung/Familie, via iNat-Taxonomie)
-//   orange = wird oft verwechselt mit (iNat similar_species: Arten, die Beobachter
-//            in der Praxis miteinander verwechseln — d.h. sie SEHEN sich ähnlich)
+//   orange = gedeiht am selben Standort (Ko-Okkurrenz: Pflanzen, die iNaturalist-Beobachter
+//            oft im selben Umkreis finden — teilen faktisch Klima/Boden, also ähnliche
+//            Standortansprüche). Echte strukturierte Wunsch-Bedingungen (Sonne/Boden/pH)
+//            gibt es frei nicht sauber; Ko-Okkurrenz ist der beste freie Proxy dafür.
 // Popularität = observations_count (wie oft beobachtet/fotografiert).
 
 import { cached } from "../../lib/cache.mjs";
@@ -50,18 +52,46 @@ async function genusSiblings(taxon, { limit = 12 } = {}) {
   });
 }
 
-// Verwechslungs-Arten: welche Arten Beobachter mit dieser verwechseln (iNat
-// similar_species, aus echten Fehlbestimmungen abgeleitet = optische Ähnlichkeit).
-// Der Endpunkt liefert je Art ein `count` = wie oft Beobachter sie mit dieser
-// verwechselt haben. Das nehmen wir als Kantengewicht -> dickste orange Kante =
-// häufigste Verwechslung (statt alle gleich).
-async function lookAlikes(taxonId, { limit = 12 } = {}) {
-  return cached("inat-co", taxonId + "|" + limit, 14 * 864e5, async () => {
+// Standort-Nachbarn (Ko-Okkurrenz): Pflanzen, die im selben Umkreis wachsen wie diese —
+// also ähnliche Klima-/Bodenbedingungen mögen. Zwei Schritte, beide gecacht:
+//   1) einen repräsentativen Fundort der Art holen (gut belegte Beobachtung mit Koordinaten)
+//   2) im Umkreis die häufigsten ANDEREN Pflanzenarten zählen (species_counts) = Standortgemeinschaft
+// count = Beobachtungen der Nachbar-Art in der Region -> Kantengewicht (häufiger = dicker).
+async function sameHabitat(taxon, { limit = 12 } = {}) {
+  const genus = (taxon.ancestors || []).find((a) => a.rank === "genus");
+  return cached("inat-habitat", taxon.id + "|" + limit, 14 * 864e5, async () => {
     try {
-      const j = await jfetch(`${INAT}/identifications/similar_species?taxon_id=${taxonId}&per_page=${limit}&locale=de`);
-      return (j.results || [])
-        .filter((r) => r.taxon && r.taxon.iconic_taxon_name === "Plantae")
-        .map((r) => ({ taxon: r.taxon, count: r.count || 1 }));
+      // repräsentativen Fundort suchen (Research-Grade, mit Geokoordinaten)
+      const ou = new URL(INAT + "/observations");
+      ou.searchParams.set("taxon_id", String(taxon.id));
+      ou.searchParams.set("quality_grade", "research");
+      ou.searchParams.set("geo", "true");
+      ou.searchParams.set("order_by", "votes");
+      ou.searchParams.set("per_page", "1");
+      const obs = (await jfetch(ou.href)).results?.[0];
+      const loc = obs?.location; // "lat,lng"
+      if (!loc) return [];
+      const [lat, lng] = loc.split(",");
+      // häufigste Pflanzen im Umkreis (~60 km) — die Standortgemeinschaft
+      const su = new URL(INAT + "/observations/species_counts");
+      su.searchParams.set("lat", lat);
+      su.searchParams.set("lng", lng);
+      su.searchParams.set("radius", "60");
+      su.searchParams.set("iconic_taxa", "Plantae");
+      su.searchParams.set("quality_grade", "research");
+      su.searchParams.set("per_page", String(limit + 6));
+      su.searchParams.set("locale", "de");
+      const j = await jfetch(su.href);
+      const out = [];
+      for (const r of j.results || []) {
+        const t = r.taxon;
+        if (!t || t.id === taxon.id) continue;
+        if (genus && (t.ancestor_ids || []).includes(genus.id)) continue; // eigene Gattung ist schon "verwandt" (blau)
+        if (t.rank !== "species") continue;
+        out.push({ taxon: t, count: r.count || 1 });
+        if (out.length >= limit) break;
+      }
+      return out;
     } catch { return []; }
   });
 }
@@ -76,14 +106,14 @@ export default {
     brand: "like",
     item: { sing: "Pflanze", plur: "Pflanzen" },
     searchPlaceholder: "Pflanze suchen…   ( / )",
-    searchTitle: "Pflanze bei iNaturalist suchen — lädt verwandte + zum Verwechseln ähnliche Arten (Taste /)",
-    goTitle: "Pflanze laden: botanisch verwandt + wird oft verwechselt mit + Merkmale",
+    searchTitle: "Pflanze bei iNaturalist suchen — lädt verwandte Arten + Pflanzen mit ähnlichen Standortansprüchen (Taste /)",
+    goTitle: "Pflanze laden: botanisch verwandt + gedeiht am selben Standort + Merkmale",
     exampleSeed: "Lavendel",
     emptyTitle: "Noch keine Pflanzen auf der Karte",
-    emptyHint: "bringt gleich ihr Umfeld mit: verwandte + zum Verwechseln ähnliche Arten.",
+    emptyHint: "bringt gleich ihr Umfeld mit: verwandte Arten + Pflanzen mit ähnlichen Standortansprüchen.",
     edges: {
       similar: { label: "botanisch verwandt (Gattung)", count: "verwandte" },
-      together: { label: "wird oft verwechselt mit (iNat)", count: "zum Verwechseln ähnlich" },
+      together: { label: "gedeiht am selben Standort (iNat)", count: "mit ähnlichen Ansprüchen" },
     },
     popularity: { label: "Beobachtungen", big: 50000, dimLabel: "Allerweltsarten dämpfen", dimTitle: "Sehr häufig beobachtete Arten abdunkeln — nur die Seltenen leuchten" },
     genreLabel: "Merkmale",
@@ -97,7 +127,7 @@ export default {
     noteLabel: "Notiz",
     notePlaceholder: "Standort, Boden, Bezugsquelle, Beobachtung…",
     similarLabel: "Botanisch verwandt",
-    togetherLabel: "Wird oft verwechselt mit",
+    togetherLabel: "Gedeiht am selben Standort",
     contextLabel: "Familien-Umfeld",
     contextHint: "(iNaturalist)",
     contextButton: "Familie laden",
@@ -110,7 +140,7 @@ export default {
       { cls: "", label: "GBIF", url: "https://www.gbif.org/species/search?q={Q}" },
     ],
     radarTitle: "Radar — seltene Arten",
-    radarTogetherReason: "sieht deinem Like zum Verwechseln ähnlich",
+    radarTogetherReason: "gedeiht am selben Standort wie dein Like",
     features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
     key: null,
   },
@@ -135,7 +165,7 @@ export default {
     const family = (taxon.ancestors || []).find((a) => a.rank === "family");
     const genus = (taxon.ancestors || []).find((a) => a.rank === "genus");
 
-    const [sibs, co] = await Promise.all([genusSiblings(taxon), lookAlikes(taxon.id)]);
+    const [sibs, co] = await Promise.all([genusSiblings(taxon), sameHabitat(taxon)]);
     const genres = [family?.preferred_common_name || family?.name, genus?.name, taxon.rank].filter(Boolean).map(cap);
 
     return {
@@ -196,7 +226,7 @@ export default {
   async diag() {
     return [
       { name: "iNaturalist Suche", probe: async () => !!(await searchTaxon("Lavandula")) },
-      { name: "iNaturalist Verwechslungs-Arten", probe: async () => { const h = await searchTaxon("Lavandula"); return (await lookAlikes(h.id)).length >= 0; } },
+      { name: "iNaturalist Standort-Gemeinschaft", probe: async () => { const h = await searchTaxon("Lavandula"); const t = await taxonById(h.id) || h; return (await sameHabitat(t)).length >= 0; } },
     ];
   },
 };

@@ -26,7 +26,7 @@ export default {
 
   config: {
     id: "music",
-    title: "Like",
+    title: "Like Music",
     brand: "like",
     item: { sing: "Act", plur: "Acts" },
     searchPlaceholder: "Act suchen…   ( / )",
