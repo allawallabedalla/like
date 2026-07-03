@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "lage der nation": {
+      "id": "lage der nation",
+      "name": "Lage der Nation",
+      "seed": true,
+      "genres": [
+        "News",
+        "Politik"
+      ],
+      "listeners": 320
+    },
+    "die wochendammerung": {
+      "id": "die wochendammerung",
+      "name": "Die Wochendämmerung",
+      "seed": false,
+      "genres": [
+        "Politik"
+      ],
+      "listeners": 240
+    },
+    "was jetzt?": {
+      "id": "was jetzt?",
+      "name": "Was jetzt?",
+      "seed": false,
+      "genres": [
+        "News"
+      ],
+      "listeners": 900
+    },
+    "apokalypse & filterkaffee": {
+      "id": "apokalypse & filterkaffee",
+      "name": "Apokalypse & Filterkaffee",
+      "seed": false,
+      "genres": [
+        "News"
+      ],
+      "listeners": 800
+    },
+    "ultras — warum wir fußball lieben": {
+      "id": "ultras — warum wir fußball lieben",
+      "name": "Ultras — Warum wir Fußball lieben",
+      "seed": false,
+      "genres": [
+        "Doku"
+      ],
+      "listeners": 12
+    },
+    "ldn extra": {
+      "id": "ldn extra",
+      "name": "LdN Extra",
+      "seed": false,
+      "genres": [
+        "Politik"
+      ],
+      "listeners": 40
+    }
+  },
+  "edges": [
+    {
+      "from": "lage der nation",
+      "to": "die wochendammerung",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "lage der nation",
+      "to": "was jetzt?",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "lage der nation",
+      "to": "apokalypse & filterkaffee",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "lage der nation",
+      "to": "ultras — warum wir fußball lieben",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "lage der nation",
+      "to": "ldn extra",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "was jetzt?",
+      "to": "apokalypse & filterkaffee",
+      "type": "similar",
+      "weight": 0.4,
+      "source": "demo"
+    }
+  ]
+}

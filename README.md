@@ -125,6 +125,57 @@ node server.mjs
    ```
 4. `node server.mjs` und im Browser erkunden.
 
+## Mehrere Domänen: ein Kern, viele „Packs"
+like ist nicht mehr nur Musik. Der **Kern** (Server, Graph-Speicher, die klickbare Karte)
+ist domänen-neutral; alles Inhaltliche steckt in einem **Domain-Pack** unter `packs/<id>/`.
+Ein Pack bündelt zwei Dinge: die **Datenquellen-Adapter** (Suche, „ähnlich", „zusammen",
+Popularität) und eine **Config** (Begriffe, Kantenfarben, Feature-Schalter fürs Frontend).
+
+Verfügbare Packs (Musik ist Standard):
+
+| Pack | Was | Quellen (offen, sofern nicht anders vermerkt) | „ähnlich" (blau) / „zusammen" (orange) |
+|------|-----|-----------------------------------------------|----------------------------------------|
+| `music` | Künstler:innen | Last.fm (Key), RA, Deezer, MusicBrainz, Bandcamp | ähnlicher Stil / zusammen aufgetreten |
+| `books` | Bücher | Open Library, TasteDive (optional) | thematisch ähnlich / vom selben Autor |
+| `movies` | Filme | TMDB (**Gratis-Key**) | inhaltlich ähnlich / „Leute schauten auch" |
+| `plants` | Pflanzen | iNaturalist, GBIF | botanisch verwandt / wird oft verwechselt mit |
+| `papers` | Forschung | OpenAlex | inhaltlich verwandt / von denselben Autor:innen |
+| `boardgames` | Brettspiele | BoardGameGeek | geteilte Mechaniken / vom selben Designer |
+| `podcasts` | Podcasts | Apple/iTunes, TasteDive (optional) | gleiches Genre / vom selben Anbieter |
+| `games` | (Indie-)Games | Steam, SteamSpy, TasteDive (optional) | geteilte Tags / vom selben Entwickler |
+
+Pack starten:
+```
+node server.mjs                 # Musik (Default)
+node server.mjs --pack=books    # Bücher (auch: ENV LIKE_PACK=books)
+```
+
+**Keys je Pack** (nur wo nötig): `movies` braucht einen kostenlosen TMDB-Key
+(`.tmdb-key` oder ENV `TMDB_API_KEY`). `music` braucht den Last.fm-Key wie bisher.
+`books`/`podcasts`/`games` funktionieren ohne Key; ein optionaler TasteDive-Key
+(`.tastedive-key`) schaltet zusätzlich ein „Leute mochten auch"-Signal frei und versorgt
+diese drei Packs gemeinsam. Jedes Pack legt seinen Bestand in eigenen Dateien ab
+(`graph-books.json`, `stats-movies.json`, …), sodass sich die Domänen nie vermischen.
+
+Zur „auch gekauft / auch gelesen"-Idee: echte Verkaufszahlen und Amazons „wurde zusammen
+gekauft" sind **nicht** frei zugänglich. Das beste freie Äquivalent ist *verhaltensbasiert*
+und steckt schon in den Packs — bei Filmen sind es TMDBs `recommendations` (aus echtem
+Nutzerverhalten abgeleitet, die orange Kante), bei Büchern/Podcasts/Games optional TasteDive.
+Als Nachfrage-Indikator statt Verkaufszahlen dienen Merklisten (Open Library „want to read"),
+Bewertungszahlen (TMDB/BGG) oder Besitzer-Schätzungen (SteamSpy).
+
+### Neues Pack anlegen
+1. `packs/<id>/pack.mjs` mit `default export { id, config, explore, enrich, … }` (siehe
+   `packs/music/pack.mjs` als Referenz — das Interface ist oben in `lib/packs.mjs` dokumentiert).
+2. Optional `packs/<id>/demo.json` für die Preview (`node scripts/gen-demos.mjs` erzeugt die mitgelieferten).
+3. Fertig — Server, Frontend, Radar, Export und CI ziehen das Pack automatisch mit.
+
+## Musik-Erweiterung: Venues einblenden
+Im Musik-Pack lässt sich über den **Venues**-Schalter (Topbar) eine zusätzliche Ebene
+einblenden: Spielorte, an denen mindestens zwei deiner Acts aufgetreten sind, erscheinen als
+violette Knoten. Das zeigt, welche Venues (und damit welches Booking-Umfeld) deine Acts
+verbinden — rein aus den ohnehin gespeicherten Auftrittsdaten abgeleitet, ohne neue Anfrage.
+
 ## Bedienung der Karte
 - **Act suchen** (oben) / Enter: lädt den Act (ähnlicher Stil + Auftritte + Genres), zentriert ihn
 - **Klick auf einen Punkt**: lädt dessen Nachbarn → so hangelst du dich durch
@@ -139,50 +190,68 @@ node server.mjs
 - Knoten: schwarz = gesucht · weiß mit Ring = bekannt/gebucht · grau = noch nicht geöffnet
 - Kanten: **blau** = ähnlicher Stil (Last.fm) · **orange** = zusammen aufgetreten (RA; dicker = mehr Events)
 
-## Statische Vorschau / GitHub Pages
-„like" braucht im Normalbetrieb den Node-Server (Last.fm-Key, RA, schreibt graph.json) —
-das läuft **nicht** auf GitHub Pages. Es gibt aber einen **read-only-Snapshot** der aktuellen
-Karte, der rein statisch funktioniert (zoomen, klicken, vergleichen, Pfade, Genre-Filter,
-Korb, PNG/CSV) — nur Live-Suche/Erweitern fehlt.
+## Statische Vorschau / GitHub Pages (von überall testen, ohne Installation)
+Jedes Pack hat eine **read-only-Preview**, die rein statisch funktioniert (zoomen, klicken,
+vergleichen, Pfade, Filter, PNG/CSV) — nur Live-Suche/Erweitern fehlt, weil das den Server
+mit den Keys braucht. Ideal, um die Oberfläche und die Inhalte eines Packs von jedem Rechner
+im Browser anzusehen, ohne etwas zu installieren.
 
 ```
-node export-static.mjs     # baut docs/index.html (Graph eingebettet) + docs/.nojekyll
-node serve-docs.mjs        # lokal ansehen: http://localhost:5174
+node export-static.mjs             # nur Musik -> docs/index.html
+node export-static.mjs --pack=books# ein Pack  -> docs/books/index.html
+node export-static.mjs --all       # alle Packs + Landing-Seite -> docs/
+node serve-docs.mjs                # lokal ansehen: http://localhost:5174
 ```
 
-**Auf GitHub Pages veröffentlichen** (wie bei Abseits, eigenes Site-Repo):
-1. `node export-static.mjs` ausführen.
-2. Neues GitHub-Repo anlegen (z.B. `like`).
-3. Den **Inhalt von `docs/`** ins Repo pushen (Branch `main`).
-4. Repo → Settings → Pages → Source: `main` / root → speichern.
-   (Alternativ Branch `gh-pages`.) Die `.nojekyll` verhindert Jekyll-Probleme.
+**Automatisch auf GitHub Pages:** der Workflow `.github/workflows/pages.yml` baut bei jedem
+Push auf `main` (der Kern, Frontend oder ein Pack berührt) **alle** Previews und deployt sie:
+```
+https://<user>.github.io/like/           # Landing mit allen Packs
+https://<user>.github.io/like/books/     # Bücher-Preview
+```
+Einmalig aktivieren: Repo → Settings → Pages → Source: **GitHub Actions**.
 
-Bei jedem neuen Stand einfach `export-static.mjs` neu laufen lassen und pushen.
+> Hinweis: Bei einem öffentlichen Repo ist die Pages-Seite öffentlich. Die Previews betten
+> **kuratierte Demo-Graphen** ein (`packs/<id>/demo.json`), nicht deinen persönlichen Bestand —
+> `graph*.json` bleibt lokal (per `.gitignore`).
 
 ## Neue Downloads bauen (Release)
 Die `.exe` und `.dmg` werden **automatisch von GitHub Actions** auf echten Windows-/Mac-Runnern
 gebaut (`.github/workflows/release.yml`) — du brauchst dafür weder einen Mac noch eine lokale
 Toolchain.
 
-**Einmalig einrichten:** Repo → Settings → Secrets and variables → Actions → *New repository secret*
-`LASTFM_KEY` = dein Last.fm-Key (wird beim Bauen in `.lastfm-key` geschrieben und in die Apps
-eingebettet). Ohne das Secret wird trotzdem gebaut, dann ohne eingebetteten Key.
+**Einmalig einrichten:** Repo → Settings → Secrets and variables → Actions → *New repository secret*.
+Je nach Pack: `LASTFM_KEY` (Musik), `TMDB_KEY` (Filme), `TASTEDIVE_KEY` (optional, für
+Bücher/Podcasts/Games). Sie werden beim Bauen in die jeweilige Key-Datei geschrieben und in die
+Apps eingebettet. Fehlt ein Secret, wird trotzdem gebaut — dann ohne eingebetteten Key.
 
-**Release auslösen:** einen Versions-Tag pushen —
+**Getrennte Tags pro Pack**, damit klar ist, welches Tool welchen Stand hat:
 ```
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.9.0        && git push origin v1.9.0        # Musik (klassischer Name)
+git tag books-v0.2.0  && git push origin books-v0.2.0  # Bücher
+git tag movies-v0.1.0 && git push origin movies-v0.1.0 # Filme  usw.
 ```
-Actions baut beide Plattformen und hängt `Like-1.2.0-portable.exe` + `Like-1.2.0-universal.dmg`
-an das GitHub-Release des Tags. (Über *Actions → Build & Release → Run workflow* lässt sich der
-Bau auch manuell testen — die Dateien landen dann als Build-Artefakte, ohne Release.)
+Jeder Tag baut **genau sein Pack** (Windows + macOS) und hängt die Downloads ans Release.
 
-**Lokal bauen** (optional, falls gewünscht): `npm ci` und dann `npm run dist:win` (auf Windows)
-bzw. `npm run dist:mac` (auf einem Mac). Ergebnis liegt in `dist/`.
+**Deine Release-Logik** setzt der Workflow so um:
+- **Pack-Änderung** → nur dieses Pack neu bauen: dessen Tag pushen (siehe oben). Die anderen
+  Packs und Previews bleiben unberührt.
+- **Kern-/Frontend-Änderung** („alle neu") → *Actions → Build & Release → Run workflow* mit
+  `pack = all`. Das baut alle Packs auf beiden Plattformen. Die Previews aktualisiert der
+  Pages-Workflow ohnehin bei jedem `main`-Push automatisch.
+
+Manueller Testlauf ohne Release: *Run workflow* mit leerem Tag → Dateien landen nur als
+Build-Artefakte.
+
+**Lokal bauen** (optional): `npm ci`, dann `node scripts/build-pack.mjs <pack> <mac|win>`
+(z.B. `node scripts/build-pack.mjs books win`). Ergebnis liegt in `dist/`.
 
 ## Roadmap
 - [x] Suche + Durchklicken, zwei Kantenfarben, Genres
 - [x] „Zusammen aufgetreten" via Resident Advisor (Songkick/Bandsintown optional)
-- [ ] Genres auch für noch nicht geöffnete Acts (Last.fm Tags lazy nachladen)
-- [ ] Spotify Audio-Features → echte Klang-Ähnlichkeit
+- [x] Kern + Domain-Packs: Bücher, Filme, Pflanzen, Paper, Brettspiele, Podcasts, Games
+- [x] Read-only-Previews pro Pack auf GitHub Pages (ohne Installation testbar)
+- [x] Venue-Ebene im Musik-Pack (Spielorte als Knoten)
+- [ ] Pack-spezifische Kurz-Touren (aktuell nur Musik)
+- [ ] Eigene Icons pro Pack (`packs/<id>/icon.icns|png`)
 - [ ] Umstieg `graph.json` → SQLite bei wachsendem Bestand

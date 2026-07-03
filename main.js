@@ -52,15 +52,38 @@ function ensureDataDir() {
   return dataDir;
 }
 
-// Last.fm-Key kommt fertig mit der App (steht nicht im öffentlichen Git-Repo,
-// wird beim Bauen aus dem GitHub-Secret in .lastfm-key geschrieben) — Tester:innen
-// müssen nichts eintragen, um zu suchen.
-function bundledApiKey() {
+// Welches Domain-Pack ist eingebaut? (.pack wird beim Pack-Build geschrieben; fehlt es,
+// ist es der klassische Musik-Build.)
+function bundledPack() {
   try {
-    return fs.readFileSync(path.join(__dirname, ".lastfm-key"), "utf8").trim() || null;
+    return JSON.parse(fs.readFileSync(path.join(__dirname, ".pack"), "utf8")).id || "music";
   } catch {
-    return null;
+    return "music";
   }
+}
+
+// Eingebettete API-Keys kommen fertig mit der App (nicht im öffentlichen Repo; werden
+// beim Bauen aus GitHub-Secrets in die jeweilige Key-Datei geschrieben). Je Pack die
+// passende ENV setzen, damit Tester:innen ohne eigenen Key loslegen können.
+function bundledKeyEnv(pack) {
+  const map = {
+    music: [".lastfm-key", "LASTFM_API_KEY"],
+    movies: [".tmdb-key", "TMDB_API_KEY"],
+  };
+  const env = {};
+  const entry = map[pack];
+  if (entry) {
+    try {
+      const k = fs.readFileSync(path.join(__dirname, entry[0]), "utf8").trim();
+      if (k) env[entry[1]] = k;
+    } catch {}
+  }
+  // TasteDive versorgt mehrere Packs (Bücher/Podcasts/Games) — mitgeben, falls vorhanden.
+  try {
+    const td = fs.readFileSync(path.join(__dirname, ".tastedive-key"), "utf8").trim();
+    if (td) env.TASTEDIVE_KEY = td;
+  } catch {}
+  return env;
 }
 
 function createWindow(url) {
@@ -91,7 +114,8 @@ async function start() {
   const port = await getFreePort();
   serverUrl = `http://127.0.0.1:${port}`;
   const dataDir = ensureDataDir();
-  const apiKey = bundledApiKey();
+  const pack = bundledPack();
+  const keyEnv = bundledKeyEnv(pack);
 
   // Server über Electrons eingebautes Node starten (kein System-Node nötig — sonst
   // schlägt spawn("node") fehl, weil GUI-Starts keinen Homebrew-/PATH-Kontext haben).
@@ -102,7 +126,8 @@ async function start() {
       ELECTRON_RUN_AS_NODE: "1",
       PORT: String(port),
       LIKE_DATA_DIR: dataDir,
-      ...(apiKey ? { LASTFM_API_KEY: apiKey } : {}),
+      LIKE_PACK: pack,
+      ...keyEnv,
     },
     stdio: "inherit",
   });

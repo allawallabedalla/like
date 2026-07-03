@@ -1,0 +1,130 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "bonobo": {
+      "id": "bonobo",
+      "name": "Bonobo",
+      "seed": true,
+      "genres": [
+        "Downtempo",
+        "Electronic"
+      ],
+      "listeners": 890000
+    },
+    "tycho": {
+      "id": "tycho",
+      "name": "Tycho",
+      "seed": false,
+      "genres": [
+        "Ambient"
+      ],
+      "listeners": 620000
+    },
+    "rival consoles": {
+      "id": "rival consoles",
+      "name": "Rival Consoles",
+      "seed": false,
+      "genres": [
+        "Electronic"
+      ],
+      "listeners": 90000
+    },
+    "nils frahm": {
+      "id": "nils frahm",
+      "name": "Nils Frahm",
+      "seed": false,
+      "genres": [
+        "Neoclassical"
+      ],
+      "listeners": 410000
+    },
+    "jon hopkins": {
+      "id": "jon hopkins",
+      "name": "Jon Hopkins",
+      "seed": false,
+      "genres": [
+        "Electronic"
+      ],
+      "listeners": 520000
+    },
+    "floating points": {
+      "id": "floating points",
+      "name": "Floating Points",
+      "seed": false,
+      "genres": [
+        "Electronic"
+      ],
+      "listeners": 300000
+    },
+    "four tet": {
+      "id": "four tet",
+      "name": "Four Tet",
+      "seed": false,
+      "genres": [
+        "Electronic"
+      ],
+      "listeners": 700000
+    }
+  },
+  "edges": [
+    {
+      "from": "bonobo",
+      "to": "tycho",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "bonobo",
+      "to": "rival consoles",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "bonobo",
+      "to": "nils frahm",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "bonobo",
+      "to": "jon hopkins",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "bonobo",
+      "to": "floating points",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "bonobo",
+      "to": "four tet",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "tycho",
+      "to": "jon hopkins",
+      "type": "similar",
+      "weight": 0.5,
+      "source": "demo"
+    },
+    {
+      "from": "four tet",
+      "to": "floating points",
+      "type": "together",
+      "weight": 3,
+      "source": "demo"
+    }
+  ]
+}

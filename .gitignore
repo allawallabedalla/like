@@ -1,16 +1,25 @@
 # API-Keys / app_ids niemals committen
 .lastfm-key
+.tmdb-key
+.tastedive-key
 .songkick-key
 .setlistfm-key
 .bandsintown-appid
 
-# lokaler Antwort-Cache (RA/Last.fm)
+# beim Pack-Build erzeugt (welches Pack ist eingebaut) — kein Quellcode
+.pack
+
+# lokaler Antwort-Cache (RA/Last.fm/…)
 cache/
 
 # lokaler Datenbestand (dein Schatz) – optional versionieren; standardmäßig ignoriert
+# je Pack eigene Dateien: graph-books.json, stats-movies.json, …
 graph.json
+graph-*.json
 stats.json
+stats-*.json
 digest.json
+digest-*.json
 
 # Build-Output / lokale Tool-Configs, nicht Teil des Quellcodes
 node_modules/

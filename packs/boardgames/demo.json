@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "catan (1995)": {
+      "id": "catan (1995)",
+      "name": "Catan (1995)",
+      "seed": true,
+      "genres": [
+        "Aufbau",
+        "Handel"
+      ],
+      "listeners": 130000
+    },
+    "carcassonne (2000)": {
+      "id": "carcassonne (2000)",
+      "name": "Carcassonne (2000)",
+      "seed": false,
+      "genres": [
+        "Legespiel"
+      ],
+      "listeners": 120000
+    },
+    "ticket to ride (2004)": {
+      "id": "ticket to ride (2004)",
+      "name": "Ticket to Ride (2004)",
+      "seed": false,
+      "genres": [
+        "Sammeln"
+      ],
+      "listeners": 95000
+    },
+    "terra mystica (2012)": {
+      "id": "terra mystica (2012)",
+      "name": "Terra Mystica (2012)",
+      "seed": false,
+      "genres": [
+        "Aufbau"
+      ],
+      "listeners": 45000
+    },
+    "die siedler von catan: stadte & ritter (1998)": {
+      "id": "die siedler von catan: stadte & ritter (1998)",
+      "name": "Die Siedler von Catan: Städte & Ritter (1998)",
+      "seed": false,
+      "genres": [
+        "Aufbau"
+      ],
+      "listeners": 20000
+    },
+    "elasund (2005)": {
+      "id": "elasund (2005)",
+      "name": "Elasund (2005)",
+      "seed": false,
+      "genres": [
+        "Aufbau"
+      ],
+      "listeners": 3000
+    }
+  },
+  "edges": [
+    {
+      "from": "catan (1995)",
+      "to": "carcassonne (2000)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "catan (1995)",
+      "to": "ticket to ride (2004)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "catan (1995)",
+      "to": "terra mystica (2012)",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "catan (1995)",
+      "to": "die siedler von catan: stadte & ritter (1998)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "catan (1995)",
+      "to": "elasund (2005)",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "carcassonne (2000)",
+      "to": "ticket to ride (2004)",
+      "type": "similar",
+      "weight": 0.5,
+      "source": "demo"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+name: Preview (GitHub Pages)
+
+# Baut die statischen, read-only Previews aller Domain-Packs und veröffentlicht sie
+# auf GitHub Pages — eine feste URL pro Pack, ohne Installation von überall testbar:
+#   https://<user>.github.io/like/            (Landing)
+#   https://<user>.github.io/like/books/      (Bücher-Preview) usw.
+#
+# Auslöser:
+#   - Push auf main, der den Kern ODER ein Pack ODER das Frontend berührt
+#   - manuell (workflow_dispatch)
+# Bei Kern-/Frontend-Änderungen ändern sich ohnehin ALLE Previews; bei einer reinen
+# Pack-Änderung wird trotzdem alles neu gebaut (der Export ist in Sekunden fertig und
+# so bleibt die Landing konsistent) — die teuren Desktop-Builds sind davon getrennt.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public/**"
+      - "lib/**"
+      - "packs/**"
+      - "export-static.mjs"
+      - "scripts/gen-demos.mjs"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# nur ein Deploy gleichzeitig; laufende nicht abbrechen (Deploys sollen durchlaufen)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Demo-Graphen frisch erzeugen (falls jemand vergaß, sie zu committen), dann
+      # alle Pack-Previews + Landing nach docs/ exportieren.
+      - run: node scripts/gen-demos.mjs
+      - run: node export-static.mjs --all
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

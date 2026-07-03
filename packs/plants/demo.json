@@ -1,0 +1,130 @@
+{
+  "meta": {
+    "version": 1,
+    "demo": true
+  },
+  "artists": {
+    "lavendel": {
+      "id": "lavendel",
+      "name": "Lavendel",
+      "seed": true,
+      "genres": [
+        "Lippenblütler",
+        "Lavandula"
+      ],
+      "listeners": 48000
+    },
+    "salbei": {
+      "id": "salbei",
+      "name": "Salbei",
+      "seed": false,
+      "genres": [
+        "Lippenblütler"
+      ],
+      "listeners": 62000
+    },
+    "rosmarin": {
+      "id": "rosmarin",
+      "name": "Rosmarin",
+      "seed": false,
+      "genres": [
+        "Lippenblütler"
+      ],
+      "listeners": 71000
+    },
+    "thymian": {
+      "id": "thymian",
+      "name": "Thymian",
+      "seed": false,
+      "genres": [
+        "Lippenblütler"
+      ],
+      "listeners": 55000
+    },
+    "ysop": {
+      "id": "ysop",
+      "name": "Ysop",
+      "seed": false,
+      "genres": [
+        "Lippenblütler"
+      ],
+      "listeners": 8000
+    },
+    "katzenminze": {
+      "id": "katzenminze",
+      "name": "Katzenminze",
+      "seed": false,
+      "genres": [
+        "Lippenblütler"
+      ],
+      "listeners": 21000
+    },
+    "bergbohnenkraut": {
+      "id": "bergbohnenkraut",
+      "name": "Bergbohnenkraut",
+      "seed": false,
+      "genres": [
+        "Lippenblütler"
+      ],
+      "listeners": 4000
+    }
+  },
+  "edges": [
+    {
+      "from": "lavendel",
+      "to": "salbei",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "lavendel",
+      "to": "rosmarin",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "lavendel",
+      "to": "thymian",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "lavendel",
+      "to": "ysop",
+      "type": "similar",
+      "weight": 0.6,
+      "source": "demo"
+    },
+    {
+      "from": "lavendel",
+      "to": "katzenminze",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "lavendel",
+      "to": "bergbohnenkraut",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    },
+    {
+      "from": "salbei",
+      "to": "rosmarin",
+      "type": "similar",
+      "weight": 0.5,
+      "source": "demo"
+    },
+    {
+      "from": "thymian",
+      "to": "bergbohnenkraut",
+      "type": "together",
+      "weight": 2,
+      "source": "demo"
+    }
+  ]
+}
