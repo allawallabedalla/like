@@ -93,6 +93,15 @@
   /* schmalere Fenster: Zähler weicht zuerst, dann kürzen die Toggle-Labels */
   @media (max-width: 1220px) { .counts { display: none; } }
   @media (max-width: 1080px) { .toggle .tlong { display: none; } }
+  /* Schmale Fenster: unwichtigere Regler & Beschriftungen weg, damit die Topbar nicht überläuft.
+     Suche, Domänen-Umschalter, Radar, Feedback & Hilfe bleiben immer erreichbar. */
+  @media (max-width: 900px) { #dimBigWrap, #venueWrap, #export, #exportPng { display: none; } }
+  @media (max-width: 760px) {
+    .bar { gap: 8px; padding: 0 10px; }
+    .toggle, .gfilter, #reset { display: none; }
+    .brand .ver { display: none; }
+  }
+  @media (max-width: 560px) { .packswitch { max-width: 108px; } }
   .genres { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 14px; }
   .genres span { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: 20px; color: var(--muted);
     cursor: pointer; user-select: none; }
@@ -936,6 +945,9 @@ function rebuild(prev) {
       x: old?.x ?? null, y: old?.y ?? null, // neue Knoten werden unten platziert
       vx: old?.vx ?? 0, vy: old?.vy ?? 0,
       pinned: old?.pinned ?? false,
+      // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar
+      appear: old?.appear ?? (old ? 1 : 0),
+      likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
     };
   });
   // Venue-Ebene (abgeleitet, rein clientseitig): Spielorte aus den gespeicherten
@@ -1206,8 +1218,9 @@ function draw() {
     const onPath = pe && pe.has(key);
     const hot = onPath || (selected && (l.a.id === selected.id || l.b.id === selected.id));
     const isSim = l.type === "similar";
+    const ea = Math.min(l.a.appear, l.b.appear); // Kante faded mit ihren Knoten ein
     ctx.strokeStyle = onPath ? getCss("--text") : (l.type === "venue" ? cVen : isSim ? cSim : cTog);
-    ctx.globalAlpha = hot ? 1 : ((selected || hi || pe) ? 0.06 : 0.55);
+    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : 0.55)) * ea;
     const base = isSim ? 1 : Math.min(3.4, 1 + (l.weight - 1) * 0.5);
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
@@ -1215,13 +1228,24 @@ function draw() {
   ctx.globalAlpha = 1;
 
   // Knoten
+  const hovG = hover; // welcher Knoten bekommt den weichen Hover-Schein
   for (const n of nodes) {
     if (hidden(n.id)) continue;
-    const r = radius(n);
+    // Spawn-Animation: frische Knoten wachsen mit leichtem Überschwung ein (easeOutBack).
+    const ap = n.appear ?? 1;
+    const grow = ap >= 1 ? 1 : (1 + 1.7 * Math.pow(ap - 1, 3) + 1.7 * Math.pow(ap - 1, 2));
+    const r = radius(n) * grow;
     const sel = selected && n.id === selected.id;
     const glow = hi && hi.has(n.id);
     const faded = !sel && !glow && dimNode(n);
-    ctx.globalAlpha = faded ? 0.15 : 1;
+    const baseA = (faded ? 0.15 : 1) * ap;
+    // weicher Hover-Schein hinter dem Knoten (nur der eine gehoverte — günstig)
+    if (hovG && n.id === hovG.id && !faded && ap >= 1) {
+      ctx.globalAlpha = 1; ctx.shadowColor = getCss("--edge-together"); ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fillStyle = nodeColor(n); ctx.fill();
+      ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
+    }
+    ctx.globalAlpha = baseA;
     ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
     ctx.fillStyle = nodeColor(n); ctx.fill();
     const sCol = STATUS_COLOR[n.status];
@@ -1230,18 +1254,23 @@ function draw() {
     else if (glow) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--edge-together"); ctx.stroke(); }
     else if (sCol) { ctx.lineWidth = 2.5 / view.k; ctx.strokeStyle = sCol; ctx.stroke(); }
     else if (hover && n.id === hover.id) { ctx.lineWidth = 1.5 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke(); }
+    // Like-Puls: kurzer expandierender Ring, wenn der Knoten gerade geliked wurde
+    if (n.likePulse > 0) {
+      ctx.globalAlpha = n.likePulse * 0.7; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + (1 - n.likePulse) * 20 / view.k, 0, 7); ctx.stroke();
+    }
     if (n.active) {
-      ctx.globalAlpha = faded ? 0.15 : 1;
+      ctx.globalAlpha = baseA;
       ctx.beginPath(); ctx.arc(n.x + r * 0.8, n.y - r * 0.8, 2.5 / view.k + 1, 0, 7);
       ctx.fillStyle = "#1a9e54"; ctx.fill();
     }
     if (n.pinned) { // fixiert (nach Ziehen): kleiner grauer Punkt unten links
-      ctx.globalAlpha = faded ? 0.15 : 1;
+      ctx.globalAlpha = baseA;
       ctx.beginPath(); ctx.arc(n.x - r * 0.8, n.y + r * 0.8, 2 / view.k + 1, 0, 7);
       ctx.fillStyle = getCss("--muted"); ctx.fill();
     }
     if (basket.has(n.id)) {
-      ctx.globalAlpha = faded ? 0.2 : 1; ctx.fillStyle = getCss("--text");
+      ctx.globalAlpha = (faded ? 0.2 : 1) * ap; ctx.fillStyle = getCss("--text");
       ctx.font = `${12 / view.k}px ${CANVAS_FONT}`; ctx.textAlign = "center";
       ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
     }
@@ -1317,9 +1346,20 @@ function draw() {
 // langsamer Sicherheits-Heartbeat (~7 fps), falls irgendwo requestDraw() vergessen
 // wurde: dann max. ~150 ms Verzug statt Einfrieren. Spart im Leerlauf viel CPU/Akku.
 let idleTick = 0;
+// Node-Animationen (Spawn-Einwachsen, Like-Puls) laufen unabhängig von der Physik —
+// so laufen sie auch im beruhigten Netz sauber aus. Gibt true zurück, solange etwas läuft.
+function stepNodeAnims() {
+  let live = false;
+  for (const a of nodes) {
+    if (a.appear < 1) { a.appear = Math.min(1, a.appear + 0.055); live = true; }
+    if (a.likePulse > 0) { a.likePulse = Math.max(0, a.likePulse - 0.028); live = true; }
+  }
+  return live;
+}
 function loop() {
   tick();
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null;
+  const anims = stepNodeAnims();
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -1883,7 +1923,7 @@ function renderTrail() {
 
 // ---- Lineup-Korb ----
 function saveBasket() { try { localStorage.setItem(LSK("like_basket"), JSON.stringify([...basket])); } catch {} }
-function toggleBasket(n) { if (n.venue) return; basket.has(n.id) ? basket.delete(n.id) : basket.add(n.id); saveBasket(); renderBasket(); refreshLikeBtn(); requestDraw(); }
+function toggleBasket(n) { if (n.venue) return; const add = !basket.has(n.id); add ? basket.add(n.id) : basket.delete(n.id); if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; } saveBasket(); renderBasket(); refreshLikeBtn(); requestDraw(); }
 // like!-Button spiegelt, ob der gewählte Act schon im Lineup ist
 function refreshLikeBtn() {
   if (!selected) return;
@@ -2197,6 +2237,10 @@ function closeFeedback() { feedbackModal.classList.remove("show"); }
 document.getElementById("feedbackBtn").onclick = openFeedback;
 document.getElementById("feedbackCancel").onclick = closeFeedback;
 feedbackModal.addEventListener("mousedown", (e) => { if (e.target === feedbackModal) closeFeedback(); });
+// Ctrl/Cmd+Enter im Feedback-Feld sendet direkt
+document.getElementById("feedbackText").addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); document.getElementById("feedbackSend").click(); }
+});
 document.getElementById("feedbackSend").onclick = async () => {
   const t = document.getElementById("feedbackText").value.trim();
   if (t.length < 2) { toast("Bitte etwas mehr Text"); return; }
@@ -2289,7 +2333,6 @@ function semverGt(a, b) {
   return false;
 }
 async function updateCheck() {
-  if (CFG.id !== "music") return; // Release-Tags "v*" gehören dem Musik-Pack; andere Packs haben eigene Tags
   let cur = "";
   try { cur = (await GET("/api/health")).version || ""; } catch {}
   if (!cur) return;
