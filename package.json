@@ -1,6 +1,6 @@
 {
   "name": "like",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Like — Künstler-Nachbarschaften (Booking-/Entdeckungs-Tool)",
   "author": "Nicolas Reis",
   "main": "main.js",
@@ -35,7 +35,6 @@
       "!.songkick-key",
       "!.setlistfm-key",
       "!.bandsintown-appid",
-      "!packs/**/demo.json",
       "!cache/**",
       "!graph*.json",
       "!stats*.json",
