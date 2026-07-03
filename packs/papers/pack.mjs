@@ -30,7 +30,7 @@ async function oa(path, params = {}) {
 
 async function searchWork(name) {
   return cached("oa-search", name, 14 * 864e5, async () => {
-    const j = await oa("/works", { search: cleanTitle(name), per_page: "1" });
+    const j = await oa("/works", { search: cleanTitle(name), "per-page": "1" });
     return j.results?.[0] || null;
   });
 }
@@ -89,9 +89,9 @@ export default {
 
   async suggest(q) {
     return cached("oa-suggest", q, 864e5, async () => {
-      const j = await oa("/works", { search: q, per_page: "6" });
+      const j = await oa("/works", { search: q, "per-page": "6" });
       const seen = new Set();
-      return (j.results || []).map(display).filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
+      return (j.results || []).map(display).filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase())).slice(0, 6);
     });
   },
 
@@ -112,7 +112,7 @@ export default {
     const authorIds = (hit.authorships || []).slice(0, 2).map((a) => shortId(a.author?.id)).filter(Boolean);
     for (const aid of authorIds) {
       try {
-        const j = await cached("oa-authorworks", aid, 14 * 864e5, () => oa("/works", { filter: `author.id:${aid}`, sort: "cited_by_count:desc", per_page: "8" }));
+        const j = await cached("oa-authorworks", aid + "|8", 14 * 864e5, () => oa("/works", { filter: `author.id:${aid}`, sort: "cited_by_count:desc", "per-page": "8" }));
         for (const w of j.results || []) {
           const sid = shortId(w.id);
           if (seen.has(sid)) continue;
@@ -157,7 +157,7 @@ export default {
     const author = hit?.authorships?.[0]?.author;
     if (!author) return { groups: [] };
     const aid = shortId(author.id);
-    const j = await cached("oa-authorworks", aid, 14 * 864e5, () => oa("/works", { filter: `author.id:${aid}`, sort: "cited_by_count:desc", per_page: "12" }));
+    const j = await cached("oa-authorworks", aid + "|12", 14 * 864e5, () => oa("/works", { filter: `author.id:${aid}`, sort: "cited_by_count:desc", "per-page": "12" }));
     return {
       note: `Autor:in: ${author.display_name}`,
       groups: [{

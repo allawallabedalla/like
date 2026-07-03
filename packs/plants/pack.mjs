@@ -14,12 +14,15 @@ const cap = (s) => String(s || "").replace(/\b\w/g, (c) => c.toUpperCase());
 // Anzeigename: bevorzugt der deutsche Trivialname, sonst der wissenschaftliche.
 const display = (t) => t.preferred_common_name ? cap(t.preferred_common_name) : t.name;
 
+// locale=de: iNaturalist liefert dann deutsche Trivialnamen ("Echter Lavendel"
+// statt "true lavender"), wo vorhanden — sonst fällt es auf Englisch/Latein zurück.
 async function searchTaxon(name) {
   return cached("inat-taxon", name, 14 * 864e5, async () => {
     const u = new URL(INAT + "/taxa");
     u.searchParams.set("q", name);
     u.searchParams.set("taxon_id", String(PLANTAE));
     u.searchParams.set("per_page", "1");
+    u.searchParams.set("locale", "de");
     const j = await jfetch(u.href);
     return j.results?.[0] || null;
   });
@@ -27,7 +30,7 @@ async function searchTaxon(name) {
 
 async function taxonById(id) {
   return cached("inat-byid", id, 30 * 864e5, async () => {
-    const j = await jfetch(`${INAT}/taxa/${id}`);
+    const j = await jfetch(`${INAT}/taxa/${id}?locale=de`);
     return j.results?.[0] || null;
   });
 }
@@ -41,6 +44,7 @@ async function genusSiblings(taxon, { limit = 12 } = {}) {
     u.searchParams.set("parent_id", String(genus.id));
     u.searchParams.set("per_page", String(limit));
     u.searchParams.set("order_by", "observations_count");
+    u.searchParams.set("locale", "de");
     const j = await jfetch(u.href);
     return (j.results || []).filter((t) => t.id !== taxon.id && t.rank === "species");
   });
@@ -51,7 +55,7 @@ async function genusSiblings(taxon, { limit = 12 } = {}) {
 async function lookAlikes(taxonId, { limit = 12 } = {}) {
   return cached("inat-co", taxonId + "|" + limit, 14 * 864e5, async () => {
     try {
-      const j = await jfetch(`${INAT}/identifications/similar_species?taxon_id=${taxonId}&per_page=${limit}`);
+      const j = await jfetch(`${INAT}/identifications/similar_species?taxon_id=${taxonId}&per_page=${limit}&locale=de`);
       return (j.results || []).map((r) => r.taxon).filter((t) => t && t.iconic_taxon_name === "Plantae");
     } catch { return []; }
   });
@@ -112,6 +116,7 @@ export default {
       u.searchParams.set("q", q);
       u.searchParams.set("taxon_id", String(PLANTAE));
       u.searchParams.set("per_page", "6");
+      u.searchParams.set("locale", "de");
       const j = await jfetch(u.href);
       const seen = new Set();
       return (j.results || []).map(display).filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
@@ -172,6 +177,7 @@ export default {
     u.searchParams.set("parent_id", String(family.id));
     u.searchParams.set("per_page", "12");
     u.searchParams.set("order_by", "observations_count");
+    u.searchParams.set("locale", "de");
     const j = await jfetch(u.href);
     return {
       note: `Familie: ${cap(family.preferred_common_name || family.name)}`,
