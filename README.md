@@ -149,6 +149,7 @@ Verfügbare Packs (Musik ist Standard):
 | `podcasts` | Podcasts | Apple/iTunes, TasteDive (optional) | gleiches Genre / vom selben Anbieter |
 | `games` | (Indie-)Games | Steam, SteamSpy, TasteDive (optional) | geteilte Tags / vom selben Entwickler |
 | `travel` | Reiseziele | Wikivoyage, OpenStreetMap/Nominatim | ähnlicher Reisestil / gut kombinierbar (in der Nähe) |
+| `anything` | Alles (Universal) | Wikipedia | thematisch ähnlich (morelike) / eng verknüpft |
 
 Starten (eine App, im Fenster umschalten):
 ```
