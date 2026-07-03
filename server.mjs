@@ -132,6 +132,63 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, packs: PACK_LIST, default: DEFAULT_PACK });
     }
 
+    // Geschmacks-Fingerabdruck: Likes + Top-Themen ÜBER ALLE Domänen (nur lokale Graphen,
+    // kein Netz). Plus "verbindende Themen": Genres, die in ≥2 Domänen vorkommen.
+    if (req.method === "GET" && url.pathname === "/api/taste") {
+      const per = [];
+      const genrePacks = new Map(); // genreLower -> { name, packs:Set }
+      for (const [id, pk] of PACKS) {
+        const g = await loadGraph(dataFile(DATA_DIR, id, "graph.json"));
+        const liked = Object.values(g.artists).filter((a) => a.seed || a.known || (a.status && a.status !== "declined"));
+        const gc = new Map();
+        for (const a of liked) for (const gn of a.genres || []) {
+          const k = gn.toLowerCase();
+          gc.set(k, { name: gn, count: (gc.get(k)?.count || 0) + 1 });
+          let e = genrePacks.get(k);
+          if (!e) { e = { name: gn, packs: new Set() }; genrePacks.set(k, e); }
+          e.packs.add(pk.config.title);
+        }
+        const topGenres = [...gc.values()].sort((a, b) => b.count - a.count).slice(0, 6);
+        // die "wichtigsten" Likes zuerst: kuratierte (Status) vor bloß gesuchten
+        const topItems = liked.sort((a, b) => (b.status ? 1 : 0) - (a.status ? 1 : 0)).slice(0, 5).map((a) => a.name);
+        per.push({ id, title: pk.config.title, item: pk.config.item, count: liked.length, topGenres, topItems });
+      }
+      const overlaps = [...genrePacks.values()].filter((e) => e.packs.size >= 2)
+        .map((e) => ({ name: e.name, packs: [...e.packs] })).slice(0, 10);
+      return send(res, 200, { ok: true, packs: per, overlaps });
+    }
+
+    // Cross-Pack-Brücke: gibt es diesen Eintrag (Adaption/Namensvetter) in anderen Domänen?
+    // Fragt die suggest()-Adapter der ANDEREN Packs mit dem bereinigten Namen und matcht
+    // tolerant über Namens-Token. "Dune (2021)" findet so "Dune (Frank Herbert)" im Bücher-Pack.
+    if (req.method === "POST" && url.pathname === "/api/crossbridge") {
+      const { name } = await readBody(req);
+      if (!name) return send(res, 400, { error: "name fehlt" });
+      const currentId = reqPackId(url, req);
+      const clean = String(name).replace(/\s*\([^)]*\)\s*$/, "").trim();
+      const norm = (s) => String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+      const q = norm(clean);
+      const tokens = new Set(q.split(" ").filter((t) => t.length > 3));
+      const matches = (cand) => {
+        const c = norm(String(cand).replace(/\s*\([^)]*\)\s*$/, ""));
+        if (!c) return false;
+        if (c.includes(q) || q.includes(c)) return true;
+        return [...tokens].some((t) => c.split(" ").includes(t));
+      };
+      const others = [...PACKS.values()].filter((p) => p.id !== currentId && p.suggest);
+      const hits = (await Promise.all(others.map(async (p) => {
+        try {
+          const names = await Promise.race([
+            p.suggest(clean),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000)),
+          ]);
+          const hit = (names || []).find(matches);
+          return hit ? { pack: p.id, packTitle: p.config.title, name: hit } : null;
+        } catch { return null; }
+      }))).filter(Boolean);
+      return send(res, 200, { ok: true, hits });
+    }
+
     const packId = reqPackId(url, req);
     const pack = PACKS.get(packId);
     if (!pack) return send(res, 400, { error: `Unbekanntes Pack: ${packId}` });
