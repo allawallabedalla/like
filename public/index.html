@@ -505,8 +505,8 @@
               <circle cx="95" cy="90" r="7" class="nd"/>
             </svg>
           </div>
-          <h3>Willkommen bei like<span style="color:var(--edge-together)">.</span></h3>
-          <p>like zeigt Künstler:innen als klickbare <b>Karte</b>. Zwei Verbindungsarten:
+          <h3 id="tourT1">Willkommen bei like<span style="color:var(--edge-together)">.</span></h3>
+          <p id="tourP1">like zeigt Künstler:innen als klickbare <b>Karte</b>. Zwei Verbindungsarten:
           <span style="color:var(--edge-similar)">— blau</span> = ähnlicher Stil,
           <span style="color:var(--edge-together)">— orange</span> = zusammen aufgetreten.</p>
         </div>
@@ -527,8 +527,8 @@
               <circle cx="100" cy="60" r="12" class="nd seed"/>
             </svg>
           </div>
-          <h3>Suchen &amp; durchklicken</h3>
-          <p>Such oben einen Act, den du magst. <b>Doppelklick</b> auf einen Punkt lädt seine
+          <h3 id="tourT2">Suchen &amp; durchklicken</h3>
+          <p id="tourP2">Such oben einen Act, den du magst. <b>Doppelklick</b> auf einen Punkt lädt seine
           Nachbarn — so hangelst du dich Schritt für Schritt durch die Szene.</p>
         </div>
         <!-- Slide 3: Radar -->
@@ -544,8 +544,8 @@
               <circle cx="118" cy="34" r="4" class="blip b3"/>
             </svg>
           </div>
-          <h3>Kleine Acts finden: das Radar</h3>
-          <p>Das <b>Radar</b> schlägt dir <b>kleine, aufstrebende</b> Acts nahe deinem Geschmack
+          <h3 id="tourT3">Kleine Acts finden: das Radar</h3>
+          <p id="tourP3">Das <b>Radar</b> schlägt dir <b>kleine, aufstrebende</b> Acts nahe deinem Geschmack
           vor — mit Klartext-Begründung, 30-Sek-Hörprobe und „like!" in einem Klick.</p>
         </div>
         <!-- Slide 4: Sammeln -->
@@ -553,12 +553,12 @@
           <div class="iart">
             <svg viewBox="0 0 200 120" class="anim-like">
               <rect x="66" y="42" width="68" height="26" rx="13" class="likepill"/>
-              <text x="100" y="59" text-anchor="middle" class="liketext">like!</text>
+              <text x="100" y="59" text-anchor="middle" class="liketext" id="tourPill">like!</text>
               <text x="100" y="100" text-anchor="middle" class="star">★</text>
             </svg>
           </div>
-          <h3>Sammeln &amp; exportieren</h3>
-          <p>Mit <b>like!</b> wandern Favoriten in dein <b>Lineup</b> — als CSV exportierbar fürs
+          <h3 id="tourT4">Sammeln &amp; exportieren</h3>
+          <p id="tourP4">Mit <b>like!</b> wandern Favoriten in dein <b>Lineup</b> — als CSV exportierbar fürs
           Booking. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!</p>
         </div>
       </div>
@@ -769,8 +769,24 @@ function applyCfg() {
   $("helpE").textContent = `gewählten ${CFG.item.sing} weiter erkunden`;
   $("helpB").textContent = `${CFG.likeLabel || "like!"} (ins ${CFG.basketLabel || "Lineup"})`;
   $("helpDel").textContent = `${CFG.item.sing} entfernen (mit Undo)`;
-  // Kurz-Tour ist mit Musik-Inhalten getextet — bei anderen Packs ausblenden
+  // Kurz-Tour: Musik behält die handgetexteten Slides; alle anderen Packs bekommen
+  // generische Texte aus der Config (Kantenlabels, Beispiel, Merklisten-Begriff).
   if (!FEAT.tour) { const tb = document.getElementById("tourBtn"); if (tb) tb.parentElement.style.display = "none"; }
+  else if (CFG.id !== "music") {
+    const ll = esc(CFG.likeLabel || "merken!"), bl = esc(CFG.basketLabel || "Merkliste");
+    $("tourT1").innerHTML = `Willkommen bei ${esc(CFG.title)}<span style="color:var(--edge-together)">.</span>`;
+    $("tourP1").innerHTML = `${esc(CFG.title)} zeigt ${esc(CFG.item.plur)} als klickbare <b>Karte</b>. Zwei Verbindungsarten: ` +
+      `<span style="color:var(--edge-similar)">— blau</span> = ${esc(CFG.edges.similar.label)}, ` +
+      `<span style="color:var(--edge-together)">— orange</span> = ${esc(CFG.edges.together.label)}.`;
+    $("tourP2").innerHTML = `Such oben z.B. „${esc(CFG.exampleSeed)}". <b>Doppelklick</b> auf einen Punkt lädt seine ` +
+      `Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.`;
+    $("tourT3").textContent = CFG.radarTitle || "Das Radar";
+    $("tourP3").innerHTML = `Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> ${esc(CFG.item.plur)} nahe ` +
+      `deinem Geschmack vor — mit Klartext-Begründung und „${ll}" in einem Klick.`;
+    $("tourP4").innerHTML = `Mit <b>${ll}</b> wandern Favoriten in deine <b>${bl}</b> — als CSV exportierbar. ` +
+      `Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!`;
+    $("tourPill").textContent = CFG.likeLabel || "merken!";
+  }
 }
 // Jeder API-Call trägt das aktive Pack als Header — so bedient EIN Server alle Domänen.
 const PACK_HEADERS = CFG.id ? { "x-like-pack": CFG.id } : {};
@@ -2047,7 +2063,7 @@ function renderIntro() {
   introNextBtn.textContent = introIdx === introSlides.length - 1 ? "Los geht's" : "Weiter";
 }
 function openIntro() { introIdx = 0; renderIntro(); introEl.classList.add("show"); }
-function closeIntro() { introEl.classList.remove("show"); try { localStorage.setItem("like_intro_seen", "1"); } catch {} }
+function closeIntro() { introEl.classList.remove("show"); try { localStorage.setItem(LSK("like_intro_seen"), "1"); } catch {} }
 introNextBtn.onclick = () => { if (introIdx < introSlides.length - 1) { introIdx++; renderIntro(); } else closeIntro(); };
 introBackBtn.onclick = () => { if (introIdx > 0) { introIdx--; renderIntro(); } };
 document.getElementById("introSkip").onclick = closeIntro;
@@ -2197,7 +2213,7 @@ document.getElementById("feedbackSend").onclick = async () => {
 // Beim allerersten Start die Kurz-Tour zeigen (danach über „?" wieder aufrufbar).
 function maybeShowIntro() {
   if (STATIC || !FEAT.tour) return; // Tour ist (noch) mit Musik-Inhalten getextet
-  let seen = null; try { seen = localStorage.getItem("like_intro_seen"); } catch {}
+  let seen = null; try { seen = localStorage.getItem(LSK("like_intro_seen")); } catch {}
   if (!seen) openIntro();
 }
 

@@ -111,7 +111,7 @@ export default {
     ],
     radarTitle: "Radar — Buch-Geheimtipps",
     radarTogetherReason: "vom selben Autor wie dein Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
     key: null,
   },
 
