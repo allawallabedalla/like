@@ -62,6 +62,9 @@
   .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; }
   .brand .bdot { color: var(--edge-together); }
   .brand .packtag { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 4px; letter-spacing: .3px; }
+  /* Venue-Panel: nur Ansicht — Status/Notiz/Umfeld/Aktions-Buttons ausblenden */
+  .panel.venuemode .field, .panel.venuemode .row { display: none; }
+  .panel.venuemode .field.vshow { display: block; }
   .brand .ver { font-weight: 500; font-size: 10px; letter-spacing: 0; color: var(--muted); margin-left: 6px; text-transform: none; vertical-align: 2px; }
   .grow { flex: 1; }
   input, textarea, button, select { font: inherit; color: var(--text); border-radius: 0; }
@@ -651,6 +654,10 @@ const CFG = window.LIKE_CFG || {
   key: { name: "Last.fm-Key", createUrl: "https://www.last.fm/api/account/create", hint: "Für die Live-Suche braucht like einen kostenlosen Last.fm-API-Key." },
 };
 const FEAT = CFG.features || {};
+// localStorage pro Pack trennen (Musik behält die alten Schlüssel — kein Datenverlust):
+// sonst tauchte z.B. die Bücher-Merkliste im Filme-Pack wieder auf.
+const LSK = (k) => CFG.id === "music" ? k : `${k}:${CFG.id}`;
+const PREVIEW_TITLE = CFG.previewLabel || "30-Sekunden-Klangprobe abspielen";
 
 // Pack-Config auf die (mit Musik-Texten ausgelieferte) Oberfläche anwenden.
 // Läuft sofort beim Start — vor dem ersten Zeichnen.
@@ -686,7 +693,7 @@ function applyCfg() {
   // leerer Zustand + Beispiel
   $("emptyTitle").textContent = CFG.emptyTitle || `Noch keine ${CFG.item.plur} auf der Karte`;
   if (CFG.id !== "music") {
-    $("emptyBody").innerHTML = `Such oben nach ${esc(CFG.item.sing)} (<kbd>/</kbd> springt ins Suchfeld) — jeder Treffer<br>` + esc(CFG.emptyHint || "bringt gleich sein Umfeld mit.");
+    $("emptyBody").innerHTML = `Nutz die Suche oben (<kbd>/</kbd> springt ins Suchfeld) — jeder Treffer<br>` + esc(CFG.emptyHint || "bringt gleich sein Umfeld mit.");
   }
   $("egBtn").textContent = `Beispiel „${CFG.exampleSeed}" laden`;
   // Status-Auswahl
@@ -786,7 +793,7 @@ function refreshPreviewButtons(loadingName) {
     if (name === loadingName) { b.innerHTML = "…"; return; }
     const playing = name === previewName && !audio.paused;
     b.innerHTML = playing ? SVG_STOP : SVG_PLAY;
-    b.title = playing ? "Klangprobe stoppen" : "30-Sekunden-Klangprobe abspielen";
+    b.title = playing ? "Wiedergabe stoppen" : PREVIEW_TITLE;
   });
 }
 audio.addEventListener("ended", () => { previewName = null; refreshPreviewButtons(); });
@@ -823,12 +830,12 @@ let trail = [];                  // Breadcrumb der erkundeten Acts
 let pathFrom = null;             // Startknoten für "Pfad von hier…"
 const adj = new Map();           // Adjazenz id -> Set(nachbar-id)
 let basket = new Set();          // Lineup-Korb (ids)
-try { basket = new Set(JSON.parse(localStorage.getItem("like_basket") || "[]")); } catch {}
+try { basket = new Set(JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]")); } catch {}
 // Status-Farben/-Labels kommen aus der Pack-Config (Musik: Shortlist/angefragt/…)
 const STATUS_COLOR = Object.fromEntries(CFG.statuses.map((s) => [s.value, s.color]));
 const STATUS_LABEL = { "": "—", ...Object.fromEntries(CFG.statuses.map((s) => [s.value, s.label])) };
 let venueMode = false; // Venue-Ebene (Musik): Spielorte als abgeleitete Knoten einblenden
-try { venueMode = localStorage.getItem("like_venues") === "1"; } catch {}
+try { venueMode = localStorage.getItem(LSK("like_venues")) === "1"; } catch {}
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -1304,7 +1311,10 @@ function renderGenrePills(genres) {
 // Venue-Knoten: schlankes Ansicht-Panel (kein Status/Notiz/Erkunden — abgeleitete Daten)
 function selectVenue(n) {
   selected = n;
-  document.getElementById("panel").classList.add("open");
+  const panel = document.getElementById("panel");
+  panel.classList.add("open", "venuemode");
+  document.getElementById("nbTogether").parentElement.classList.add("vshow");
+  document.getElementById("lblTogether").textContent = `${CFG.item.plur} an diesem Ort`;
   document.body.classList.add("panel-open");
   requestDraw();
   document.getElementById("pName").innerHTML = esc(n.name) + ' <span class="badge seed" style="background:var(--venue)">Venue</span>';
@@ -1322,7 +1332,10 @@ function selectVenue(n) {
 function selectNode(n) {
   if (n.venue) return selectVenue(n);
   selected = n;
-  document.getElementById("panel").classList.add("open");
+  const panel = document.getElementById("panel");
+  panel.classList.add("open");
+  panel.classList.remove("venuemode");
+  document.getElementById("lblTogether").textContent = CFG.togetherLabel || CFG.edges.together.label;
   document.body.classList.add("panel-open");
   requestDraw();
   document.getElementById("pName").innerHTML = esc(n.name) +
@@ -1413,7 +1426,7 @@ function renderSub(n, growth) {
   }).join("");
   if (svcLinks) bits.push(`<span class="svc">${svcLinks}</span>`);
   // Vorschau-Button (30s) vor die Sub-Zeile — nur wenn das Pack Previews kann
-  const play = FEAT.preview ? `<button class="playbtn" data-preview="${encodeURIComponent(n.name)}" title="30-Sekunden-Klangprobe abspielen">${SVG_PLAY}</button>` : "";
+  const play = FEAT.preview ? `<button class="playbtn" data-preview="${encodeURIComponent(n.name)}" title="${esc(PREVIEW_TITLE)}">${SVG_PLAY}</button>` : "";
   document.getElementById("pSub").innerHTML = play + `<span class="subtext">` + bits.join(" · ") + `</span>`;
   refreshPreviewButtons();
 }
@@ -1659,7 +1672,7 @@ function renderTrail() {
 }
 
 // ---- Lineup-Korb ----
-function saveBasket() { try { localStorage.setItem("like_basket", JSON.stringify([...basket])); } catch {} }
+function saveBasket() { try { localStorage.setItem(LSK("like_basket"), JSON.stringify([...basket])); } catch {} }
 function toggleBasket(n) { if (n.venue) return; basket.has(n.id) ? basket.delete(n.id) : basket.add(n.id); saveBasket(); renderBasket(); refreshLikeBtn(); requestDraw(); }
 // like!-Button spiegelt, ob der gewählte Act schon im Lineup ist
 function refreshLikeBtn() {
@@ -1776,7 +1789,7 @@ async function runRadar(force) {
       const acts = [
         `<button class="${liked ? "liked" : ""}" data-like="${encodeURIComponent(r.name)}" data-id="${esc(r.id || "")}" title="${liked ? `Im ${bl} — klick zum Entfernen` : `${ll} — in dein ${bl}`}">${liked ? `✓ ${bl}` : ll}</button>`,
         `<button data-explore="${encodeURIComponent(r.name)}" title="Laden und auf der Karte zeigen">Erkunden</button>`,
-        FEAT.preview ? `<button data-preview="${encodeURIComponent(r.name)}" title="30-Sekunden-Klangprobe abspielen">${SVG_PLAY}</button>` : "",
+        FEAT.preview ? `<button data-preview="${encodeURIComponent(r.name)}" title="${esc(PREVIEW_TITLE)}">${SVG_PLAY}</button>` : "",
         r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer"><button title="Profil öffnen">↗</button></a>` : "",
       ].join("");
       return `<div class="rentry"><b>${i + 1}. ${esc(r.name)}</b><div class="rmeta">${meta}</div><div class="racts">${acts}</div></div>`;
@@ -1984,7 +1997,7 @@ function maybeShowIntro() {
   rebuild();
   for (let i = 0; i < 120; i++) tick();
   // letzte Ansicht wiederherstellen, sonst passend einblenden
-  let savedView = null; try { savedView = JSON.parse(localStorage.getItem("like_view") || "null"); } catch {}
+  let savedView = null; try { savedView = JSON.parse(localStorage.getItem(LSK("like_view")) || "null"); } catch {}
   if (savedView && Number.isFinite(savedView.k) && nodes.length) view = savedView; else fitAll();
   loop();
   maybeShowIntro();
@@ -1993,7 +2006,7 @@ function maybeShowIntro() {
 })();
 
 // Ansicht (Pan/Zoom) über Neustarts hinweg merken
-function saveView() { try { localStorage.setItem("like_view", JSON.stringify(view)); } catch {} }
+function saveView() { try { localStorage.setItem(LSK("like_view"), JSON.stringify(view)); } catch {} }
 addEventListener("beforeunload", saveView);
 addEventListener("visibilitychange", () => { if (document.hidden) saveView(); });
 
@@ -2006,7 +2019,7 @@ if (venueToggleEl) {
   venueToggleEl.checked = venueMode;
   venueToggleEl.onchange = (e) => {
     venueMode = e.target.checked;
-    try { localStorage.setItem("like_venues", venueMode ? "1" : "0"); } catch {}
+    try { localStorage.setItem(LSK("like_venues"), venueMode ? "1" : "0"); } catch {}
     if (selected?.venue) closePanel();
     rebuild(new Map(nodes.map(n => [n.id, n])));
     if (venueMode && !links.some(l => l.type === "venue")) toast("Noch keine Venues bekannt — sie sammeln sich beim Erkunden (aus den gemeinsamen Auftritten).");

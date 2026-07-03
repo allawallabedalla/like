@@ -10,7 +10,7 @@
 //
 // Icons: liegt packs/<id>/icon.(icns|png) vor, wird es genutzt; sonst das Default build/icon.*.
 
-import { writeFile, access } from "node:fs/promises";
+import { writeFile, access, unlink } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -31,7 +31,8 @@ await writeFile(join(ROOT, ".pack"), JSON.stringify({ id: packId }), "utf8");
 
 const productName = pack.config.title || `Like ${packId}`;
 const appId = `de.nicolasreis.like.${packId}`;
-// eindeutige Artefaktnamen je Pack (music-vX behält den alten Namensstamm "Like")
+// eindeutige Artefaktnamen je Pack (music-vX behält den alten Namensstamm "Like");
+// pro Target überschreiben, damit setup/portable unterscheidbar bleiben (sonst Kollision).
 const stem = packId === "music" ? "Like" : `Like-${packId}`;
 
 const macIcon = (await exists(`packs/${packId}/icon.icns`)) ? `packs/${packId}/icon.icns` : "build/icon.icns";
@@ -42,7 +43,10 @@ const overrides = [
   `--config.appId=${appId}`,
   `--config.mac.icon=${macIcon}`,
   `--config.win.icon=${winIcon}`,
-  `--config.artifactName=${stem}-\${version}-\${arch}.\${ext}`,
+  `--config.nsis.artifactName=${stem}-\${version}-setup.exe`,
+  `--config.nsis.shortcutName=${productName}`,
+  `--config.portable.artifactName=${stem}-\${version}-portable.exe`,
+  `--config.dmg.artifactName=${stem}-\${version}-\${arch}.dmg`,
 ];
 
 const platformFlag = platform === "mac" ? "--mac" : "--win";
@@ -54,4 +58,9 @@ const res = spawnSync("npx", args, {
   stdio: "inherit",
   env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" },
 });
+
+// .pack wieder entfernen — sonst lädt ein lokales `node server.mjs` danach still
+// das zuletzt gebaute Pack statt Musik (das Bundle hat seine Kopie schon).
+try { await unlink(join(ROOT, ".pack")); } catch {}
+
 process.exit(res.status ?? 1);

@@ -73,8 +73,11 @@ jobs:
     needs: [prepare, check]
     strategy:
       fail-fast: false
+      # Kreuzprodukt: jedes Pack × beide Plattformen. Die include-Einträge matchen
+      # über den os-Schlüssel und reichern jede Kombination um platform/pattern an.
       matrix:
         pack: ${{ fromJSON(needs.prepare.outputs.packs) }}
+        os: [macos-latest, windows-latest]
         include:
           - os: macos-latest
             platform: mac
@@ -82,7 +85,6 @@ jobs:
           - os: windows-latest
             platform: win
             pattern: "dist/*.exe"
-        # jedes Pack auf beiden Plattformen bauen
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

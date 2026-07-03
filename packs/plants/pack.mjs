@@ -1,7 +1,7 @@
 // packs/plants/pack.mjs — Pflanzen-Nachbarschaften über iNaturalist + GBIF (beide offen, kein Key).
 //   blau   = botanisch verwandt (gleiche Gattung/Familie, via iNat-Taxonomie)
-//   orange = kommt am selben Ort vor (Ko-Okkurrenz aus iNat-Beobachtungen — die
-//            schönste Analogie zu "zusammen aufgetreten")
+//   orange = wird oft verwechselt mit (iNat similar_species: Arten, die Beobachter
+//            in der Praxis miteinander verwechseln — d.h. sie SEHEN sich ähnlich)
 // Popularität = observations_count (wie oft beobachtet/fotografiert).
 
 import { cached } from "../../lib/cache.mjs";
@@ -46,9 +46,9 @@ async function genusSiblings(taxon, { limit = 12 } = {}) {
   });
 }
 
-// Ko-Okkurrenz: Arten, die häufig zusammen mit dieser beobachtet werden. iNat liefert
-// das direkt über den "similar_species"-Endpunkt (basierend auf Beobachter-Verhalten).
-async function coOccurring(taxonId, { limit = 12 } = {}) {
+// Verwechslungs-Arten: welche Arten Beobachter mit dieser verwechseln (iNat
+// similar_species, aus echten Fehlbestimmungen abgeleitet = optische Ähnlichkeit).
+async function lookAlikes(taxonId, { limit = 12 } = {}) {
   return cached("inat-co", taxonId + "|" + limit, 14 * 864e5, async () => {
     try {
       const j = await jfetch(`${INAT}/identifications/similar_species?taxon_id=${taxonId}&per_page=${limit}`);
@@ -67,14 +67,14 @@ export default {
     brand: "like",
     item: { sing: "Pflanze", plur: "Pflanzen" },
     searchPlaceholder: "Pflanze suchen…   ( / )",
-    searchTitle: "Pflanze bei iNaturalist suchen — lädt verwandte Arten + gemeinsam vorkommende (Taste /)",
-    goTitle: "Pflanze laden: botanisch verwandt + kommt am selben Ort vor + Merkmale",
+    searchTitle: "Pflanze bei iNaturalist suchen — lädt verwandte + zum Verwechseln ähnliche Arten (Taste /)",
+    goTitle: "Pflanze laden: botanisch verwandt + wird oft verwechselt mit + Merkmale",
     exampleSeed: "Lavendel",
     emptyTitle: "Noch keine Pflanzen auf der Karte",
-    emptyHint: "bringt gleich ihr Umfeld mit: verwandte Arten + gemeinsam vorkommende.",
+    emptyHint: "bringt gleich ihr Umfeld mit: verwandte + zum Verwechseln ähnliche Arten.",
     edges: {
       similar: { label: "botanisch verwandt (Gattung)", count: "verwandte" },
-      together: { label: "kommt am selben Ort vor (iNat)", count: "am selben Ort" },
+      together: { label: "wird oft verwechselt mit (iNat)", count: "zum Verwechseln ähnlich" },
     },
     popularity: { label: "Beobachtungen", big: 50000, dimLabel: "Allerweltsarten dämpfen", dimTitle: "Sehr häufig beobachtete Arten abdunkeln — nur die Seltenen leuchten" },
     genreLabel: "Merkmale",
@@ -88,7 +88,7 @@ export default {
     noteLabel: "Notiz",
     notePlaceholder: "Standort, Boden, Bezugsquelle, Beobachtung…",
     similarLabel: "Botanisch verwandt",
-    togetherLabel: "Kommt am selben Ort vor",
+    togetherLabel: "Wird oft verwechselt mit",
     contextLabel: "Familien-Umfeld",
     contextHint: "(iNaturalist)",
     contextButton: "Familie laden",
@@ -101,7 +101,7 @@ export default {
       { cls: "", label: "GBIF", url: "https://www.gbif.org/species/search?q={Q}" },
     ],
     radarTitle: "Radar — seltene Arten",
-    radarTogetherReason: "wächst am selben Ort wie dein Like",
+    radarTogetherReason: "sieht deinem Like zum Verwechseln ähnlich",
     features: { preview: false, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
     key: null,
   },
@@ -125,7 +125,7 @@ export default {
     const family = (taxon.ancestors || []).find((a) => a.rank === "family");
     const genus = (taxon.ancestors || []).find((a) => a.rank === "genus");
 
-    const [sibs, co] = await Promise.all([genusSiblings(taxon), coOccurring(taxon.id)]);
+    const [sibs, co] = await Promise.all([genusSiblings(taxon), lookAlikes(taxon.id)]);
     const genres = [family?.preferred_common_name || family?.name, genus?.name, taxon.rank].filter(Boolean).map(cap);
 
     return {
@@ -185,7 +185,7 @@ export default {
   async diag() {
     return [
       { name: "iNaturalist Suche", probe: async () => !!(await searchTaxon("Lavandula")) },
-      { name: "iNaturalist Ko-Okkurrenz", probe: async () => { const h = await searchTaxon("Lavandula"); return (await coOccurring(h.id)).length >= 0; } },
+      { name: "iNaturalist Verwechslungs-Arten", probe: async () => { const h = await searchTaxon("Lavandula"); return (await lookAlikes(h.id)).length >= 0; } },
     ];
   },
 };

@@ -22,8 +22,19 @@ async function searchPodcast(name) {
   });
 }
 
+// Beliebte Podcasts desselben Genres: Apples Top-Charts-RSS (echte Popularität,
+// keine Wortsuche). Fallback auf die normale Suche, falls das RSS-Format kippt.
 async function byGenre(genreId, { limit = 14 } = {}) {
   return cached("pod-genre", genreId + "|" + limit, 7 * 864e5, async () => {
+    try {
+      const j = await jfetch(`${ITUNES}/de/rss/toppodcasts/genre=${genreId}/limit=${limit}/json`);
+      let entries = j.feed?.entry || [];
+      if (!Array.isArray(entries)) entries = [entries];
+      const out = entries
+        .map((e) => ({ collectionName: e["im:name"]?.label, collectionViewUrl: e.link?.attributes?.href || null }))
+        .filter((p) => p.collectionName);
+      if (out.length) return out;
+    } catch { /* RSS klemmt -> Suche */ }
     const u = new URL(ITUNES + "/search");
     u.searchParams.set("term", "podcast");
     u.searchParams.set("media", "podcast");
@@ -39,7 +50,7 @@ async function byProvider(artist, { limit = 12 } = {}) {
     const u = new URL(ITUNES + "/search");
     u.searchParams.set("term", artist);
     u.searchParams.set("media", "podcast");
-    u.searchParams.set("attribute", "titleTerm");
+    u.searchParams.set("attribute", "artistTerm"); // nach Anbieter suchen, nicht nach Titel
     u.searchParams.set("limit", "20");
     const j = await jfetch(u.href);
     return (j.results || []).filter((p) => p.artistName && p.artistName.toLowerCase() === artist.toLowerCase()).slice(0, limit);
@@ -91,7 +102,8 @@ export default {
     ],
     radarTitle: "Radar — Podcast-Geheimtipps",
     radarTogetherReason: "vom selben Anbieter wie dein Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
+    previewLabel: "Neueste Folge anspielen",
+    features: { preview: true, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
     key: null,
   },
 
@@ -173,6 +185,19 @@ export default {
   async popularity(name) {
     const hit = await searchPodcast(name);
     return hit?.trackCount || null;
+  },
+
+  // ▶ im Panel: die neueste Episode anspielen (Apple liefert die Audio-URL direkt).
+  async preview(name) {
+    const u = new URL(ITUNES + "/search");
+    u.searchParams.set("term", name);
+    u.searchParams.set("media", "podcast");
+    u.searchParams.set("entity", "podcastEpisode");
+    u.searchParams.set("limit", "3");
+    const j = await jfetch(u.href);
+    const ep = (j.results || []).find((r) => r.episodeUrl || r.previewUrl);
+    if (!ep) return null;
+    return { url: ep.episodeUrl || ep.previewUrl, track: ep.trackName || null, artist: ep.collectionName || name };
   },
 
   async context(name) {

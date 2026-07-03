@@ -118,24 +118,33 @@ export default {
     const categories = linksOf(item, "boardgamecategory").map((l) => l.value);
     const designers = linksOf(item, "boardgamedesigner");
 
-    // blau: andere Spiele mit derselben (Leit-)Mechanik — via BGG-Family/Rank gibt es
-    // keine offene "similar"-Liste, also über die erste Mechanik als Kategorie-Suche.
-    const similar = [], seen = new Set([nm.toLowerCase()]);
+    const seen = new Set([nm.toLowerCase()]);
+
+    // blau: Spiele derselben BGG-Familie (Serie/Thema — z.B. alle Catan-Ableger) über
+    // den offiziellen /family-Endpunkt; das ist BGGs verlässlichste "verwandt"-Liste.
+    const similar = [];
+    for (const fam of linksOf(item, "boardgamefamily").slice(0, 2)) {
+      try {
+        for (const g of await familyMembers(fam.id, { limit: 10 })) {
+          const k = g.name.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.6 });
+        }
+      } catch { /* Familie nicht auflösbar -> weiter */ }
+    }
+
     // orange: weitere Spiele des ersten Designers
     const together = [];
     if (designers[0]) {
       try {
         for (const g of await gamesByDesigner(designers[0].id, { limit: 12 })) {
-          if (seen.has(g.name.toLowerCase())) continue;
-          seen.add(g.name.toLowerCase());
+          const k = g.name.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
           together.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, weight: 1 });
         }
       } catch {}
-    }
-    // blau aus dem Designer-Umfeld ist zu eng — stattdessen mechanisch verwandte über
-    // die "boardgamefamily"-Links (thematische/serielle Nähe), fällt sonst leer aus.
-    for (const fam of linksOf(item, "boardgamefamily").slice(0, 2)) {
-      // Familien-IDs sind nicht direkt auflösbar ohne weitere Calls -> als Themen-Chips nutzen
     }
 
     return {
@@ -144,9 +153,7 @@ export default {
       genres: [...mechanics, ...categories].slice(0, 6),
       similarSource: "bgg",
       togetherSource: "bgg",
-      // similar bleibt (mangels offener Ähnlichkeitsliste) konservativ: die Designer-Nachbarn
-      // sind das verlässlichste "du magst X -> schau Y"-Signal, daher als together geführt.
-      similar,
+      similar: similar.slice(0, 15),
       together: together.slice(0, 12),
       sources: ["bgg"],
     };
@@ -194,19 +201,41 @@ export default {
   },
 };
 
-// BGG hat keinen "Spiele eines Designers"-Endpunkt in XMLAPI2; wir lesen die
-// verlinkten Spiele aus der Designer-Seite über die (family-)Sammlung nicht ab,
-// sondern über die "linkeditems" des thing-Calls des Designers — der ist als
-// type=boardgamedesigner via /thing?id=... erreichbar und listet inbound-Links.
+// Mitglieder einer BGG-Familie (offizieller XMLAPI2-Endpunkt): die Familie listet
+// ihre Spiele als inbound-Links (<link type="boardgamefamily" inbound="true" …/>).
+async function familyMembers(familyId, { limit = 10 } = {}) {
+  return cached("bgg-family", familyId + "|" + limit, 30 * 864e5, async () => {
+    const doc = await xml(`/family?id=${familyId}`);
+    const item = blocks(doc, "item")[0];
+    if (!item) return [];
+    return tags(item._inner, "link")
+      .filter((l) => l.inbound === "true")
+      .slice(0, limit)
+      .map((l) => ({ id: l.id, name: decode(l.value) }));
+  });
+}
+
+// "Spiele eines Designers" gibt es in der XMLAPI2 nicht; BGGs eigene Website nutzt
+// dafür das geekitem-JSON-API. Inoffiziell — nur lesend, gecacht, fällt bei
+// Formatänderungen still auf [] zurück (dann fehlen nur die orangen Kanten).
 async function gamesByDesigner(designerId, { limit = 12 } = {}) {
   return cached("bgg-designer", designerId + "|" + limit, 14 * 864e5, async () => {
     try {
-      const doc = await jfetch(`${BGG}/thing?id=${designerId}`, { gapMs: 400 });
-      // inbound boardgame-Links stehen als <link inbound="true" type="boardgamedesigner" .../>
-      const item = blocks(doc, "item")[0];
-      if (!item) return [];
-      const links = tags(item._inner, "link").filter((l) => l.inbound === "true" && l.type === "boardgamedesigner");
-      return links.slice(0, limit).map((l) => ({ id: l.id, name: decode(l.value), year: null }));
+      const u = new URL("https://api.geekdo.com/api/geekitem/linkeditems");
+      u.searchParams.set("ajax", "1");
+      u.searchParams.set("linkdata_index", "boardgame");
+      u.searchParams.set("nosession", "1");
+      u.searchParams.set("objectid", String(designerId));
+      u.searchParams.set("objecttype", "person");
+      u.searchParams.set("pageid", "1");
+      u.searchParams.set("showcount", String(limit));
+      u.searchParams.set("sort", "yearpublished");
+      u.searchParams.set("subtype", "boardgamedesigner");
+      const j = await jfetch(u.href, { gapMs: 400 });
+      return (j.items || [])
+        .filter((it) => it.objectid && it.name)
+        .slice(0, limit)
+        .map((it) => ({ id: String(it.objectid), name: it.name, year: it.yearpublished || null }));
     } catch { return []; }
   });
 }

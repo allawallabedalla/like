@@ -138,7 +138,7 @@ Verfügbare Packs (Musik ist Standard):
 | `music` | Künstler:innen | Last.fm (Key), RA, Deezer, MusicBrainz, Bandcamp | ähnlicher Stil / zusammen aufgetreten |
 | `books` | Bücher | Open Library, TasteDive (optional) | thematisch ähnlich / vom selben Autor |
 | `movies` | Filme | TMDB (**Gratis-Key**) | inhaltlich ähnlich / „Leute schauten auch" |
-| `plants` | Pflanzen | iNaturalist, GBIF | botanisch verwandt / kommt am selben Ort vor |
+| `plants` | Pflanzen | iNaturalist, GBIF | botanisch verwandt / wird oft verwechselt mit |
 | `papers` | Forschung | OpenAlex | inhaltlich verwandt / von denselben Autor:innen |
 | `boardgames` | Brettspiele | BoardGameGeek | geteilte Mechaniken / vom selben Designer |
 | `podcasts` | Podcasts | Apple/iTunes, TasteDive (optional) | gleiches Genre / vom selben Anbieter |
