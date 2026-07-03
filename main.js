@@ -92,9 +92,16 @@ function createWindow(url) {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: "deny" }; // niemals ein neues App-Fenster aufmachen
   });
-  // Falls ein Link doch versucht, das Hauptfenster wegzunavigieren: abfangen.
+  // Navigation INNERHALB der App (gleiche Origin wie der lokale Server) zulassen —
+  // z.B. Pack-Wechsel (/?pack=books) oder Logo → Übersicht (/). Nur ECHT externe
+  // Links (andere Origin: YouTube, Spotify, Wikipedia …) im System-Browser öffnen.
+  const appOrigin = new URL(url).origin;
   mainWindow.webContents.on("will-navigate", (e, target) => {
-    if (target !== url) { e.preventDefault(); if (/^https?:\/\//i.test(target)) shell.openExternal(target); }
+    let sameOrigin = false;
+    try { sameOrigin = new URL(target).origin === appOrigin; } catch {}
+    if (sameOrigin) return; // in-App-Navigation erlauben
+    e.preventDefault();
+    if (/^https?:\/\//i.test(target)) shell.openExternal(target);
   });
 }
 

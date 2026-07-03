@@ -2319,9 +2319,7 @@ document.getElementById("themeBtn").onclick = () => {
 // Geste die ganze Karte einpassen + Panel/Modi schließen.
 document.getElementById("brand").onclick = () => {
   if (STATIC) { location.href = "../"; return; } // docs/<pack>/ -> docs/ (Übersicht)
-  closePanel(); if (typeof clearFocus === "function") clearFocus();
-  filterGenre = ""; document.getElementById("genreFilter").value = "";
-  activeGenres.clear(); fitAll();
+  location.href = "/"; // App: zurück zur „Kugeln"-Übersicht (Pack-Auswahl)
 };
 
 // ---- Entdeck-Modi: Szenen-Erkennung (Communities), Brückenbauer, Zufallsfund ----

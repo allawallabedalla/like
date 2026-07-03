@@ -8,7 +8,7 @@
 //   node server.mjs --pack=books     -> Default auf Bücher setzen (auch ENV LIKE_PACK)
 //
 // Endpunkte (alle Packs, jeweils mit ?pack=<id>):
-//   GET  /                 index.html (mit Config des gewählten Packs + Pack-Liste)
+//   GET  /                 „Kugeln"-Übersicht (Pack-Auswahl); mit ?pack=<id> die Karte selbst
 //   GET  /api/packs        alle Packs (leichte Liste für den Umschalter)
 //   GET  /api/graph        kompletter Graph des Packs
 //   POST /api/explore      { name } -> Pack-Adapter, merged, gibt Graph zurück
@@ -23,6 +23,7 @@ import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.m
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
+import { miniCluster, landingHtml } from "./lib/landing.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -68,6 +69,28 @@ const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.ti
 // Version aus package.json lesen (bleibt so automatisch synchron mit dem Release).
 let APP_VERSION = "";
 try { APP_VERSION = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")).version || ""; } catch {}
+
+// „Kugeln"-Landing (GET / ohne ?pack): eine Karte je Pack mit Mini-Netz aus dem Demo-Graphen.
+// Der Demo-Graph dient nur der Vorschau-Optik; die echte Karte startet leer und füllt sich beim Suchen.
+const LANDING_CARDS = [];
+for (const p of PACKS.values()) {
+  let g = { artists: {}, edges: [] };
+  try { g = JSON.parse(await readFile(join(ROOT, "packs", p.id, "demo.json"), "utf8")); } catch {}
+  LANDING_CARDS.push({
+    id: p.id, title: p.config.title, item: p.config.item,
+    n: Object.keys(g.artists || {}).length, e: (g.edges || []).length, mini: miniCluster(g),
+  });
+}
+function landingPage() {
+  return landingHtml(LANDING_CARDS, {
+    hrefFor: (id) => `/?pack=${encodeURIComponent(id)}`,
+    pageTitle: "like — Übersicht",
+    heading: "like<b>.</b>",
+    sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
+    cardSub: (c) => c.item.plur,
+    footer: APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App` : "",
+  });
+}
 
 // Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO PACK.
 const radarCache = new Map(); // packId -> { at, key, payload }
@@ -130,6 +153,12 @@ const server = createServer(async (req, res) => {
     // Pack-Liste braucht keinen konkreten Pack-Kontext.
     if (req.method === "GET" && url.pathname === "/api/packs") {
       return send(res, 200, { ok: true, packs: PACK_LIST, default: DEFAULT_PACK });
+    }
+
+    // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
+    // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
+      return send(res, 200, landingPage(), "text/html; charset=utf-8");
     }
 
     // Geschmacks-Fingerabdruck: Likes + Top-Themen ÜBER ALLE Domänen (nur lokale Graphen,
