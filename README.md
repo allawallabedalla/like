@@ -143,11 +143,12 @@ Verfügbare Packs (Musik ist Standard):
 | `music` | Künstler:innen | Last.fm (Key), RA, Deezer, MusicBrainz, Bandcamp | ähnlicher Stil / zusammen aufgetreten |
 | `books` | Bücher | Open Library, TasteDive (optional) | thematisch ähnlich / vom selben Autor |
 | `movies` | Filme | TMDB (**Gratis-Key**) | inhaltlich ähnlich / „Leute schauten auch" |
-| `plants` | Pflanzen | iNaturalist, GBIF | botanisch verwandt / wird oft verwechselt mit |
+| `plants` | Pflanzen | iNaturalist, GBIF | botanisch verwandt / gedeiht am selben Standort |
 | `papers` | Forschung | OpenAlex | inhaltlich verwandt / von denselben Autor:innen |
 | `boardgames` | Brettspiele | BoardGameGeek | geteilte Mechaniken / vom selben Designer |
 | `podcasts` | Podcasts | Apple/iTunes, TasteDive (optional) | gleiches Genre / vom selben Anbieter |
 | `games` | (Indie-)Games | Steam, SteamSpy, TasteDive (optional) | geteilte Tags / vom selben Entwickler |
+| `travel` | Reiseziele | Wikivoyage, OpenStreetMap/Nominatim | ähnlicher Reisestil / gut kombinierbar (in der Nähe) |
 
 Starten (eine App, im Fenster umschalten):
 ```
@@ -157,10 +158,16 @@ node server.mjs --pack=books    # anderes Start-Pack setzen (auch: ENV LIKE_PACK
 
 **Keys je Pack** (nur wo nötig): `movies` braucht einen kostenlosen TMDB-Key
 (`.tmdb-key` oder ENV `TMDB_API_KEY`). `music` braucht den Last.fm-Key wie bisher.
-`books`/`podcasts`/`games` funktionieren ohne Key; ein optionaler TasteDive-Key
-(`.tastedive-key`) schaltet zusätzlich ein „Leute mochten auch"-Signal frei und versorgt
-diese drei Packs gemeinsam. Jedes Pack legt seinen Bestand in eigenen Dateien ab
-(`graph-books.json`, `stats-movies.json`, …), sodass sich die Domänen nie vermischen.
+`books`/`podcasts`/`games`/`plants`/`papers`/`boardgames`/`travel` funktionieren ohne Key;
+ein optionaler TasteDive-Key (`.tastedive-key`) schaltet für `books`/`podcasts`/`games`
+zusätzlich ein „Leute mochten auch"-Signal frei. Jedes Pack legt seinen Bestand in eigenen
+Dateien ab (`graph-books.json`, `stats-movies.json`, …), sodass sich die Domänen nie vermischen.
+
+**Like Travel** trennt bewusst zwei Achsen: *Reisestil* (blau — Strand/Berge/Kultur/Party/…,
+via Wikivoyage) und *Nähe* (orange — kombinierbare Nachbarziele). Die **Heimat-Distanz** (Luftlinie
+zum Heimatort) steht als Chip am Ziel; Standard ist `Berlin, Deutschland`, überschreibbar per
+ENV `LIKE_TRAVEL_HOME="München, Deutschland"`. So liegen Türkei-All-inclusive und Alpen-Bergtour
+geografisch nah, im Stil aber weit auseinander — genau wie es sich anfühlt.
 
 Zur „auch gekauft / auch gelesen"-Idee: echte Verkaufszahlen und Amazons „wurde zusammen
 gekauft" sind **nicht** frei zugänglich. Das beste freie Äquivalent ist *verhaltensbasiert*
