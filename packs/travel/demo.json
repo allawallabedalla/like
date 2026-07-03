@@ -1,0 +1,62 @@
+{
+  "meta": { "version": 1, "demo": true },
+  "artists": {
+    "lissabon": {
+      "id": "lissabon", "name": "Lissabon", "seed": true,
+      "genres": ["Stadt & Kultur", "Kulinarik & Wein", "Strand & Meer", "2.320 km ab Zuhause"],
+      "listeners": 58000
+    },
+    "porto": {
+      "id": "porto", "name": "Porto", "seed": false,
+      "genres": ["Stadt & Kultur", "Kulinarik & Wein", "2.230 km ab Zuhause"],
+      "listeners": 41000
+    },
+    "sintra": {
+      "id": "sintra", "name": "Sintra", "seed": false,
+      "genres": ["Stadt & Kultur", "Natur & Wildlife", "2.330 km ab Zuhause"],
+      "listeners": 19000
+    },
+    "cascais": {
+      "id": "cascais", "name": "Cascais", "seed": false,
+      "genres": ["Strand & Meer", "Ruhe & Wellness", "2.340 km ab Zuhause"],
+      "listeners": 12000
+    },
+    "obidos": {
+      "id": "obidos", "name": "Óbidos", "seed": false,
+      "genres": ["Stadt & Kultur", "Romantik", "2.300 km ab Zuhause"],
+      "listeners": 7000
+    },
+    "barcelona": {
+      "id": "barcelona", "name": "Barcelona", "seed": false,
+      "genres": ["Stadt & Kultur", "Strand & Meer", "Party & Nightlife", "1.500 km ab Zuhause"],
+      "listeners": 72000
+    },
+    "valencia": {
+      "id": "valencia", "name": "Valencia", "seed": false,
+      "genres": ["Strand & Meer", "Stadt & Kultur", "1.780 km ab Zuhause"],
+      "listeners": 33000
+    },
+    "marseille": {
+      "id": "marseille", "name": "Marseille", "seed": false,
+      "genres": ["Strand & Meer", "Stadt & Kultur", "1.160 km ab Zuhause"],
+      "listeners": 26000
+    },
+    "neapel": {
+      "id": "neapel", "name": "Neapel", "seed": false,
+      "genres": ["Stadt & Kultur", "Kulinarik & Wein", "1.280 km ab Zuhause"],
+      "listeners": 38000
+    }
+  },
+  "edges": [
+    { "from": "lissabon", "to": "barcelona", "type": "similar", "weight": 0.72, "source": "demo" },
+    { "from": "lissabon", "to": "valencia", "type": "similar", "weight": 0.66, "source": "demo" },
+    { "from": "lissabon", "to": "marseille", "type": "similar", "weight": 0.6, "source": "demo" },
+    { "from": "lissabon", "to": "neapel", "type": "similar", "weight": 0.57, "source": "demo" },
+    { "from": "lissabon", "to": "sintra", "type": "together", "weight": 3, "source": "demo" },
+    { "from": "lissabon", "to": "cascais", "type": "together", "weight": 3, "source": "demo" },
+    { "from": "lissabon", "to": "obidos", "type": "together", "weight": 2.2, "source": "demo" },
+    { "from": "lissabon", "to": "porto", "type": "together", "weight": 1, "source": "demo" },
+    { "from": "barcelona", "to": "valencia", "type": "together", "weight": 2.2, "source": "demo" },
+    { "from": "porto", "to": "sintra", "type": "similar", "weight": 0.5, "source": "demo" }
+  ]
+}

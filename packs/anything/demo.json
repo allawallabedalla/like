@@ -1,0 +1,54 @@
+{
+  "meta": { "version": 1, "demo": true },
+  "artists": {
+    "bauhaus": {
+      "id": "bauhaus", "name": "Bauhaus", "seed": true,
+      "genres": ["Kunstschule", "Design", "Moderne Architektur"],
+      "listeners": 95000
+    },
+    "de stijl": {
+      "id": "de stijl", "name": "De Stijl", "seed": false,
+      "genres": ["Kunstbewegung", "Moderne"], "listeners": 28000
+    },
+    "deutscher werkbund": {
+      "id": "deutscher werkbund", "name": "Deutscher Werkbund", "seed": false,
+      "genres": ["Design", "Moderne"], "listeners": 14000
+    },
+    "konstruktivismus": {
+      "id": "konstruktivismus", "name": "Konstruktivismus", "seed": false,
+      "genres": ["Kunstbewegung"], "listeners": 19000
+    },
+    "moderne architektur": {
+      "id": "moderne architektur", "name": "Moderne Architektur", "seed": false,
+      "genres": ["Architektur", "Moderne"], "listeners": 41000
+    },
+    "walter gropius": {
+      "id": "walter gropius", "name": "Walter Gropius", "seed": false,
+      "genres": ["Architekt", "Moderne"], "listeners": 63000
+    },
+    "ludwig mies van der rohe": {
+      "id": "ludwig mies van der rohe", "name": "Ludwig Mies van der Rohe", "seed": false,
+      "genres": ["Architekt", "Moderne"], "listeners": 58000
+    },
+    "wassily kandinsky": {
+      "id": "wassily kandinsky", "name": "Wassily Kandinsky", "seed": false,
+      "genres": ["Maler", "Moderne"], "listeners": 72000
+    },
+    "dessau": {
+      "id": "dessau", "name": "Dessau", "seed": false,
+      "genres": ["Stadt"], "listeners": 22000
+    }
+  },
+  "edges": [
+    { "from": "bauhaus", "to": "de stijl", "type": "similar", "weight": 0.72, "source": "demo" },
+    { "from": "bauhaus", "to": "deutscher werkbund", "type": "similar", "weight": 0.66, "source": "demo" },
+    { "from": "bauhaus", "to": "konstruktivismus", "type": "similar", "weight": 0.6, "source": "demo" },
+    { "from": "bauhaus", "to": "moderne architektur", "type": "similar", "weight": 0.58, "source": "demo" },
+    { "from": "bauhaus", "to": "walter gropius", "type": "together", "weight": 3, "source": "demo" },
+    { "from": "bauhaus", "to": "ludwig mies van der rohe", "type": "together", "weight": 2.6, "source": "demo" },
+    { "from": "bauhaus", "to": "wassily kandinsky", "type": "together", "weight": 2.4, "source": "demo" },
+    { "from": "bauhaus", "to": "dessau", "type": "together", "weight": 2, "source": "demo" },
+    { "from": "walter gropius", "to": "moderne architektur", "type": "similar", "weight": 0.5, "source": "demo" },
+    { "from": "de stijl", "to": "konstruktivismus", "type": "similar", "weight": 0.5, "source": "demo" }
+  ]
+}
