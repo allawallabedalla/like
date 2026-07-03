@@ -103,7 +103,7 @@ export default {
     radarTitle: "Radar — Podcast-Geheimtipps",
     radarTogetherReason: "vom selben Anbieter wie dein Like",
     previewLabel: "Neueste Folge anspielen",
-    features: { preview: true, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
+    features: { preview: true, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
     key: null,
   },
 

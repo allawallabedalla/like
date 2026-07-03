@@ -111,7 +111,7 @@ export default {
     ],
     radarTitle: "Radar — seltene Arten",
     radarTogetherReason: "sieht deinem Like zum Verwechseln ähnlich",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
     key: null,
   },
 

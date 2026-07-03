@@ -271,5 +271,5 @@ dist:mac` (auf einem Mac). Ergebnis liegt in `dist/`.
 - [x] Kollisionserkennung (Kugeln überlappen nicht) + pro-Pack kalibrierte Kugelgröße
 - [x] Venue-Ebene im Musik-Pack (Spielorte als Knoten)
 - [x] Feedback-Knopf (Pushover)
-- [ ] Pack-spezifische Kurz-Touren (aktuell nur Musik)
+- [x] Kurz-Tour in allen Domänen (generisch aus der Pack-Config; Musik handgetextet)
 - [ ] Umstieg `graph.json` → SQLite bei wachsendem Bestand

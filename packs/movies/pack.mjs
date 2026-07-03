@@ -77,7 +77,7 @@ export default {
     ],
     radarTitle: "Radar — Film-Geheimtipps",
     radarTogetherReason: "wird mit deinem Like zusammen geschaut",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
     key: { name: "TMDB-Key", createUrl: "https://www.themoviedb.org/settings/api", hint: "Für die Live-Suche braucht like movies einen kostenlosen TMDB-API-Key (Konto → Einstellungen → API → „API Key (v3 auth)“)." },
   },
 

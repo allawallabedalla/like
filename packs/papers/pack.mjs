@@ -83,7 +83,7 @@ export default {
     ],
     radarTitle: "Radar — aufstrebende Arbeiten",
     radarTogetherReason: "teilt Autor:innen mit deinem Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: false, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
     key: null,
   },
 
