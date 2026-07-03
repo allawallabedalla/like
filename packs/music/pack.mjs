@@ -73,6 +73,12 @@ export default {
 
   async suggest(q) { return searchArtists(q); },
 
+  // Leichter „ähnlich"-Zugriff für die Brücke (nur getSimilar, ohne RA/Genres).
+  async similar(name, { limit = 60 } = {}) {
+    const r = await getSimilar(name, { limit });
+    return { canonical: r.sourceName, similar: r.similar.map((s) => ({ name: s.name, url: s.url, match: s.match || 0.5 })) };
+  },
+
   // Haupt-Flow: Last.fm bestimmt Identität + ähnlichen Stil, RA (+ optionale Quellen)
   // liefert "zusammen aufgetreten" + kuratierte Genres + Booking-Steckbrief.
   async explore(name) {

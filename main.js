@@ -52,36 +52,24 @@ function ensureDataDir() {
   return dataDir;
 }
 
-// Welches Domain-Pack ist eingebaut? (.pack wird beim Pack-Build geschrieben; fehlt es,
-// ist es der klassische Musik-Build.)
-function bundledPack() {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(__dirname, ".pack"), "utf8")).id || "music";
-  } catch {
-    return "music";
-  }
-}
-
-// Eingebettete API-Keys kommen fertig mit der App (nicht im öffentlichen Repo; werden
-// beim Bauen aus GitHub-Secrets in die jeweilige Key-Datei geschrieben). Je Pack die
-// passende ENV setzen, damit Tester:innen ohne eigenen Key loslegen können.
-function bundledKeyEnv(pack) {
-  const map = {
-    music: [".lastfm-key", "LASTFM_API_KEY"],
-    movies: [".tmdb-key", "TMDB_API_KEY"],
-  };
+// Eine App bedient ALLE Domänen — deshalb alle eingebetteten Keys bündeln und als ENV
+// an den Server geben. Die Keys kommen (nicht im öffentlichen Repo) beim Bauen aus
+// GitHub-Secrets in die jeweilige Datei; fehlt eine, läuft das betroffene Pack ohne Key.
+function bundledKeyEnv() {
   const env = {};
-  const entry = map[pack];
-  if (entry) {
-    try {
-      const k = fs.readFileSync(path.join(__dirname, entry[0]), "utf8").trim();
-      if (k) env[entry[1]] = k;
-    } catch {}
+  const files = {
+    ".lastfm-key": "LASTFM_API_KEY",   // Musik
+    ".tmdb-key": "TMDB_API_KEY",       // Filme
+    ".tastedive-key": "TASTEDIVE_KEY", // Bücher/Podcasts/Games
+  };
+  for (const [file, name] of Object.entries(files)) {
+    try { const k = fs.readFileSync(path.join(__dirname, file), "utf8").trim(); if (k) env[name] = k; } catch {}
   }
-  // TasteDive versorgt mehrere Packs (Bücher/Podcasts/Games) — mitgeben, falls vorhanden.
+  // Pushover (Feedback-Knopf): token+user aus .pushover -> als ENV weiterreichen.
   try {
-    const td = fs.readFileSync(path.join(__dirname, ".tastedive-key"), "utf8").trim();
-    if (td) env.TASTEDIVE_KEY = td;
+    const raw = fs.readFileSync(path.join(__dirname, ".pushover"), "utf8").trim();
+    const j = raw.startsWith("{") ? JSON.parse(raw) : null;
+    if (j && j.token && j.user) { env.PUSHOVER_TOKEN = String(j.token); env.PUSHOVER_USER = String(j.user); }
   } catch {}
   return env;
 }
@@ -114,11 +102,12 @@ async function start() {
   const port = await getFreePort();
   serverUrl = `http://127.0.0.1:${port}`;
   const dataDir = ensureDataDir();
-  const pack = bundledPack();
-  const keyEnv = bundledKeyEnv(pack);
+  const keyEnv = bundledKeyEnv();
 
   // Server über Electrons eingebautes Node starten (kein System-Node nötig — sonst
   // schlägt spawn("node") fehl, weil GUI-Starts keinen Homebrew-/PATH-Kontext haben).
+  // Kein LIKE_PACK: der Server startet mit dem Default (Musik), in der App wird per
+  // Umschalter (oben) zwischen den Domänen gewechselt.
   server = spawn(process.execPath, ["server.mjs"], {
     cwd: __dirname,
     env: {
@@ -126,7 +115,6 @@ async function start() {
       ELECTRON_RUN_AS_NODE: "1",
       PORT: String(port),
       LIKE_DATA_DIR: dataDir,
-      LIKE_PACK: pack,
       ...keyEnv,
     },
     stdio: "inherit",

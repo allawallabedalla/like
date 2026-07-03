@@ -1,30 +1,18 @@
 name: Build & Release
 
-# Baut die Desktop-Downloads (Windows + macOS) je Domain-Pack und hängt sie an ein
-# GitHub-Release. Getrennte Tags pro Pack, damit klar ist, welches Tool welchen Stand hat:
-#   v1.9.0            -> Musik-Pack (klassischer Name, rückwärtskompatibel)
-#   books-v0.2.0      -> Bücher-Pack
-#   movies-v0.1.0     -> Filme-Pack   usw.
+# Baut die Desktop-Download(s) (Windows + macOS) — EINE App, die alle Domänen bündelt
+# (in der App wird oben zwischen Musik, Büchern, Filmen … umgeschaltet).
 #
 # Auslöser:
-#   - Tag-Push "v*" oder "<pack>-v*"      -> baut GENAU dieses Pack, erstellt Release
-#   - workflow_dispatch:
-#       pack = "all"     -> alle Packs bauen (für Kern-Änderungen: „alle neu releasen")
-#       pack = "<name>"  -> nur dieses Pack
-#       tag  = "..."     -> Release-Tag (leer = reiner Test-Build ohne Release)
+#   - Tag-Push "v*"                    -> baut + erstellt Release
+#   - workflow_dispatch (Run workflow) -> Test-Build (Artefakte); mit Tag-Input auch Release
 on:
   push:
-    tags:
-      - "v*"
-      - "*-v*"
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
-      pack:
-        description: "Pack bauen (all | music | books | movies | plants | papers | boardgames | podcasts | games)"
-        required: true
-        default: "all"
       tag:
-        description: "Release-Tag (z.B. v1.9.0 oder books-v0.2.0) — leer = Test-Build"
+        description: "Release-Tag (z.B. v2.0.0) — leer lassen für reinen Test-Build"
         required: false
         default: ""
 
@@ -32,33 +20,8 @@ permissions:
   contents: write
 
 jobs:
-  # Bestimmt anhand des Auslösers, welche Packs gebaut werden -> Matrix-JSON.
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      packs: ${{ steps.pick.outputs.packs }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: pick
-        shell: bash
-        run: |
-          ALL='["music","books","movies","plants","papers","boardgames","podcasts","games"]'
-          if [ "${{ github.event_name }}" = "push" ]; then
-            REF="${GITHUB_REF_NAME}"
-            if [[ "$REF" == v* ]]; then PACK="music";
-            else PACK="${REF%%-v*}"; fi
-            echo "packs=[\"$PACK\"]" >> "$GITHUB_OUTPUT"
-          else
-            if [ "${{ inputs.pack }}" = "all" ]; then
-              echo "packs=$ALL" >> "$GITHUB_OUTPUT"
-            else
-              echo "packs=[\"${{ inputs.pack }}\"]" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-
   # Vorab-Gate: electron-builder-Config validieren + alle Packs boot-testen.
   check:
-    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,20 +33,16 @@ jobs:
       - run: npm run check
 
   build:
-    needs: [prepare, check]
+    needs: check
     strategy:
       fail-fast: false
-      # Kreuzprodukt: jedes Pack × beide Plattformen. Die include-Einträge matchen
-      # über den os-Schlüssel und reichern jede Kombination um platform/pattern an.
       matrix:
-        pack: ${{ fromJSON(needs.prepare.outputs.packs) }}
-        os: [macos-latest, windows-latest]
         include:
           - os: macos-latest
-            platform: mac
+            script: "dist:mac"
             pattern: "dist/*.dmg"
           - os: windows-latest
-            platform: win
+            script: "dist:win"
             pattern: "dist/*.exe"
     runs-on: ${{ matrix.os }}
     steps:
@@ -93,25 +52,32 @@ jobs:
           node-version: 20
           cache: npm
 
-      # Eingebettete Keys aus Repo-Secrets in die Key-Dateien schreiben, damit die
-      # gebauten Apps out-of-the-box funktionieren. Fehlt ein Secret, wird ohne Key
-      # gebaut (Nutzer bringt dann eigenen Key mit). Nur die für das Pack relevanten.
+      # Eingebettete Keys aus Repo-Secrets in die jeweiligen Dateien schreiben, damit die
+      # gebaute App out-of-the-box funktioniert. Fehlt ein Secret, wird ohne diesen Key
+      # gebaut (das betroffene Pack läuft dann ohne eingebetteten Key / Feedback ist aus).
       - name: Keys einbetten
         shell: bash
         env:
           LASTFM_KEY: ${{ secrets.LASTFM_KEY }}
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
           TASTEDIVE_KEY: ${{ secrets.TASTEDIVE_KEY }}
+          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
+          PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
         run: |
           [ -n "$LASTFM_KEY" ] && printf '%s' "$LASTFM_KEY" > .lastfm-key || true
           [ -n "$TMDB_KEY" ] && printf '%s' "$TMDB_KEY" > .tmdb-key || true
           [ -n "$TASTEDIVE_KEY" ] && printf '%s' "$TASTEDIVE_KEY" > .tastedive-key || true
+          if [ -n "$PUSHOVER_TOKEN" ] && [ -n "$PUSHOVER_USER" ]; then
+            printf '{"token":"%s","user":"%s"}' "$PUSHOVER_TOKEN" "$PUSHOVER_USER" > .pushover
+          fi
           echo "Keys (soweit als Secret vorhanden) eingebettet."
 
       - run: npm ci
 
-      - name: Build (${{ matrix.pack }} / ${{ matrix.platform }})
-        run: node scripts/build-pack.mjs ${{ matrix.pack }} ${{ matrix.platform }}
+      - name: Build
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false" # macOS ad-hoc-signiert via scripts/afterSign.js
 
       - name: Prüfsummen (SHA256)
         shell: bash
@@ -125,15 +91,12 @@ jobs:
       - name: Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: like-${{ matrix.pack }}-${{ matrix.os }}
+          name: like-${{ matrix.os }}
           path: |
             ${{ matrix.pattern }}
             dist/*.sha256
           if-no-files-found: error
 
-      # Release nur bei Tag-Push oder manuellem Lauf mit Tag. Der Tag bestimmt das Release;
-      # bei pack=all + Tag würden alle Packs an DASSELBE Release gehängt — sinnvoll für
-      # einen Kern-Sammelrelease. Für getrennte Pack-Releases je Pack einzeln taggen.
       - name: An Release anhängen
         if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
         uses: softprops/action-gh-release@v2

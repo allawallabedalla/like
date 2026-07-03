@@ -1,13 +1,11 @@
-# API-Keys / app_ids niemals committen
+# API-Keys / app_ids / Feedback-Credentials niemals committen
 .lastfm-key
 .tmdb-key
 .tastedive-key
+.pushover
 .songkick-key
 .setlistfm-key
 .bandsintown-appid
-
-# beim Pack-Build erzeugt (welches Pack ist eingebaut) — kein Quellcode
-.pack
 
 # lokaler Antwort-Cache (RA/Last.fm/…)
 cache/

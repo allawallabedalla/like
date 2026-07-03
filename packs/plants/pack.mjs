@@ -52,11 +52,16 @@ async function genusSiblings(taxon, { limit = 12 } = {}) {
 
 // Verwechslungs-Arten: welche Arten Beobachter mit dieser verwechseln (iNat
 // similar_species, aus echten Fehlbestimmungen abgeleitet = optische Ähnlichkeit).
+// Der Endpunkt liefert je Art ein `count` = wie oft Beobachter sie mit dieser
+// verwechselt haben. Das nehmen wir als Kantengewicht -> dickste orange Kante =
+// häufigste Verwechslung (statt alle gleich).
 async function lookAlikes(taxonId, { limit = 12 } = {}) {
   return cached("inat-co", taxonId + "|" + limit, 14 * 864e5, async () => {
     try {
       const j = await jfetch(`${INAT}/identifications/similar_species?taxon_id=${taxonId}&per_page=${limit}&locale=de`);
-      return (j.results || []).map((r) => r.taxon).filter((t) => t && t.iconic_taxon_name === "Plantae");
+      return (j.results || [])
+        .filter((r) => r.taxon && r.taxon.iconic_taxon_name === "Plantae")
+        .map((r) => ({ taxon: r.taxon, count: r.count || 1 }));
     } catch { return []; }
   });
 }
@@ -140,7 +145,7 @@ export default {
       similarSource: "inaturalist",
       togetherSource: "inaturalist",
       similar: sibs.slice(0, 15).map((t) => ({ name: display(t), url: `https://www.inaturalist.org/taxa/${t.id}`, match: 0.6 })),
-      together: co.slice(0, 12).map((t) => ({ name: display(t), url: `https://www.inaturalist.org/taxa/${t.id}`, weight: 1 })),
+      together: co.slice(0, 12).map(({ taxon: t, count }) => ({ name: display(t), url: `https://www.inaturalist.org/taxa/${t.id}`, weight: count })),
       sources: ["inaturalist"],
     };
   },

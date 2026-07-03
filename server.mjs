@@ -1,25 +1,28 @@
 #!/usr/bin/env node
-// server.mjs — lokaler Zero-Dep-Server für die Map. Domänen-neutral:
-// alles Inhaltliche (Suche, ähnlich, zusammen, Popularität) kommt aus dem
-// geladenen Domain-Pack (packs/<id>/pack.mjs). Default-Pack: music.
+// server.mjs — lokaler Zero-Dep-Server für die Map. Domänen-neutral und Multi-Pack:
+// EINE App bedient alle Domänen. Das aktive Pack kommt pro Request aus ?pack=<id>
+// (oder Header x-like-pack; Fallback: Default). So kann die App zur Laufzeit zwischen
+// Musik, Büchern, Filmen … umschalten (ein Reload mit ?pack=), ohne Server-Neustart.
 //
-//   node server.mjs                  -> http://localhost:5173 (Musik)
-//   node server.mjs --pack=books     -> Bücher-Variante (auch: ENV LIKE_PACK)
+//   node server.mjs                  -> http://localhost:5173 (Default-Pack)
+//   node server.mjs --pack=books     -> Default auf Bücher setzen (auch ENV LIKE_PACK)
 //
-// Endpunkte (alle Packs):
-//   GET  /                 index.html (mit injizierter Pack-Config)
-//   GET  /api/graph        kompletter Graph (JSON)
+// Endpunkte (alle Packs, jeweils mit ?pack=<id>):
+//   GET  /                 index.html (mit Config des gewählten Packs + Pack-Liste)
+//   GET  /api/packs        alle Packs (leichte Liste für den Umschalter)
+//   GET  /api/graph        kompletter Graph des Packs
 //   POST /api/explore      { name } -> Pack-Adapter, merged, gibt Graph zurück
-//   POST /api/artist       { id, known?, note?, status? } -> Kurations-Metadaten
+//   POST /api/bridge       { from, to } -> verbindende Einträge (Meet-in-the-middle)
 
 import { createServer } from "node:http";
 import { readFile, writeFile, access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, materialize, addEvent, emptyGraph, upsertArtist } from "./lib/store.mjs";
-import { loadStats, saveStats, addSnapshot, growthPerMonth, setStatsFile } from "./lib/stats.mjs";
-import { loadPack, dataFile } from "./lib/packs.mjs";
+import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
+import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
+import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -51,22 +54,29 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.LIKE_DATA_DIR || ROOT;
 const PORT = process.env.PORT || 5173;
 
-const pack = await loadPack();
-const GRAPH = dataFile(DATA_DIR, pack.id, "graph.json");
-const DIGEST = dataFile(DATA_DIR, pack.id, "digest.json");
-setStatsFile(dataFile(DATA_DIR, pack.id, "stats.json"));
+// Alle Packs beim Start laden (validiert sie gleich; Import ist netzfrei -> schnell).
+const PACKS = new Map();
+for (const id of await listPacks()) {
+  try { PACKS.set(id, await loadPack(id)); }
+  catch (e) { console.error(`Pack "${id}" übersprungen: ${e.message}`); }
+}
+const DEFAULT_PACK = PACKS.has(await resolvePackId()) ? await resolvePackId() : (PACKS.has("music") ? "music" : [...PACKS.keys()][0]);
+if (!PACKS.size) { console.error("Keine Packs gefunden (packs/<id>/pack.mjs)."); process.exit(1); }
+// Leichte Liste für den Umschalter (ohne die vollen Configs).
+const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.title, item: p.config.item, brand: p.config.brand }));
 
 // Version aus package.json lesen (bleibt so automatisch synchron mit dem Release).
 let APP_VERSION = "";
 try { APP_VERSION = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")).version || ""; } catch {}
 
-// Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen.
-let radarCache = null; // { at, key, payload }
+// Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO PACK.
+const radarCache = new Map(); // packId -> { at, key, payload }
 const RADAR_TTL = 10 * 60 * 1000;
 
-// Graph speichern UND den Radar-Cache verwerfen — jede Mutation geht hier durch,
-// damit das Radar nie veraltete Vorschläge zeigt.
-function persist(g) { radarCache = null; return saveGraph(GRAPH, g); }
+// Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
+const FEEDBACK_ON = await hasPushover();
+// simple In-Memory-Drossel gegen Spam: max. 6 Feedback-Nachrichten pro 5 Minuten (global).
+let fbHits = [];
 
 function send(res, code, body, type = "application/json") {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -79,24 +89,27 @@ function readBody(req) {
     let s = "";
     req.on("data", (c) => (s += c));
     req.on("end", () => {
-      try {
-        resolve(s ? JSON.parse(s) : {});
-      } catch (e) {
-        reject(e);
-      }
+      try { resolve(s ? JSON.parse(s) : {}); }
+      catch (e) { reject(e); }
     });
     req.on("error", reject);
   });
 }
 
-// Pack-Config ins Frontend injizieren (vor dem Haupt-Script, wie beim Static-Export).
-async function indexHtml() {
-  const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
-  const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};</script>\n<script>`);
+// Aktives Pack für diesen Request (Query > Header > Default).
+function reqPackId(url, req) {
+  return url.searchParams.get("pack") || req.headers["x-like-pack"] || DEFAULT_PACK;
 }
 
-async function hasApiKey() {
+// Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
+async function indexHtml(pack) {
+  const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
+  const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
+  const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
+  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};</script>\n<script>`);
+}
+
+async function hasApiKey(pack) {
   if (!pack.key) return true; // Pack braucht keinen Key
   if (process.env[pack.key.envVar]) return true;
   try { await access(join(DATA_DIR, pack.key.file)); return true; } catch {}
@@ -104,21 +117,58 @@ async function hasApiKey() {
   return false;
 }
 
+// "Ähnlich"-Nachbarn für die Brücke: nutzt das leichte pack.similar(), sonst explore().similar.
+async function neighborsFor(pack, name, limit) {
+  if (pack.similar) { const r = await pack.similar(name, { limit }); return { canonical: r.canonical || name, list: r.similar || [] }; }
+  const r = await pack.explore(name); return { canonical: r.canonical || name, list: (r.similar || []).slice(0, limit) };
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
+    // Pack-Liste braucht keinen konkreten Pack-Kontext.
+    if (req.method === "GET" && url.pathname === "/api/packs") {
+      return send(res, 200, { ok: true, packs: PACK_LIST, default: DEFAULT_PACK });
+    }
+
+    const packId = reqPackId(url, req);
+    const pack = PACKS.get(packId);
+    if (!pack) return send(res, 400, { error: `Unbekanntes Pack: ${packId}` });
+    const GRAPH = dataFile(DATA_DIR, pack.id, "graph.json");
+    const DIGEST = dataFile(DATA_DIR, pack.id, "digest.json");
+    const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
+    // Graph speichern UND den Radar-Cache dieses Packs verwerfen (nie veraltete Vorschläge).
+    const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
+
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-      return send(res, 200, await indexHtml(), "text/html; charset=utf-8");
+      return send(res, 200, await indexHtml(pack), "text/html; charset=utf-8");
     }
 
-    // Selbstauskunft: Pack + Key-Status (fürs Frontend beim Start)
+    // Selbstauskunft: Pack + Key-Status + ob Feedback verfügbar ist (fürs Frontend beim Start)
     if (req.method === "GET" && url.pathname === "/api/health") {
-      return send(res, 200, { ok: true, key: await hasApiKey(), version: APP_VERSION, pack: pack.id });
+      return send(res, 200, { ok: true, key: await hasApiKey(pack), version: APP_VERSION, pack: pack.id, feedback: FEEDBACK_ON });
     }
 
-    // Quellen-Diagnose: alle Datenquellen des Packs live anpingen,
-    // damit man im echten Betrieb sofort sieht, welche Quelle klemmt.
+    // Testuser-Feedback -> Pushover an den Betreiber. Nur wenn Credentials hinterlegt sind.
+    if (req.method === "POST" && url.pathname === "/api/feedback") {
+      if (!FEEDBACK_ON) return send(res, 400, { error: "Feedback ist auf diesem Build nicht eingerichtet." });
+      const { message } = await readBody(req);
+      const msg = String(message || "").trim();
+      if (msg.length < 2) return send(res, 400, { error: "Bitte etwas mehr Text." });
+      const now = Date.now();
+      fbHits = fbHits.filter((t) => now - t < 5 * 60 * 1000);
+      if (fbHits.length >= 6) return send(res, 429, { error: "Zu viele Nachrichten — bitte kurz warten." });
+      fbHits.push(now);
+      try {
+        await sendFeedback({ message: `[${pack.id} v${APP_VERSION}] ${msg.slice(0, 900)}` });
+        return send(res, 200, { ok: true });
+      } catch (err) {
+        return send(res, 502, { error: err.message });
+      }
+    }
+
+    // Quellen-Diagnose: alle Datenquellen des Packs live anpingen.
     if (req.method === "POST" && url.pathname === "/api/diag") {
       const probes = pack.diag ? await pack.diag() : [];
       const sources = await Promise.all(probes.map(async ({ name, probe, note = "" }) => {
@@ -153,7 +203,6 @@ const server = createServer(async (req, res) => {
     }
 
     // Haupt-Flow: einen Eintrag erkunden -> ähnlich + zusammen + Genres (via Pack).
-    // /api/expand bleibt als Alias erhalten (alte Aufrufer).
     if (req.method === "POST" && (url.pathname === "/api/explore" || url.pathname === "/api/expand")) {
       const { name } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
@@ -180,6 +229,77 @@ const server = createServer(async (req, res) => {
         ok: true, name: src.name, similar: (r.similar || []).length, together: (r.together || []).length,
         sources: r.sources || [], graph: materialize(g),
       });
+    }
+
+    // Brücke suchen: welcher Eintrag verbindet zwei (noch) getrennte Knoten? Meet-in-the-
+    // middle über die „ähnlich"-Relation des Packs (funktioniert in ALLEN Domänen): erst
+    // gemeinsame direkte Nachbarn (A—X—B), sonst eine Ebene tiefer (A—X—Y—B). Popularität
+    // der Zwischen-Einträge kommt mit, damit der Client nach „naheliegend ↔ klein" sortieren
+    // kann. Nur Suche — nichts wird gespeichert.
+    if (req.method === "POST" && url.pathname === "/api/bridge") {
+      const { from, to } = await readBody(req);
+      if (!from || !to) return send(res, 400, { error: "from/to fehlt" });
+      try {
+        const [ra, rb] = await Promise.all([neighborsFor(pack, from, 60), neighborsFor(pack, to, 60)]);
+        const A = ra.canonical, B = rb.canonical;
+        const lc = (s) => String(s).toLowerCase();
+        const skip = new Set([lc(A), lc(B), lc(from), lc(to)]);
+        const mapB = new Map(rb.list.map((s) => [lc(s.name), s]));
+        let mode = "direct", cands = [];
+        for (const s of ra.list) {
+          const t = mapB.get(lc(s.name));
+          if (t && !skip.has(lc(s.name)))
+            cands.push({ via: [{ name: s.name, url: s.url || t.url || null }], strength: ((s.match || 0.5) + (t.match || 0.5)) / 2 });
+        }
+        cands.sort((x, y) => y.strength - x.strength);
+        cands = cands.slice(0, 15);
+        // Fallback: keine direkte Brücke -> zwei Zwischenstationen (A—X—Y—B)
+        if (!cands.length) {
+          mode = "two";
+          const topA = ra.list.slice(0, 6);
+          const exps = await Promise.all(topA.map((x) => neighborsFor(pack, x.name, 40).catch(() => null)));
+          const seen = new Set(), chains = [];
+          exps.forEach((exp, i) => {
+            if (!exp) return;
+            const X = topA[i];
+            for (const y of exp.list) {
+              const t = mapB.get(lc(y.name));
+              if (!t || skip.has(lc(y.name)) || lc(y.name) === lc(X.name)) continue;
+              const key = lc(X.name) + "|" + lc(y.name);
+              if (seen.has(key)) continue;
+              seen.add(key);
+              chains.push({ via: [{ name: X.name, url: X.url || null }, { name: y.name, url: y.url || t.url || null }],
+                strength: ((X.match || 0.5) + (y.match || 0.5) + (t.match || 0.5)) / 3 });
+            }
+          });
+          chains.sort((x, y) => y.strength - x.strength);
+          cands = chains.slice(0, 12);
+        }
+        // Popularität der Zwischen-Einträge (gedrosselt/gecacht) für die Kleinheits-Sortierung
+        if (pack.popularity) {
+          const names = [...new Set(cands.flatMap((c) => c.via.map((v) => v.name)))];
+          const info = {};
+          await Promise.all(names.map(async (n) => { try { info[n] = (await pack.popularity(n)) ?? null; } catch { info[n] = null; } }));
+          for (const c of cands) for (const v of c.via) v.listeners = info[v.name] ?? null;
+        }
+        return send(res, 200, { ok: true, from: A, to: B, mode, candidates: cands });
+      } catch (err) {
+        return send(res, 502, { error: err.message });
+      }
+    }
+
+    // Gewählte Brücke in den Graphen einfügen: Zwischen-Einträge anlegen und die Kette
+    // A — via… — B als „similar"-Kanten verbinden. from/to existieren schon auf der Karte.
+    if (req.method === "POST" && url.pathname === "/api/bridge/add") {
+      const { from, to, via = [], fromId, toId } = await readBody(req);
+      if (!from || !to || !via.length) return send(res, 400, { error: "from/to/via fehlt" });
+      const g = await loadGraph(GRAPH);
+      const aNode = (fromId && g.artists[fromId]) || upsertArtist(g, { name: from });
+      const bNode = (toId && g.artists[toId]) || upsertArtist(g, { name: to });
+      const chain = [aNode, ...via.map((name) => upsertArtist(g, { name })), bNode];
+      for (let i = 0; i < chain.length - 1; i++) addEdge(g, chain[i].id, chain[i + 1].id, "similar", 0.5, "bridge");
+      await persist(g);
+      return send(res, 200, { ok: true, graph: materialize(g) });
     }
 
     if (req.method === "POST" && url.pathname === "/api/delete") {
@@ -215,7 +335,6 @@ const server = createServer(async (req, res) => {
         for (const a of Object.values(g.artists)) { delete a.bl; delete a.wikiChecked; delete a.wiki; }
         g.sources = (g.sources || []).filter((s) => s.id !== "wikipedia");
       } else if (scope === "discovered") {
-        // nur die Einträge entfernen, die NICHT gesucht/markiert/notiert/verbunden sind.
         g = await loadGraph(GRAPH);
         const keep = new Set();
         for (const e of g.edges) { keep.add(e.from); keep.add(e.to); }
@@ -230,7 +349,6 @@ const server = createServer(async (req, res) => {
     }
 
     // Ganzen Graphen importieren (Backup wiederherstellen / auf anderen Rechner mitnehmen).
-    // Der bisherige Stand wird vorher als graph.bak.json gesichert — kein Datenverlust.
     if (req.method === "POST" && url.pathname === "/api/import") {
       const body = await readBody(req);
       const incoming = body?.graph ?? body;
@@ -244,7 +362,6 @@ const server = createServer(async (req, res) => {
       const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
         events: incoming.events || [], sources: incoming.sources || [] };
       await persist(g);
-      radarCache = null;
       const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
       return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
     }
@@ -293,8 +410,7 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, artist: a });
     }
 
-    // Steckbrief beim Anklicken nachladen: Genres + Popularität (+ Momentum-
-    // Snapshot) + Ort/Zusatzinfo — was das Pack eben liefert.
+    // Steckbrief beim Anklicken nachladen: Genres + Popularität (+ Momentum) + Ort.
     if (req.method === "POST" && url.pathname === "/api/enrich") {
       const { id } = await readBody(req);
       const g = await loadGraph(GRAPH);
@@ -307,8 +423,8 @@ const server = createServer(async (req, res) => {
       if (patch.url && !a.url) { a.url = patch.url; changed = true; }
       if (patch.popularity) {
         if (a.listeners !== patch.popularity) { a.listeners = patch.popularity; changed = true; }
-        const stats = await loadStats();
-        if (addSnapshot(stats, id, patch.popularity)) await saveStats(stats);
+        const stats = await loadStats(STATS);
+        if (addSnapshot(stats, id, patch.popularity)) await saveStats(STATS, stats);
         growth = growthPerMonth(stats, id);
       }
       if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
@@ -316,7 +432,7 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
     }
 
-    // Klangprobe/Vorschau — nur, wenn das Pack eine liefert.
+    // Vorschau/Klangprobe — nur, wenn das Pack eine liefert.
     if (req.method === "POST" && url.pathname === "/api/preview") {
       const { name } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
@@ -327,7 +443,7 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, url: p.url, track: p.track, artist: p.artist });
     }
 
-    // Umfeld eines Eintrags (Musik: Label-Umfeld). /api/labelmates bleibt als Alias.
+    // Umfeld eines Eintrags. /api/labelmates bleibt als Alias.
     if (req.method === "POST" && (url.pathname === "/api/context" || url.pathname === "/api/labelmates")) {
       const { id } = await readBody(req);
       const g = await loadGraph(GRAPH);
@@ -343,8 +459,6 @@ const server = createServer(async (req, res) => {
     }
 
     // Radar: Geheimtipp-Score — kleine Einträge nah an deinen Likes, mit Begründung.
-    // Generisch: Graph-Nachbarn × Kleinheit × Momentum; Packs können via radarExtras
-    // zusätzliche Kandidaten beisteuern (Musik: Deezer + Bandcamp).
     if (req.method === "POST" && url.pathname === "/api/radar") {
       const { limit = 10, extraLikes = [], force = false } = await readBody(req);
       const g = await loadGraph(GRAPH);
@@ -355,8 +469,9 @@ const server = createServer(async (req, res) => {
       if (!likes.size) return send(res, 400, { error: "Erst ein paar Einträge suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann." });
 
       const cacheKey = [...likes].sort().join(",") + "|" + limit;
-      if (!force && radarCache && radarCache.key === cacheKey && Date.now() - radarCache.at < RADAR_TTL) {
-        return send(res, 200, { ...radarCache.payload, cached: true, computedAt: radarCache.at });
+      const cached = radarCache.get(pack.id);
+      if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < RADAR_TTL) {
+        return send(res, 200, { ...cached.payload, cached: true, computedAt: cached.at });
       }
 
       const norm = (s) => String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -378,8 +493,7 @@ const server = createServer(async (req, res) => {
       }
       const graphCands = [...cand.values()].sort((x, y) => y.closeness - x.closeness).slice(0, 30);
 
-      // Popularität für die Top-Kandidaten (gecacht; Snapshots fürs Momentum)
-      const stats = await loadStats();
+      const stats = await loadStats(STATS);
       let statsChanged = false, graphChanged = false;
       if (pack.popularity) {
         for (const c of graphCands.slice(0, 25)) {
@@ -393,7 +507,7 @@ const server = createServer(async (req, res) => {
           } catch { /* ohne Popularität weiter */ }
         }
       }
-      if (statsChanged) await saveStats(stats);
+      if (statsChanged) await saveStats(STATS, stats);
       if (graphChanged) await persist(g);
 
       // (b) Pack-spezifische Zusatzkandidaten (Musik: Deezer-Related + Bandcamp-Releases)
@@ -410,7 +524,6 @@ const server = createServer(async (req, res) => {
         try { extras = await pack.radarExtras({ topLikeNames, topGenres, isKnown: (k) => inGraph.has(k) }) || []; } catch {}
       }
 
-      // Scoring: Nähe × Kleinheit × Momentum × Boni — mit Klartext-Begründung
       const small = (n) => n == null ? 0.5 : n < 3000 ? 1 : n < 10000 ? 0.85 : n < 30000 ? 0.65 : n < 100000 ? 0.4 : n < 300000 ? 0.2 : 0.08;
       const fmtNum = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1000 ? Math.round(n / 1000) + "k" : String(n);
       const out = [];
@@ -431,24 +544,22 @@ const server = createServer(async (req, res) => {
       }
       out.sort((x, y) => y.score - x.score);
       const radar = out.slice(0, Math.max(3, Math.min(30, limit)));
-      // gesehene Radar-Namen fürs Digest ("neue Treffer seit letzter Woche") merken
       try {
         let dg = {}; try { dg = JSON.parse(await readFile(DIGEST, "utf8")); } catch {}
         dg.seenRadar = [...new Set([...(dg.seenRadar || []), ...radar.map((r) => r.name)])].slice(-400);
         await writeFile(DIGEST, JSON.stringify(dg), "utf8");
       } catch {}
       const payload = { ok: true, likes: likes.size, radar, computedAt: Date.now() };
-      radarCache = { at: payload.computedAt, key: cacheKey, payload };
+      radarCache.set(pack.id, { at: payload.computedAt, key: cacheKey, payload });
       return send(res, 200, payload);
     }
 
-    // Beim App-Start: Popularität der markierten Einträge still snapshotten, damit
-    // sich die Momentum-Zeitreihe von allein füllt (gecacht -> meist ohne Netz-Call).
+    // Beim App-Start: Popularität der markierten Einträge still snapshotten.
     if (req.method === "POST" && url.pathname === "/api/snapshot") {
       if (!pack.popularity) return send(res, 200, { ok: true, snapshotted: 0, marked: 0 });
       const g = await loadGraph(GRAPH);
       const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
-      const stats = await loadStats();
+      const stats = await loadStats(STATS);
       let statsChanged = false, graphChanged = false, n = 0;
       for (const a of marked) {
         try {
@@ -459,7 +570,7 @@ const server = createServer(async (req, res) => {
           }
         } catch { /* ohne Popularität weiter */ }
       }
-      if (statsChanged) await saveStats(stats);
+      if (statsChanged) await saveStats(STATS, stats);
       if (graphChanged) await persist(g);
       return send(res, 200, { ok: true, snapshotted: n, marked: marked.length });
     }
@@ -467,7 +578,7 @@ const server = createServer(async (req, res) => {
     // Wochen-Digest: welche markierten Einträge sind gewachsen/geschrumpft.
     if (req.method === "POST" && url.pathname === "/api/digest") {
       const g = await loadGraph(GRAPH);
-      const stats = await loadStats();
+      const stats = await loadStats(STATS);
       const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
       const grown = [], shrunk = [];
       let oldest = Date.now();
@@ -548,10 +659,9 @@ function openBrowser(url) {
   import("node:child_process").then(({ exec }) => exec(cmd, () => {}));
 }
 
-// nur lokal binden — der Server (inkl. eingebettetem API-Key) soll nicht im
-// LAN erreichbar sein. PORT=0 lässt das OS einen freien Port wählen (Electron nutzt das).
+// nur lokal binden — der Server (inkl. eingebettetem API-Key) soll nicht im LAN erreichbar sein.
 server.listen(PORT, "127.0.0.1", () => {
   const url = `http://127.0.0.1:${server.address().port}`;
-  console.log(`Like [${pack.id}] läuft auf ${url}`);
+  console.log(`Like läuft auf ${url} (Packs: ${[...PACKS.keys()].join(", ")}; Default: ${DEFAULT_PACK})`);
   if (process.argv.includes("--open") || process.env.LIKE_OPEN) openBrowser(url);
 });
