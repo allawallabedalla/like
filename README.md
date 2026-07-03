@@ -125,11 +125,16 @@ node server.mjs
    ```
 4. `node server.mjs` und im Browser erkunden.
 
-## Mehrere Domänen: ein Kern, viele „Packs"
+## Mehrere Domänen in EINER App
 like ist nicht mehr nur Musik. Der **Kern** (Server, Graph-Speicher, die klickbare Karte)
 ist domänen-neutral; alles Inhaltliche steckt in einem **Domain-Pack** unter `packs/<id>/`.
 Ein Pack bündelt zwei Dinge: die **Datenquellen-Adapter** (Suche, „ähnlich", „zusammen",
 Popularität) und eine **Config** (Begriffe, Kantenfarben, Feature-Schalter fürs Frontend).
+
+**Eine App, alle Domänen:** In der Topbar gibt es einen **Umschalter** — Musik, Bücher,
+Filme, Pflanzen … sind alle im selben Programm. Jede Domäne hat ihre eigene, getrennte
+Sammlung; die zuletzt gewählte wird gemerkt. (Technisch: der Server lädt alle Packs und
+bedient pro Anfrage das aktive über `?pack=<id>` bzw. den Header `x-like-pack`.)
 
 Verfügbare Packs (Musik ist Standard):
 
@@ -144,10 +149,10 @@ Verfügbare Packs (Musik ist Standard):
 | `podcasts` | Podcasts | Apple/iTunes, TasteDive (optional) | gleiches Genre / vom selben Anbieter |
 | `games` | (Indie-)Games | Steam, SteamSpy, TasteDive (optional) | geteilte Tags / vom selben Entwickler |
 
-Pack starten:
+Starten (eine App, im Fenster umschalten):
 ```
-node server.mjs                 # Musik (Default)
-node server.mjs --pack=books    # Bücher (auch: ENV LIKE_PACK=books)
+node server.mjs                 # startet mit Musik; Domäne oben umschaltbar
+node server.mjs --pack=books    # anderes Start-Pack setzen (auch: ENV LIKE_PACK=books)
 ```
 
 **Keys je Pack** (nur wo nötig): `movies` braucht einen kostenlosen TMDB-Key
@@ -169,6 +174,21 @@ Bewertungszahlen (TMDB/BGG) oder Besitzer-Schätzungen (SteamSpy).
    `packs/music/pack.mjs` als Referenz — das Interface ist oben in `lib/packs.mjs` dokumentiert).
 2. Optional `packs/<id>/demo.json` für die Preview (`node scripts/gen-demos.mjs` erzeugt die mitgelieferten).
 3. Fertig — Server, Frontend, Radar, Export und CI ziehen das Pack automatisch mit.
+
+## Brücke bauen: was verbindet zwei Einträge?
+Rechtsklick auf einen Knoten → **Brücke bauen…**, dann einen zweiten Knoten wählen. like
+sucht (über die „ähnlich"-Relation der Domäne) Einträge, die beide verbinden — erst direkte
+gemeinsame Nachbarn, sonst über zwei Schritte. Die Kandidaten schweben als helle **Geister-
+Kugeln** zwischen den beiden; ein Regler mischt von **naheliegend** (stärkste Verbindung) zu
+**klein/spannend** (Geheimtipp). Klick auf einen Geist fügt ihn samt Kanten ein. Funktioniert
+in allen Packs (bei Musik z.B. „welche:r kleine Act verbindet zwei Szenen?").
+
+## Feedback-Knopf (Pushover, optional)
+Ist ein **Pushover**-Zugang hinterlegt, erscheint oben ein **✉-Knopf**: Testuser können dir
+direkt eine Nachricht schicken (mit Domäne + Version). Die Keys liegen server-seitig, nie im
+Browser. Einrichten: ENV `PUSHOVER_TOKEN` + `PUSHOVER_USER`, oder Datei `.pushover`
+(`{"token":"…","user":"…"}`). Fehlt beides, ist der Knopf einfach aus. Für die Release-Builds
+als GitHub-Secrets `PUSHOVER_TOKEN` / `PUSHOVER_USER` hinterlegen.
 
 ## Musik-Erweiterung: Venues einblenden
 Im Musik-Pack lässt sich über den **Venues**-Schalter (Topbar) eine zusätzliche Ebene
@@ -192,9 +212,10 @@ verbinden — rein aus den ohnehin gespeicherten Auftrittsdaten abgeleitet, ohne
 
 ## Statische Vorschau / GitHub Pages (von überall testen, ohne Installation)
 Jedes Pack hat eine **read-only-Preview**, die rein statisch funktioniert (zoomen, klicken,
-vergleichen, Pfade, Filter, PNG/CSV) — nur Live-Suche/Erweitern fehlt, weil das den Server
+vergleichen, Filter, PNG/CSV) — nur Live-Suche/Erweitern/Brücke fehlt, weil das den Server
 mit den Keys braucht. Ideal, um die Oberfläche und die Inhalte eines Packs von jedem Rechner
-im Browser anzusehen, ohne etwas zu installieren.
+im Browser anzusehen, ohne etwas zu installieren. Die **Landing** (`docs/index.html`) zeigt
+alle Domänen mit einem lebendigen Kugelnetz und je einem Mini-Cluster pro Karte.
 
 ```
 node export-static.mjs             # nur Musik -> docs/index.html
@@ -220,38 +241,35 @@ Die `.exe` und `.dmg` werden **automatisch von GitHub Actions** auf echten Windo
 gebaut (`.github/workflows/release.yml`) — du brauchst dafür weder einen Mac noch eine lokale
 Toolchain.
 
+Es entsteht **eine App**, die alle Domänen enthält (Umschalter im Fenster) — also je ein
+`Like-<version>-setup.exe`, ein `-portable.exe` und ein `-universal.dmg`, nicht mehr acht
+getrennte Downloads.
+
 **Einmalig einrichten:** Repo → Settings → Secrets and variables → Actions → *New repository secret*.
-Je nach Pack: `LASTFM_KEY` (Musik), `TMDB_KEY` (Filme), `TASTEDIVE_KEY` (optional, für
-Bücher/Podcasts/Games). Sie werden beim Bauen in die jeweilige Key-Datei geschrieben und in die
-Apps eingebettet. Fehlt ein Secret, wird trotzdem gebaut — dann ohne eingebetteten Key.
+Eingebettete Keys (alle optional, fehlt einer läuft das betroffene Pack ohne):
+`LASTFM_KEY` (Musik), `TMDB_KEY` (Filme), `TASTEDIVE_KEY` (Bücher/Podcasts/Games),
+sowie `PUSHOVER_TOKEN` + `PUSHOVER_USER` (Feedback-Knopf).
 
-**Getrennte Tags pro Pack**, damit klar ist, welches Tool welchen Stand hat:
+**Release auslösen:** einen Versions-Tag pushen —
 ```
-git tag v1.9.0        && git push origin v1.9.0        # Musik (klassischer Name)
-git tag books-v0.2.0  && git push origin books-v0.2.0  # Bücher
-git tag movies-v0.1.0 && git push origin movies-v0.1.0 # Filme  usw.
+git tag v2.0.0 && git push origin v2.0.0
 ```
-Jeder Tag baut **genau sein Pack** (Windows + macOS) und hängt die Downloads ans Release.
+Actions baut beide Plattformen und hängt die Downloads ans GitHub-Release. Ein manueller
+Testlauf (*Actions → Build & Release → Run workflow*, Tag-Feld leer) legt die Dateien nur als
+Build-Artefakte ab, ohne Release.
 
-**Deine Release-Logik** setzt der Workflow so um:
-- **Pack-Änderung** → nur dieses Pack neu bauen: dessen Tag pushen (siehe oben). Die anderen
-  Packs und Previews bleiben unberührt.
-- **Kern-/Frontend-Änderung** („alle neu") → *Actions → Build & Release → Run workflow* mit
-  `pack = all`. Das baut alle Packs auf beiden Plattformen. Die Previews aktualisiert der
-  Pages-Workflow ohnehin bei jedem `main`-Push automatisch.
-
-Manueller Testlauf ohne Release: *Run workflow* mit leerem Tag → Dateien landen nur als
-Build-Artefakte.
-
-**Lokal bauen** (optional): `npm ci`, dann `node scripts/build-pack.mjs <pack> <mac|win>`
-(z.B. `node scripts/build-pack.mjs books win`). Ergebnis liegt in `dist/`.
+**Lokal bauen** (optional): `npm ci`, dann `npm run dist:win` (auf Windows) bzw. `npm run
+dist:mac` (auf einem Mac). Ergebnis liegt in `dist/`.
 
 ## Roadmap
 - [x] Suche + Durchklicken, zwei Kantenfarben, Genres
 - [x] „Zusammen aufgetreten" via Resident Advisor (Songkick/Bandsintown optional)
 - [x] Kern + Domain-Packs: Bücher, Filme, Pflanzen, Paper, Brettspiele, Podcasts, Games
-- [x] Read-only-Previews pro Pack auf GitHub Pages (ohne Installation testbar)
+- [x] Eine App, alle Domänen (Umschalter in der Topbar)
+- [x] Read-only-Previews pro Pack auf GitHub Pages (ohne Installation testbar), animierte Landing
+- [x] „Brücke bauen" (verbindende Einträge finden) in allen Packs
+- [x] Kollisionserkennung (Kugeln überlappen nicht) + pro-Pack kalibrierte Kugelgröße
 - [x] Venue-Ebene im Musik-Pack (Spielorte als Knoten)
+- [x] Feedback-Knopf (Pushover)
 - [ ] Pack-spezifische Kurz-Touren (aktuell nur Musik)
-- [ ] Eigene Icons pro Pack (`packs/<id>/icon.icns|png`)
 - [ ] Umstieg `graph.json` → SQLite bei wachsendem Bestand
