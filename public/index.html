@@ -242,6 +242,32 @@
   /* Zoom-/Ansicht-Controls (rutschen nach links, wenn das Panel offen ist) */
   .zoomctl { position: fixed; right: 14px; bottom: 14px; z-index: 11; display: flex; flex-direction: column; gap: 0; }
   body.panel-open .zoomctl { right: 334px; }
+
+  /* Minimap: Übersichtskarte unten rechts (erscheint ab ~15 Knoten) */
+  .minimap { position: fixed; right: 14px; bottom: 132px; z-index: 9; width: 160px; height: 110px;
+    border: 1px solid var(--line-soft); background: var(--bg); opacity: .92; display: none; cursor: crosshair; }
+  .minimap.show { display: block; }
+  body.panel-open .minimap { right: 334px; }
+  @media (max-width: 900px) { .minimap { display: none !important; } }
+
+  /* Fader: sanfter Übergang beim Domänen-Wechsel */
+  #fader { position: fixed; inset: 0; background: var(--bg); opacity: 0; pointer-events: none;
+    z-index: 200; transition: opacity .18s ease; }
+  #fader.on { opacity: 1; pointer-events: all; }
+  #fader.notrans { transition: none; }
+  @media (prefers-reduced-motion: reduce) { #fader { transition: none; } }
+
+  /* Geschmacks-Fingerabdruck */
+  .tastebody { max-height: 55vh; overflow-y: auto; margin: 10px 0 4px; }
+  .tastebody .trow { padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+  .tastebody .trow:last-child { border-bottom: none; }
+  .tastebody .thead { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+  .tastebody .thead b { font-size: 14px; }
+  .tastebody .thead small { color: var(--muted); margin-left: auto; }
+  .tastebody .tchips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .tastebody .tchips span { font-size: 11px; border: 1px solid var(--line-soft); border-radius: 12px; padding: 2px 8px; color: var(--text); }
+  .tastebody .tover { margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--line-soft); font-size: 12.5px; }
+  .tastebody .tover b { color: var(--edge-together); }
   .zoomctl button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line-soft); border-top: none;
     background: var(--bg); font-size: 16px; line-height: 1; }
   .zoomctl button:first-child { border-top: 1px solid var(--line-soft); }
@@ -407,10 +433,12 @@
     </div>
     <button id="themeBtn" class="iconbtn" title="Hell/Dunkel umschalten"></button>
     <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
+    <button id="tasteBtn" class="iconbtn hideStatic" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
     <button id="feedbackBtn" class="iconbtn hideStatic" style="display:none" title="Feedback / Fehler melden">✉</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
     <div class="grow"></div>
     <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" title="Karte nach Genre filtern (Textsuche). Zusätzlich lassen sich im Panel Genre-Chips anklicken — alle aktiven Genres werden ODER-verknüpft." />
+    <label class="toggle" id="clusterWrap" title="Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln"><input type="checkbox" id="clusterToggle" /> Farben</label>
     <label class="toggle" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
     <label class="toggle" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
     <label class="toggle" id="dimBigWrap" title="Acts mit ≥20k Last.fm-Hörern abdunkeln (sobald die Hörerzahl geladen ist) — nur die Kleinen leuchten"><input type="checkbox" id="dimBig" /> <span id="dimBigLabel">Große dämpfen</span></label>
@@ -438,6 +466,8 @@
     <div id="basket" class="basket"></div>
     <div class="legend" id="legend"></div>
   </div>
+
+  <canvas id="minimap" class="minimap" width="320" height="220" title="Übersicht — Klick springt dorthin"></canvas>
 
   <div class="zoomctl">
     <button id="zoomIn" title="Hineinzoomen (+)">+</button>
@@ -581,6 +611,16 @@
     </div>
   </div>
 
+  <div id="fader"></div>
+
+  <div class="modal-back" id="tasteModal">
+    <div class="modal" style="max-width:460px">
+      <h3>◈ Dein Geschmacks-Fingerabdruck</h3>
+      <div id="tasteBody" class="tastebody"><small style="color:var(--muted)">Lade …</small></div>
+      <div class="row"><button id="tasteClose">Schließen</button></div>
+    </div>
+  </div>
+
   <div class="modal-back" id="feedbackModal">
     <div class="modal">
       <h3>Feedback ans Team</h3>
@@ -644,6 +684,11 @@
       <label id="lblContext">Label-Umfeld <small id="ctxHint" style="text-transform:none;letter-spacing:0">(MusicBrainz)</small></label>
       <div class="row"><button id="labelBtn">Label-Kolleg:innen laden</button></div>
       <div id="pLabels" class="labels-list"></div>
+    </div>
+    <div class="field" id="fieldCross">
+      <label>Andere Welten <small style="text-transform:none;letter-spacing:0">(Adaptionen &amp; Namensvettern)</small></label>
+      <div class="row"><button id="crossBtn" title="Gibt es diesen Eintrag auch als Buch, Film, Spiel …? Sucht in deinen anderen Domänen">Brücken in andere Welten</button></div>
+      <div id="pCross" class="labels-list"></div>
     </div>
     <div class="field">
       <label id="lblSimilar">Ähnlicher Stil</label>
@@ -716,12 +761,11 @@ function applyCfg() {
   const sw = $("packSwitch");
   if (sw && Array.isArray(window.LIKE_PACKS) && window.LIKE_PACKS.length > 1) {
     sw.innerHTML = window.LIKE_PACKS.map((p) => `<option value="${esc(p.id)}"${p.id === CFG.id ? " selected" : ""}>${esc(p.title)}</option>`).join("");
-    sw.onchange = (e) => {
-      const id = e.target.value;
-      try { localStorage.setItem("like_active_pack", id); } catch {}
-      location.href = "/?pack=" + encodeURIComponent(id); // Reload mit neuem Pack (sauberer Zustand)
-    };
+    sw.onchange = (e) => switchPackTo(e.target.value); // weicher Übergang + Reload mit neuem Pack
   } else if (sw) { sw.style.display = "none"; }
+  // Cross-Pack-Brücken & Fingerabdruck brauchen mehrere Domänen + den Live-Server
+  const multi = Array.isArray(window.LIKE_PACKS) && window.LIKE_PACKS.length > 1 && !STATIC;
+  if (!multi) { $("fieldCross").style.display = "none"; $("tasteBtn").style.display = "none"; }
   $("q").placeholder = CFG.searchPlaceholder || "Suchen…   ( / )";
   $("q").title = CFG.searchTitle || "";
   $("go").title = CFG.goTitle || "";
@@ -737,6 +781,7 @@ function applyCfg() {
   if (FEAT.active && CFG.activeLabel) leg.push(`<div><span class="dot" style="background:#1a9e54"></span> ${escT(CFG.activeLabel)}</div>`);
   if (FEAT.venues) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> Venue (eingeblendet)</div>`);
   leg.push(`<div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>`);
+  leg.push(`<div id="legendGenres"></div>`); // dynamischer Teil: Genre-Farben im Cluster-Modus
   $("legend").innerHTML = leg.join("");
   // Popularität / "Große dämpfen"
   if (CFG.popularity) {
@@ -819,6 +864,8 @@ const API = {
   bridge: (from, to) => POST("/api/bridge", { from, to }),
   bridgeAdd: (from, to, via, fromId, toId) => POST("/api/bridge/add", { from, to, via, fromId, toId }),
   feedback: (message) => POST("/api/feedback", { message }),
+  taste: () => GET("/api/taste"),
+  crossbridge: (name) => POST("/api/crossbridge", { name }),
   artist: (body) => POST("/api/artist", body),
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
 };
@@ -914,6 +961,35 @@ const STATUS_COLOR = Object.fromEntries(CFG.statuses.map((s) => [s.value, s.colo
 const STATUS_LABEL = { "": "—", ...Object.fromEntries(CFG.statuses.map((s) => [s.value, s.label])) };
 let venueMode = false; // Venue-Ebene (Musik): Spielorte als abgeleitete Knoten einblenden
 try { venueMode = localStorage.getItem(LSK("like_venues")) === "1"; } catch {}
+let clusterMode = false; // Cluster-Färbung: Knoten nach Haupt-Genre einfärben
+try { clusterMode = localStorage.getItem(LSK("like_cluster")) === "1"; } catch {}
+// gut unterscheidbare, in hell & dunkel lesbare Genre-Palette (Top-8-Genres der Karte)
+const CLUSTER_PALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#76b7b2", "#d4a017", "#ff9da7"];
+let genreColorMap = new Map(); // genreLower -> Farbe
+let genreTop = [];             // [{name, color}] für die Legende
+// Top-Genres der aktuellen Karte zählen und Farben zuweisen (bei jedem rebuild + nach enrich)
+function computeGenreColors() {
+  const count = new Map();
+  for (const n of nodes) {
+    if (n.venue) continue;
+    for (const g of (n.genres || []).slice(0, 2)) { // die vorderen Genres prägen den Knoten
+      const k = g.toLowerCase();
+      count.set(k, { name: g, c: (count.get(k)?.c || 0) + 1 });
+    }
+  }
+  const top = [...count.values()].sort((a, b) => b.c - a.c).slice(0, CLUSTER_PALETTE.length);
+  genreColorMap = new Map(top.map((e, i) => [e.name.toLowerCase(), CLUSTER_PALETTE[i]]));
+  genreTop = top.map((e, i) => ({ name: e.name, color: CLUSTER_PALETTE[i] }));
+  updateGenreLegend();
+}
+function updateGenreLegend() {
+  const el = document.getElementById("legendGenres");
+  if (!el) return;
+  el.innerHTML = (clusterMode && genreTop.length)
+    ? '<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px"></div>' +
+      genreTop.map((g) => `<div><span class="dot" style="background:${g.color}"></span> ${esc(g.name)}</div>`).join("")
+    : "";
+}
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -1022,6 +1098,7 @@ function rebuild(prev) {
 
   document.getElementById("counts").textContent = `${nodes.length} ${CFG.item.plur} · ${links.length} Kanten`;
   document.getElementById("empty").classList.toggle("show", nodes.length === 0);
+  computeGenreColors(); // Cluster-Farben an den neuen Bestand anpassen
   renderBasket();
   reheat(1); // neues Layout durchrechnen lassen
 }
@@ -1173,6 +1250,10 @@ function radius(n) {
 }
 function nodeColor(n) {
   if (n.venue) return getCss("--venue");      // eingeblendeter Spielort
+  if (clusterMode) {                          // Cluster-Modus: Haupt-Genre färbt den Knoten
+    const g = (n.genres || []).find((x) => genreColorMap.has(x.toLowerCase()));
+    if (g) return genreColorMap.get(g.toLowerCase());
+  }
   if (n.seed) return getCss("--accent");      // gesucht: schwarz
   return getCss("--discovered");              // sonst grau (Status = farbiger Ring)
 }
@@ -1253,6 +1334,7 @@ function draw() {
     else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
     else if (glow) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--edge-together"); ctx.stroke(); }
     else if (sCol) { ctx.lineWidth = 2.5 / view.k; ctx.strokeStyle = sCol; ctx.stroke(); }
+    else if (clusterMode && n.seed && !n.venue) { ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--text"); ctx.stroke(); } // gesucht bleibt im Cluster-Modus erkennbar
     else if (hover && n.id === hover.id) { ctx.lineWidth = 1.5 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke(); }
     // Like-Puls: kurzer expandierender Ring, wenn der Knoten gerade geliked wurde
     if (n.likePulse > 0) {
@@ -1339,6 +1421,7 @@ function draw() {
 
   ctx.globalAlpha = 1;
   ctx.restore();
+  drawMinimap();
 }
 
 // Render-on-Demand: dauernd zeichnen nur solange sich etwas bewegt (Layout aktiv,
@@ -1364,6 +1447,47 @@ function loop() {
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
 }
+
+// ---- Minimap: Übersicht unten rechts, Klick springt dorthin ----
+// (lebt hier oben, weil draw() sie aufruft — und draw() läuft schon beim Theme-Setup)
+const mmEl = document.getElementById("minimap");
+const mmCtx = mmEl.getContext("2d");
+let mm = null; // letzte Transformation Welt -> Minimap (fürs Klick-Mapping)
+const MM_W = 160, MM_H = 110, MM_MIN_NODES = 15;
+function drawMinimap() {
+  const show = nodes.length >= MM_MIN_NODES;
+  mmEl.classList.toggle("show", show);
+  if (!show) { mm = null; return; }
+  mmCtx.setTransform(2, 0, 0, 2, 0, 0); // Canvas ist 320x220 -> 2x für Schärfe
+  mmCtx.clearRect(0, 0, MM_W, MM_H);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
+    if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
+  }
+  const pad = 8, bw = Math.max(maxX - minX, 1), bh = Math.max(maxY - minY, 1);
+  const s = Math.min((MM_W - pad * 2) / bw, (MM_H - pad * 2) / bh);
+  const ox = (MM_W - bw * s) / 2 - minX * s, oy = (MM_H - bh * s) / 2 - minY * s;
+  mm = { s, ox, oy };
+  mmCtx.globalAlpha = 0.9;
+  for (const n of nodes) {
+    mmCtx.beginPath(); mmCtx.arc(n.x * s + ox, n.y * s + oy, n.seed ? 2.2 : 1.5, 0, 7);
+    mmCtx.fillStyle = nodeColor(n); mmCtx.fill();
+  }
+  // sichtbarer Ausschnitt als Rechteck
+  const vx0 = (0 - view.x) / view.k, vy0 = (0 - view.y) / view.k;
+  const vx1 = (W - view.x) / view.k, vy1 = (H - view.y) / view.k;
+  mmCtx.globalAlpha = 1; mmCtx.lineWidth = 1; mmCtx.strokeStyle = getCss("--edge-together");
+  mmCtx.strokeRect(vx0 * s + ox, vy0 * s + oy, (vx1 - vx0) * s, (vy1 - vy0) * s);
+}
+function mmJump(e) {
+  if (!mm) return;
+  const r = mmEl.getBoundingClientRect();
+  const wx = (e.clientX - r.left - mm.ox) / mm.s, wy = (e.clientY - r.top - mm.oy) / mm.s;
+  view.x = W / 2 - wx * view.k; view.y = (H + 52) / 2 - wy * view.k;
+  requestDraw();
+}
+mmEl.addEventListener("mousedown", (e) => { mmJump(e); const mv = (ev) => mmJump(ev); const up = () => { removeEventListener("mousemove", mv); removeEventListener("mouseup", up); }; addEventListener("mousemove", mv); addEventListener("mouseup", up); });
 
 // ---- Picking ----
 function pick(px, py) {
@@ -1603,7 +1727,9 @@ async function loadDetails(n) {
     }
     if (res.listeners != null) { n.listeners = res.listeners; if (graph.artists[n.id]) graph.artists[n.id].listeners = res.listeners; }
     if (res.location && !n.booking?.area) n.bcLocation = res.location;
+    if (res.genres?.length) computeGenreColors(); // nachgeladene Genres in die Cluster-Farben einbeziehen
     if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); }
+    requestDraw();
   } catch {}
 }
 
@@ -2139,6 +2265,79 @@ document.getElementById("themeBtn").onclick = () => {
   applyTheme(dark);
 })();
 
+// ---- Cluster-Färbung (Farben-Toggle) ----
+const clusterToggleEl = document.getElementById("clusterToggle");
+clusterToggleEl.checked = clusterMode;
+clusterToggleEl.onchange = (e) => {
+  clusterMode = e.target.checked;
+  try { localStorage.setItem(LSK("like_cluster"), clusterMode ? "1" : "0"); } catch {}
+  updateGenreLegend(); requestDraw();
+};
+
+// ---- Sanfter Domänen-Wechsel (Fade-Overlay) ----
+const faderEl = document.getElementById("fader");
+function switchPackTo(id, extraQuery) {
+  try { localStorage.setItem("like_active_pack", id); sessionStorage.setItem("like_fade", "1"); } catch {}
+  const go = () => location.href = "/?pack=" + encodeURIComponent(id) + (extraQuery || "");
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return go();
+  faderEl.classList.add("on");
+  setTimeout(go, 190);
+}
+// beim Laden nach einem Wechsel: Overlay steht, dann weich aufdecken
+(function fadeInAfterSwitch() {
+  let flag = null; try { flag = sessionStorage.getItem("like_fade"); sessionStorage.removeItem("like_fade"); } catch {}
+  if (!flag) return;
+  faderEl.classList.add("on", "notrans");
+  requestAnimationFrame(() => requestAnimationFrame(() => { faderEl.classList.remove("notrans"); faderEl.classList.remove("on"); }));
+})();
+
+// ---- Geschmacks-Fingerabdruck (über alle Domänen) ----
+const tasteModal = document.getElementById("tasteModal");
+document.getElementById("tasteClose").onclick = () => tasteModal.classList.remove("show");
+tasteModal.addEventListener("mousedown", (e) => { if (e.target === tasteModal) tasteModal.classList.remove("show"); });
+document.getElementById("tasteBtn").onclick = async () => {
+  const body = document.getElementById("tasteBody");
+  tasteModal.classList.add("show");
+  body.innerHTML = '<small style="color:var(--muted)">Lade …</small>';
+  try {
+    const res = await API.taste();
+    if (!res.ok) { body.innerHTML = '<small style="color:var(--muted)">Konnte nicht laden.</small>'; return; }
+    const withLikes = res.packs.filter((p) => p.count > 0);
+    if (!withLikes.length) {
+      body.innerHTML = '<small style="color:var(--muted)">Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.</small>';
+      return;
+    }
+    const rows = withLikes.map((p) => `
+      <div class="trow">
+        <div class="thead"><b>${esc(p.title)}</b><small>${p.count} ${esc(p.item.plur)}</small></div>
+        ${p.topGenres.length ? `<div class="tchips">${p.topGenres.map((g) => `<span>${esc(g.name)}${g.count > 1 ? " ×" + g.count : ""}</span>`).join("")}</div>` : ""}
+        ${p.topItems.length ? `<div style="font-size:11.5px;color:var(--muted);margin-top:5px">z.B. ${p.topItems.slice(0, 3).map(esc).join(" · ")}</div>` : ""}
+      </div>`).join("");
+    const over = res.overlaps?.length
+      ? `<div class="tover">Themen, die deine Welten <b>verbinden</b>: ${res.overlaps.map((o) => `„${esc(o.name)}" (${o.packs.map(esc).join(" + ")})`).join(" · ")}</div>`
+      : "";
+    body.innerHTML = rows + over;
+  } catch { body.innerHTML = '<small style="color:var(--muted)">Fehler beim Laden.</small>'; }
+};
+
+// ---- Cross-Pack-Brücken: gibt es diesen Eintrag in anderen Domänen? ----
+document.getElementById("crossBtn").onclick = async () => {
+  if (!selected || selected.venue) return;
+  if (STATIC) { toast("Nur im lokalen Tool"); return; }
+  const el = document.getElementById("pCross");
+  el.innerHTML = '<small style="color:var(--muted)">Suche in deinen anderen Domänen …</small>';
+  try {
+    const res = await API.crossbridge(selected.name);
+    if (res.error) { el.innerHTML = `<small style="color:var(--muted)">Fehler: ${esc(res.error)}</small>`; return; }
+    if (!res.hits?.length) { el.innerHTML = '<small style="color:var(--muted)">Keine Brücke gefunden — dieser Eintrag scheint nur hier zu existieren.</small>'; return; }
+    el.innerHTML = res.hits.map((h) =>
+      `<div data-pack="${esc(h.pack)}" data-n="${encodeURIComponent(h.name)}" title="Zu ${esc(h.packTitle)} wechseln und dort erkunden"><span>${esc(h.name)}</span><small>${esc(h.packTitle)} ↗</small></div>`
+    ).join("");
+    el.querySelectorAll("[data-pack]").forEach((d) => d.onclick = () =>
+      switchPackTo(d.dataset.pack, "&q=" + d.dataset.n));
+  } catch (e) { el.innerHTML = '<small style="color:var(--muted)">Fehler: ' + esc(e.message) + '</small>'; }
+};
+
 // ---- Quellen-Diagnose ----
 document.getElementById("diagBtn").onclick = async () => {
   const el = document.getElementById("diagResult");
@@ -2295,6 +2494,17 @@ function maybeShowIntro() {
   maybeShowIntro();
   checkKey();
   startupTasks();
+  // Cross-Pack-Brücke: mit ?q=<Name> gelandet -> Eintrag direkt erkunden (einmalig,
+  // danach den Parameter aus der URL nehmen, damit Reload nicht erneut lädt)
+  if (!STATIC) {
+    const qp = new URLSearchParams(location.search);
+    const q = qp.get("q");
+    if (q) {
+      qp.delete("q");
+      history.replaceState(null, "", location.pathname + (qp.toString() ? "?" + qp.toString() : ""));
+      exploreByName(q);
+    }
+  }
 })();
 
 // Ansicht (Pan/Zoom) über Neustarts hinweg merken
