@@ -81,6 +81,16 @@ for (const p of PACKS.values()) {
     n: Object.keys(g.artists || {}).length, e: (g.edges || []).length, mini: miniCluster(g),
   });
 }
+// Statisch ausgelieferte PWA-Dateien (Pfad -> Datei in public/ + Content-Type).
+const PWA_ASSETS = {
+  "/manifest.webmanifest": { file: "manifest.webmanifest", type: "application/manifest+json; charset=utf-8", cache: "no-cache" },
+  "/sw.js": { file: "sw.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
+  "/icons/icon-192.png": { file: "icons/icon-192.png", type: "image/png", cache: "public, max-age=604800" },
+  "/icons/icon-512.png": { file: "icons/icon-512.png", type: "image/png", cache: "public, max-age=604800" },
+  "/icons/icon-maskable-512.png": { file: "icons/icon-maskable-512.png", type: "image/png", cache: "public, max-age=604800" },
+  "/icons/apple-touch-icon.png": { file: "icons/apple-touch-icon.png", type: "image/png", cache: "public, max-age=604800" },
+};
+
 function landingPage() {
   return landingHtml(LANDING_CARDS, {
     hrefFor: (id) => `/?pack=${encodeURIComponent(id)}`,
@@ -159,6 +169,16 @@ const server = createServer(async (req, res) => {
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
       return send(res, 200, landingPage(), "text/html; charset=utf-8");
+    }
+
+    // PWA-Assets (Manifest, Service-Worker, Icons) — statisch aus public/, ohne Pack-Kontext.
+    if (req.method === "GET" && PWA_ASSETS[url.pathname]) {
+      const a = PWA_ASSETS[url.pathname];
+      try {
+        const buf = await readFile(join(ROOT, "public", a.file));
+        res.writeHead(200, { "content-type": a.type, "cache-control": a.cache });
+        return res.end(buf);
+      } catch { return send(res, 404, { error: "not found" }); }
     }
 
     // Geschmacks-Fingerabdruck: Likes + Top-Themen ÜBER ALLE Domänen (nur lokale Graphen,

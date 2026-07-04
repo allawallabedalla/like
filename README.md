@@ -269,8 +269,30 @@ Build-Artefakte ab, ohne Release.
 **Lokal bauen** (optional): `npm ci`, dann `npm run dist:win` (auf Windows) bzw. `npm run
 dist:mac` (auf einem Mac). Ergebnis liegt in `dist/`.
 
+## iPhone / Android als PWA (installierbar, ohne App Store)
+
+Das Frontend ist eine reine Web-App und lässt sich als **PWA** aufs Handy legen: Server
+einmal hosten → URL in Safari öffnen → **„Teilen → Zum Home-Bildschirm"**. Dann liegt like
+mit eigenem Icon am Homescreen, startet im Vollbild (ohne Browser-Leiste) und funktioniert
+touch-first (ein Finger schieben, zwei Finger zoomen, Tippen = wählen, Doppeltipp = erkunden,
+langes Drücken = Menü). Ein Service-Worker cached die Shell, sodass zuletzt besuchte Karten
+auch offline sichtbar sind. Läuft genauso auf Android und am Desktop.
+
+**Hosten (1× nötig):** Der Server ist zero-dependency, das mitgelieferte `Dockerfile` braucht
+kein `npm install`.
+- **Render:** Repo verbinden → *New +* → *Blueprint* → dieses Repo. `render.yaml` macht den
+  Rest; Keys (optional, für Musik/Filme) im Dashboard eintragen. Gratis-Tier schläft bei
+  Inaktivität ein (Kaltstart ~30 s).
+- **Fly.io / Railway / eigener Server:** `docker build -t like . && docker run -p 8080:8080 -v like-data:/data like`.
+
+Die key-losen Packs (Reisen, Wikipedia-Universal, Pflanzen, Bücher, Paper, Brettspiele,
+Podcasts) laufen ohne jeden Key; Musik (Last.fm) und Filme (TMDB) brauchen ihren Key als
+ENV. Hinweis: der Kartenbestand liegt serverseitig — ein gehosteter Server teilt eine Karte;
+für getrennte Sammlungen mehrere Instanzen betreiben.
+
 ## Roadmap
 - [x] Suche + Durchklicken, zwei Kantenfarben, Genres
+- [x] iPhone/Android als installierbare PWA (Touch-Gesten, Manifest, Service-Worker) + Docker/Render-Deploy
 - [x] „Zusammen aufgetreten" via Resident Advisor (Songkick/Bandsintown optional)
 - [x] Kern + Domain-Packs: Bücher, Filme, Pflanzen, Paper, Brettspiele, Podcasts, Games
 - [x] Eine App, alle Domänen (Umschalter in der Topbar)

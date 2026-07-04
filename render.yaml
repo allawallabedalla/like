@@ -1,0 +1,35 @@
+# render.yaml — 1-Klick-Deploy auf Render (https://render.com) als „Blueprint".
+# Anleitung: Repo bei Render verbinden → „New +" → „Blueprint" → dieses Repo wählen.
+# Render liest diese Datei, baut das Dockerfile und startet den Server öffentlich per HTTPS.
+# Danach: die vergebene URL in Safari öffnen → „Teilen → Zum Home-Bildschirm" = iPhone-App.
+services:
+  - type: web
+    name: like
+    runtime: docker
+    plan: free            # Gratis-Tier: schläft nach Inaktivität ein (Kaltstart ~30s). Für „immer wach": starter.
+    healthCheckPath: /api/packs
+    envVars:
+      - key: LIKE_DATA_DIR
+        value: /var/data
+      # Optionale Heimat für „Like Travel" (Standard: Berlin, Deutschland)
+      - key: LIKE_TRAVEL_HOME
+        sync: false
+      # Keys für die Key-Packs — im Render-Dashboard eintragen (nicht ins Repo!).
+      # Die key-losen Packs (Reisen, Wikipedia-Universal, Pflanzen, Bücher, Paper,
+      # Brettspiele, Podcasts) laufen auch ganz ohne.
+      - key: LASTFM_API_KEY    # Like Music
+        sync: false
+      - key: TMDB_API_KEY      # Like Movies
+        sync: false
+      - key: TASTEDIVE_KEY     # optional: „mochten auch" für Bücher/Podcasts/Games
+        sync: false
+      - key: PUSHOVER_TOKEN    # optional: Feedback-Knopf
+        sync: false
+      - key: PUSHOVER_USER
+        sync: false
+    # Persistente Platte, damit gebaute Karten einen Neustart überleben.
+    # (Auf dem Free-Tier nicht verfügbar — dort ist der Speicher flüchtig; Plan „starter" o.ä. nötig.)
+    disk:
+      name: like-data
+      mountPath: /var/data
+      sizeGB: 1
