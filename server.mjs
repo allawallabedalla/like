@@ -350,44 +350,82 @@ const server = createServer(async (req, res) => {
         const A = ra.canonical, B = rb.canonical;
         const lc = (s) => String(s).toLowerCase();
         const skip = new Set([lc(A), lc(B), lc(from), lc(to)]);
-        const mapB = new Map(rb.list.map((s) => [lc(s.name), s]));
+        const NA = ra.list, NB = rb.list;
+        const inA = new Map(NA.map((s) => [lc(s.name), s]));
+        const inB = new Map(NB.map((s) => [lc(s.name), s]));
         let mode = "direct", cands = [];
-        for (const s of ra.list) {
-          const t = mapB.get(lc(s.name));
+
+        // 1) direkt: X ist Nachbar von A UND B  (A—X—B)
+        for (const s of NA) {
+          const t = inB.get(lc(s.name));
           if (t && !skip.has(lc(s.name)))
             cands.push({ via: [{ name: s.name, url: s.url || t.url || null }], strength: ((s.match || 0.5) + (t.match || 0.5)) / 2 });
         }
         cands.sort((x, y) => y.strength - x.strength);
         cands = cands.slice(0, 15);
-        // Fallback: keine direkte Brücke -> zwei Zwischenstationen (A—X—Y—B)
+
+        // Reicht das nicht: von BEIDEN Seiten je eine Ebene expandieren und in der Mitte treffen.
+        // Das findet auch Brücken, die keine gemeinsame direkte Verbindung haben (mehrere Schichten).
         if (!cands.length) {
-          mode = "two";
-          const topA = ra.list.slice(0, 6);
-          const exps = await Promise.all(topA.map((x) => neighborsFor(pack, x.name, 40).catch(() => null)));
-          const seen = new Set(), chains = [];
-          exps.forEach((exp, i) => {
-            if (!exp) return;
-            const X = topA[i];
-            for (const y of exp.list) {
-              const t = mapB.get(lc(y.name));
-              if (!t || skip.has(lc(y.name)) || lc(y.name) === lc(X.name)) continue;
-              const key = lc(X.name) + "|" + lc(y.name);
-              if (seen.has(key)) continue;
-              seen.add(key);
-              chains.push({ via: [{ name: X.name, url: X.url || null }, { name: y.name, url: y.url || t.url || null }],
-                strength: ((X.match || 0.5) + (y.match || 0.5) + (t.match || 0.5)) / 3 });
+          const K = 8;
+          const topA = NA.slice(0, K), topB = NB.slice(0, K);
+          const [expA, expB] = await Promise.all([
+            Promise.all(topA.map((x) => neighborsFor(pack, x.name, 40).then((r) => ({ x, list: r.list })).catch(() => null))),
+            Promise.all(topB.map((y) => neighborsFor(pack, y.name, 40).then((r) => ({ y, list: r.list })).catch(() => null))),
+          ]);
+          const AX = expA.filter(Boolean), BY = expB.filter(Boolean);
+
+          // 2) zwei Stationen: A—X—Y—B  (Y Nachbar von X und von B; oder X Nachbar von Y und von A)
+          const two = [], seen2 = new Set();
+          const addTwo = (X, Y, sMatch) => {
+            const key = lc(X.name) + "|" + lc(Y.name);
+            if (seen2.has(key)) return; seen2.add(key);
+            two.push({ via: [{ name: X.name, url: X.url || null }, { name: Y.name, url: Y.url || null }], strength: sMatch });
+          };
+          for (const { x, list } of AX) for (const y of list) {
+            const t = inB.get(lc(y.name));
+            if (t && !skip.has(lc(y.name)) && lc(y.name) !== lc(x.name)) addTwo(x, y, ((x.match || 0.5) + (y.match || 0.5) + (t.match || 0.5)) / 3);
+          }
+          for (const { y, list } of BY) for (const x of list) {
+            const s = inA.get(lc(x.name));
+            if (s && !skip.has(lc(x.name)) && lc(x.name) !== lc(y.name)) addTwo(s, y, ((s.match || 0.5) + (x.match || 0.5) + (y.match || 0.5)) / 3);
+          }
+          if (two.length) {
+            mode = "two"; two.sort((a, b) => b.strength - a.strength); cands = two.slice(0, 12);
+          } else {
+            // 3) drei Stationen: A—X—M—Y—B  (M gemeinsamer Nachbar einer A-seitigen und einer B-seitigen Station)
+            mode = "three";
+            const bSets = BY.map(({ y, list }) => ({ y, set: new Map(list.map((m) => [lc(m.name), m])) }));
+            const three = [], seen3 = new Set();
+            for (const { x, list } of AX) for (const m of list) {
+              if (skip.has(lc(m.name)) || lc(m.name) === lc(x.name)) continue;
+              for (const { y, set } of bSets) {
+                if (lc(y.name) === lc(x.name) || lc(y.name) === lc(m.name)) continue;
+                const mm = set.get(lc(m.name));
+                if (!mm) continue;
+                const key = lc(x.name) + "|" + lc(m.name) + "|" + lc(y.name);
+                if (seen3.has(key)) continue; seen3.add(key);
+                three.push({ via: [{ name: x.name, url: x.url || null }, { name: m.name, url: m.url || mm.url || null }, { name: y.name, url: y.url || null }],
+                  strength: ((x.match || 0.5) + (m.match || 0.5) + (mm.match || 0.5) + (y.match || 0.5)) / 4 });
+              }
             }
-          });
-          chains.sort((x, y) => y.strength - x.strength);
-          cands = chains.slice(0, 12);
+            three.sort((a, b) => b.strength - a.strength); cands = three.slice(0, 10);
+          }
         }
-        // Popularität der Zwischen-Einträge (gedrosselt/gecacht) für die Kleinheits-Sortierung
-        if (pack.popularity) {
-          const names = [...new Set(cands.flatMap((c) => c.via.map((v) => v.name)))];
-          const info = {};
-          await Promise.all(names.map(async (n) => { try { info[n] = (await pack.popularity(n)) ?? null; } catch { info[n] = null; } }));
-          for (const c of cands) for (const v of c.via) v.listeners = info[v.name] ?? null;
-        }
+
+        // Genres + Popularität der Zwischen-Einträge (gebündelt via enrich; sonst nur Popularität).
+        // Genres wandern mit an die Kandidaten, damit sie am Geist mit angezeigt werden.
+        const names = [...new Set(cands.flatMap((c) => c.via.map((v) => v.name)))];
+        const meta = {};
+        await Promise.all(names.map(async (n) => {
+          try {
+            if (pack.enrich) { const e = await pack.enrich({ name: n }); meta[n] = { genres: e.genres || [], listeners: e.popularity ?? null }; }
+            else if (pack.popularity) { meta[n] = { genres: [], listeners: (await pack.popularity(n)) ?? null }; }
+            else meta[n] = { genres: [], listeners: null };
+          } catch { meta[n] = { genres: [], listeners: null }; }
+        }));
+        for (const c of cands) for (const v of c.via) { const m = meta[v.name]; if (m) { v.listeners = m.listeners; v.genres = m.genres; } }
+
         return send(res, 200, { ok: true, from: A, to: B, mode, candidates: cands });
       } catch (err) {
         return send(res, 502, { error: err.message });
