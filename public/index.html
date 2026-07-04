@@ -452,20 +452,19 @@
   .staticbanner { position: fixed; bottom: 14px; right: 14px; z-index: 12; background: var(--accent); color: var(--on-accent);
     font-size: 12px; padding: 6px 12px; }
   .staticbanner b { color: var(--edge-together); }
-  /* ===== Handy/Touch-Overrides (bewusst am Ende: überschreiben die Basisregeln oben) ===== */
-  @media (max-width: 760px) {
-    /* Topbar entrümpeln: Nebenregler weg, damit sie nicht überlaufen. Suche, Domänen-
-       Umschalter, Entdecken, Radar, Feedback & Hilfe bleiben erreichbar. */
-    .bar .toggle, #export, #exportPng, .gfilter, #reset, #tasteBtn { display: none !important; }
-    .bar { gap: 8px; }
-    /* Suche bekommt den Platz und darf schrumpfen — sie ist die Hauptaktion. */
-    .search { flex: 1 1 auto; min-width: 0; }
-    .search input { min-width: 0; width: 100%; }
-  }
-  @media (max-width: 560px) {
-    /* ganz schmal: Radar weicht (Entdecken deckt Szenen/Brücken/Zufall ab). */
-    #radarBtn { display: none !important; }
-  }
+  /* ===== Responsive Topbar (bewusst am Ende: überschreibt die Basisregeln oben) =====
+     Die volle Leiste braucht ~1880px — deshalb wird sie SCHRITTWEISE und früh entrümpelt,
+     damit auf keinem Fenster (auch am Laptop) Elemente abgeschnitten werden. Immer sichtbar
+     bleiben: Suche, Domänen-Umschalter, Entdecken, Hell/Dunkel, Hilfe. */
+  .bar { flex-wrap: nowrap; }
+  .search { flex: 1 1 auto; min-width: 0; }         /* Suche nimmt den Rest und darf schrumpfen */
+  .search input { min-width: 0; width: 100%; }
+  @media (max-width: 1440px) { .counts, .gfilter, #reset { display: none !important; } }
+  @media (max-width: 1300px) { #export, #exportPng { display: none !important; } }
+  @media (max-width: 1150px) { #dimBigWrap, #venueWrap { display: none !important; } }
+  @media (max-width: 1050px) { .bar .toggle { display: none !important; } } /* Farben/Geheimtipps/abdunkeln */
+  @media (max-width: 760px)  { #tasteBtn { display: none !important; } .bar { gap: 8px; } }
+  @media (max-width: 640px)  { #radarBtn { display: none !important; } } /* Entdecken deckt Szenen/Brücken/Zufall ab */
   @media (max-width: 480px) {
     /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante. */
     .panel { width: 100%; top: auto; right: 0; left: 0; height: 82vh; bottom: 0;
@@ -951,12 +950,21 @@ const API = {
 
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
+let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechnet damit)
 let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
 function resize() {
+  const oldW = W, oldH = H;
   W = innerWidth; H = innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
   cv.style.width = W + "px"; cv.style.height = H + "px";
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // Bei Größenänderung den Weltpunkt, der in der Bildschirmmitte lag, mittig halten —
+  // sonst „rutscht" die Karte beim Verkleinern des Fensters aus dem Sichtbereich.
+  if (oldW && oldH && view.k) {
+    const wx = (oldW / 2 - view.x) / view.k, wy = (oldH / 2 - view.y) / view.k;
+    view.x = W / 2 - wx * view.k; view.y = H / 2 - wy * view.k;
+    requestDraw();
+  }
 }
 addEventListener("resize", resize); resize();
 addEventListener("load", () => { resize(); reheat(0.3); }); // Fallback: Fenstergröße steht spät
@@ -967,9 +975,8 @@ let nodes = [];          // {id,name,x,y,vx,vy,deg,seed,known}
 let links = [];          // {a,b,type,weight}
 const nodeById = new Map();
 // Start-View: identische Abbildung (kein Offset!) — Knoten spawnen um (W/2,H/2)
-// in Weltkoordinaten, mit view={W/2,H/2} landete das Zentrum früher unten rechts
-// in der Bildschirm-Ecke. Nach dem Laden zieht fitAll() die Karte passend auf.
-let view = { x: 0, y: 0, k: 1 };   // pan/zoom
+// in Weltkoordinaten. Nach dem Laden zieht fitAll() die Karte passend auf.
+// (view ist oben vor resize() deklariert.)
 const CANVAS_FONT = '"Space Grotesk", system-ui, -apple-system, sans-serif';
 // HTML-Escaping für ALLE von außen kommenden Strings (Act-Namen, Genres, Orte …
 // stammen aus externen APIs) — sonst führt ein Act namens "<img onerror=…>" Script aus.
@@ -2092,8 +2099,9 @@ function clearCompare() { compareSet.clear(); updateModebar(); }
 function startBridge(n) {
   clearBridge();
   bridgeFrom = n;
+  closePanel();  // Panel zu, damit die ganze Karte frei ist, um das Ziel anzuklicken
   updateModebar();
-  toast(`Brücke von „${n.name}": Ziel anklicken`);
+  toast(`Brücke von „${n.name}": jetzt ein zweites ${CFG.item?.sing || "Element"} anklicken`);
 }
 async function finishBridge(target) {
   const a = bridgeFrom; bridgeFrom = null;
