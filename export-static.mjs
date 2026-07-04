@@ -56,6 +56,7 @@ if (all) {
   const cards = [];
   for (const id of ids) cards.push(await exportPack(id, join(DOCS, id)));
   await writeFile(join(DOCS, "index.html"), landingHtml(cards, {
+    pwa: false, // statische Pages-Vorschau hat keinen Server/Service-Worker
     hrefFor: (id) => `./${id}/`,
     pageTitle: "like — Vorschauen",
     heading: "like<b>.</b> — Vorschauen",

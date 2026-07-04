@@ -1,0 +1,11 @@
+node_modules
+dist
+docs
+cache
+.git
+.github
+*.dmg
+*.exe
+graph*.json
+stats*.json
+digest*.json

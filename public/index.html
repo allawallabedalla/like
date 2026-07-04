@@ -2,8 +2,18 @@
 <html lang="de">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Like</title>
+<!-- PWA / iPhone: installierbar über „Zum Home-Bildschirm", Vollbild ohne Browser-Leiste -->
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="like" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<script>if("serviceWorker" in navigator && location.protocol==="https:")addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='14' cy='16' r='11' fill='%23000'/%3E%3Ccircle cx='27' cy='25' r='4' fill='%23ff6a00'/%3E%3C/svg%3E" />
 <style>
   /* Space Grotesk (Variable, offline eingebettet als woff2 data-URI) — geometrisch,
@@ -104,6 +114,15 @@
     .brand .ver { display: none; }
   }
   @media (max-width: 560px) { .packswitch { max-width: 108px; } }
+  /* Touch/Handy: Browser-Gesten der Karte überlassen wir dem Canvas selbst; kein Gummiband-Scroll. */
+  #cv { touch-action: none; }
+  html, body { overscroll-behavior: none; }
+  /* iPhone-Notch/Safe-Area: Topbar & untere Regler nicht unter die Systemleisten schieben. */
+  .bar { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+  .leftstack { bottom: max(14px, env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); }
+  .zoomctl { bottom: max(14px, env(safe-area-inset-bottom)); }
+  /* (Handy-Overrides fürs Panel/Toggles stehen bewusst am Ende des Stylesheets — sie
+     müssen die Basisregeln .toggle/.panel überschreiben, die weiter unten kommen.) */
   .genres { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 14px; }
   .genres span { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: 20px; color: var(--muted);
     cursor: pointer; user-select: none; }
@@ -433,6 +452,30 @@
   .staticbanner { position: fixed; bottom: 14px; right: 14px; z-index: 12; background: var(--accent); color: var(--on-accent);
     font-size: 12px; padding: 6px 12px; }
   .staticbanner b { color: var(--edge-together); }
+  /* ===== Handy/Touch-Overrides (bewusst am Ende: überschreiben die Basisregeln oben) ===== */
+  @media (max-width: 760px) {
+    /* Topbar entrümpeln: Nebenregler weg, damit sie nicht überlaufen. Suche, Domänen-
+       Umschalter, Entdecken, Radar, Feedback & Hilfe bleiben erreichbar. */
+    .bar .toggle, #export, #exportPng, .gfilter, #reset, #tasteBtn { display: none !important; }
+    .bar { gap: 8px; }
+    /* Suche bekommt den Platz und darf schrumpfen — sie ist die Hauptaktion. */
+    .search { flex: 1 1 auto; min-width: 0; }
+    .search input { min-width: 0; width: 100%; }
+  }
+  @media (max-width: 560px) {
+    /* ganz schmal: Radar weicht (Entdecken deckt Szenen/Brücken/Zufall ab). */
+    #radarBtn { display: none !important; }
+  }
+  @media (max-width: 480px) {
+    /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante. */
+    .panel { width: 100%; top: auto; right: 0; left: 0; height: 82vh; bottom: 0;
+      border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
+      transform: translateY(103%); box-shadow: 0 -8px 34px rgba(0,0,0,.30);
+      padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+    .panel.open { transform: none; }
+    body.panel-open .zoomctl, body.panel-open .minimap { right: 14px; }
+    .trail { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -1625,6 +1668,84 @@ cv.addEventListener("wheel", (e) => {
   view.x = p.x - wx * view.k; view.y = p.y - wy * view.k;
   requestDraw(); // Zoom
 }, { passive: false });
+
+// ---- Touch (iPhone/iPad/Android) ----
+// Ein Finger: schieben / Knoten ziehen / Tippen = wählen / Doppeltipp = erkunden /
+// langes Drücken = Kontextmenü. Zwei Finger: Pinch-Zoom + gleichzeitiges Schieben.
+// preventDefault schon bei touchstart -> wir besitzen die Geste komplett (kein Seiten-Scroll,
+// kein Doppeltipp-Browser-Zoom, keine Maus-Emulation, die die Maus-Handler doppelt auslöst).
+let touch = null, lastTapT = 0, lastTapNode = null, longTimer = null;
+const tp = (t) => { const r = cv.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+cv.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  clearTimeout(longTimer);
+  if (e.touches.length === 1) {
+    const p = tp(e.touches[0]);
+    const n = pick(p.x, p.y);
+    touch = { mode: n ? "node" : "pan", node: n, start: p, vx: view.x, vy: view.y, moved: false, t0: Date.now(), longFired: false };
+    longTimer = setTimeout(() => { // langes Drücken -> Kontextmenü
+      if (touch && !touch.moved && touch.node) {
+        const r = cv.getBoundingClientRect();
+        selected = touch.node; requestDraw();
+        showCtx(touch.node, touch.start.x + r.left, touch.start.y + r.top);
+        touch.longFired = true; if (navigator.vibrate) navigator.vibrate(10);
+      }
+    }, 480);
+  } else if (e.touches.length === 2) {
+    const a = tp(e.touches[0]), b = tp(e.touches[1]);
+    touch = { mode: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, k0: view.k, vx: view.x, vy: view.y,
+      mid0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+  }
+}, { passive: false });
+cv.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  if (!touch) return;
+  if (touch.mode === "pinch" && e.touches.length >= 2) {
+    const a = tp(e.touches[0]), b = tp(e.touches[1]);
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const nk = Math.max(0.2, Math.min(4, touch.k0 * (d / touch.d0)));
+    // Weltpunkt unter dem ursprünglichen Mittelpunkt festhalten + Mittelpunkt-Drift = schieben
+    const wx = (touch.mid0.x - touch.vx) / touch.k0, wy = (touch.mid0.y - touch.vy) / touch.k0;
+    view.k = nk; view.x = mid.x - wx * nk; view.y = mid.y - wy * nk;
+    requestDraw();
+    return;
+  }
+  const p = tp(e.touches[0]);
+  const dx = p.x - touch.start.x, dy = p.y - touch.start.y;
+  if (Math.abs(dx) + Math.abs(dy) > 6) { touch.moved = true; clearTimeout(longTimer); }
+  if (touch.mode === "node" && touch.node) {
+    if (!touch.moved) return;
+    const w = world(p); touch.node.x = w.x; touch.node.y = w.y; touch.node.vx = 0; touch.node.vy = 0; reheat(0.3);
+  } else if (touch.mode === "pan") {
+    view.x = touch.vx + dx; view.y = touch.vy + dy; requestDraw();
+  }
+}, { passive: false });
+cv.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  clearTimeout(longTimer);
+  if (!touch) return;
+  hideCtx();
+  const isTap = touch.mode !== "pinch" && !touch.moved && !touch.longFired && (Date.now() - touch.t0 < 480);
+  if (touch.mode === "node" && touch.moved && touch.node) touch.node.pinned = true;
+  if (isTap) {
+    const p = touch.start;
+    const gi = (bridge && bridge.cands.length) ? pickGhost(p.x, p.y) : -1;
+    if (gi >= 0) { addBridge(gi); }
+    else {
+      const n = touch.node || pick(p.x, p.y);
+      if (n) {
+        const now = Date.now();
+        if (bridgeFrom) finishBridge(n);
+        else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppeltipp
+        else selectNode(n);
+        lastTapT = now; lastTapNode = n;
+      } else if (!bridge) closePanel();
+    }
+  }
+  touch = null;
+}, { passive: false });
+cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null; }, { passive: false });
 
 // ---- Panel ----
 // Genre-Pills im Panel: Klick toggelt das Genre als Karten-Filter (ODER-verknüpft
