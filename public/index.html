@@ -102,7 +102,9 @@
     padding: 0 13px; height: 34px; cursor: pointer; line-height: 1; letter-spacing: .01em; }
   .viewseg button.on { background: var(--text); color: var(--bg); }
   .viewseg button:not(.on):hover { color: var(--text); }
-  @media (max-width: 420px) { .viewseg button { padding: 0 10px; font-size: 12px; } }
+  @media (max-width: 640px) { .viewseg button { padding: 0 9px; font-size: 12px; } }
+  @media (max-width: 400px) { .viewseg button { padding: 0 7px; font-size: 11.5px; }
+    .packswitch { max-width: 96px; } }
   /* alle Topbar-Controls gleich hoch und sauber in der 52px-Leiste zentriert
      (sonst kreuzt z.B. der Radar-Button beim Umbruch den unteren Rahmen) */
   .bar > button, .bar > select, .search input, .search button { height: 34px; }
@@ -117,12 +119,14 @@
      die Topbar nicht überläuft. Sichtbar bleiben Marke, Pack, Suche, Theme und ⋯. */
   .mobileonly { display: none; }
   @media (max-width: 640px) {
-    #radarBtn, #discoverBtn, #tasteBtn, #helpBtn, #genreFilter, #go { display: none !important; }
+    #radarBtn, #discoverBtn, #tasteBtn, #helpBtn, #genreFilter, #go, .search { display: none !important; }
     .bar { gap: 7px; }
-    .search input { width: clamp(120px, 44vw, 240px); border-radius: 8px; } /* Suchen-Button ausgeblendet -> Enter sucht */
+    /* Suche wandert auf Handy ins ⋯-Menü (#mSearch) — sonst überlädt sie mit dem
+       Space/Flat-Toggle die Leiste und quillt über die Buttons. */
     .morebox .mtitle.mobileonly { display: block; }
     .morebox .mrow.mobileonly { display: flex; }
     .morebox .mrow.mobileonly button { flex: 1; }
+    .morebox input.mobileonly { display: block !important; } /* schlägt .gfilter{display:none} im Menü */
   }
   /* Touch/Handy: Browser-Gesten der Karte überlassen wir dem Canvas selbst; kein Gummiband-Scroll. */
   #cv { touch-action: none; }
@@ -517,6 +521,10 @@
     body.panel-open .zoomctl, body.panel-open .minimap { right: 14px; }
     .trail { display: none; }
   }
+  /* sehr schmale Screens: Leiste enger schnüren, damit Space/Flat-Toggle + Pack-Umschalter
+     ohne Überlauf passen (nach den 760px-Regeln, damit dieser Wert gewinnt) */
+  @media (max-width: 400px) { .bar { gap: 6px !important; padding: 0 7px !important; } }
+  @media (max-width: 360px) { .packswitch { max-width: 72px !important; } }
 </style>
 </head>
 <body>
@@ -552,6 +560,8 @@
   <div class="morebox" id="morebox">
     <div class="mtitle hideStatic">Konto</div>
     <div id="acctBox" class="hideStatic" style="margin-bottom:10px; font-size:12.5px"></div>
+    <div class="mtitle mobileonly hideStatic">Suche</div>
+    <input id="mSearch" class="gfilter mobileonly hideStatic" placeholder="Act suchen…" autocomplete="off" style="width:100%;margin-bottom:8px" />
     <div class="mtitle mobileonly">Werkzeuge</div>
     <div class="mrow mobileonly">
       <button id="mDiscover" title="Entdeck-Werkzeuge">✦ Entdecken</button>
@@ -2943,6 +2953,12 @@ document.getElementById("mTaste").onclick = () => { closeMore(); document.getEle
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
 document.getElementById("mGenre").addEventListener("input", (e) => {
   const gf = document.getElementById("genreFilter"); gf.value = e.target.value; filterGenre = e.target.value.trim(); requestDraw();
+});
+// Handy-Suche im ⋯-Menü (die Topbar-Suche ist auf schmalen Screens ausgeblendet)
+document.getElementById("mSearch").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const v = e.target.value.trim(); if (!v) return;
+  e.target.value = ""; closeMore(); exploreByName(v);
 });
 
 // ---- Like Travel: Heimatort (Geolocation oder Eingabe), geräteübergreifend im localStorage ----
