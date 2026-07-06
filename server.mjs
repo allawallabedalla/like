@@ -191,7 +191,7 @@ function authThrottled(req) {
   const ip = xff[xff.length - 1] || req.socket.remoteAddress || "?";
   const arr = (authHits.get(ip) || []).filter((t) => now - t < 300000); arr.push(now);
   if (arr.length) authHits.set(ip, arr); else authHits.delete(ip);
-  return arr.length > 12 || authGlobal.length > 120; // pro IP 12/5min, global 120/5min
+  return arr.length > 12 || authGlobal.length > 240; // pro IP 12/5min; globaler Backstop 240/5min (gegen XFF-Rotation, ohne legitime Nutzer im Andrang auszusperren)
 }
 // Speicher-Leak vermeiden: IPs, die nicht wiederkommen, periodisch aus der Map werfen.
 setInterval(() => {
@@ -222,7 +222,10 @@ const graphGate = new Map();
 function withGraphLock(path, fn) {
   const prev = graphGate.get(path) || Promise.resolve();
   const run = prev.then(fn, fn); // läuft unabhängig vom Ausgang des Vorgängers
-  graphGate.set(path, run.then(() => {}, () => {}));
+  const tail = run.then(() => {}, () => {});
+  graphGate.set(path, tail);
+  // Kette leer -> Eintrag entfernen (kein unbegrenztes Wachstum bei vielen Anon-Namensräumen).
+  tail.then(() => { if (graphGate.get(path) === tail) graphGate.delete(path); });
   return run;
 }
 
@@ -303,9 +306,12 @@ async function migrateAnonToUser(req, user) {
     try {
       const anonG = await loadGraph(dataFile(anonRoot, id, "graph.json"));
       if (!Object.keys(anonG.artists || {}).length) continue; // nichts zu übernehmen
-      const userG = await loadGraph(dataFile(userRoot, id, "graph.json"));
-      mergeGraphInto(userG, anonG);
-      await saveGraph(dataFile(userRoot, id, "graph.json"), userG);
+      const userPath = dataFile(userRoot, id, "graph.json");
+      await withGraphLock(userPath, async () => { // unter Lock: kein Race mit gleichzeitigen Writes ins Konto
+        const userG = await loadGraph(userPath);
+        mergeGraphInto(userG, anonG);
+        await saveGraph(userPath, userG);
+      });
     } catch {}
   }
 }
@@ -928,21 +934,30 @@ const server = createServer(async (req, res) => {
       const graphCands = [...cand.values()].sort((x, y) => y.closeness - x.closeness).slice(0, 30);
 
       const stats = await loadStats(STATS);
-      let statsChanged = false, graphChanged = false;
+      let statsChanged = false;
+      const popById = new Map();
       if (pack.popularity) {
         for (const c of graphCands.slice(0, 25)) {
           const a = g.artists[c.id];
           try {
             const p = await pack.popularity(a.name);
             if (p) {
-              if (a.listeners !== p) { a.listeners = p; graphChanged = true; }
+              if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
+              popById.set(c.id, p);
               if (addSnapshot(stats, c.id, p)) statsChanged = true;
             }
           } catch { /* ohne Popularität weiter */ }
         }
       }
       if (statsChanged) await saveStats(STATS, stats);
-      if (graphChanged) await persist(g);
+      // Hörerzahlen NACH id in den AKTUELLEN Graph mergen (unter Lock) — nie die alte Kopie
+      // zurückschreiben, sonst überschriebe man parallel dazwischen erkundete Acts (lost update).
+      if (popById.size) await withGraphLock(GRAPH, async () => {
+        const gCur = await loadGraph(GRAPH);
+        let ch = false;
+        for (const [id, p] of popById) { const a = gCur.artists[id]; if (a && a.listeners !== p) { a.listeners = p; ch = true; } }
+        if (ch) await persist(gCur);
+      });
 
       // (b) Pack-spezifische Zusatzkandidaten (Musik: Deezer-Related + Bandcamp-Releases)
       let extras = [];
@@ -991,21 +1006,27 @@ const server = createServer(async (req, res) => {
     // Beim App-Start: Popularität der markierten Einträge still snapshotten.
     if (req.method === "POST" && url.pathname === "/api/snapshot") {
       if (!pack.popularity) return send(res, 200, { ok: true, snapshotted: 0, marked: 0 });
-      const g = await loadGraph(GRAPH);
-      const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
-      const stats = await loadStats(STATS);
-      let statsChanged = false, graphChanged = false, n = 0;
-      for (const a of marked) {
-        try {
-          const p = await pack.popularity(a.name);
-          if (p) {
-            if (a.listeners !== p) { a.listeners = p; graphChanged = true; }
-            if (addSnapshot(stats, a.id, p)) { statsChanged = true; n++; }
-          }
-        } catch { /* ohne Popularität weiter */ }
+      const g0 = await loadGraph(GRAPH);
+      const marked = Object.values(g0.artists).filter((a) => a.seed || a.known || a.status).map((a) => ({ id: a.id, name: a.name }));
+      // Netz-Aufruf außerhalb des Locks; Ergebnisse nach id sammeln.
+      const popById = new Map();
+      for (const m of marked) {
+        try { const p = await pack.popularity(m.name); if (p) popById.set(m.id, p); } catch { /* ohne Popularität weiter */ }
       }
-      if (statsChanged) await saveStats(STATS, stats);
-      if (graphChanged) await persist(g);
+      let n = 0;
+      if (popById.size) {
+        const stats = await loadStats(STATS);
+        let statsChanged = false;
+        for (const [id, p] of popById) if (addSnapshot(stats, id, p)) { statsChanged = true; n++; }
+        if (statsChanged) await saveStats(STATS, stats);
+        // Hörerzahlen nach id in den AKTUELLEN Graph mergen (unter Lock) — nicht die alte Kopie clobbern.
+        await withGraphLock(GRAPH, async () => {
+          const g = await loadGraph(GRAPH);
+          let changed = false;
+          for (const [id, p] of popById) { const a = g.artists[id]; if (a && a.listeners !== p) { a.listeners = p; changed = true; } }
+          if (changed) await persist(g);
+        });
+      }
       return send(res, 200, { ok: true, snapshotted: n, marked: marked.length });
     }
 
