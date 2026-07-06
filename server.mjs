@@ -191,6 +191,24 @@ function send(res, code, body, type = "application/json") {
   res.end(data);
 }
 
+// Serialisiert Lese-Ändern-Schreib-Zyklen PRO Graph-Datei. Ein Prozess -> ein In-Memory-
+// Mutex genügt. Ohne das laden zwei gleichzeitige Requests denselben Stand, jeder ändert
+// seine Kopie, jeder speichert -> das erste Update geht verloren (lost update). Verschiedene
+// Nutzer haben verschiedene Pfade und blockieren sich daher nicht gegenseitig.
+const graphGate = new Map();
+function withGraphLock(path, fn) {
+  const prev = graphGate.get(path) || Promise.resolve();
+  const run = prev.then(fn, fn); // läuft unabhängig vom Ausgang des Vorgängers
+  graphGate.set(path, run.then(() => {}, () => {}));
+  return run;
+}
+
+// Sprachcode für Wikipedia-Hosts absichern: nur 2–3 Kleinbuchstaben (z. B. „de", „en").
+// Verhindert SSRF, weil `lang` sonst roh in den Request-Host interpoliert würde.
+const safeLang = (s) => (/^[a-z]{2,3}$/.test(String(s || "")) ? String(s) : "en");
+// Ganzzahl aus Nutzereingabe auf sinnvolle Grenzen klemmen (gegen Amplification).
+const clampInt = (v, def, lo, hi) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def; };
+
 function readBody(req) {
   const MAX = 512 * 1024; // 512 KB: großzügig für Graph-Import, aber Deckel gegen Speicher-DoS
   return new Promise((resolve, reject) => {
@@ -532,28 +550,30 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && (url.pathname === "/api/explore" || url.pathname === "/api/expand")) {
       const { name } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
-      const g = await loadGraph(GRAPH);
       let r;
+      // Netz-Aufruf BEWUSST außerhalb des Graph-Locks (langsame I/O soll den Mutex nicht halten).
       try { r = await pack.explore(name, { home: reqHome(req) }); }
       catch (err) { return send(res, 502, { error: err.message }); }
-
-      const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, seed: true });
-      src.explored = true;
-      if (r.genres?.length) src.genres = r.genres.slice(0, 6);
-      if (r.meta) { src.booking = r.meta; }
-      if (r.active !== undefined) src.active = r.active;
-      for (const s of (r.similar || []).slice(0, 25)) {
-        const t = upsertArtist(g, { name: s.name, url: s.url });
-        addEdge(g, src.id, t.id, "similar", s.match || 0.5, r.similarSource || pack.id);
-      }
-      for (const c of (r.together || []).slice(0, 25)) {
-        const t = upsertArtist(g, { name: c.name, url: c.url });
-        addEdge(g, src.id, t.id, "together", c.weight || 1, r.togetherSource || pack.id, c.shows);
-      }
-      await persist(g);
-      return send(res, 200, {
-        ok: true, name: src.name, similar: (r.similar || []).length, together: (r.together || []).length,
-        sources: r.sources || [], graph: materialize(g),
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, seed: true });
+        src.explored = true;
+        if (r.genres?.length) src.genres = r.genres.slice(0, 6);
+        if (r.meta) { src.booking = r.meta; }
+        if (r.active !== undefined) src.active = r.active;
+        for (const s of (r.similar || []).slice(0, 25)) {
+          const t = upsertArtist(g, { name: s.name, url: s.url });
+          addEdge(g, src.id, t.id, "similar", s.match || 0.5, r.similarSource || pack.id);
+        }
+        for (const c of (r.together || []).slice(0, 25)) {
+          const t = upsertArtist(g, { name: c.name, url: c.url });
+          addEdge(g, src.id, t.id, "together", c.weight || 1, r.togetherSource || pack.id, c.shows);
+        }
+        await persist(g);
+        return send(res, 200, {
+          ok: true, name: src.name, similar: (r.similar || []).length, together: (r.together || []).length,
+          sources: r.sources || [], graph: materialize(g),
+        });
       });
     }
 
@@ -657,59 +677,67 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/bridge/add") {
       const { from, to, via = [], fromId, toId } = await readBody(req);
       if (!from || !to || !via.length) return send(res, 400, { error: "from/to/via fehlt" });
-      const g = await loadGraph(GRAPH);
-      const aNode = (fromId && g.artists[fromId]) || upsertArtist(g, { name: from });
-      const bNode = (toId && g.artists[toId]) || upsertArtist(g, { name: to });
-      const chain = [aNode, ...via.map((name) => upsertArtist(g, { name })), bNode];
-      for (let i = 0; i < chain.length - 1; i++) addEdge(g, chain[i].id, chain[i + 1].id, "similar", 0.5, "bridge");
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const aNode = (fromId && g.artists[fromId]) || upsertArtist(g, { name: from });
+        const bNode = (toId && g.artists[toId]) || upsertArtist(g, { name: to });
+        const chain = [aNode, ...via.map((name) => upsertArtist(g, { name })), bNode];
+        for (let i = 0; i < chain.length - 1; i++) addEdge(g, chain[i].id, chain[i + 1].id, "similar", 0.5, "bridge");
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/delete") {
       const { id } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      if (!g.artists[id]) return send(res, 404, { error: "Eintrag unbekannt" });
-      delete g.artists[id];
-      g.edges = g.edges.filter((e) => e.from !== id && e.to !== id);
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        if (!g.artists[id]) return send(res, 404, { error: "Eintrag unbekannt" });
+        delete g.artists[id];
+        g.edges = g.edges.filter((e) => e.from !== id && e.to !== id);
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/restore") {
       const { artist, edges = [] } = await readBody(req);
       if (!artist?.id) return send(res, 400, { error: "artist fehlt" });
-      const g = await loadGraph(GRAPH);
-      g.artists[artist.id] = artist;
-      for (const e of edges) {
-        if (!g.edges.find((x) => x.type === e.type && x.from === e.from && x.to === e.to)) g.edges.push(e);
-      }
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        g.artists[artist.id] = artist;
+        for (const e of edges) {
+          if (!g.edges.find((x) => x.type === e.type && x.from === e.from && x.to === e.to)) g.edges.push(e);
+        }
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/reset") {
       const { scope = "all" } = await readBody(req);
-      let g;
-      if (scope === "all") {
-        g = emptyGraph();
-      } else if (scope === "lineups") {
-        g = await loadGraph(GRAPH);
-        g.events = [];
-        for (const a of Object.values(g.artists)) { delete a.bl; delete a.wikiChecked; delete a.wiki; }
-        g.sources = (g.sources || []).filter((s) => s.id !== "wikipedia");
-      } else if (scope === "discovered") {
-        g = await loadGraph(GRAPH);
-        const keep = new Set();
-        for (const e of g.edges) { keep.add(e.from); keep.add(e.to); }
-        for (const a of Object.values(g.artists)) {
-          if (!a.seed && !a.known && !a.note && !keep.has(a.id)) delete g.artists[a.id];
+      return withGraphLock(GRAPH, async () => {
+        let g;
+        if (scope === "all") {
+          g = emptyGraph();
+        } else if (scope === "lineups") {
+          g = await loadGraph(GRAPH);
+          g.events = [];
+          for (const a of Object.values(g.artists)) { delete a.bl; delete a.wikiChecked; delete a.wiki; }
+          g.sources = (g.sources || []).filter((s) => s.id !== "wikipedia");
+        } else if (scope === "discovered") {
+          g = await loadGraph(GRAPH);
+          const keep = new Set();
+          for (const e of g.edges) { keep.add(e.from); keep.add(e.to); }
+          for (const a of Object.values(g.artists)) {
+            if (!a.seed && !a.known && !a.note && !keep.has(a.id)) delete g.artists[a.id];
+          }
+        } else {
+          return send(res, 400, { error: "scope muss all|lineups|discovered sein" });
         }
-      } else {
-        return send(res, 400, { error: "scope muss all|lineups|discovered sein" });
-      }
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     // Ganzen Graphen importieren (Backup wiederherstellen / auf anderen Rechner mitnehmen).
@@ -719,81 +747,96 @@ const server = createServer(async (req, res) => {
       if (!incoming || typeof incoming !== "object" || typeof incoming.artists !== "object" || !Array.isArray(incoming.edges)) {
         return send(res, 400, { error: "Keine gültige Graph-Datei (erwartet { artists, edges })." });
       }
-      try {
-        const cur = await readFile(GRAPH, "utf8");
-        await writeFile(dataFile(dataRoot, pack.id, "graph.bak.json"), cur, "utf8");
-      } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
-      const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
-        events: incoming.events || [], sources: incoming.sources || [] };
-      await persist(g);
-      const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
-      return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
+      return withGraphLock(GRAPH, async () => {
+        try {
+          const cur = await readFile(GRAPH, "utf8");
+          await writeFile(dataFile(dataRoot, pack.id, "graph.bak.json"), cur, "utf8");
+        } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
+        const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
+          events: incoming.events || [], sources: incoming.sources || [] };
+        await persist(g);
+        const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
+        return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
+      });
     }
 
     // Legacy (nur Musik): Wikipedia-Lineups / Auto-Entdeckung.
     if (req.method === "POST" && url.pathname === "/api/auto" && pack.id === "music") {
-      const { lang = "en", maxArtists = 60, minArtists = 2, maxFestivals = 30 } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      try {
-        const { discoverAndScrape } = await import("./lib/discover.mjs");
-        const summary = await discoverAndScrape(g, { lang, maxArtists, minArtists, maxFestivals });
-        await persist(g);
-        return send(res, 200, { ok: true, summary, graph: materialize(g) });
-      } catch (err) {
-        return send(res, 502, { error: err.message });
-      }
+      const b = await readBody(req);
+      const lang = safeLang(b.lang);                                  // SSRF-Schutz: nur echte Sprachcodes
+      const maxArtists = clampInt(b.maxArtists, 60, 1, 200);          // Amplification-Deckel
+      const minArtists = clampInt(b.minArtists, 2, 1, 50);
+      const maxFestivals = clampInt(b.maxFestivals, 30, 1, 100);
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        try {
+          const { discoverAndScrape } = await import("./lib/discover.mjs");
+          const summary = await discoverAndScrape(g, { lang, maxArtists, minArtists, maxFestivals });
+          await persist(g);
+          return send(res, 200, { ok: true, summary, graph: materialize(g) });
+        } catch (err) {
+          return send(res, 502, { error: err.message });
+        }
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/scrape" && pack.id === "music") {
-      const { target, lang = "en", name, date, place } = await readBody(req);
+      const { target, lang: langRaw, name, date, place } = await readBody(req);
+      const lang = safeLang(langRaw); // SSRF-Schutz: nur echte Sprachcodes im Wikipedia-Host
       if (!target) return send(res, 400, { error: "target (URL oder Titel) fehlt" });
-      const g = await loadGraph(GRAPH);
-      try {
-        const { fetchLineup } = await import("./lib/wikipedia.mjs");
-        const r = await fetchLineup(target, { lang });
-        if (!r.lineup.length) return send(res, 200, { ok: false, error: "Kein Lineup gefunden", eventName: r.eventName });
-        const { event, artistCount } = addEvent(g, {
-          name: name || r.eventName, date, place, lineup: r.lineup, sourceUrl: r.sourceUrl,
-        });
-        await persist(g);
-        return send(res, 200, { ok: true, eventName: event.name, artistCount, graph: materialize(g) });
-      } catch (err) {
-        return send(res, 502, { error: err.message });
-      }
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        try {
+          const { fetchLineup } = await import("./lib/wikipedia.mjs");
+          const r = await fetchLineup(target, { lang });
+          if (!r.lineup.length) return send(res, 200, { ok: false, error: "Kein Lineup gefunden", eventName: r.eventName });
+          const { event, artistCount } = addEvent(g, {
+            name: name || r.eventName, date, place, lineup: r.lineup, sourceUrl: r.sourceUrl,
+          });
+          await persist(g);
+          return send(res, 200, { ok: true, eventName: event.name, artistCount, graph: materialize(g) });
+        } catch (err) {
+          return send(res, 502, { error: err.message });
+        }
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/artist") {
       const { id, known, note, status } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      const a = g.artists[id];
-      if (!a) return send(res, 404, { error: "Eintrag unbekannt" });
-      if (typeof known === "boolean") a.known = known;
-      if (typeof note === "string") a.note = note;
-      if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
-      await persist(g);
-      return send(res, 200, { ok: true, artist: a });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const a = g.artists[id];
+        if (!a) return send(res, 404, { error: "Eintrag unbekannt" });
+        if (typeof known === "boolean") a.known = known;
+        if (typeof note === "string") a.note = note;
+        if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
+        await persist(g);
+        return send(res, 200, { ok: true, artist: a });
+      });
     }
 
     // Steckbrief beim Anklicken nachladen: Genres + Popularität (+ Momentum) + Ort.
     if (req.method === "POST" && url.pathname === "/api/enrich") {
       const { id } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      const a = g.artists[id];
-      if (!a) return send(res, 404, { error: "unbekannt" });
-      let changed = false, growth = null;
-      let patch = {};
-      try { patch = await pack.enrich(a, { home: reqHome(req) }) || {}; } catch {}
-      if (patch.genres?.length && (!a.genres || !a.genres.length)) { a.genres = patch.genres; changed = true; }
-      if (patch.url && !a.url) { a.url = patch.url; changed = true; }
-      if (patch.popularity) {
-        if (a.listeners !== patch.popularity) { a.listeners = patch.popularity; changed = true; }
-        const stats = await loadStats(STATS);
-        if (addSnapshot(stats, id, patch.popularity)) await saveStats(STATS, stats);
-        growth = growthPerMonth(stats, id);
-      }
-      if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
-      if (changed) await persist(g);
-      return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const a = g.artists[id];
+        if (!a) return send(res, 404, { error: "unbekannt" });
+        let changed = false, growth = null;
+        let patch = {};
+        try { patch = await pack.enrich(a, { home: reqHome(req) }) || {}; } catch {}
+        if (patch.genres?.length && (!a.genres || !a.genres.length)) { a.genres = patch.genres; changed = true; }
+        if (patch.url && !a.url) { a.url = patch.url; changed = true; }
+        if (patch.popularity) {
+          if (a.listeners !== patch.popularity) { a.listeners = patch.popularity; changed = true; }
+          const stats = await loadStats(STATS);
+          if (addSnapshot(stats, id, patch.popularity)) await saveStats(STATS, stats);
+          growth = growthPerMonth(stats, id);
+        }
+        if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
+        if (changed) await persist(g);
+        return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+      });
     }
 
     // Vorschau/Klangprobe — nur, wenn das Pack eine liefert.
@@ -967,15 +1010,17 @@ const server = createServer(async (req, res) => {
     // Genres für einen bereits vorhandenen Eintrag nachladen — beim Anklicken.
     if (req.method === "POST" && url.pathname === "/api/genres") {
       const { id } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      const a = g.artists[id];
-      if (!a) return send(res, 404, { error: "unbekannt" });
-      if (a.genres && a.genres.length) return send(res, 200, { ok: true, genres: a.genres });
-      let genres = [];
-      try { genres = (await pack.enrich(a))?.genres || []; } catch {}
-      a.genres = genres;
-      await persist(g);
-      return send(res, 200, { ok: true, genres });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const a = g.artists[id];
+        if (!a) return send(res, 404, { error: "unbekannt" });
+        if (a.genres && a.genres.length) return send(res, 200, { ok: true, genres: a.genres });
+        let genres = [];
+        try { genres = (await pack.enrich(a))?.genres || []; } catch {}
+        a.genres = genres;
+        await persist(g);
+        return send(res, 200, { ok: true, genres });
+      });
     }
 
     // Suchvorschläge (Autocomplete).
