@@ -1596,12 +1596,19 @@ function world(p) { return { x: (p.x - view.x) / view.k, y: (p.y - view.y) / vie
 const POP_BIG = CFG.popularity?.big || 0;
 const POP_LO = POP_BIG > 0 ? Math.log10(POP_BIG) - 3 : 0;
 const POP_HI = POP_BIG > 0 ? Math.log10(POP_BIG) + 0.5 : 0;
-// Popularität eines Knotens als 0..1 (aus der Hörerzahl, log-skaliert). Steuert Größe UND Glow.
+// Popularität eines Knotens als 0..1 (aus der Hörerzahl, log-skaliert). Steuert die Größe.
+// Sättigt bewusst früh an der „big"-Schwelle (klein vs. groß reicht für die Kugelgröße).
 function popFactor(n) {
   if (!(n.listeners > 0)) return 0;
   return POP_BIG > 0
     ? Math.max(0, Math.min(1, (Math.log10(n.listeners) - POP_LO) / (POP_HI - POP_LO)))
     : Math.max(0, Math.min(1, (Math.log10(n.listeners) - 2.5) / 4));
+}
+// Eigene, WEITE Skala für den Glow (~1k bis ~10M): sonst leuchten schon solide Acts (>60k)
+// alle gleich hell. So strahlt ein Superstar (Millionen) sichtbar stärker als Mittelklasse.
+function glowFactor(n) {
+  if (!(n.listeners > 0)) return 0;
+  return Math.max(0, Math.min(1, (Math.log10(n.listeners) - 3) / 4));
 }
 function radius(n) {
   // Grundgröße nach Grad (Verbindungen), bewusst weit gespreizt: Monde klein, Hubs groß.
@@ -1711,13 +1718,15 @@ function draw() {
       const ap = n.appear ?? 1; if (ap < 0.05) continue;
       if (dimNode(n) && !(selected && n.id === selected.id)) continue; // gedimmte Knoten ohne Hof
       const r = radius(n);
-      const pf = popFactor(n); // Popularität steuert zusätzlich den Glow: bekannte Acts leuchten stärker
-      const hR = r + 7 + Math.sqrt(Math.max(0, n.deg || 0)) * 8 + pf * 26; // Reichweite + Popularität -> Hofausdehnung
+      // Glow ~ Popularität (Helligkeit ist das Hauptsignal), Grad nur als kleiner Struktur-Anteil.
+      const gf = glowFactor(n);
+      const degExt = Math.min(16, Math.sqrt(Math.max(0, n.deg || 0)) * 3);
+      const hR = r + 6 + degExt + gf * 46; // Ausdehnung: wenig durch Grad, viel durch Popularität
       if (!isFinite(r) || !isFinite(hR) || !isFinite(n.x) || !isFinite(n.y)) continue;
       const rgb = parseRGB(nodeColor(n));
       const g = ctx.createRadialGradient(n.x, n.y, r * 0.55, n.x, n.y, hR);
       g.addColorStop(0, rgbStr(rgb, 0));
-      g.addColorStop(0.5, rgbStr(rgb, (0.14 + pf * 0.32) * ap)); // Grund-Hof + hellerer Kern für beliebte
+      g.addColorStop(0.5, rgbStr(rgb, (0.08 + gf * 0.5) * ap)); // dim für unbekannt/klein, hell für Stars
       g.addColorStop(1, rgbStr(rgb, 0));
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, hR, 0, 7); ctx.fill();
     }
