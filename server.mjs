@@ -192,12 +192,19 @@ function send(res, code, body, type = "application/json") {
 }
 
 function readBody(req) {
+  const MAX = 512 * 1024; // 512 KB: großzügig für Graph-Import, aber Deckel gegen Speicher-DoS
   return new Promise((resolve, reject) => {
-    let s = "";
-    req.on("data", (c) => (s += c));
+    let s = "", len = 0, done = false;
+    req.on("data", (c) => {
+      if (done) return;
+      len += c.length;
+      if (len > MAX) { done = true; const e = new Error("Anfrage zu groß"); e.statusCode = 413; reject(e); return; } // ab hier nicht mehr sammeln
+      s += c;
+    });
     req.on("end", () => {
+      if (done) return;
       try { resolve(s ? JSON.parse(s) : {}); }
-      catch (e) { reject(e); }
+      catch { const e = new Error("ungültiges JSON"); e.statusCode = 400; reject(e); }
     });
     req.on("error", reject);
   });
@@ -1012,7 +1019,11 @@ const server = createServer(async (req, res) => {
 
     send(res, 404, { error: "not found" });
   } catch (err) {
-    send(res, 500, { error: err.message });
+    // Erwartete Client-Fehler (ungültiges JSON 400, zu große Anfrage 413) sauber melden;
+    // unerwartete Fehler NICHT im Klartext nach außen geben (kein Info-Leak) — nur loggen.
+    if (err && err.statusCode) return send(res, err.statusCode, { error: err.message });
+    console.error("Unerwarteter Fehler:", err && err.stack || err);
+    send(res, 500, { error: "interner Fehler" });
   }
 });
 
