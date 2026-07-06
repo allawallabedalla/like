@@ -115,8 +115,8 @@
   button.primary:hover { background: #222; }
   button:disabled { opacity: .5; cursor: default; }
   .counts { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .iconbtn { border: 1px solid var(--line); width: 32px; height: 32px; color: var(--text); background: var(--bg);
-    padding: 0; border-radius: 50%; font-size: 15px; font-weight: 600; flex: none; display: inline-flex;
+  .iconbtn { border: 1px solid var(--line); width: 38px; height: 38px; color: var(--text); background: var(--bg);
+    padding: 0; border-radius: 50%; font-size: 17px; font-weight: 600; flex: none; display: inline-flex;
     align-items: center; justify-content: center; transition: border-color .15s, color .15s; }
   .iconbtn:hover { border-color: var(--edge-together); color: var(--edge-together); background: var(--bg); }
   /* Immer sichtbarer Ansicht-Umschalter Space | Flat (segmentierter Toggle) */
@@ -130,7 +130,7 @@
     .packswitch { max-width: 96px; } }
   /* alle Topbar-Controls gleich hoch und sauber in der 52px-Leiste zentriert
      (sonst kreuzt z.B. der Radar-Button beim Umbruch den unteren Rahmen) */
-  .bar > button, .bar > select, .search input, .search button { height: 34px; }
+  .bar > button, .bar > select, .search input, .search button { height: 38px; }
   /* Topbar-Buttons mit Icon+Text nie umbrechen lassen (sonst werden sie zu hoch) */
   .bar > button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
   #radarBtn { gap: 4px; }
@@ -1611,12 +1611,17 @@ function glowFactor(n) {
   if (!(n.listeners > 0)) return 0;
   return Math.max(0, Math.min(1, (Math.log10(n.listeners) - 3) / 4));
 }
-function radius(n) {
-  // Grundgröße nach Grad (Verbindungen), bewusst weit gespreizt: Monde klein, Hubs groß.
-  // Vorher stark gestaucht (sqrt, Deckel 12) -> alles ähnlich groß; jetzt deutlich getrennt.
+// Zielgröße: Grad (weit gespreizt: Monde klein, Hubs groß) + Popularitäts-Bonus (bis +7).
+function radiusTarget(n) {
   const base = 4 + Math.min(24, Math.pow(Math.max(1, n.deg | 0), 0.72) * 3.4);
-  // Popularität (Hörerzahl) legt bis zu +7 obendrauf -> bekannte Acts sind klar größer.
   return base + popFactor(n) * 7;
+}
+// Angezeigte Größe nähert sich der Zielgröße sanft an (siehe stepSizes). So wachsen
+// Änderungen — etwa wenn Hörerzahlen nachladen — organisch rein statt hektisch zu „ploppen".
+function radius(n) {
+  const t = radiusTarget(n);
+  if (n._rDraw == null) n._rDraw = t; // erster Frame: direkt auf Zielgröße (kein Einwachsen beim Start)
+  return n._rDraw;
 }
 function nodeColor(n) {
   if (n.venue) return getCss("--venue");      // eingeblendeter Spielort
@@ -1964,7 +1969,21 @@ function stepNodeAnims() {
   }
   return live;
 }
+// Kugelgrößen sanft an ihr Ziel annähern -> wenn sich die Zielgröße ändert (z. B. weil
+// Hörerzahlen nachgeladen wurden), wächst die Kugel organisch statt schlagartig zu ploppen.
+function stepSizes() {
+  let live = false;
+  for (const n of nodes) {
+    const t = radiusTarget(n);
+    if (n._rDraw == null) { n._rDraw = t; continue; }
+    const diff = t - n._rDraw;
+    if (Math.abs(diff) > 0.15) { n._rDraw += diff * 0.10; live = true; } // ~sanfte Annäherung über ~30 Frames
+    else if (n._rDraw !== t) n._rDraw = t;
+  }
+  return live;
+}
 function loop() {
+  const sizing = stepSizes();     // Kugelgrößen sanft an ihr Ziel führen (organisch, kein Plopp)
   const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
   tick();
   // Fokussierten Knoten mittig halten, solange sich das Layout noch bewegt (kein „Wegrutschen").
@@ -1973,7 +1992,7 @@ function loop() {
     else { centerOn(followNode); if (alpha < ALPHA_MIN) followNode = null; }
   }
   const anims = stepNodeAnims();
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive;
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive || sizing;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -2120,11 +2139,12 @@ addEventListener("mousemove", (e) => {
     // sie, sobald man drauf zielt.
     const onX = !n && hover && overCanvas && onDeleteBadge(hover, p.x, p.y);
     const onMoonB = !n && hover && overCanvas && onMoonBadge(hover, p.x, p.y);
-    if (onX || onMoonB) n = hover;
+    const onSeedI = !n && hover && overCanvas && onSeedInfo(hover, p.x, p.y);
+    if (onX || onMoonB || onSeedI) n = hover; // Badges zählen zum Hover, sonst verschwänden sie beim Anpeilen
     if (n !== hover) { hover = n; requestDraw(); }
     else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen (beide Modi)
-    cv.style.cursor = (onX || onMoonB) ? "pointer" : (n ? "pointer" : "grab");
-    updateTooltip((onX || onMoonB) ? null : n, e);
+    cv.style.cursor = (onX || onMoonB || onSeedI) ? "pointer" : (n ? "pointer" : "grab");
+    updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
     return;
   }
   const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
