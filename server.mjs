@@ -15,7 +15,9 @@
 //   POST /api/bridge       { from, to } -> verbindende Einträge (Meet-in-the-middle)
 
 import { createServer } from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+// Konstantzeit-Vergleich (gegen Timing-Angriffe aufs Unlock-Passwort); längenverschieden -> false.
+const timingEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && timingSafeEqual(A, B); };
 import { readFile, writeFile, access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -170,13 +172,30 @@ const RADAR_TTL = 10 * 60 * 1000;
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
 const FEEDBACK_ON = await hasPushover();
 await initAuth(DATA_DIR); // Accounts (optional): Nutzer-Store + Session-Secret laden
+// Datei-Cache beschränken: beim Start + täglich alte Einträge löschen (sonst füllt er die Platte).
+import("./lib/cache.mjs").then(({ pruneCache }) => {
+  pruneCache().catch(() => {});
+  setInterval(() => pruneCache().catch(() => {}), 24 * 60 * 60 * 1000).unref?.();
+}).catch(() => {});
 // einfache In-Memory-Drossel gegen Auth-Brute-Force: pro IP max. 12 Versuche / 5 Min
 const authHits = new Map();
+let authGlobal = []; // globaler Backstop: greift auch, wenn X-Forwarded-For gefälscht/rotiert wird
 function authThrottled(req) {
-  const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "?";
-  const now = Date.now(), arr = (authHits.get(ip) || []).filter((t) => now - t < 300000);
-  arr.push(now); authHits.set(ip, arr); return arr.length > 12;
+  const now = Date.now();
+  authGlobal = authGlobal.filter((t) => now - t < 300000); authGlobal.push(now);
+  // Rechtester XFF-Eintrag = vom vertrauenswürdigsten (nächsten) Proxy gesetzt; vom Client
+  // vorangestellte Fake-Einträge stehen links und zählen so nicht.
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const ip = xff[xff.length - 1] || req.socket.remoteAddress || "?";
+  const arr = (authHits.get(ip) || []).filter((t) => now - t < 300000); arr.push(now);
+  if (arr.length) authHits.set(ip, arr); else authHits.delete(ip);
+  return arr.length > 12 || authGlobal.length > 120; // pro IP 12/5min, global 120/5min
 }
+// Speicher-Leak vermeiden: IPs, die nicht wiederkommen, periodisch aus der Map werfen.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, arr] of authHits) { const f = arr.filter((t) => now - t < 300000); if (f.length) authHits.set(ip, f); else authHits.delete(ip); }
+}, 600000).unref?.();
 function setCookie(res, name, val, req) {
   const secure = (req.headers["x-forwarded-proto"] === "https") ? " Secure;" : "";
   const clear = val === "";
@@ -187,7 +206,9 @@ let fbHits = [];
 
 function send(res, code, body, type = "application/json") {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  res.writeHead(code, { "content-type": type, "cache-control": "no-store" });
+  const headers = { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" };
+  if (type.startsWith("text/html")) headers["x-frame-options"] = "SAMEORIGIN"; // Clickjacking-Schutz für die Seiten
+  res.writeHead(code, headers);
   res.end(data);
 }
 
@@ -378,8 +399,9 @@ const server = createServer(async (req, res) => {
 
     // „Coming soon"-Gate freischalten: richtiges Passwort -> Cookie setzen (Hash, HttpOnly).
     if (req.method === "POST" && url.pathname === "/api/unlock") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
       const body = await readBody(req).catch(() => ({}));
-      if (GATING_ON && String(body.password || "") === UNLOCK_PW) {
+      if (GATING_ON && timingEq(String(body.password || ""), UNLOCK_PW)) {
         const secure = (req.headers["x-forwarded-proto"] === "https") ? " Secure;" : "";
         res.writeHead(200, {
           "content-type": "application/json",
@@ -527,8 +549,11 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, sources });
     }
 
-    // Key aus der App heraus speichern (Erststart ohne eingebetteten Key).
+    // Key aus der App heraus speichern (Erststart ohne eingebetteten Key). Nur im lokalen
+    // Tool: auf dem gehosteten Multi-User-Deploy (Gate aktiv) dürfen anonyme Besucher den
+    // gemeinsamen Key nicht überschreiben — dort kommt der Key aus der ENV.
     if (req.method === "POST" && url.pathname === "/api/key") {
+      if (GATING_ON) return send(res, 403, { error: "Auf diesem Deploy nicht verfügbar (Key kommt aus der Umgebung)." });
       if (!pack.key) return send(res, 400, { error: "Dieses Pack braucht keinen API-Key." });
       const { key } = await readBody(req);
       const k = String(key || "").trim();
