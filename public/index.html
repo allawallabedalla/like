@@ -1959,9 +1959,13 @@ function onDeleteBadge(n, px, py) {
   return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
 }
 
-// Mond-Aktionen (nur im Planeten-Modus am gehoverten Mond): ＋ baut den Mond zum eigenen
-// Planeten aus, ⓘ öffnet seine Info-Karte. Beide klar außerhalb des kleinen Mondes.
-function isMoonHover(n) { return planetMode && !!n && !!n._moon && !n.venue && (n.appear ?? 1) >= 1; }
+// Hover-Aktionen ＋ (Nachbarn laden / ausbauen) und ⓘ (Info-Karte) am gehoverten Knoten.
+// Space: an den Monden (Grad-1-Satelliten). Flat: an JEDEM nicht-gesuchten Knoten (Parität).
+// Gesuchte Knoten (Seed) tragen stattdessen das Lösch-× — daher hier ausgeschlossen (kein Konflikt).
+function isMoonHover(n) {
+  if (!n || n.venue || n.seed || (n.appear ?? 1) < 1) return false;
+  return planetMode ? !!n._moon : true;
+}
 function moonBadges(n) {
   const d = (radius(n) + 15 / view.k) / Math.SQRT2, r = 8 / view.k;
   return { plus: { x: n.x + d, y: n.y - d, r }, info: { x: n.x - d, y: n.y - d, r } };
