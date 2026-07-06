@@ -1663,11 +1663,15 @@ function draw() {
     const isSim = l.type === "similar";
     const ea = Math.min(l.a.appear, l.b.appear); // Kante faded mit ihren Knoten ein
     ctx.strokeStyle = onPath ? getCss("--text") : (l.type === "venue" ? cVen : isSim ? cSim : cTog);
-    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : 0.55)) * ea;
-    // Ähnlichkeits-Kanten: Dicke ~ Verwandtschaft (Last.fm-Match 0..1). Kaum verwandte
-    // Acts bekommen nur eine Haarlinie — der Orbit trägt die schwache Beziehung ohnehin.
+    // Ähnlichkeit (Last.fm-Match 0..1) steuert Dicke UND Deckkraft: kaum verwandte Acts nur
+    // als blasse Haarlinie, stark verwandte als kräftige, klar sichtbare Linie. Der
+    // Verwandtschaftsgrad ist damit auf einen Blick lesbar (Orbit trägt schwache Bindungen).
     const w = Math.max(0, Math.min(1, l.weight ?? 0.5));
-    const base = isSim ? (0.4 + w * 2.2) : Math.min(3.4, 1 + (l.weight - 1) * 0.5);
+    let base, aBase;
+    if (l.type === "venue") { base = 1; aBase = 0.5; }
+    else if (isSim) { base = 0.35 + w * w * 4.4; aBase = 0.2 + w * 0.65; }        // 0.35–4.75px · 0.2–0.85
+    else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
+    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase)) * ea;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
   }
