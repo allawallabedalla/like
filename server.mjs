@@ -102,6 +102,9 @@ for (const p of PACKS.values()) {
 }
 // Statisch ausgelieferte PWA-Dateien (Pfad -> Datei in public/ + Content-Type).
 const PWA_ASSETS = {
+  // Favicon: Browser fordern /favicon.ico automatisch an — auf ein vorhandenes Icon mappen,
+  // damit es keinen 404 gibt (BUGS.md B1). PNG wird als Favicon problemlos akzeptiert.
+  "/favicon.ico": { file: "icons/icon-192.png", type: "image/png", cache: "public, max-age=604800" },
   "/manifest.webmanifest": { file: "manifest.webmanifest", type: "application/manifest+json; charset=utf-8", cache: "no-cache" },
   "/sw.js": { file: "sw.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   "/icons/icon-192.png": { file: "icons/icon-192.png", type: "image/png", cache: "public, max-age=604800" },

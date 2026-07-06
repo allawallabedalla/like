@@ -14,18 +14,18 @@ test.describe("Pack-Kacheln responsiv", () => {
     // jede Kachel sichtbar
     const count = await page.locator(".planet").count();
     for (let i = 0; i < count; i++) await expect(page.locator(".planet").nth(i)).toBeVisible();
-    // Orbs (die interaktiven Kugeln) liegen vollständig im Viewport (nicht abgeschnitten)
+    // Ganze Kacheln (inkl. Label) liegen vollständig im Viewport — nicht abgeschnitten.
     const overflowing = await page.evaluate(({ vw, vh }) => {
       const bad = [];
-      document.querySelectorAll(".planet .orb").forEach((orb) => {
-        const b = orb.getBoundingClientRect();
+      document.querySelectorAll(".planet").forEach((el) => {
+        const b = el.getBoundingClientRect();
         if (b.left < -0.5 || b.top < -0.5 || b.right > vw + 0.5 || b.bottom > vh + 0.5) {
-          bad.push({ l: Math.round(b.left), t: Math.round(b.top), r: Math.round(b.right), b: Math.round(b.bottom) });
+          bad.push({ t: el.getAttribute("data-title"), l: Math.round(b.left), r: Math.round(b.right) });
         }
       });
       return bad;
     }, { vw: viewportSize.width, vh: viewportSize.height });
-    expect(overflowing, "Orbs dürfen nicht über den Viewport-Rand ragen").toEqual([]);
+    expect(overflowing, "keine Kachel darf über den Viewport-Rand ragen").toEqual([]);
     // Tap-Ziele (Kachel-Mittelpunkte) liegen im Viewport
     const centersOutside = await page.evaluate(({ vw, vh }) => {
       let n = 0;

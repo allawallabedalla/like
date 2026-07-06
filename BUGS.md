@@ -7,16 +7,14 @@ Legende: 🟥 hoch · 🟧 mittel · 🟨 niedrig · ℹ️ umgebungsbedingt (ke
 
 ---
 
-## 🟨 B1 — `/favicon.ico` liefert 404
+## ✅ B1 — `/favicon.ico` liefert 404 — BEHOBEN
 - **Wo:** alle Seiten (Browser fordert Favicon automatisch an).
 - **Repro:** `curl -s -o /dev/null -w "%{http_code}" http://<host>/favicon.ico` → `404`.
 - **Wirkung:** kosmetisch — Browser-Tab ohne Icon; eine 404-Zeile in der Konsole/Netzwerk.
 - **Ursache:** `server.mjs` liefert nur die in `PWA_ASSETS` gelisteten Icons; `/favicon.ico`
   ist nicht dabei und es gibt kein `<link rel="icon">` in den Seiten.
-- **Vorschlag (nicht umgesetzt):** `/favicon.ico` auf ein vorhandenes Icon mappen
-  oder ein `<link rel="icon">` setzen.
-- **Test-Umgang:** in der Allowlist (siehe `NOTES.md`), damit „keine 404s" die echten
-  same-origin-Fehler prüft, ohne am fehlenden Favicon zu scheitern.
+- **Fix:** `/favicon.ico` in `server.mjs` (`PWA_ASSETS`) auf `icons/icon-192.png` gemappt →
+  liefert jetzt `200 image/png`. Verifiziert. (Allowlist bleibt defensiv bestehen.)
 
 ---
 
@@ -29,7 +27,7 @@ Legende: 🟥 hoch · 🟧 mittel · 🟨 niedrig · ℹ️ umgebungsbedingt (ke
 
 ---
 
-## 🟨 B2 — Kachel-Label ragt bei 375 px über den rechten Rand
+## ✅ B2 — Kachel-Label ragt bei 375 px über den rechten Rand — BEHOBEN
 - **Wo:** Landing bei 375 px Breite, breiteste Beschriftung („Like Board Games").
 - **Repro:** Landing bei 375×812 laden → Bounding-Box der Kachel `.planet` für Board Games
   hat `right ≈ 389 px` (Viewport 375) → ~14 px Label-Überhang rechts.
@@ -38,9 +36,9 @@ Legende: 🟥 hoch · 🟧 mittel · 🟨 niedrig · ℹ️ umgebungsbedingt (ke
 - **Ursache:** Planeten liegen auf festen Ringradien (`base*ring.f`) um die Bildschirmmitte;
   die Kachelbreite folgt der Labelbreite, ein langes Label auf dem Außenring kann so den
   Viewport-Rand überschreiten. Kein Clamping an die Fensterbreite.
-- **Vorschlag (nicht umgesetzt):** Labelbreite deckeln (`max-width`/Ellipsis) oder Ringradius
-  auf schmalen Screens an die Fensterbreite koppeln.
-- **Test-Umgang:** `responsive.spec.js` prüft „nicht abgeschnitten" an den **Orbs** (den echten
-  Tap-Zielen) — die liegen bei beiden Breiten vollständig im Viewport.
+- **Fix:** `.plabel` in `lib/landing.mjs` bei `≤480px` auf `max-width:90px` + `white-space:normal`
+  (Umbruch statt nowrap) gedeckelt → keine Kachel ragt mehr über den Viewport. Verifiziert bei 375.
+- **Test:** `responsive.spec.js` prüft jetzt, dass **ganze Kacheln** (inkl. Label) bei 375 & 1440
+  vollständig im Viewport liegen.
 
 <!-- Weitere Einträge werden von den restlichen Testfiles ergänzt. -->
