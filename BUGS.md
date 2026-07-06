@@ -41,4 +41,21 @@ Legende: 🟥 hoch · 🟧 mittel · 🟨 niedrig · ℹ️ umgebungsbedingt (ke
 - **Test:** `responsive.spec.js` prüft jetzt, dass **ganze Kacheln** (inkl. Label) bei 375 & 1440
   vollständig im Viewport liegen.
 
-<!-- Weitere Einträge werden von den restlichen Testfiles ergänzt. -->
+---
+
+## ✅ B3 — Hilfe-Popover ließ sich auf Mobile nicht schließen — BEHOBEN
+- **Wo:** App, Hilfe (`#helpbox`), v.a. Mobile.
+- **Repro:** Auf schmalem Screen die Hilfe über ⋯ → „Hilfe" öffnen → kein Weg zurück
+  (der `?`-Button ist auf Mobile ausgeblendet, kein Esc per Touch, kein Außentipp-Schließer).
+- **Fix:** ×-Schließen-Button im Popover (funktioniert auch mobil) + Außenklick-Schließen
+  auf Desktop. Regressionstest in `responsive.spec.js`.
+
+## ✅ B4 — Klangprobe spielte den falschen Act („Harris" → Calvin Harris) — BEHOBEN
+- **Wo:** Musik-Pack, Klangprobe (Play-Button).
+- **Repro:** „harris" suchen → Graph zeigt „Harris", aber die Vorschau spielt Calvin Harris.
+- **Ursache:** `lib/itunes.mjs previewByName` fiel bei fehlender exakter Namensübereinstimmung
+  auf den **ersten beliebigen** Treffer zurück → der populärere Calvin Harris. (Deezer matcht
+  bereits exakt; iTunes ist der Fallback.)
+- **Fix:** Nur noch exakter (normalisierter) Künstlername; sonst **keine** Klangprobe statt der
+  eines fremden Acts. Cache-Key auf `it-preview-v2` gebumpt, damit bereits falsch gecachte
+  Einträge sofort verworfen werden.

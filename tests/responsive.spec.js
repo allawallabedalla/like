@@ -71,6 +71,22 @@ test.describe("Mobile-spezifisch: Touch", () => {
   });
 });
 
+test.describe("Hilfe-Popover schließbar", () => {
+  test("Hilfe lässt sich schließen (× auch auf Mobile, wo der ?-Button fehlt)", async ({ page, isMobile }) => {
+    await page.goto(`/?pack=${PUBLIC_PACK}`, { waitUntil: "networkidle" });
+    await dismissIntro(page);
+    // Öffnen: Desktop über ?-Button, Mobile über ⋯-Menü
+    if (isMobile) { await page.locator("#moreBtn").tap(); await page.locator("#mHelp").tap(); }
+    else await page.locator("#helpBtn").click();
+    await expect(page.locator("#helpbox")).toHaveClass(/show/);
+    // ×-Button muss sichtbar und im Viewport sein
+    const x = page.locator("#helpClose");
+    await expect(x).toBeVisible();
+    if (isMobile) await x.tap(); else await x.click();
+    await expect(page.locator("#helpbox")).not.toHaveClass(/show/);
+  });
+});
+
 test.describe("App-Topbar responsiv", () => {
   test("Space/Flat-Toggle sichtbar; Topbar ohne Überlauf; Suche kontextgerecht", async ({ page, isMobile }) => {
     await page.goto(`/?pack=${PUBLIC_PACK}`, { waitUntil: "networkidle" });
