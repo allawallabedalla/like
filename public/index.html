@@ -1109,6 +1109,12 @@ const API = {
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
 let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechnet damit)
+// Zoom-Schwellen für Beschriftungen: weit draußen bleibt die Karte ruhig, erst beim
+// Heranzoomen erscheinen alle Namen (LABEL_ZOOM) bzw. Genres (GENRE_ZOOM). Anker-Knoten
+// (gesucht/Hub/Auswahl/Hover) sind davon ausgenommen und immer beschriftet.
+const LABEL_ZOOM = 1.25, GENRE_ZOOM = 1.55;
+// Grobe Zeigegeräte (Finger) brauchen größere Trefferflächen als eine Maus.
+const COARSE = (() => { try { return matchMedia("(pointer: coarse)").matches; } catch { return false; } })();
 let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
 function resize() {
   const oldW = W, oldH = H;
@@ -1655,7 +1661,10 @@ function draw() {
     const ea = Math.min(l.a.appear, l.b.appear); // Kante faded mit ihren Knoten ein
     ctx.strokeStyle = onPath ? getCss("--text") : (l.type === "venue" ? cVen : isSim ? cSim : cTog);
     ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : 0.55)) * ea;
-    const base = isSim ? 1 : Math.min(3.4, 1 + (l.weight - 1) * 0.5);
+    // Ähnlichkeits-Kanten: Dicke ~ Verwandtschaft (Last.fm-Match 0..1). Kaum verwandte
+    // Acts bekommen nur eine Haarlinie — der Orbit trägt die schwache Beziehung ohnehin.
+    const w = Math.max(0, Math.min(1, l.weight ?? 0.5));
+    const base = isSim ? (0.4 + w * 2.2) : Math.min(3.4, 1 + (l.weight - 1) * 0.5);
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
   }
@@ -1740,10 +1749,11 @@ function draw() {
       ctx.globalAlpha = pulse; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
       ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / view.k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
     }
-    // Namen dauerhaft: im Planeten-Modus an den Monden, im Flat-Modus an ALLEN Knoten
-    // (Parität — sonst wären die noch nicht geöffneten Nachbarn im Flat namenlose Punkte).
-    const alwaysLabel = planetMode ? n._moon : !n.venue;
-    if (n.deg >= 3 || view.k > 1.3 || n === hover || sel || glow || compareSet.has(n.id) || alwaysLabel) {
+    // Beschriftung zoom-abhängig, damit die Karte weit draußen ruhig bleibt und erst beim
+    // Heranzoomen alle Namen erscheinen. Immer beschriftet bleiben nur die Anker: gesuchte
+    // Acts (seed), gut vernetzte Hubs, Auswahl, Hover und Highlights — sie geben Orientierung.
+    const anchor = n.seed || (n.deg | 0) >= 3 || n === hover || sel || glow || compareSet.has(n.id);
+    if (anchor || view.k > LABEL_ZOOM) {
       ctx.textAlign = "center";
       // Halo in Hintergrundfarbe hinter jeden Text -> Labels bleiben über Kanten
       // und einander lesbar (das eigentliche "Überlappen"-Problem bei Hubs).
@@ -1757,12 +1767,9 @@ function draw() {
       ctx.strokeText(n.name, n.x, nameY);
       ctx.globalAlpha = faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
       ctx.fillText(n.name, n.x, nameY);
-      // Genre-Zeile unter dem Namen: bei Hauptkugeln (gesucht/gut vernetzt) immer; bei den
-      // noch nicht geöffneten Nachbarn nur, wenn nah gezoomt oder gehovert — sonst wäre bei
-      // vielen Knoten (v.a. Flat) jede 2. Zeile Textflut. Gilt in beiden Modi gleich.
-      const mainNode = n.seed || (n.deg | 0) >= 3;
-      const genreOk = mainNode || view.k > 1.15 || n === hover ||
-        (hover && adj.get(n.id) && adj.get(n.id).has(hover.id));
+      // Genre-Zeile nur ganz nah oder bei Hover/Auswahl — sonst ist bei vielen Knoten jede
+      // zweite Zeile Textflut. Weit draußen bleiben die Genres komplett aus.
+      const genreOk = n === hover || sel || view.k > GENRE_ZOOM;
       if (n.genres && n.genres.length && genreOk) {
         const gY = n.y + r + 24 / view.k;
         ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
@@ -1965,10 +1972,12 @@ function pick(px, py) {
   const w = world({ x: px, y: py });
   const fs = focusSet();
   let best = null, bestD = Infinity;
+  // Fingerfreundliche Mindest-Trefferfläche (Touch ~22px, Maus ~16px) — sonst sind kleine
+  // Knoten (v.a. rausgezoomt) kaum treffbar. pick() nimmt ohnehin den NÄCHSTEN im Radius.
+  const minHit = (COARSE ? 22 : 16) / view.k;
   for (const n of nodes) {
     if (fs && !fs.has(n.id)) continue;
-    // mind. ~12 Bildschirm-Pixel Trefferfläche, sonst sind Knoten rausgezoomt kaum klickbar
-    const r = Math.max(radius(n) + 4, 12 / view.k);
+    const r = Math.max(radius(n) + 6, minHit);
     const d = (n.x - w.x) ** 2 + (n.y - w.y) ** 2;
     if (d < r * r && d < bestD) { bestD = d; best = n; }
   }
@@ -1986,7 +1995,7 @@ function deleteBadge(n) {
 function onDeleteBadge(n, px, py) {
   if (!n || n.venue || !n.seed) return false; // nur an Hauptkugeln (gesuchte Acts)
   const w = world({ x: px, y: py }), b = deleteBadge(n);
-  const hit = Math.max(b.r + 3 / view.k, 11 / view.k);
+  const hit = Math.max(b.r + 5 / view.k, (COARSE ? 18 : 14) / view.k);
   return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
 }
 
@@ -2004,7 +2013,7 @@ function moonBadges(n) {
 function onMoonBadge(n, px, py) {
   if (!isMoonHover(n)) return null;
   const w = world({ x: px, y: py }), b = moonBadges(n);
-  const hit = Math.max(b.plus.r + 9 / view.k, 19 / view.k), h2 = hit * hit; // großzügige Trefferfläche
+  const hit = Math.max(b.plus.r + 9 / view.k, (COARSE ? 24 : 20) / view.k), h2 = hit * hit; // großzügige Trefferfläche
 
   if ((b.plus.x - w.x) ** 2 + (b.plus.y - w.y) ** 2 < h2) return "plus";
   if ((b.info.x - w.x) ** 2 + (b.info.y - w.y) ** 2 < h2) return "info";
