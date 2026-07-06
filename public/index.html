@@ -1482,12 +1482,6 @@ function orbitMoons() {
   let any = false;
   for (const [pid, moons] of byParent) {
     const parent = nodeById.get(pid), pr = radius(parent);
-    // Näherungs-Verlangsamung: je näher die Maus dem Planeten, desto langsamer die Monde (besseres Zielen).
-    let slow = 1;
-    if (mouseWorld) {
-      const dd = Math.hypot(mouseWorld.x - parent.x, mouseWorld.y - parent.y);
-      slow = dd > 260 ? 1 : dd < 60 ? 0.06 : 0.06 + 0.94 * ((dd - 60) / 200);
-    }
     // Monde auf konzentrische Ringe verteilen (≤ PER_RING pro Ring), damit die immer
     // sichtbaren Namen genug Abstand haben — innerhalb eines Rings gleichmäßig im Winkel,
     // die Ringe radial klar getrennt. So drängeln die Labels nicht mehr.
@@ -1509,6 +1503,14 @@ function orbitMoons() {
       // Extrem subtil und PRO MOND randomisiert (Tempo + Richtung) -> natürliches, nicht
       // gleichförmiges Kreisen. Einmal gewürfelt und gecacht, bleibt also stabil.
       if (m._moonSpeed == null) m._moonSpeed = (0.55 + Math.random() * 0.9) * (Math.random() < 0.5 ? 1 : -1);
+      // Näherungs-Stopp PRO MOND: kommt die Maus diesem Mond nahe, hält er an (besseres Zielen).
+      // Bildschirm-konstant über /view.k; Position aus dem letzten Frame (m.x/m.y).
+      let slow = 1;
+      if (mouseWorld) {
+        const dd = Math.hypot(mouseWorld.x - m.x, mouseWorld.y - m.y);
+        const stop = 44 / view.k, far = 175 / view.k;
+        slow = dd > far ? 1 : dd < stop ? 0 : (dd - stop) / (far - stop);
+      }
       if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.0006 * slow;
       const tie = m._moonTie != null ? m._moonTie : 0.5;
       const orbitR = pr + haloExt + radius(m) + 22 + ringIdx * RING_GAP + (1 - tie) * 12;
