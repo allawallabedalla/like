@@ -516,6 +516,7 @@
   <!-- „Ansicht & Export"-Menü: hält die Anzeige-Optionen + Export, damit die Topbar nie überläuft -->
   <div class="morebox" id="morebox">
     <div class="mtitle">Ansicht</div>
+    <label class="toggle" id="planetWrap" title="Planeten-Ansicht: Kern = Popularität/Größe, Hof = Reichweite im Netz (Verbindungen) — Größe und Tragweite auf einen Blick"><input type="checkbox" id="planetToggle" /> Planeten</label>
     <label class="toggle" id="clusterWrap" title="Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln"><input type="checkbox" id="clusterToggle" /> Farben</label>
     <label class="toggle" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
     <label class="toggle" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
@@ -1098,6 +1099,8 @@ let venueMode = false; // Venue-Ebene (Musik): Spielorte als abgeleitete Knoten 
 try { venueMode = localStorage.getItem(LSK("like_venues")) === "1"; } catch {}
 let clusterMode = false; // Cluster-Färbung: Knoten nach Haupt-Genre einfärben
 try { clusterMode = localStorage.getItem(LSK("like_cluster")) === "1"; } catch {}
+let planetMode = false;  // Planeten-Ansicht: Kern=Größe, Hof=Reichweite
+try { planetMode = localStorage.getItem(LSK("like_planet")) === "1"; } catch {}
 // Entdeck-Modi (früh deklariert: draw() liest scenesMode/bridgeSet schon beim ersten Frame)
 let communities = null;      // Map id -> Community-Label (Label-Propagation, gecacht bis rebuild)
 let scenesMode = false;      // Szenen als sanfte Farbflächen zeigen
@@ -1402,6 +1405,14 @@ const cssCache = {};
 // aus document.body lesen (nicht documentElement): die Dark-Palette liegt auf
 // body.dark und propagiert nicht nach <html> hoch — sonst blieben Canvas-Farben hell.
 function getCss(v) { return cssCache[v] ??= getComputedStyle(document.body).getPropertyValue(v).trim(); }
+// ---- Farb-Helfer für die Planeten-Ansicht (Hof + Kugel-Schattierung) ----
+function parseRGB(c) {
+  if (!c) return [128, 128, 128];
+  if (c[0] === "#") { const h = c.slice(1); const n = parseInt(h.length === 3 ? h.replace(/(.)/g, "$1$1") : h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  const m = c.match(/(\d+(?:\.\d+)?)/g); return m ? [+m[0], +m[1], +m[2]] : [128, 128, 128];
+}
+const mixRGB = (a, b, t) => [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
+const rgbStr = (c, a) => a == null ? `rgb(${c[0]},${c[1]},${c[2]})` : `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
 function focusSet() {
   if (!focusId || !nodeById.has(focusId)) return null;
@@ -1449,6 +1460,26 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
+  // Planeten-Ansicht: Reichweiten-Hof hinter jeden Knoten (Radius ~ Anzahl Verbindungen).
+  // Größe des Kerns = Popularität (radius()), Ausdehnung des Hofs = Tragweite im Netz.
+  if (planetMode) {
+    for (const n of nodes) {
+      if (hidden(n.id) || n.venue) continue;
+      const ap = n.appear ?? 1; if (ap < 0.05) continue;
+      if (dimNode(n) && !(selected && n.id === selected.id)) continue; // gedimmte Knoten ohne Hof
+      const r = radius(n);
+      const hR = r + 7 + Math.sqrt(Math.max(0, n.deg || 0)) * 8; // Reichweite -> Hofausdehnung
+      if (!isFinite(r) || !isFinite(hR) || !isFinite(n.x) || !isFinite(n.y)) continue;
+      const rgb = parseRGB(nodeColor(n));
+      const g = ctx.createRadialGradient(n.x, n.y, r * 0.55, n.x, n.y, hR);
+      g.addColorStop(0, rgbStr(rgb, 0));
+      g.addColorStop(0.5, rgbStr(rgb, 0.18 * ap));
+      g.addColorStop(1, rgbStr(rgb, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, hR, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   // Knoten
   const hovG = hover; // welcher Knoten bekommt den weichen Hover-Schein
   for (const n of nodes) {
@@ -1469,7 +1500,15 @@ function draw() {
     }
     ctx.globalAlpha = baseA;
     ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
-    ctx.fillStyle = nodeColor(n); ctx.fill();
+    if (planetMode && !n.venue && isFinite(r) && r > 0 && isFinite(n.x) && isFinite(n.y)) { // kugelig schattierter Planet (Highlight oben-links -> Schattenrand)
+      const rgb = parseRGB(nodeColor(n));
+      const pg = ctx.createRadialGradient(n.x - r * 0.32, n.y - r * 0.32, r * 0.12, n.x, n.y, r);
+      pg.addColorStop(0, rgbStr(mixRGB(rgb, [255, 255, 255], 0.5)));
+      pg.addColorStop(0.55, rgbStr(rgb));
+      pg.addColorStop(1, rgbStr(mixRGB(rgb, [0, 0, 0], 0.45)));
+      ctx.fillStyle = pg;
+    } else ctx.fillStyle = nodeColor(n);
+    ctx.fill();
     const sCol = STATUS_COLOR[n.status];
     if (sel) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--text"); ctx.stroke(); }
     else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
@@ -2698,6 +2737,14 @@ clusterToggleEl.onchange = (e) => {
   clusterMode = e.target.checked;
   try { localStorage.setItem(LSK("like_cluster"), clusterMode ? "1" : "0"); } catch {}
   updateGenreLegend(); requestDraw();
+};
+
+const planetToggleEl = document.getElementById("planetToggle");
+planetToggleEl.checked = planetMode;
+planetToggleEl.onchange = (e) => {
+  planetMode = e.target.checked;
+  try { localStorage.setItem(LSK("like_planet"), planetMode ? "1" : "0"); } catch {}
+  requestDraw();
 };
 
 // ---- Sanfter Domänen-Wechsel (Fade-Overlay) ----
