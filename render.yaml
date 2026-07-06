@@ -9,6 +9,8 @@ services:
     plan: free            # Gratis-Tier: schläft nach Inaktivität ein (Kaltstart ~30s). Für „immer wach": starter.
     healthCheckPath: /api/packs
     envVars:
+      - key: HOST
+        value: 0.0.0.0        # öffentlich lauschen, damit Render den Container erreicht
       - key: LIKE_DATA_DIR
         value: /var/data
       # Optionale Heimat für „Like Travel" (Standard: Berlin, Deutschland)

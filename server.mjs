@@ -54,6 +54,9 @@ function mergeShows(a = [], b = []) {
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.LIKE_DATA_DIR || ROOT;
 const PORT = process.env.PORT || 5173;
+// Bind-Host: lokal/Desktop = loopback (Server + eingebetteter Key nicht im LAN sichtbar).
+// Gehostet (Docker/Render) HOST=0.0.0.0 setzen, damit der Plattform-Proxy den Container erreicht.
+const HOST = process.env.HOST || "127.0.0.1";
 
 // Alle Packs beim Start laden (validiert sie gleich; Import ist netzfrei -> schnell).
 const PACKS = new Map();
@@ -803,9 +806,9 @@ function openBrowser(url) {
   import("node:child_process").then(({ exec }) => exec(cmd, () => {}));
 }
 
-// nur lokal binden — der Server (inkl. eingebettetem API-Key) soll nicht im LAN erreichbar sein.
-server.listen(PORT, "127.0.0.1", () => {
-  const url = `http://127.0.0.1:${server.address().port}`;
+// Default loopback (Desktop/lokal); gehostet via HOST=0.0.0.0 (siehe oben).
+server.listen(PORT, HOST, () => {
+  const url = `http://${HOST}:${server.address().port}`;
   console.log(`Like läuft auf ${url} (Packs: ${[...PACKS.keys()].join(", ")}; Default: ${DEFAULT_PACK})`);
   if (process.argv.includes("--open") || process.env.LIKE_OPEN) openBrowser(url);
 });

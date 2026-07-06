@@ -7,6 +7,8 @@ COPY . .
 # gehen sie beim Neustart/Redeploy verloren.
 ENV LIKE_DATA_DIR=/data
 ENV PORT=8080
+# Öffentlich lauschen, damit der Plattform-Proxy den Container erreicht (lokal bleibt Default 127.0.0.1).
+ENV HOST=0.0.0.0
 VOLUME ["/data"]
 EXPOSE 8080
 CMD ["node", "server.mjs"]
