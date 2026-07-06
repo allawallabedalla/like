@@ -1166,6 +1166,10 @@ document.addEventListener("click", (e) => {
   if (b) { e.preventDefault(); togglePreview(decodeURIComponent(b.dataset.preview)); }
 });
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
+// Nach dem Laden hält der View den fokussierten Knoten mittig, bis sich das Layout beruhigt
+// hat — sonst „rutscht" der frisch platzierte Planet aus der Mitte, während die Physik nachläuft.
+let followNode = null;
+function stopFollow() { followNode = null; }
 let busyId = null, filterGenre = "";
 const activeGenres = new Set(); // per Pill-Klick ausgewählte Genres (ODER-verknüpft), filtert die Karte
 let compareSet = new Set();      // Schnittmengen-Vergleich (Shift-Klick)
@@ -1866,6 +1870,11 @@ function stepNodeAnims() {
 function loop() {
   const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
   tick();
+  // Fokussierten Knoten mittig halten, solange sich das Layout noch bewegt (kein „Wegrutschen").
+  if (followNode) {
+    if (dragNode || !nodeById.has(followNode.id)) followNode = null;
+    else { centerOn(followNode); if (alpha < ALPHA_MIN) followNode = null; }
+  }
   const anims = stepNodeAnims();
   const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
@@ -1972,6 +1981,7 @@ cv.addEventListener("mousedown", (e) => {
   const n = pick(p.x, p.y);
   dragging = true; moved = false;
   if (n) { dragNode = n; }
+  stopFollow(); // eigene Interaktion beendet das automatische Mittig-Halten
   cv.classList.add("grabbing");
   dragStart = { x: p.x, y: p.y, vx: view.x, vy: view.y };
 });
@@ -1998,7 +2008,10 @@ addEventListener("mousemove", (e) => {
     if (!moved) return; // reines Klicken darf den Knoten nicht schon verschieben/aufheizen
     const w = world(p);
     dragNode.x = w.x; dragNode.y = w.y; dragNode.vx = 0; dragNode.vy = 0;
-    reheat(0.3); // nur sanft: die Nachbarschaft rückt nach, der Rest des Netzes bleibt ruhig
+    // KEIN reheat: die Federn würden sonst Nachbarn (z.B. den zuvor gesuchten Planeten)
+    // mitziehen. Nur der gegriffene Knoten bewegt sich; im Planeten-Modus folgen dessen
+    // Monde ohnehin über orbitMoons(). Kollisionen lösen sich alpha-unabhängig weiter auf.
+    requestDraw();
   } else {
     view.x = dragStart.vx + dx; view.y = dragStart.vy + dy; requestDraw(); // Verschieben
   }
@@ -2049,6 +2062,7 @@ cv.addEventListener("contextmenu", (e) => {
 });
 cv.addEventListener("wheel", (e) => {
   e.preventDefault();
+  stopFollow(); // eigenes Zoomen beendet das automatische Mittig-Halten
   const p = canvasXY(e);
   const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
   const wx = (p.x - view.x) / view.k, wy = (p.y - view.y) / view.k;
@@ -2067,6 +2081,7 @@ const tp = (t) => { const r = cv.getBoundingClientRect(); return { x: t.clientX 
 cv.addEventListener("touchstart", (e) => {
   e.preventDefault();
   clearTimeout(longTimer);
+  stopFollow(); // eigene Geste beendet das automatische Mittig-Halten
   hideCtx(); // offenes Kontextmenü schließen, sobald eine neue Geste auf der Karte beginnt
   if (e.touches.length === 1) {
     const p = tp(e.touches[0]);
@@ -2105,7 +2120,7 @@ cv.addEventListener("touchmove", (e) => {
   if (Math.abs(dx) + Math.abs(dy) > 6) { touch.moved = true; clearTimeout(longTimer); }
   if (touch.mode === "node" && touch.node) {
     if (!touch.moved) return;
-    const w = world(p); touch.node.x = w.x; touch.node.y = w.y; touch.node.vx = 0; touch.node.vy = 0; reheat(0.3);
+    const w = world(p); touch.node.x = w.x; touch.node.y = w.y; touch.node.vx = 0; touch.node.vy = 0; requestDraw(); // kein reheat: keine Nachbarn mitziehen
   } else if (touch.mode === "pan") {
     view.x = touch.vx + dx; view.y = touch.vy + dy; requestDraw();
   }
@@ -2373,7 +2388,7 @@ async function reload(focusName) {
   if (focusName) {
     const k = slugify(focusName);
     const n = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
-    if (n) { centerOn(n); selectNode(n); }
+    if (n) { followNode = n; centerOn(n); selectNode(n); } // mittig halten, bis das Layout ruht
   }
 }
 
