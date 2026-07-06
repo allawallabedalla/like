@@ -250,7 +250,7 @@ gebaut (`.github/workflows/release.yml`) — du brauchst dafür weder einen Mac 
 Toolchain.
 
 Es entsteht **eine App**, die alle Domänen enthält (Umschalter im Fenster) — also je ein
-`Like-<version>-setup.exe`, ein `-portable.exe` und ein `-universal.dmg`, nicht mehr acht
+`Like-<version>-setup.exe`, ein `-portable.exe` und ein `-universal.dmg`, nicht mehr zehn
 getrennte Downloads.
 
 **Einmalig einrichten:** Repo → Settings → Secrets and variables → Actions → *New repository secret*.
@@ -286,7 +286,7 @@ kein `npm install`.
 - **Fly.io / Railway / eigener Server:** `docker build -t like . && docker run -p 8080:8080 -v like-data:/data like`.
 
 Die key-losen Packs (Reisen, Wikipedia-Universal, Pflanzen, Bücher, Paper, Brettspiele,
-Podcasts) laufen ohne jeden Key; Musik (Last.fm) und Filme (TMDB) brauchen ihren Key als
+Podcasts, Indie-Games) laufen ohne jeden Key; Musik (Last.fm) und Filme (TMDB) brauchen ihren Key als
 ENV. Hinweis: der Kartenbestand liegt serverseitig — ein gehosteter Server teilt eine Karte;
 für getrennte Sammlungen mehrere Instanzen betreiben.
 
