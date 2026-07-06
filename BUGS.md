@@ -27,4 +27,20 @@ Legende: 🟥 hoch · 🟧 mittel · 🟨 niedrig · ℹ️ umgebungsbedingt (ke
   Proxys; **in Produktion (https, echtes Netz) funktioniert er**. Kein App-Bug.
 - **Test-Umgang:** cross-origin-Responses/-Failures werden ignoriert (nur same-origin zählt).
 
+---
+
+## 🟨 B2 — Kachel-Label ragt bei 375 px über den rechten Rand
+- **Wo:** Landing bei 375 px Breite, breiteste Beschriftung („Like Board Games").
+- **Repro:** Landing bei 375×812 laden → Bounding-Box der Kachel `.planet` für Board Games
+  hat `right ≈ 389 px` (Viewport 375) → ~14 px Label-Überhang rechts.
+- **Wirkung:** rein kosmetisch — die **interaktive Kugel (`.orb`) bleibt vollständig sichtbar
+  und tappbar**; nur der Text-Teil des Labels wird am Rand leicht beschnitten.
+- **Ursache:** Planeten liegen auf festen Ringradien (`base*ring.f`) um die Bildschirmmitte;
+  die Kachelbreite folgt der Labelbreite, ein langes Label auf dem Außenring kann so den
+  Viewport-Rand überschreiten. Kein Clamping an die Fensterbreite.
+- **Vorschlag (nicht umgesetzt):** Labelbreite deckeln (`max-width`/Ellipsis) oder Ringradius
+  auf schmalen Screens an die Fensterbreite koppeln.
+- **Test-Umgang:** `responsive.spec.js` prüft „nicht abgeschnitten" an den **Orbs** (den echten
+  Tap-Zielen) — die liegen bei beiden Breiten vollständig im Viewport.
+
 <!-- Weitere Einträge werden von den restlichen Testfiles ergänzt. -->
