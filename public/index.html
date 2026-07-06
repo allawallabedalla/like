@@ -1439,6 +1439,7 @@ function tick() {
 // um ihren Planeten. Sie werden von der Physik wie fixiert behandelt (stoßen andere ab,
 // folgen aber ihrer Umlaufbahn). Gibt true zurück, solange sich Monde bewegen.
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let mouseWorld = null; // aktuelle Mausposition in Weltkoordinaten (für Näherungs-Verlangsamung)
 function orbitMoons() {
   for (const n of nodes) if (n._moon) n._moon = false;
   if (!planetMode) return false;
@@ -1454,6 +1455,12 @@ function orbitMoons() {
   let any = false;
   for (const [pid, moons] of byParent) {
     const parent = nodeById.get(pid), pr = radius(parent);
+    // Näherungs-Verlangsamung: je näher die Maus dem Planeten, desto langsamer die Monde (besseres Zielen).
+    let slow = 1;
+    if (mouseWorld) {
+      const dd = Math.hypot(mouseWorld.x - parent.x, mouseWorld.y - parent.y);
+      slow = dd > 260 ? 1 : dd < 60 ? 0.06 : 0.06 + 0.94 * ((dd - 60) / 200);
+    }
     moons.forEach((m, i) => {
       m._moon = true; any = true;
       if (m._moonAng == null) {
@@ -1464,7 +1471,7 @@ function orbitMoons() {
         m._moonTie = Math.max(0.05, Math.min(1, tie));
       }
       if (m._moonSpeed == null) m._moonSpeed = (0.5 + ((i * 13) % 7) / 10) * ((i % 2) ? 1 : -1);
-      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.01;
+      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.01 * slow;
       const haloExt = 10 + Math.sqrt(Math.max(1, parent.deg | 0)) * 8; // etwa der Reichweiten-Hof
       const tie = m._moonTie != null ? m._moonTie : 0.5;               // näher am Planeten = enger verwandt
       const orbitR = pr + haloExt + radius(m) + 12 + (1 - tie) * 48;
@@ -1873,6 +1880,7 @@ cv.addEventListener("mousedown", (e) => {
 });
 addEventListener("mousemove", (e) => {
   const p = canvasXY(e);
+  mouseWorld = world(p); // für die Näherungs-Verlangsamung der Monde
   if (!dragging) {
     const overCanvas = p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
     let n = overCanvas ? pick(p.x, p.y) : null;
@@ -1895,6 +1903,7 @@ addEventListener("mousemove", (e) => {
     view.x = dragStart.vx + dx; view.y = dragStart.vy + dy; requestDraw(); // Verschieben
   }
 });
+cv.addEventListener("mouseleave", () => { mouseWorld = null; }); // Maus weg -> Monde wieder normal schnell
 addEventListener("mouseup", (e) => {
   hideCtx();
   if (dragging && !moved) {
