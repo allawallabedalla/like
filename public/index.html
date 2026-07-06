@@ -73,9 +73,16 @@
   .brand:hover .bdot { transform: scale(1.4); display: inline-block; }
   .brand .bdot { transition: transform .15s; }
   .brand .bdot { color: var(--edge-together); }
-  .packswitch { margin-left: 10px; padding: 4px 8px; font: inherit; font-size: 13px; font-weight: 600;
-    background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+  /* Native Select-Optik (macOS/Safari-Verlauf + Doppelpfeil) abschalten und flach nachbauen,
+     damit der Umschalter zum restlichen Design passt. Eigener Chevron als SVG rechts. */
+  .packswitch { margin-left: 10px; padding: 5px 28px 5px 10px; font: inherit; font-size: 13px; font-weight: 600;
+    background-color: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+    -webkit-appearance: none; -moz-appearance: none; appearance: none; line-height: 1.2;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; }
   .packswitch:hover { border-color: var(--edge-together); }
+  .packswitch:focus { outline: none; border-color: var(--edge-together); }
+  .packswitch option { background: var(--bg); color: var(--text); } /* Popup-Einträge lesbar in beiden Themes */
   /* Venue-Panel: nur Ansicht — Status/Notiz/Umfeld/Aktions-Buttons ausblenden */
   .panel.venuemode .field, .panel.venuemode .row { display: none; }
   .panel.venuemode .field.vshow { display: block; }
