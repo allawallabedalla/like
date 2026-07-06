@@ -18,7 +18,9 @@ import { createServer } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 // Konstantzeit-Vergleich (gegen Timing-Angriffe aufs Unlock-Passwort); längenverschieden -> false.
 const timingEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && timingSafeEqual(A, B); };
-import { readFile, writeFile, access } from "node:fs/promises";
+import { readFile, writeFile, access, rename } from "node:fs/promises";
+// JSON atomar schreiben (tmp+rename) — kein zerhacktes digest.json bei Absturz/voller Platte.
+const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, materialize, addEvent, emptyGraph, upsertArtist } from "./lib/store.mjs";
@@ -979,7 +981,7 @@ const server = createServer(async (req, res) => {
       try {
         let dg = {}; try { dg = JSON.parse(await readFile(DIGEST, "utf8")); } catch {}
         dg.seenRadar = [...new Set([...(dg.seenRadar || []), ...radar.map((r) => r.name)])].slice(-400);
-        await writeFile(DIGEST, JSON.stringify(dg), "utf8");
+        await writeJsonAtomic(DIGEST, dg);
       } catch {}
       const payload = { ok: true, likes: likes.size, radar, computedAt: Date.now() };
       radarCache.set(pack.id, { at: payload.computedAt, key: cacheKey, payload });
@@ -1028,7 +1030,7 @@ const server = createServer(async (req, res) => {
       let dg = {}; try { dg = JSON.parse(await readFile(DIGEST, "utf8")); } catch {}
       const sinceDays = dg.lastOpen ? Math.round((Date.now() - dg.lastOpen) / 864e5) : null;
       dg.lastOpen = Date.now();
-      try { await writeFile(DIGEST, JSON.stringify(dg), "utf8"); } catch {}
+      try { await writeJsonAtomic(DIGEST, dg); } catch {}
       return send(res, 200, { ok: true, grown: grown.slice(0, 6), shrunk: shrunk.slice(0, 3), marked: marked.length, historyDays, sinceDays });
     }
 
