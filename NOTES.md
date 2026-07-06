@@ -54,6 +54,17 @@ Bei Unklarheiten wurde die jeweils konservativste Annahme gewählt (per Auftrag)
   `/api/*` werden nie gecacht; Shell wird network-first geholt). Bewertung: Deploy-Updates werden
   dadurch bei Online-Zugriff automatisch übernommen.
 
+## Visual Regression
+- `toHaveScreenshot` bei **375/768/1440 px** für Landing, App (music) und Impressum. Läuft nur
+  im **desktop-Projekt** (der Test setzt die Breite selbst) — sonst doppelte Baselines.
+- **Determinismus:** `reducedMotion` (global) stoppt die JS-Umlaufbewegung, `animations:"disabled"`
+  friert CSS ein, und **`Math.random` wird pro Seite deterministisch geseedet** (addInitScript vor
+  den Seiten-Skripten) — sonst wären Sternenfeld und Planeten-Startwinkel bei jedem Lauf anders.
+  Über zwei aufeinanderfolgende Läufe verifiziert: 0 Pixel-Differenz.
+- **Baselines** liegen unter `tests/visual.spec.js-snapshots/` und sind **umgebungsspezifisch**
+  (linux + Chromium-1194, Software-Rendering). Auf anderer Plattform ggf. mit
+  `--update-snapshots` neu erzeugen. `maxDiffPixelRatio: 0.02` fängt marginale Abweichungen ab.
+
 ## Persistenz
 - Serverseitige „Likes" (Graph pro Nutzer/Anon-Tab) brauchen geladene Live-Daten (Netz) und sind
   hier nicht deterministisch. Geprüft wird die **clientseitige Persistenzschicht**
