@@ -1434,6 +1434,16 @@ function parseRGB(c) {
 }
 const mixRGB = (a, b, t) => [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
 const rgbStr = (c, a) => a == null ? `rgb(${c[0]},${c[1]},${c[2]})` : `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+// Statisches Sternenfeld für die Planeten-Ansicht (Bildschirmraum; nur neu würfeln, wenn sich die Größe ändert).
+let planetStars = null, planetStarsKey = "";
+function ensurePlanetStars() {
+  const key = W + "x" + H;
+  if (planetStars && planetStarsKey === key) return;
+  planetStarsKey = key;
+  const N = Math.max(40, Math.min(220, Math.round(W * H / 8000)));
+  planetStars = [];
+  for (let i = 0; i < N; i++) planetStars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * Math.random() * 1.5 + 0.2, b: 0.2 + Math.random() * 0.5 });
+}
 
 function focusSet() {
   if (!focusId || !nodeById.has(focusId)) return null;
@@ -1443,6 +1453,13 @@ function focusSet() {
 }
 function draw() {
   ctx.clearRect(0, 0, W, H);
+  // Planeten-Ansicht (nur Dark-Mode): dezentes Sternenfeld im Bildschirmraum hinter dem Graphen
+  if (planetMode && document.body.classList.contains("dark")) {
+    ensurePlanetStars();
+    ctx.fillStyle = "#cfe0ff";
+    for (const s of planetStars) { ctx.globalAlpha = s.b; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
   ctx.save();
   ctx.translate(view.x, view.y); ctx.scale(view.k, view.k);
   const dim = document.getElementById("dimKnown").checked;
