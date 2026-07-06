@@ -117,10 +117,47 @@ function landingPage(unlocked) {
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     cardSub: (c) => c.item.plur,
-    footer: APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App` : "",
+    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a>`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
     lockLabel: "Coming soon",
   });
+}
+
+// Impressum (Pflicht in DE): minimale Angaben. Adresse ist als Platzhalter markiert und
+// muss vom Betreiber ergänzt werden (per ENV LIKE_IMPRINT_ADDRESS / _NAME / _EMAIL überschreibbar).
+function impressumPage() {
+  const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas Reis").trim();
+  const email = (process.env.LIKE_IMPRINT_EMAIL || "nicolasreis@me.com").trim();
+  const addr = (process.env.LIKE_IMPRINT_ADDRESS || "").trim();
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const addrHtml = addr ? esc(addr).replace(/\n/g, "<br>")
+    : `<span class="todo">[Straße &amp; Hausnummer]</span><br><span class="todo">[PLZ Ort, Land]</span>`;
+  const addrNote = addr ? "" : `<p class="muted todo">Bitte die ladungsfähige Anschrift ergänzen (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — ohne sie ist das Impressum nicht vollständig.</p>`;
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impressum — like</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;min-height:100vh;background:radial-gradient(130% 90% at 72% -12%,#101c33,#0a0f1c 42%,#05070d);color:#e7e9ee;font:16px/1.6 system-ui,-apple-system,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:52px 22px 60px}
+  a{color:#ff8a3d} h1{font-size:28px;margin:0 0 4px} h2{font-size:15px;margin:24px 0 4px}
+  p{margin:5px 0;opacity:.92} .muted{opacity:.6;font-size:13px} .todo{color:#ffcf99}
+  code{background:#ffffff14;padding:1px 5px;border-radius:4px;font-size:12px}
+  .back{display:inline-block;margin-bottom:22px;opacity:.7;text-decoration:none;color:inherit}
+</style></head><body><div class="wrap">
+  <a class="back" href="/">← zurück zu like</a>
+  <h1>Impressum</h1>
+  <p class="muted">Angaben gemäß § 5 TMG und § 18 Abs. 2 MStV.</p>
+  <h2>Diensteanbieter</h2>
+  <p>${esc(name)}<br>${addrHtml}</p>
+  ${addrNote}
+  <h2>Kontakt</h2>
+  <p>E-Mail: <a href="mailto:${esc(email)}">${esc(email)}</a></p>
+  <h2>Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
+  <p>${esc(name)}, Anschrift wie oben.</p>
+  <h2>Haftung für Inhalte &amp; Links</h2>
+  <p class="muted">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
+</div></body></html>`;
 }
 
 // Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO PACK.
@@ -258,6 +295,11 @@ const server = createServer(async (req, res) => {
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
       return send(res, 200, landingPage(isUnlocked(req)), "text/html; charset=utf-8");
+    }
+
+    // Impressum (öffentlich, ohne Pack/Login).
+    if (req.method === "GET" && (url.pathname === "/impressum" || url.pathname === "/impressum.html")) {
+      return send(res, 200, impressumPage(), "text/html; charset=utf-8");
     }
 
     // „Coming soon"-Gate freischalten: richtiges Passwort -> Cookie setzen (Hash, HttpOnly).
