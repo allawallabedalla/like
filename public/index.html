@@ -106,6 +106,17 @@
      ⋯-Menü und bleiben dort IMMER erreichbar (die frühere Ausblendung galt der alten Topbar). */
   @media (max-width: 760px) { .bar { gap: 8px; padding: 0 10px; } .brand .ver { display: none; } }
   @media (max-width: 560px) { .packswitch { max-width: 108px; } }
+  /* Handy: Werkzeug-Buttons + Genre-Filter aus der Leiste ins ⋯-Menü verlagern, damit
+     die Topbar nicht überläuft. Sichtbar bleiben Marke, Pack, Suche, Theme und ⋯. */
+  .mobileonly { display: none; }
+  @media (max-width: 640px) {
+    #radarBtn, #discoverBtn, #tasteBtn, #helpBtn, #genreFilter, #go { display: none !important; }
+    .bar { gap: 7px; }
+    .search input { width: clamp(120px, 44vw, 240px); border-radius: 8px; } /* Suchen-Button ausgeblendet -> Enter sucht */
+    .morebox .mtitle.mobileonly { display: block; }
+    .morebox .mrow.mobileonly { display: flex; }
+    .morebox .mrow.mobileonly button { flex: 1; }
+  }
   /* Touch/Handy: Browser-Gesten der Karte überlassen wir dem Canvas selbst; kein Gummiband-Scroll. */
   #cv { touch-action: none; }
   html, body { overscroll-behavior: none; }
@@ -515,6 +526,16 @@
 
   <!-- „Ansicht & Export"-Menü: hält die Anzeige-Optionen + Export, damit die Topbar nie überläuft -->
   <div class="morebox" id="morebox">
+    <div class="mtitle mobileonly">Werkzeuge</div>
+    <div class="mrow mobileonly">
+      <button id="mDiscover" title="Entdeck-Werkzeuge">✦ Entdecken</button>
+      <button id="mRadar" class="hideStatic" title="Geheimtipp-Radar">◎ Radar</button>
+    </div>
+    <div class="mrow mobileonly">
+      <button id="mTaste" class="hideStatic" title="Geschmacks-Fingerabdruck">◈ Profil</button>
+      <button id="mHelp" title="Bedienung & Shortcuts">? Hilfe</button>
+    </div>
+    <input id="mGenre" class="gfilter mobileonly" placeholder="Genre filtern…" autocomplete="off" style="width:100%;margin-top:2px" />
     <div class="mtitle">Ansicht</div>
     <label class="toggle" id="planetWrap" title="Planeten-Ansicht: Kern = Popularität/Größe, Hof = Reichweite im Netz (Verbindungen) — Größe und Tragweite auf einen Blick"><input type="checkbox" id="planetToggle" /> Planeten</label>
     <label class="toggle" id="clusterWrap" title="Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln"><input type="checkbox" id="clusterToggle" /> Farben</label>
@@ -2714,6 +2735,15 @@ document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("sh
 document.addEventListener("mousedown", (e) => {
   if (moreEl.classList.contains("show") && !moreEl.contains(e.target) && e.target.id !== "moreBtn")
     moreEl.classList.remove("show");
+});
+// Handy: die ins ⋯-Menü verlagerten Werkzeuge lösen dieselben Aktionen aus wie die Topbar-Buttons.
+const closeMore = () => moreEl.classList.remove("show");
+document.getElementById("mDiscover").onclick = () => { closeMore(); document.getElementById("discoverBtn").click(); };
+document.getElementById("mRadar").onclick = () => { closeMore(); document.getElementById("radarBtn").click(); };
+document.getElementById("mTaste").onclick = () => { closeMore(); document.getElementById("tasteBtn").click(); };
+document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
+document.getElementById("mGenre").addEventListener("input", (e) => {
+  const gf = document.getElementById("genreFilter"); gf.value = e.target.value; filterGenre = e.target.value.trim(); requestDraw();
 });
 
 // Zufalls-Streifzug: gewichteter Random-Walk von einem Like weg, Pfad pulsiert nach.
