@@ -1480,7 +1480,9 @@ function orbitMoons() {
   if (!planetMode) return false;
   const byParent = new Map();
   for (const n of nodes) {
-    if (n.venue || n === dragNode || (n.deg | 0) !== 1) continue;
+    // gezogene (gepinnte) Monde aus der Umlaufbahn befreien -> bleiben liegen, wo man sie ablegt
+    // (Rechtsklick löst die Fixierung, dann kreisen sie wieder).
+    if (n.venue || n === dragNode || n.pinned || (n.deg | 0) !== 1) continue;
     const nb = adj.get(n.id); if (!nb || nb.size !== 1) continue;
     const parent = nodeById.get([...nb][0]);
     if (!parent || parent.venue || (parent.deg | 0) < 2) continue; // nur um echte Hubs kreisen
@@ -1719,15 +1721,16 @@ function draw() {
       ctx.globalAlpha = pulse; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
       ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / view.k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
     }
-    // Im Planeten-Modus tragen die Monde ihren Namen dauerhaft (nicht nur bei Hover).
-    const moonLabel = planetMode && n._moon;
-    if (n.deg >= 3 || view.k > 1.3 || n === hover || sel || glow || compareSet.has(n.id) || moonLabel) {
+    // Namen dauerhaft: im Planeten-Modus an den Monden, im Flat-Modus an ALLEN Knoten
+    // (Parität — sonst wären die noch nicht geöffneten Nachbarn im Flat namenlose Punkte).
+    const alwaysLabel = planetMode ? n._moon : !n.venue;
+    if (n.deg >= 3 || view.k > 1.3 || n === hover || sel || glow || compareSet.has(n.id) || alwaysLabel) {
       ctx.textAlign = "center";
       // Halo in Hintergrundfarbe hinter jeden Text -> Labels bleiben über Kanten
       // und einander lesbar (das eigentliche "Überlappen"-Problem bei Hubs).
       ctx.lineJoin = "round"; ctx.strokeStyle = getCss("--bg");
       // Mond-Namen etwas kleiner (weniger Gedränge); der gerade gehoverte Mond bleibt normal groß.
-      const moonSmall = moonLabel && n !== hover;
+      const moonSmall = planetMode && n._moon && n !== hover;
       const nameSize = moonSmall ? 10 : 12;
       const nameY = n.y + r + nameSize / view.k;
       ctx.font = `${nameSize / view.k}px ${CANVAS_FONT}`;
@@ -1735,11 +1738,13 @@ function draw() {
       ctx.strokeText(n.name, n.x, nameY);
       ctx.globalAlpha = faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
       ctx.fillText(n.name, n.x, nameY);
-      // Genre-Zeile unter dem Namen: bei Hauptkugeln immer; bei Monden nur, wenn nah genug
-      // gezoomt oder der Mond bzw. sein Planet gehovert ist — sonst wird die 2. Zeile zu klein.
-      const moonGenreOk = !n._moon || view.k > 1.15 || n === hover ||
+      // Genre-Zeile unter dem Namen: bei Hauptkugeln (gesucht/gut vernetzt) immer; bei den
+      // noch nicht geöffneten Nachbarn nur, wenn nah gezoomt oder gehovert — sonst wäre bei
+      // vielen Knoten (v.a. Flat) jede 2. Zeile Textflut. Gilt in beiden Modi gleich.
+      const mainNode = n.seed || (n.deg | 0) >= 3;
+      const genreOk = mainNode || view.k > 1.15 || n === hover ||
         (hover && adj.get(n.id) && adj.get(n.id).has(hover.id));
-      if (n.genres && n.genres.length && moonGenreOk) {
+      if (n.genres && n.genres.length && genreOk) {
         const gY = n.y + r + 24 / view.k;
         ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
         ctx.globalAlpha = faded ? 0.25 : 0.9; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
@@ -1974,13 +1979,14 @@ function isMoonHover(n) {
   return planetMode ? !!n._moon : true;
 }
 function moonBadges(n) {
-  const d = (radius(n) + 15 / view.k) / Math.SQRT2, r = 8 / view.k;
+  const d = (radius(n) + 16 / view.k) / Math.SQRT2, r = 9.5 / view.k;
   return { plus: { x: n.x + d, y: n.y - d, r }, info: { x: n.x - d, y: n.y - d, r } };
 }
 function onMoonBadge(n, px, py) {
   if (!isMoonHover(n)) return null;
   const w = world({ x: px, y: py }), b = moonBadges(n);
-  const hit = Math.max(b.plus.r + 4 / view.k, 12 / view.k), h2 = hit * hit;
+  const hit = Math.max(b.plus.r + 9 / view.k, 19 / view.k), h2 = hit * hit; // großzügige Trefferfläche
+
   if ((b.plus.x - w.x) ** 2 + (b.plus.y - w.y) ** 2 < h2) return "plus";
   if ((b.info.x - w.x) ** 2 + (b.info.y - w.y) ** 2 < h2) return "info";
   return null;
@@ -2264,7 +2270,21 @@ function fillTogether(rows) {
   });
 }
 function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); document.body.classList.remove("panel-open"); requestDraw(); }
-function centerOn(n) { view.x = W / 2 - n.x * view.k; view.y = (H + 52) / 2 - n.y * view.k; requestDraw(); } // +52 = Topbar
+// Zentriert einen Knoten im SICHTBAREN Bereich — berücksichtigt das offene Panel, damit der
+// fokussierte Knoten nicht rechts unter dem Seiten-Panel (Desktop) bzw. unter dem Bottom-Sheet
+// (Mobile) verschwindet.
+function centerOn(n) {
+  let cx = W / 2, cy = (H + 52) / 2; // +52 = Topbar
+  const panel = document.getElementById("panel");
+  if (panel && panel.classList.contains("open")) {
+    const r = panel.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      if (r.left >= W * 0.5 && r.top < 80) cx = (r.left + 52) / 2;         // Desktop: rechts angedockt
+      else if (r.top >= H * 0.4) cy = (52 + r.top) / 2;                     // Mobile: Bottom-Sheet
+    }
+  }
+  view.x = cx - n.x * view.k; view.y = cy - n.y * view.k; requestDraw();
+}
 
 function bookingHtml(n) {
   const b = n.booking;
@@ -2405,7 +2425,7 @@ async function reload(focusName) {
   if (focusName) {
     const k = slugify(focusName);
     const n = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
-    if (n) { followNode = n; centerOn(n); selectNode(n); } // mittig halten, bis das Layout ruht
+    if (n) { selectNode(n); followNode = n; centerOn(n); } // Panel zuerst öffnen -> centerOn kennt seine Breite; dann mittig halten
   }
 }
 
