@@ -1530,8 +1530,8 @@ function draw() {
     }
   }
 
-  // Lösch-„×" am gehoverten Knoten — schnelles Entfernen ohne Panel (nur echte Acts, keine Venues)
-  if (hovG && !hovG.venue && nodeById.has(hovG.id) && (hovG.appear ?? 1) >= 1) {
+  // Lösch-„×" am gehoverten Knoten — nur an Hauptkugeln (gesuchte Acts), klar außerhalb der Kugel
+  if (hovG && hovG.seed && !hovG.venue && nodeById.has(hovG.id) && (hovG.appear ?? 1) >= 1) {
     const b = deleteBadge(hovG);
     ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7);
@@ -1679,12 +1679,14 @@ function pick(px, py) {
 // + großzügige Treffer­prüfung. Schirmfeste Größe über /view.k.
 function deleteBadge(n) {
   const rr = radius(n);
-  return { x: n.x + rr * 0.72, y: n.y - rr * 0.72, r: 9 / view.k };
+  // klar AUSSERHALB der Kugel (oben-rechts, 45°), damit die Kugel selbst klickbar bleibt
+  const d = (rr + 16 / view.k) / Math.SQRT2;
+  return { x: n.x + d, y: n.y - d, r: 8.5 / view.k };
 }
 function onDeleteBadge(n, px, py) {
-  if (!n || n.venue) return false;
+  if (!n || n.venue || !n.seed) return false; // nur an Hauptkugeln (gesuchte Acts)
   const w = world({ x: px, y: py }), b = deleteBadge(n);
-  const hit = Math.max(b.r + 4 / view.k, 13 / view.k);
+  const hit = Math.max(b.r + 3 / view.k, 11 / view.k);
   return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
 }
 
