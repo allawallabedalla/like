@@ -12,6 +12,7 @@
     "dist:win": "electron-builder --win --publish never"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "electron": "^37.10.3",
@@ -50,7 +51,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ]
     },
@@ -59,11 +62,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

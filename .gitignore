@@ -33,3 +33,9 @@ dist/
 # statischer Export bettet den echten Graph (Acts/Booking-Kontakte) direkt als JS ein –
 # genau die Daten, die graph.json oben schon schützt. Bei Bedarf separat/gescrubbt teilen.
 docs/
+
+# E2E (Playwright)
+.e2e-data/
+test-results/
+playwright-report/
+blob-report/
