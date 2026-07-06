@@ -301,6 +301,19 @@
   .empty { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5;
     pointer-events: none; }
   .empty.show { display: flex; }
+  /* Leerer Zustand = nur eine große, zentrale Suchleiste im Fokus. */
+  .emptysearch { pointer-events: auto; width: min(560px, 88vw); display: flex; align-items: center; gap: 0;
+    border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg);
+    box-shadow: 0 20px 60px -24px #000; transition: border-color .16s, box-shadow .16s; }
+  .emptysearch:focus-within { border-color: var(--accent);
+    box-shadow: 0 20px 60px -22px #000, 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .emptysearch svg { flex: none; width: 20px; height: 20px; margin: 0 2px 0 16px; color: var(--muted); }
+  .emptysearch input { flex: 1; border: none; outline: none; background: none; color: var(--text);
+    font: 600 18px/1.3 inherit; padding: 17px 8px; }
+  .emptysearch input::placeholder { color: var(--muted); font-weight: 500; }
+  .emptysearch button { flex: none; margin: 7px; border: none; border-radius: 10px; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); font: 700 14px inherit; padding: 12px 18px; }
+  .emptysearch button:hover { filter: brightness(1.06); }
   .empty .box { text-align: center; color: var(--muted); max-width: 420px; padding: 24px; }
   .empty .box h3 { color: var(--text); font-size: 20px; margin: 0 0 10px; }
   .empty .box p { margin: 6px 0; font-size: 13px; line-height: 1.6; }
@@ -585,13 +598,12 @@
   </div>
 
   <div class="empty" id="empty">
-    <div class="box">
-      <h3 id="emptyTitle">Noch keine Acts auf der Karte</h3>
-      <p id="emptyBody">Such oben nach einem Act (<kbd>/</kbd> springt ins Suchfeld) — jeder Treffer<br>
-      bringt gleich sein Umfeld mit: ähnlicher Stil + zusammen aufgetreten.</p>
-      <p>Dann: <b>Doppelklick</b> auf einen Punkt lädt dessen Nachbarn —<br>so hangelst du dich durchs Netz.</p>
-      <p style="margin-top:14px"><button id="egBtn" class="primary hideStatic" style="pointer-events:auto;padding:8px 16px">Beispiel „Bonobo" laden</button></p>
+    <div class="emptysearch hideStatic">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="q2" placeholder="Act suchen…   z.B. Bonobo" autocomplete="off" />
+      <button id="go2">Suchen</button>
     </div>
+    <div class="box" id="emptyStatic" style="display:none"><h3 id="emptyTitle"></h3></div>
   </div>
 
   <div class="radarbox" id="radarbox">
@@ -961,12 +973,8 @@ function applyCfg() {
   if (FEAT.venues) $("venueWrap").style.display = "";
   if (!FEAT.radar) $("radarBtn").style.display = "none";
   $("radarTitle").textContent = CFG.radarTitle || "Radar";
-  // leerer Zustand + Beispiel
-  $("emptyTitle").textContent = CFG.emptyTitle || `Noch keine ${CFG.item.plur} auf der Karte`;
-  if (CFG.id !== "music") {
-    $("emptyBody").innerHTML = `Nutz die Suche oben (<kbd>/</kbd> springt ins Suchfeld) — jeder Treffer<br>` + esc(CFG.emptyHint || "bringt gleich sein Umfeld mit.");
-  }
-  $("egBtn").textContent = `Beispiel „${CFG.exampleSeed}" laden`;
+  // leerer Zustand: nur die zentrale Suchleiste (Platzhalter aus der Pack-Config)
+  $("q2").placeholder = (CFG.searchPlaceholder || "Suchen…").replace(/\s*\(\s*\/\s*\)\s*$/, "") + (CFG.exampleSeed ? `   z.B. ${CFG.exampleSeed}` : "");
   // Status-Auswahl
   $("status").innerHTML = '<option value="">—</option>' + CFG.statuses.map((s) => `<option value="${esc(s.value)}">${esc(s.label)}</option>`).join("");
   // Panel-Texte
@@ -3201,6 +3209,16 @@ addEventListener("visibilitychange", () => { if (document.hidden) saveView(); })
 
 // Onboarding: Beispiel-Eintrag aus dem leeren Zustand laden
 document.getElementById("egBtn")?.addEventListener("click", () => exploreByName(CFG.exampleSeed || "Bonobo"));
+// Zentrale Suchleiste im leeren Zustand (nur eine Leiste, sonst nichts)
+(function () {
+  const q2 = document.getElementById("q2"), go2 = document.getElementById("go2");
+  if (!q2 || !go2) return;
+  const run2 = () => { const v = q2.value.trim(); if (v) { q2.value = ""; exploreByName(v); } };
+  go2.addEventListener("click", run2);
+  q2.addEventListener("keydown", (e) => { if (e.key === "Enter") run2(); });
+  // Beim Öffnen der leeren Karte den Fokus auf die Leiste legen.
+  if (!STATIC && !nodes.length) setTimeout(() => q2.focus(), 60);
+})();
 
 // Venue-Ebene ein-/ausblenden (Musik): abgeleitete Spielort-Knoten aus den Auftrittsdaten
 const venueToggleEl = document.getElementById("venueToggle");
