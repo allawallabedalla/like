@@ -1184,8 +1184,7 @@ let venueMode = false; // Venue-Ebene (Musik): Spielorte als abgeleitete Knoten 
 try { venueMode = localStorage.getItem(LSK("like_venues")) === "1"; } catch {}
 let clusterMode = false; // Cluster-Färbung: Knoten nach Haupt-Genre einfärben
 try { clusterMode = localStorage.getItem(LSK("like_cluster")) === "1"; } catch {}
-let planetMode = true;  // Planeten-Ansicht (Space) ist Standard: Kern=Größe, Hof=Reichweite
-try { const _pv = localStorage.getItem(LSK("like_planet")); if (_pv != null) planetMode = _pv === "1"; } catch {}
+let planetMode = true;  // an das Theme gekoppelt: Dark = Space (Planeten), White = Flat. Final in der Theme-Init gesetzt.
 // Entdeck-Modi (früh deklariert: draw() liest scenesMode/bridgeSet schon beim ersten Frame)
 let communities = null;      // Map id -> Community-Label (Label-Propagation, gecacht bis rebuild)
 let scenesMode = false;      // Szenen als sanfte Farbflächen zeigen
@@ -1484,15 +1483,17 @@ function orbitMoons() {
     moons.forEach((m, i) => {
       m._moon = true; any = true;
       if (m._moonAng == null) {
-        m._moonAng = (i / moons.length) * 6.2832 + (pid.length % 6);
+        // grob gleichmäßig verteilt (kein Überlappen) + Zufalls-Jitter, damit sich nichts ausrichtet
+        m._moonAng = (i / moons.length) * 6.2832 + Math.random() * 1.2;
         // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> Orbit-Abstand
         let tie = 0.5;
         for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.strength != null ? l.strength : 0.5; break; } }
         m._moonTie = Math.max(0.05, Math.min(1, tie));
       }
-      // Sehr langsam, jeder Mond nur minimal anders schnell (organischer als starre Gleichdrehung).
-      if (m._moonSpeed == null) m._moonSpeed = (0.85 + ((i * 29) % 11) / 36) * ((i % 2) ? 1 : -1);
-      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.0018 * slow;
+      // Extrem subtil und PRO MOND randomisiert (Tempo + Richtung) -> natürliches, nicht
+      // gleichförmiges Kreisen. Einmal gewürfelt und gecacht, bleibt also stabil.
+      if (m._moonSpeed == null) m._moonSpeed = (0.55 + Math.random() * 0.9) * (Math.random() < 0.5 ? 1 : -1);
+      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.0006 * slow;
       const haloExt = 10 + Math.sqrt(Math.max(1, parent.deg | 0)) * 8; // etwa der Reichweiten-Hof
       const tie = m._moonTie != null ? m._moonTie : 0.5;               // näher am Planeten = enger verwandt
       // Radiale Staffelung (i%3) fächert benachbarte Monde auf verschiedene Bahnen -> mehr Abstand, Namen überlappen nicht.
@@ -2802,13 +2803,15 @@ function applyTheme(dark) {
 document.getElementById("themeBtn").onclick = () => {
   const dark = !document.body.classList.contains("dark");
   try { localStorage.setItem("like_theme", dark ? "dark" : "light"); } catch {}
-  applyTheme(dark);
+  // Kopplung: Dark=Space, White=Flat — die Ansicht folgt dem Theme.
+  if (typeof setPlanetMode === "function") setPlanetMode(dark); else applyTheme(dark);
 };
-// System-Präferenz als Default, gespeicherte Wahl gewinnt
+// Standard = DARK (→ Space); gespeicherte Wahl gewinnt. Ansicht ans Theme gekoppelt.
 (() => {
   let pref = null;
   try { pref = localStorage.getItem("like_theme"); } catch {}
-  const dark = pref ? pref === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = pref ? pref === "dark" : true;
+  planetMode = dark;           // Dark=Space, White=Flat (syncViewSeg() unten spiegelt es in den Toggle)
   applyTheme(dark);
 })();
 
@@ -3086,7 +3089,13 @@ function syncViewSeg() {
 function setPlanetMode(on) {
   planetMode = !!on;
   try { localStorage.setItem(LSK("like_planet"), planetMode ? "1" : "0"); } catch {}
-  syncViewSeg(); requestDraw();
+  syncViewSeg();
+  // Kopplung: Space = Dark, Flat = White. Theme mitziehen (applyTheme zeichnet neu).
+  const wantDark = planetMode;
+  if (document.body.classList.contains("dark") !== wantDark) {
+    try { localStorage.setItem("like_theme", wantDark ? "dark" : "light"); } catch {}
+    applyTheme(wantDark);
+  } else { requestDraw(); }
 }
 segSpaceEl.onclick = () => setPlanetMode(true);
 segFlatEl.onclick = () => setPlanetMode(false);
