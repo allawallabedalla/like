@@ -1608,15 +1608,7 @@ function draw() {
     }
     ctx.globalAlpha = baseA;
     ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
-    if (planetMode && !n.venue && isFinite(r) && r > 0 && isFinite(n.x) && isFinite(n.y)) { // kugelig schattierter Planet (Highlight oben-links -> Schattenrand)
-      const rgb = parseRGB(nodeColor(n));
-      const pg = ctx.createRadialGradient(n.x - r * 0.32, n.y - r * 0.32, r * 0.12, n.x, n.y, r);
-      pg.addColorStop(0, rgbStr(mixRGB(rgb, [255, 255, 255], 0.5)));
-      pg.addColorStop(0.55, rgbStr(rgb));
-      pg.addColorStop(1, rgbStr(mixRGB(rgb, [0, 0, 0], 0.45)));
-      ctx.fillStyle = pg;
-    } else ctx.fillStyle = nodeColor(n);
-    ctx.fill();
+    ctx.fillStyle = nodeColor(n); ctx.fill(); // flach einfarbig (auch im Planeten-Modus)
     const sCol = STATUS_COLOR[n.status];
     if (sel) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--text"); ctx.stroke(); }
     else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
@@ -1689,6 +1681,17 @@ function draw() {
     ctx.moveTo(b.x - s, b.y - s); ctx.lineTo(b.x + s, b.y + s);
     ctx.moveTo(b.x + s, b.y - s); ctx.lineTo(b.x - s, b.y + s);
     ctx.stroke(); ctx.lineCap = "butt";
+  }
+
+  // Planeten-Modus: der gehoverte Planet wird zum Play-Button (▶ bzw. ⏸ wenn er läuft).
+  if (planetMode && FEAT.preview && hovG && !hovG.venue && nodeById.has(hovG.id) && (hovG.appear ?? 1) >= 1) {
+    const rr = radius(hovG), cx = hovG.x, cy = hovG.y;
+    const R = Math.max(rr * 0.66, 8 / view.k);
+    const isPlaying = previewName === hovG.name && !audio.paused;
+    ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fillStyle = "rgba(10,13,20,0.55)"; ctx.fill();
+    ctx.fillStyle = "#fff";
+    if (isPlaying) { const bw = R * 0.26, bh = R * 0.82, g = 1.4 / view.k; ctx.fillRect(cx - bw - g, cy - bh / 2, bw, bh); ctx.fillRect(cx + g, cy - bh / 2, bw, bh); }
+    else { const sz = R * 0.5; ctx.beginPath(); ctx.moveTo(cx - sz * 0.36, cy - sz); ctx.lineTo(cx - sz * 0.36, cy + sz); ctx.lineTo(cx + sz, cy); ctx.closePath(); ctx.fill(); }
   }
 
   // Brücken-Kandidaten als helle "Geister" zwischen A und B (noch nicht Teil des Graphen)
@@ -1894,7 +1897,7 @@ addEventListener("mouseup", (e) => {
       if (n) {
         if (bridgeFrom) finishBridge(n);          // Brücken-Ziel wählen
         else if (e.shiftKey) toggleCompare(n);    // Shift = vergleichen
-        else selectNode(n);                       // sonst: Details
+        else { selectNode(n); if (planetMode && FEAT.preview && !n.venue) togglePreview(n.name); } // Planet = Play
       } else if (!bridge) { closePanel(); }       // Leerklick: Panel zu (nicht während Brücke)
     }
   }
@@ -1992,7 +1995,7 @@ cv.addEventListener("touchend", (e) => {
         const now = Date.now();
         if (bridgeFrom) finishBridge(n);
         else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppeltipp
-        else selectNode(n);
+        else { selectNode(n); if (planetMode && FEAT.preview && !n.venue) togglePreview(n.name); } // Planet = Play
         lastTapT = now; lastTapNode = n;
       } else if (!bridge) closePanel();
     }
