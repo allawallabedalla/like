@@ -5,7 +5,7 @@
 
 import { getSimilar, getTopTags, getArtistInfo, searchArtists, clearKeyCache } from "../../lib/lastfm.mjs";
 import { coAppearances } from "../../lib/coappear.mjs";
-import { relatedArtists, topTrackPreview, artistByName as dzArtist } from "../../lib/deezer.mjs";
+import { relatedArtists, topTrackPreview, trackPreviewSearch, artistByName as dzArtist } from "../../lib/deezer.mjs";
 import { previewByName } from "../../lib/itunes.mjs";
 import { labelmates, artistByName as mbArtist } from "../../lib/musicbrainz.mjs";
 import { searchBand, discoverTag } from "../../lib/bandcamp.mjs";
@@ -139,11 +139,15 @@ export default {
     return info?.listeners || null;
   },
 
+  // Klangprobe über mehrere Quellen, in Reihenfolge steigender „Breite", jede streng am
+  // Künstlernamen verankert (nie ein fremder Act): Deezer-Top-Track → Deezer-Track-Suche
+  // (falls /top leer) → iTunes (zwei Anläufe). So gibt es deutlich seltener „keine Vorschau".
   async preview(name) {
-    let p = null;
-    try { p = await topTrackPreview(name); } catch {}
-    if (!p?.url) { try { p = await previewByName(name); } catch {} }
-    return p?.url ? p : null;
+    const tries = [topTrackPreview, trackPreviewSearch, previewByName];
+    for (const fn of tries) {
+      try { const p = await fn(name); if (p?.url) return p; } catch {}
+    }
+    return null;
   },
 
   // „Überrasch mich" (Kaltstart, leere Seite): 4 Zufallskandidaten aus dem Pool ziehen,
