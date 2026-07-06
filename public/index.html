@@ -2593,25 +2593,42 @@ document.getElementById("brand").onclick = () => {
 // (Zustand communities/scenesMode/bridgeSet ist oben früh deklariert — TDZ-sicher für draw())
 const SCENE_PALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#76b7b2", "#d4a017", "#9c755f", "#bab0ac", "#ff9da7"];
 
-// Label-Propagation: schnelle, zero-dep Community-Erkennung. Jeder Knoten übernimmt
-// iterativ das häufigste Label seiner Nachbarn (Gleichstand -> kleinstes Label = stabil).
+// Community-Erkennung per Greedy-Modularität (agglomerativ, CNM-Stil): startet mit jedem
+// Knoten als eigene Community und verschmilzt iterativ das Paar mit dem größten Modularitäts-
+// Gewinn. Zero-dep, für kleine Graphen schnell — und anders als Label-Propagation kollabiert
+// es klare Mehr-Szenen-Strukturen NICHT zu einer einzigen Community.
 function computeCommunities() {
   if (communities) return communities;
-  const lab = new Map();
   const ids = nodes.filter((n) => !n.venue).map((n) => n.id);
-  for (const id of ids) lab.set(id, id);
-  for (let iter = 0; iter < 6; iter++) {
-    let changed = false;
-    for (const id of ids) {
-      const nb = adj.get(id); if (!nb || !nb.size) continue;
-      const cnt = new Map();
-      for (const x of nb) { if (!lab.has(x)) continue; const l = lab.get(x); cnt.set(l, (cnt.get(l) || 0) + 1); }
-      if (!cnt.size) continue;
-      let best = null, bestC = -1;
-      for (const [l, c] of cnt) if (c > bestC || (c === bestC && (best === null || l < best))) { best = l; bestC = c; }
-      if (best !== lab.get(id)) { lab.set(id, best); changed = true; }
+  const idset = new Set(ids);
+  const lab = new Map(ids.map((id) => [id, id]));
+  // Kantenliste + Grad nur unter echten (nicht-Venue) Knoten
+  const deg = new Map(ids.map((id) => [id, 0]));
+  const edges = [], seen = new Set();
+  for (const id of ids) for (const x of (adj.get(id) || [])) {
+    if (!idset.has(x) || x === id) continue;
+    const key = id < x ? id + "|" + x : x + "|" + id;
+    if (seen.has(key)) continue; seen.add(key);
+    edges.push([id, x]); deg.set(id, deg.get(id) + 1); deg.set(x, deg.get(x) + 1);
+  }
+  const m = edges.length;
+  if (m === 0) { communities = lab; return lab; }
+  const comA = new Map(ids.map((id) => [id, deg.get(id)])); // Summe der Grade je Community
+  const pairKey = (a, b) => a < b ? a + "|" + b : b + "|" + a;
+  const buildEij = () => { const e = new Map(); for (const [u, v] of edges) { const cu = lab.get(u), cv = lab.get(v); if (cu === cv) continue; const k = pairKey(cu, cv); e.set(k, (e.get(k) || 0) + 1); } return e; };
+  let eij = buildEij();
+  while (eij.size) {
+    let best = null, bestDQ = 1e-9;
+    for (const [k, e] of eij) {
+      const [ci, cj] = k.split("|");
+      const dq = e / m - (comA.get(ci) * comA.get(cj)) / (2 * m * m); // ΔQ beim Verschmelzen
+      if (dq > bestDQ) { bestDQ = dq; best = [ci, cj]; }
     }
-    if (!changed) break;
+    if (!best) break;
+    const [ci, cj] = best;
+    for (const [id, c] of lab) if (c === cj) lab.set(id, ci); // cj -> ci
+    comA.set(ci, comA.get(ci) + comA.get(cj)); comA.delete(cj);
+    eij = buildEij();
   }
   communities = lab;
   return lab;
