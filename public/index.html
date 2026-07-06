@@ -1456,11 +1456,18 @@ function orbitMoons() {
     const parent = nodeById.get(pid), pr = radius(parent);
     moons.forEach((m, i) => {
       m._moon = true; any = true;
-      if (m._moonAng == null) m._moonAng = (i / moons.length) * 6.2832 + (pid.length % 6);
+      if (m._moonAng == null) {
+        m._moonAng = (i / moons.length) * 6.2832 + (pid.length % 6);
+        // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> Orbit-Abstand
+        let tie = 0.5;
+        for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.strength != null ? l.strength : 0.5; break; } }
+        m._moonTie = Math.max(0.05, Math.min(1, tie));
+      }
       if (m._moonSpeed == null) m._moonSpeed = (0.5 + ((i * 13) % 7) / 10) * ((i % 2) ? 1 : -1);
       if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.01;
       const haloExt = 10 + Math.sqrt(Math.max(1, parent.deg | 0)) * 8; // etwa der Reichweiten-Hof
-      const orbitR = pr + haloExt + radius(m) + 14 + (i % 3) * 15;     // klar außerhalb des Hofs
+      const tie = m._moonTie != null ? m._moonTie : 0.5;               // näher am Planeten = enger verwandt
+      const orbitR = pr + haloExt + radius(m) + 12 + (1 - tie) * 48;
       m.x = parent.x + Math.cos(m._moonAng) * orbitR;
       m.y = parent.y + Math.sin(m._moonAng) * orbitR;
       m.vx = 0; m.vy = 0;
