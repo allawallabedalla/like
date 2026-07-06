@@ -13,6 +13,10 @@ services:
         value: 0.0.0.0        # öffentlich lauschen, damit Render den Container erreicht
       - key: LIKE_DATA_DIR
         value: /data
+      # „Coming soon"-Gate: gesetzt = nur das öffentliche Pack (Default: music) ist frei,
+      # alle anderen brauchen dieses Passwort. Leer/ungesetzt = alles offen.
+      - key: LIKE_UNLOCK_PASSWORD
+        sync: false
       # Optionale Heimat für „Like Travel" (Standard: Berlin, Deutschland)
       - key: LIKE_TRAVEL_HOME
         sync: false
