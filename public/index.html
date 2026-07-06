@@ -529,8 +529,10 @@
   @media (max-width: 900px)  { #tasteBtn, #feedbackBtn { display: none !important; } }
   @media (max-width: 760px)  { #radarBtn { display: none !important; } .bar { gap: 8px; } } /* Entdecken bleibt */
   @media (max-width: 480px) {
-    /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante. */
-    .panel { width: 100%; top: auto; right: 0; left: 0; height: 82vh; bottom: 0;
+    /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante.
+       Höhe bewusst < 2/3, damit der Graph oben sichtbar bleibt (der fokussierte Knoten
+       wird per centerOn in den freien Streifen ÜBER dem Sheet geschoben). */
+    .panel { width: 100%; top: auto; right: 0; left: 0; height: 62vh; bottom: 0;
       border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
       transform: translateY(103%); box-shadow: 0 -8px 34px rgba(0,0,0,.30);
       padding-bottom: max(16px, env(safe-area-inset-bottom)); }
@@ -2307,8 +2309,11 @@ function centerOn(n) {
   if (panel && panel.classList.contains("open")) {
     const r = panel.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) {
-      if (r.left >= W * 0.5 && r.top < 80) cx = (r.left + 52) / 2;         // Desktop: rechts angedockt
-      else if (r.top >= H * 0.4) cy = (52 + r.top) / 2;                     // Mobile: Bottom-Sheet
+      // Bottom-Sheet (Mobile) = volle Breite: Knoten in den sichtbaren Streifen ÜBER dem Sheet.
+      // Rechts angedocktes Panel (Desktop) = schmaler als der Viewport: Knoten nach links rücken.
+      const bottomSheet = r.left <= 1 && r.width >= W - 2;
+      if (bottomSheet) cy = (52 + r.top) / 2;
+      else if (r.left >= W * 0.5 && r.top < 80) cx = (r.left + 52) / 2;
     }
   }
   view.x = cx - n.x * view.k; view.y = cy - n.y * view.k; requestDraw();
