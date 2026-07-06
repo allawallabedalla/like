@@ -1117,6 +1117,7 @@ const API = {
   enrich: (id) => POST("/api/enrich", { id }),
   radar: (extraLikes, force) => POST("/api/radar", { extraLikes, force }),
   snapshot: () => POST("/api/snapshot", {}),
+  popfill: () => POST("/api/popfill", {}),
   digest: () => POST("/api/digest", {}),
   diag: () => POST("/api/diag", {}),
   import: (graph) => POST("/api/import", { graph }),
@@ -1836,6 +1837,15 @@ function draw() {
     ctx.moveTo(b.x - s, b.y - s); ctx.lineTo(b.x + s, b.y + s);
     ctx.moveTo(b.x + s, b.y - s); ctx.lineTo(b.x - s, b.y + s);
     ctx.stroke(); ctx.lineCap = "butt";
+    // ⓘ oben links — auch am gesuchten Act (Info-Karte öffnen, ohne Play)
+    const ib = seedInfoBadge(hovG);
+    ctx.beginPath(); ctx.arc(ib.x, ib.y, ib.r, 0, 7);
+    ctx.fillStyle = getCss("--bg"); ctx.fill();
+    ctx.lineWidth = 1.4 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke();
+    ctx.fillStyle = getCss("--text"); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `italic 700 ${ib.r * 1.5}px ${CANVAS_FONT}`;
+    ctx.fillText("i", ib.x, ib.y + 0.4 / view.k);
+    ctx.textBaseline = "alphabetic";
   }
 
   // Play/Pause-Button (Space UND Flat gleich): blendet schon vor dem Hover ein — je näher die
@@ -2062,6 +2072,27 @@ function onMoonBadge(n, px, py) {
   if ((b.info.x - w.x) ** 2 + (b.info.y - w.y) ** 2 < h2) return "info";
   return null;
 }
+// ⓘ-Info-Badge auch an gesuchten Acts (Seed): oben links — Gegenstück zum Lösch-× oben rechts.
+function seedInfoBadge(n) { const d = (radius(n) + 16 / view.k) / Math.SQRT2; return { x: n.x - d, y: n.y - d, r: 9.5 / view.k }; }
+function onSeedInfo(n, px, py) {
+  if (!n || n.venue || !n.seed || (n.appear ?? 1) < 1) return false;
+  const w = world({ x: px, y: py }), b = seedInfoBadge(n);
+  const hit = Math.max(b.r + 9 / view.k, (COARSE ? 24 : 20) / view.k);
+  return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
+}
+// Play-Knopf (▶) am nächsten Knoten als EIGENES Ziel: nur er startet die Klangprobe.
+// Ein Klick auf die Kugel selbst öffnet nur die Info — kein automatisches Abspielen mehr.
+function onPlayBtn(px, py) {
+  if (!FEAT.preview) return null;
+  const w = world({ x: px, y: py });
+  let g = null, gd = Infinity;
+  for (const n of nodes) { if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id)) continue; const dd = Math.hypot(w.x - n.x, w.y - n.y); if (dd < gd) { gd = dd; g = n; } }
+  if (!g) return null;
+  const rr = radius(g), R = Math.max(rr * 0.66, 8 / view.k), fadeStart = rr + 78 / view.k;
+  const vis = (g === hover || gd <= rr) ? 1 : (fadeStart - gd) / (fadeStart - rr);
+  if (vis <= 0.5) return null;            // nur wenn der ▶ sichtbar/nah ist
+  return gd <= R + 6 / view.k ? g : null; // Treffer im ▶-Kreis
+}
 
 // ---- Maus ----
 // Einheitliche Canvas-Koordinaten (offsetX/Y wären relativ zum Element unter dem Cursor).
@@ -2129,6 +2160,14 @@ addEventListener("mouseup", (e) => {
       else { selectNode(m); }                                      // nur Info-Karte
       return;
     }
+    // Klick auf das ⓘ am gesuchten Act -> nur Info-Karte
+    if (hover && onSeedInfo(hover, p.x, p.y)) { const s = hover; dragging = false; dragNode = null; cv.classList.remove("grabbing"); selectNode(s); return; }
+    // Klick auf den ▶-Knopf -> Klangprobe (der EINZIGE Weg zum Abspielen)
+    const pbNode = onPlayBtn(p.x, p.y);
+    if (pbNode && !e.shiftKey && !bridgeFrom && !(bridge && bridge.cands.length)) {
+      dragging = false; dragNode = null; cv.classList.remove("grabbing");
+      selectNode(pbNode); togglePreview(pbNode.name); return;
+    }
     const gi = (bridge && bridge.cands.length) ? pickGhost(p.x, p.y) : -1;
     if (gi >= 0) { addBridge(gi); }               // Brücken-Kandidat gewählt -> einfügen
     else {
@@ -2136,7 +2175,7 @@ addEventListener("mouseup", (e) => {
       if (n) {
         if (bridgeFrom) finishBridge(n);          // Brücken-Ziel wählen
         else if (e.shiftKey) toggleCompare(n);    // Shift = vergleichen
-        else { selectNode(n); if (FEAT.preview && !n.venue) togglePreview(n.name); } // Klick = Auswahl + Klangprobe (beide Modi)
+        else { selectNode(n); }                   // Klick auf die Kugel = NUR Info (kein Auto-Play)
       } else if (!bridge) { closePanel(); }       // Leerklick: Panel zu (nicht während Brücke)
     }
   }
@@ -2236,7 +2275,7 @@ cv.addEventListener("touchend", (e) => {
         const now = Date.now();
         if (bridgeFrom) finishBridge(n);
         else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppeltipp
-        else { selectNode(n); if (FEAT.preview && !n.venue) togglePreview(n.name); } // Klick = Auswahl + Klangprobe (beide Modi)
+        else { selectNode(n); } // Tipp = nur Info-Karte öffnen; Abspielen über den ▶ im Panel
         lastTapT = now; lastTapNode = n;
       } else if (!bridge) closePanel();
     }
@@ -2522,6 +2561,7 @@ async function exploreByName(name) {
     }
     await reload(res.name);
     addTrail(res.name);
+    fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
     toast(`${res.name}: ${res.similar} ${CFG.edges.similar.count || "ähnlich"} · ${res.together} ${CFG.edges.together.count || "verbunden"}`);
   } catch (e) {
     toast("Fehler: " + e.message);
@@ -3557,7 +3597,28 @@ async function startupTasks() {
   if (STATIC) return;
   try { await API.snapshot(); } catch {}
   try { renderDigest(await API.digest()); } catch {}
+  fillSizes(); // Hörerzahlen im Hintergrund nachladen (Größen/Glow richten sich nach Popularität)
   updateCheck();
+}
+// Hörerzahlen für noch nicht befüllte Knoten gedrosselt nachladen, damit sich Kugelgröße
+// und Glow auch für die (noch nicht geöffneten) Nachbarn nach der Popularität richten.
+// Server drosselt + cacht die Last.fm-Aufrufe; wir holen in Häppchen und zeichnen neu.
+let _fillingSizes = false;
+async function fillSizes() {
+  if (STATIC || _fillingSizes || !(CFG.popularity)) return;
+  _fillingSizes = true;
+  try {
+    for (let round = 0; round < 12; round++) {
+      if (!nodes.some((n) => !n.venue && n.listeners == null)) break;
+      let r; try { r = await API.popfill(); } catch { break; }
+      if (!r || !r.ok) break;
+      if (r.listeners) {
+        for (const id in r.listeners) { const n = nodeById.get(id); if (n && n.listeners == null) n.listeners = r.listeners[id]; }
+        requestDraw();
+      }
+      if (!r.remaining) break;
+    }
+  } finally { _fillingSizes = false; }
 }
 // Still prüfen, ob auf GitHub eine neuere Version liegt -> dezenter Hinweis am Versions-Badge.
 function semverGt(a, b) {
