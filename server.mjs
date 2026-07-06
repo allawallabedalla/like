@@ -126,7 +126,7 @@ function landingPage(unlocked) {
 // Impressum (Pflicht in DE): minimale Angaben. Adresse ist als Platzhalter markiert und
 // muss vom Betreiber ergänzt werden (per ENV LIKE_IMPRINT_ADDRESS / _NAME / _EMAIL überschreibbar).
 function impressumPage() {
-  const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas Reis").trim();
+  const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas R").trim();
   const email = (process.env.LIKE_IMPRINT_EMAIL || "nicolasreis@me.com").trim();
   const addr = (process.env.LIKE_IMPRINT_ADDRESS || "").trim();
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -154,7 +154,7 @@ function impressumPage() {
   <h2>Kontakt</h2>
   <p>E-Mail: <a href="mailto:${esc(email)}">${esc(email)}</a></p>
   <h2>Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
-  <p>${esc(name)}, Anschrift wie oben.</p>
+  <p>Der oben genannte Diensteanbieter.</p>
   <h2>Haftung für Inhalte &amp; Links</h2>
   <p class="muted">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
 </div></body></html>`;
