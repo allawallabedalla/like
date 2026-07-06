@@ -1449,6 +1449,10 @@ function tick() {
     // so lässt sich das Netz von Hand sortieren, ohne dass die Physik es zurückzieht
     if (a === dragNode || a.pinned || a._moon) { a.vx = 0; a.vy = 0; continue; } // Monde folgen ihrer Umlaufbahn
     a.vx *= DAMP; a.vy *= DAMP;
+    // Geschwindigkeit deckeln: verhindert das wilde Überschießen/Zappeln, wenn ein neuer
+    // Act mit vielen Nachbarn überlappend spawnt (v.a. in der Flat-Ansicht ohne Mond-Fixierung).
+    const sp2 = a.vx * a.vx + a.vy * a.vy, MAXV = 34;
+    if (sp2 > MAXV * MAXV) { const s = MAXV / Math.sqrt(sp2); a.vx *= s; a.vy *= s; }
     a.x += a.vx; a.y += a.vy;
   }
   alpha *= ALPHA_DECAY;
@@ -1480,12 +1484,20 @@ function orbitMoons() {
       const dd = Math.hypot(mouseWorld.x - parent.x, mouseWorld.y - parent.y);
       slow = dd > 260 ? 1 : dd < 60 ? 0.06 : 0.06 + 0.94 * ((dd - 60) / 200);
     }
+    // Monde auf konzentrische Ringe verteilen (≤ PER_RING pro Ring), damit die immer
+    // sichtbaren Namen genug Abstand haben — innerhalb eines Rings gleichmäßig im Winkel,
+    // die Ringe radial klar getrennt. So drängeln die Labels nicht mehr.
+    const PER_RING = 7, RING_GAP = 64;
+    const haloExt = 10 + Math.sqrt(Math.max(1, parent.deg | 0)) * 8; // etwa der Reichweiten-Hof
     moons.forEach((m, i) => {
       m._moon = true; any = true;
+      const ringIdx = Math.floor(i / PER_RING);
+      const posInRing = i % PER_RING;
+      const ringSize = Math.min(PER_RING, moons.length - ringIdx * PER_RING);
       if (m._moonAng == null) {
-        // grob gleichmäßig verteilt (kein Überlappen) + Zufalls-Jitter, damit sich nichts ausrichtet
-        m._moonAng = (i / moons.length) * 6.2832 + Math.random() * 1.2;
-        // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> Orbit-Abstand
+        // gleichmäßig INNERHALB des Rings; Ringe leicht versetzt, damit Speichen nicht fluchten
+        m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + Math.random() * 0.12;
+        // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> leichte Radius-Nuance
         let tie = 0.5;
         for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.strength != null ? l.strength : 0.5; break; } }
         m._moonTie = Math.max(0.05, Math.min(1, tie));
@@ -1494,10 +1506,8 @@ function orbitMoons() {
       // gleichförmiges Kreisen. Einmal gewürfelt und gecacht, bleibt also stabil.
       if (m._moonSpeed == null) m._moonSpeed = (0.55 + Math.random() * 0.9) * (Math.random() < 0.5 ? 1 : -1);
       if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.0006 * slow;
-      const haloExt = 10 + Math.sqrt(Math.max(1, parent.deg | 0)) * 8; // etwa der Reichweiten-Hof
-      const tie = m._moonTie != null ? m._moonTie : 0.5;               // näher am Planeten = enger verwandt
-      // Radiale Staffelung (i%3) fächert benachbarte Monde auf verschiedene Bahnen -> mehr Abstand, Namen überlappen nicht.
-      const orbitR = pr + haloExt + radius(m) + 16 + (1 - tie) * 46 + (i % 3) * 18;
+      const tie = m._moonTie != null ? m._moonTie : 0.5;
+      const orbitR = pr + haloExt + radius(m) + 22 + ringIdx * RING_GAP + (1 - tie) * 12;
       m.x = parent.x + Math.cos(m._moonAng) * orbitR;
       m.y = parent.y + Math.sin(m._moonAng) * orbitR;
       m.vx = 0; m.vy = 0;
@@ -1699,8 +1709,11 @@ function draw() {
       // Halo in Hintergrundfarbe hinter jeden Text -> Labels bleiben über Kanten
       // und einander lesbar (das eigentliche "Überlappen"-Problem bei Hubs).
       ctx.lineJoin = "round"; ctx.strokeStyle = getCss("--bg");
-      const nameY = n.y + r + 12 / view.k;
-      ctx.font = `${12 / view.k}px ${CANVAS_FONT}`;
+      // Mond-Namen etwas kleiner (weniger Gedränge); der gerade gehoverte Mond bleibt normal groß.
+      const moonSmall = moonLabel && n !== hover;
+      const nameSize = moonSmall ? 10 : 12;
+      const nameY = n.y + r + nameSize / view.k;
+      ctx.font = `${nameSize / view.k}px ${CANVAS_FONT}`;
       ctx.globalAlpha = faded ? 0.3 : 1; ctx.lineWidth = 3.5 / view.k;
       ctx.strokeText(n.name, n.x, nameY);
       ctx.globalAlpha = faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
