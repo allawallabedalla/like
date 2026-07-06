@@ -1030,6 +1030,28 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, snapshotted: n, marked: marked.length });
     }
 
+    // Hörerzahlen für noch nicht befüllte Knoten nachladen -> Kugelgröße/Glow richten sich
+    // auch für (noch nicht geöffnete) Nachbarn nach der Popularität. Gedrosselt + gecacht;
+    // pro Aufruf gedeckelt, der Client ruft bei Bedarf mehrmals. Gibt nur die neuen Werte zurück.
+    if (req.method === "POST" && url.pathname === "/api/popfill") {
+      if (!pack.popularity) return send(res, 200, { ok: true, filled: 0, remaining: 0, listeners: {} });
+      const g0 = await loadGraph(GRAPH);
+      const all = Object.values(g0.artists).filter((a) => !a.venue && a.listeners == null);
+      const batch = all.slice(0, 40).map((a) => ({ id: a.id, name: a.name }));
+      const popById = new Map();
+      for (const m of batch) {
+        let p = null; try { p = await pack.popularity(m.name); } catch {}
+        popById.set(m.id, p ?? 0); // 0 = versucht, aber keine Zahl -> wird nicht endlos neu geholt
+      }
+      if (popById.size) await withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        for (const [id, p] of popById) { const a = g.artists[id]; if (a && a.listeners == null) a.listeners = p; }
+        await persist(g);
+      });
+      const out = {}; for (const [id, p] of popById) out[id] = p;
+      return send(res, 200, { ok: true, filled: popById.size, remaining: Math.max(0, all.length - batch.length), listeners: out });
+    }
+
     // Wochen-Digest: welche markierten Einträge sind gewachsen/geschrumpft.
     if (req.method === "POST" && url.pathname === "/api/digest") {
       const g = await loadGraph(GRAPH);
