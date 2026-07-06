@@ -1502,6 +1502,20 @@ function draw() {
     }
   }
 
+  // Lösch-„×" am gehoverten Knoten — schnelles Entfernen ohne Panel (nur echte Acts, keine Venues)
+  if (hovG && !hovG.venue && nodeById.has(hovG.id) && (hovG.appear ?? 1) >= 1) {
+    const b = deleteBadge(hovG);
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7);
+    ctx.fillStyle = getCss("--bg"); ctx.fill();
+    ctx.lineWidth = 1.4 / view.k; ctx.strokeStyle = "#e15759"; ctx.stroke();
+    const s = b.r * 0.46; ctx.lineCap = "round"; ctx.lineWidth = 1.7 / view.k; ctx.strokeStyle = "#e15759";
+    ctx.beginPath();
+    ctx.moveTo(b.x - s, b.y - s); ctx.lineTo(b.x + s, b.y + s);
+    ctx.moveTo(b.x + s, b.y - s); ctx.lineTo(b.x - s, b.y + s);
+    ctx.stroke(); ctx.lineCap = "butt";
+  }
+
   // Brücken-Kandidaten als helle "Geister" zwischen A und B (noch nicht Teil des Graphen)
   if (bridge && bridge.cands && bridge.cands.length) {
     const ranked = bridgeRanked();
@@ -1633,6 +1647,19 @@ function pick(px, py) {
   return best;
 }
 
+// Lösch-„×" am gehoverten Knoten: Position (Welt-Koordinaten, oben rechts an der Kugel)
+// + großzügige Treffer­prüfung. Schirmfeste Größe über /view.k.
+function deleteBadge(n) {
+  const rr = radius(n);
+  return { x: n.x + rr * 0.72, y: n.y - rr * 0.72, r: 9 / view.k };
+}
+function onDeleteBadge(n, px, py) {
+  if (!n || n.venue) return false;
+  const w = world({ x: px, y: py }), b = deleteBadge(n);
+  const hit = Math.max(b.r + 4 / view.k, 13 / view.k);
+  return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
+}
+
 // ---- Maus ----
 // Einheitliche Canvas-Koordinaten (offsetX/Y wären relativ zum Element unter dem Cursor).
 function canvasXY(e) {
@@ -1652,9 +1679,13 @@ addEventListener("mousemove", (e) => {
   const p = canvasXY(e);
   if (!dragging) {
     const overCanvas = p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
-    const n = overCanvas ? pick(p.x, p.y) : null;
-    if (n !== hover) { hover = n; cv.style.cursor = n ? "pointer" : "grab"; requestDraw(); } // Hover-Highlight neu zeichnen
-    updateTooltip(n, e);
+    let n = overCanvas ? pick(p.x, p.y) : null;
+    // Das „×"-Badge zählt zum Hover (sonst verschwände es, sobald man drauf zielt).
+    const onX = !n && hover && overCanvas && onDeleteBadge(hover, p.x, p.y);
+    if (onX) n = hover;
+    if (n !== hover) { hover = n; requestDraw(); }
+    cv.style.cursor = onX ? "pointer" : (n ? "pointer" : "grab");
+    updateTooltip(onX ? null : n, e);
     return;
   }
   const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
@@ -1672,6 +1703,12 @@ addEventListener("mouseup", (e) => {
   hideCtx();
   if (dragging && !moved) {
     const p = canvasXY(e);
+    // Klick aufs „×" am gehoverten Knoten -> entfernen (mit Undo), kein Auswählen
+    if (hover && onDeleteBadge(hover, p.x, p.y)) {
+      const victim = hover; hover = null;
+      dragging = false; dragNode = null; cv.classList.remove("grabbing");
+      removeNode(victim); requestDraw(); return;
+    }
     const gi = (bridge && bridge.cands.length) ? pickGhost(p.x, p.y) : -1;
     if (gi >= 0) { addBridge(gi); }               // Brücken-Kandidat gewählt -> einfügen
     else {
