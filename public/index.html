@@ -1719,15 +1719,54 @@ function draw() {
     ctx.stroke(); ctx.lineCap = "butt";
   }
 
-  // Planeten-Modus: der gehoverte Planet wird zum Play-Button (▶ bzw. ⏸ wenn er läuft).
-  if (planetMode && FEAT.preview && hovG && !hovG.venue && nodeById.has(hovG.id) && (hovG.appear ?? 1) >= 1) {
-    const rr = radius(hovG), cx = hovG.x, cy = hovG.y;
-    const R = Math.max(rr * 0.66, 8 / view.k);
-    const isPlaying = previewName === hovG.name && !audio.paused;
-    ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fillStyle = "rgba(10,13,20,0.55)"; ctx.fill();
-    ctx.fillStyle = "#fff";
-    if (isPlaying) { const bw = R * 0.26, bh = R * 0.82, g = 1.4 / view.k; ctx.fillRect(cx - bw - g, cy - bh / 2, bw, bh); ctx.fillRect(cx + g, cy - bh / 2, bw, bh); }
-    else { const sz = R * 0.5; ctx.beginPath(); ctx.moveTo(cx - sz * 0.36, cy - sz); ctx.lineTo(cx - sz * 0.36, cy + sz); ctx.lineTo(cx + sz, cy); ctx.closePath(); ctx.fill(); }
+  // Planeten-Modus: der Play/Pause-Button blendet schon vor dem Hover ein — je näher die
+  // Maus dem Planeten kommt, desto deutlicher (proximity-Fade). Beim Hover volle Deckung.
+  if (planetMode && FEAT.preview && mouseWorld) {
+    // den Planeten wählen, dem die Maus am nächsten ist
+    let g = null, gd = Infinity;
+    for (const n of nodes) {
+      if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id)) continue;
+      const dx = mouseWorld.x - n.x, dy = mouseWorld.y - n.y, dd = Math.sqrt(dx * dx + dy * dy);
+      if (dd < gd) { gd = dd; g = n; }
+    }
+    if (g) {
+      const rr = radius(g), fadeStart = rr + 78 / view.k;
+      let a = (g === hover || gd <= rr) ? 1 : (fadeStart - gd) / (fadeStart - rr);
+      a = Math.max(0, Math.min(1, a));
+      if (a > 0.02) {
+        const cx = g.x, cy = g.y, R = Math.max(rr * 0.66, 8 / view.k);
+        const isPlaying = previewName === g.name && !audio.paused;
+        ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fillStyle = "rgba(10,13,20,0.55)"; ctx.fill();
+        ctx.fillStyle = "#fff";
+        if (isPlaying) { const bw = R * 0.26, bh = R * 0.82, gp = 1.4 / view.k; ctx.fillRect(cx - bw - gp, cy - bh / 2, bw, bh); ctx.fillRect(cx + gp, cy - bh / 2, bw, bh); }
+        else { const sz = R * 0.5; ctx.beginPath(); ctx.moveTo(cx - sz * 0.36, cy - sz); ctx.lineTo(cx - sz * 0.36, cy + sz); ctx.lineTo(cx + sz, cy); ctx.closePath(); ctx.fill(); }
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  // Planeten-Modus: am gehoverten Mond zwei kleine Aktionen — ＋ (zum eigenen Planeten
+  // ausbauen) und ⓘ (Info-Karte öffnen). Nur am gerade gehoverten Mond.
+  if (isMoonHover(hovG)) {
+    const b = moonBadges(hovG), act = getCss("--edge-together");
+    // ＋ oben rechts
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(b.plus.x, b.plus.y, b.plus.r, 0, 7);
+    ctx.fillStyle = getCss("--bg"); ctx.fill();
+    ctx.lineWidth = 1.4 / view.k; ctx.strokeStyle = act; ctx.stroke();
+    const s = b.plus.r * 0.5; ctx.lineCap = "round"; ctx.lineWidth = 1.8 / view.k; ctx.strokeStyle = act;
+    ctx.beginPath();
+    ctx.moveTo(b.plus.x - s, b.plus.y); ctx.lineTo(b.plus.x + s, b.plus.y);
+    ctx.moveTo(b.plus.x, b.plus.y - s); ctx.lineTo(b.plus.x, b.plus.y + s);
+    ctx.stroke(); ctx.lineCap = "butt";
+    // ⓘ oben links
+    ctx.beginPath(); ctx.arc(b.info.x, b.info.y, b.info.r, 0, 7);
+    ctx.fillStyle = getCss("--bg"); ctx.fill();
+    ctx.lineWidth = 1.4 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke();
+    ctx.fillStyle = getCss("--text"); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `italic 700 ${b.info.r * 1.5}px ${CANVAS_FONT}`;
+    ctx.fillText("i", b.info.x, b.info.y + 0.4 / view.k);
+    ctx.textBaseline = "alphabetic";
   }
 
   // Brücken-Kandidaten als helle "Geister" zwischen A und B (noch nicht Teil des Graphen)
@@ -1877,6 +1916,22 @@ function onDeleteBadge(n, px, py) {
   return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
 }
 
+// Mond-Aktionen (nur im Planeten-Modus am gehoverten Mond): ＋ baut den Mond zum eigenen
+// Planeten aus, ⓘ öffnet seine Info-Karte. Beide klar außerhalb des kleinen Mondes.
+function isMoonHover(n) { return planetMode && !!n && !!n._moon && !n.venue && (n.appear ?? 1) >= 1; }
+function moonBadges(n) {
+  const d = (radius(n) + 15 / view.k) / Math.SQRT2, r = 8 / view.k;
+  return { plus: { x: n.x + d, y: n.y - d, r }, info: { x: n.x - d, y: n.y - d, r } };
+}
+function onMoonBadge(n, px, py) {
+  if (!isMoonHover(n)) return null;
+  const w = world({ x: px, y: py }), b = moonBadges(n);
+  const hit = Math.max(b.plus.r + 4 / view.k, 12 / view.k), h2 = hit * hit;
+  if ((b.plus.x - w.x) ** 2 + (b.plus.y - w.y) ** 2 < h2) return "plus";
+  if ((b.info.x - w.x) ** 2 + (b.info.y - w.y) ** 2 < h2) return "info";
+  return null;
+}
+
 // ---- Maus ----
 // Einheitliche Canvas-Koordinaten (offsetX/Y wären relativ zum Element unter dem Cursor).
 function canvasXY(e) {
@@ -1898,12 +1953,15 @@ addEventListener("mousemove", (e) => {
   if (!dragging) {
     const overCanvas = p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
     let n = overCanvas ? pick(p.x, p.y) : null;
-    // Das „×"-Badge zählt zum Hover (sonst verschwände es, sobald man drauf zielt).
+    // Das „×"-Badge und die Mond-Aktionen (＋/ⓘ) zählen zum Hover — sonst verschwänden
+    // sie, sobald man drauf zielt.
     const onX = !n && hover && overCanvas && onDeleteBadge(hover, p.x, p.y);
-    if (onX) n = hover;
+    const onMoonB = !n && hover && overCanvas && onMoonBadge(hover, p.x, p.y);
+    if (onX || onMoonB) n = hover;
     if (n !== hover) { hover = n; requestDraw(); }
-    cv.style.cursor = onX ? "pointer" : (n ? "pointer" : "grab");
-    updateTooltip(onX ? null : n, e);
+    else if (planetMode && mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen
+    cv.style.cursor = (onX || onMoonB) ? "pointer" : (n ? "pointer" : "grab");
+    updateTooltip((onX || onMoonB) ? null : n, e);
     return;
   }
   const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
@@ -1927,6 +1985,14 @@ addEventListener("mouseup", (e) => {
       const victim = hover; hover = null;
       dragging = false; dragNode = null; cv.classList.remove("grabbing");
       removeNode(victim); requestDraw(); return;
+    }
+    // Klick auf ＋/ⓘ am gehoverten Mond -> ausbauen bzw. Info öffnen (kein Play)
+    const mb = hover && onMoonBadge(hover, p.x, p.y);
+    if (mb) {
+      const m = hover; dragging = false; dragNode = null; cv.classList.remove("grabbing");
+      if (mb === "plus") { selectNode(m); exploreByName(m.name); } // Mond -> eigener Planet
+      else { selectNode(m); }                                      // nur Info-Karte
+      return;
     }
     const gi = (bridge && bridge.cands.length) ? pickGhost(p.x, p.y) : -1;
     if (gi >= 0) { addBridge(gi); }               // Brücken-Kandidat gewählt -> einfügen
