@@ -321,9 +321,10 @@
   /* Dezenter Login-Hinweis unter der Suche — erklärt per Tooltip den Vorteil eines Kontos. */
   .loginhint { pointer-events: auto; border: none; background: none; color: var(--muted);
     font: 500 12.5px inherit; cursor: pointer; opacity: .85; padding: 4px 6px; margin-top: -2px;
-    display: inline-flex; align-items: center; gap: 6px; transition: color .15s, opacity .15s; }
+    display: inline-block; max-width: min(92vw, 440px); text-align: center; line-height: 1.5;
+    transition: color .15s, opacity .15s; }
   .loginhint:hover { color: var(--accent); opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
-  .loginhint .lh-i { font-size: 12px; opacity: .8; }
+  .loginhint .lh-i { font-size: 12px; opacity: .8; margin-right: 4px; }
   /* Leerer Zustand = nur eine große, zentrale Suchleiste im Fokus. */
   .emptysearch { pointer-events: auto; width: min(560px, 88vw); display: flex; align-items: center; gap: 0;
     border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg);
