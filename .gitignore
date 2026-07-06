@@ -1,4 +1,9 @@
 # API-Keys / app_ids / Feedback-Credentials niemals committen
+.session-secret
+users.json
+# Nutzer-/Anon-Datenräume (Accounts) – gehören auf die Server-Platte, nie ins Repo
+users/
+anon/
 .lastfm-key
 .tmdb-key
 .tastedive-key
