@@ -536,6 +536,8 @@
       <button id="mHelp" title="Bedienung & Shortcuts">? Hilfe</button>
     </div>
     <input id="mGenre" class="gfilter mobileonly" placeholder="Genre filtern…" autocomplete="off" style="width:100%;margin-top:2px" />
+    <div class="mtitle hideStatic" id="homeTitle" style="display:none">Heimatort</div>
+    <button id="homeBtn" class="hideStatic" style="display:none;width:100%;margin-bottom:8px" title="Heimatort für die Distanz-Anzeige setzen — Standort verwenden oder Ort eintippen">📍 <span id="homeLabel">Heimatort setzen</span></button>
     <div class="mtitle">Ansicht</div>
     <label class="toggle" id="planetWrap" title="Planeten-Ansicht: Kern = Popularität/Größe, Hof = Reichweite im Netz (Verbindungen) — Größe und Tragweite auf einen Blick"><input type="checkbox" id="planetToggle" /> Planeten</label>
     <label class="toggle" id="clusterWrap" title="Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln"><input type="checkbox" id="clusterToggle" /> Farben</label>
@@ -993,8 +995,18 @@ function applyCfg() {
 }
 // Jeder API-Call trägt das aktive Pack als Header — so bedient EIN Server alle Domänen.
 const PACK_HEADERS = CFG.id ? { "x-like-pack": CFG.id } : {};
-const GET = (path) => fetch(path, { headers: PACK_HEADERS }).then(r => r.json());
-const POST = (path, body) => fetch(path, { method: "POST", headers: { "content-type": "application/json", ...PACK_HEADERS }, body: JSON.stringify(body) }).then(r => r.json());
+// Header pro Request bauen — inkl. optionalem Heimatort (Like Travel), damit die
+// Heimat-Distanz geräteübergreifend aus der Nutzer-Wahl statt aus der Server-ENV kommt.
+function reqHeaders(extra) {
+  const h = { ...PACK_HEADERS };
+  if (CFG.id === "travel") {
+    try { const home = JSON.parse(localStorage.getItem("like_travel_home") || "null");
+      if (home && isFinite(home.lat) && isFinite(home.lon)) h["x-like-home"] = home.lat + "," + home.lon; } catch {}
+  }
+  return extra ? { ...h, ...extra } : h;
+}
+const GET = (path) => fetch(path, { headers: reqHeaders() }).then(r => r.json());
+const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(r => r.json());
 const API = {
   graph: () => STATIC ? Promise.resolve(window.LIKE_GRAPH) : GET("/api/graph"),
   explore: (name) => POST("/api/explore", { name }),
@@ -2762,6 +2774,27 @@ document.getElementById("mHelp").onclick = () => { closeMore(); document.getElem
 document.getElementById("mGenre").addEventListener("input", (e) => {
   const gf = document.getElementById("genreFilter"); gf.value = e.target.value; filterGenre = e.target.value.trim(); requestDraw();
 });
+
+// ---- Like Travel: Heimatort (Geolocation oder Eingabe), geräteübergreifend im localStorage ----
+function currentHome() { try { return JSON.parse(localStorage.getItem("like_travel_home") || "null"); } catch { return null; } }
+function refreshHomeLabel() { const el = document.getElementById("homeLabel"); if (!el) return; const h = currentHome(); el.textContent = h && h.name ? h.name : "Heimatort setzen"; }
+async function promptTypedHome() {
+  const q = prompt("Heimatort eingeben (z. B. „Wien, Österreich“):"); if (!q) return;
+  let r = null; try { r = await GET("/api/geocode?q=" + encodeURIComponent(q)); } catch {}
+  if (r && r.ok) { localStorage.setItem("like_travel_home", JSON.stringify({ name: r.name, lat: r.lat, lon: r.lon })); toast("Heimatort: " + r.name + " — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); }
+  else toast("Ort nicht gefunden");
+}
+function setTravelHome() {
+  if (navigator.geolocation && confirm("Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)")) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { localStorage.setItem("like_travel_home", JSON.stringify({ name: "Mein Standort", lat: pos.coords.latitude, lon: pos.coords.longitude })); toast("Heimatort: dein Standort — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); },
+      () => promptTypedHome());
+  } else promptTypedHome();
+}
+if (CFG.id === "travel") {
+  const hb = document.getElementById("homeBtn"), ht = document.getElementById("homeTitle");
+  if (hb && ht) { hb.style.display = ""; ht.style.display = ""; refreshHomeLabel(); hb.onclick = () => { closeMore(); setTravelHome(); }; }
+}
 
 // Zufalls-Streifzug: gewichteter Random-Walk von einem Like weg, Pfad pulsiert nach.
 function surpriseMe() {

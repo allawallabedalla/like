@@ -154,6 +154,14 @@ function reqPackId(url, req) {
   return url.searchParams.get("pack") || req.headers["x-like-pack"] || DEFAULT_PACK;
 }
 
+// Optionaler Heimatort für „Like Travel" aus dem Request (Header „x-like-home: lat,lon").
+// Ermöglicht pro Nutzer einen eigenen Heimatort (Geolocation/Eingabe) statt der ENV.
+function reqHome(req) {
+  const h = req.headers["x-like-home"]; if (!h) return null;
+  const [la, lo] = String(h).split(",").map(Number);
+  return (isFinite(la) && isFinite(lo)) ? { lat: la, lon: lo } : null;
+}
+
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
 async function indexHtml(pack, unlocked) {
   const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
@@ -296,6 +304,14 @@ const server = createServer(async (req, res) => {
       return send(res, 200, await indexHtml(pack, isUnlocked(req)), "text/html; charset=utf-8");
     }
 
+    // Heimatort-Eingabe (Like Travel) zu Koordinaten auflösen — fürs geräteübergreifende „Zuhause".
+    if (req.method === "GET" && url.pathname === "/api/geocode") {
+      if (!pack.geocodeHome) return send(res, 400, { ok: false, error: "nicht unterstützt" });
+      const q = url.searchParams.get("q") || "";
+      const r = q ? await pack.geocodeHome(q) : null;
+      return r ? send(res, 200, { ok: true, ...r }) : send(res, 404, { ok: false, error: "Ort nicht gefunden" });
+    }
+
     // Selbstauskunft: Pack + Key-Status + ob Feedback verfügbar ist (fürs Frontend beim Start)
     if (req.method === "GET" && url.pathname === "/api/health") {
       return send(res, 200, { ok: true, key: await hasApiKey(pack), version: APP_VERSION, pack: pack.id, feedback: FEEDBACK_ON });
@@ -359,7 +375,7 @@ const server = createServer(async (req, res) => {
       if (!name) return send(res, 400, { error: "name fehlt" });
       const g = await loadGraph(GRAPH);
       let r;
-      try { r = await pack.explore(name); }
+      try { r = await pack.explore(name, { home: reqHome(req) }); }
       catch (err) { return send(res, 502, { error: err.message }); }
 
       const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, seed: true });
@@ -607,7 +623,7 @@ const server = createServer(async (req, res) => {
       if (!a) return send(res, 404, { error: "unbekannt" });
       let changed = false, growth = null;
       let patch = {};
-      try { patch = await pack.enrich(a) || {}; } catch {}
+      try { patch = await pack.enrich(a, { home: reqHome(req) }) || {}; } catch {}
       if (patch.genres?.length && (!a.genres || !a.genres.length)) { a.genres = patch.genres; changed = true; }
       if (patch.url && !a.url) { a.url = patch.url; changed = true; }
       if (patch.popularity) {
