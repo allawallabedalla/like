@@ -15,6 +15,7 @@
 //   POST /api/bridge       { from, to } -> verbindende Einträge (Meet-in-the-middle)
 
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import { readFile, writeFile, access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -58,6 +59,20 @@ const PORT = process.env.PORT || 5173;
 // Gehostet (Docker/Render) HOST=0.0.0.0 setzen, damit der Plattform-Proxy den Container erreicht.
 const HOST = process.env.HOST || "127.0.0.1";
 
+// „Coming soon"-Gate: nur das öffentliche Pack ist frei; alle anderen brauchen ein Passwort.
+// Aktiv NUR wenn LIKE_UNLOCK_PASSWORD gesetzt ist -> lokal/Desktop bleibt alles offen.
+const UNLOCK_PW = (process.env.LIKE_UNLOCK_PASSWORD || "").trim();
+const GATING_ON = !!UNLOCK_PW;
+const PUBLIC_PACK = (process.env.LIKE_PUBLIC_PACK || "music").trim();
+const isLockedPack = (id) => GATING_ON && id !== PUBLIC_PACK;
+// Cookie-Wert = Hash des Passworts (Passwort selbst steht nie im Cookie).
+const unlockToken = () => createHash("sha256").update("like-unlock:" + UNLOCK_PW).digest("hex").slice(0, 32);
+function isUnlocked(req) {
+  if (!GATING_ON) return true;
+  const m = (req.headers.cookie || "").match(/(?:^|;\s*)like_unlock=([a-f0-9]+)/);
+  return !!m && m[1] === unlockToken();
+}
+
 // Alle Packs beim Start laden (validiert sie gleich; Import ist netzfrei -> schnell).
 const PACKS = new Map();
 for (const id of await listPacks()) {
@@ -67,7 +82,7 @@ for (const id of await listPacks()) {
 const DEFAULT_PACK = PACKS.has(await resolvePackId()) ? await resolvePackId() : (PACKS.has("music") ? "music" : [...PACKS.keys()][0]);
 if (!PACKS.size) { console.error("Keine Packs gefunden (packs/<id>/pack.mjs)."); process.exit(1); }
 // Leichte Liste für den Umschalter (ohne die vollen Configs).
-const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.title, item: p.config.item, brand: p.config.brand }));
+const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.title, item: p.config.item, brand: p.config.brand, locked: isLockedPack(p.id) }));
 
 // Version aus package.json lesen (bleibt so automatisch synchron mit dem Release).
 let APP_VERSION = "";
@@ -80,7 +95,7 @@ for (const p of PACKS.values()) {
   let g = { artists: {}, edges: [] };
   try { g = JSON.parse(await readFile(join(ROOT, "packs", p.id, "demo.json"), "utf8")); } catch {}
   LANDING_CARDS.push({
-    id: p.id, title: p.config.title, item: p.config.item,
+    id: p.id, title: p.config.title, item: p.config.item, locked: isLockedPack(p.id),
     n: Object.keys(g.artists || {}).length, e: (g.edges || []).length, mini: miniCluster(g),
   });
 }
@@ -94,7 +109,7 @@ const PWA_ASSETS = {
   "/icons/apple-touch-icon.png": { file: "icons/apple-touch-icon.png", type: "image/png", cache: "public, max-age=604800" },
 };
 
-function landingPage() {
+function landingPage(unlocked) {
   return landingHtml(LANDING_CARDS, {
     hrefFor: (id) => `/?pack=${encodeURIComponent(id)}`,
     pageTitle: "like — Übersicht",
@@ -102,6 +117,8 @@ function landingPage() {
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     cardSub: (c) => c.item.plur,
     footer: APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App` : "",
+    gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
+    lockLabel: "Coming soon",
   });
 }
 
@@ -138,11 +155,11 @@ function reqPackId(url, req) {
 }
 
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
-async function indexHtml(pack) {
+async function indexHtml(pack, unlocked) {
   const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
   const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};</script>\n<script>`);
+  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};</script>\n<script>`);
 }
 
 async function hasApiKey(pack) {
@@ -171,7 +188,22 @@ const server = createServer(async (req, res) => {
     // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
-      return send(res, 200, landingPage(), "text/html; charset=utf-8");
+      return send(res, 200, landingPage(isUnlocked(req)), "text/html; charset=utf-8");
+    }
+
+    // „Coming soon"-Gate freischalten: richtiges Passwort -> Cookie setzen (Hash, HttpOnly).
+    if (req.method === "POST" && url.pathname === "/api/unlock") {
+      const body = await readBody(req).catch(() => ({}));
+      if (GATING_ON && String(body.password || "") === UNLOCK_PW) {
+        const secure = (req.headers["x-forwarded-proto"] === "https") ? " Secure;" : "";
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+          "set-cookie": `like_unlock=${unlockToken()}; Path=/; Max-Age=${60 * 60 * 24 * 180}; SameSite=Lax;${secure} HttpOnly`,
+        });
+        return res.end(JSON.stringify({ ok: true }));
+      }
+      return send(res, 401, { ok: false, error: "falsches Passwort" });
     }
 
     // PWA-Assets (Manifest, Service-Worker, Icons) — statisch aus public/, ohne Pack-Kontext.
@@ -187,9 +219,11 @@ const server = createServer(async (req, res) => {
     // Geschmacks-Fingerabdruck: Likes + Top-Themen ÜBER ALLE Domänen (nur lokale Graphen,
     // kein Netz). Plus "verbindende Themen": Genres, die in ≥2 Domänen vorkommen.
     if (req.method === "GET" && url.pathname === "/api/taste") {
+      const unlocked = isUnlocked(req);
       const per = [];
       const genrePacks = new Map(); // genreLower -> { name, packs:Set }
       for (const [id, pk] of PACKS) {
+        if (isLockedPack(id) && !unlocked) continue; // gesperrte Packs nicht mitzählen
         const g = await loadGraph(dataFile(DATA_DIR, id, "graph.json"));
         const liked = Object.values(g.artists).filter((a) => a.seed || a.known || (a.status && a.status !== "declined"));
         const gc = new Map();
@@ -227,7 +261,8 @@ const server = createServer(async (req, res) => {
         if (c.includes(q) || q.includes(c)) return true;
         return [...tokens].some((t) => c.split(" ").includes(t));
       };
-      const others = [...PACKS.values()].filter((p) => p.id !== currentId && p.suggest);
+      const unlocked = isUnlocked(req);
+      const others = [...PACKS.values()].filter((p) => p.id !== currentId && p.suggest && (unlocked || !isLockedPack(p.id)));
       const hits = (await Promise.all(others.map(async (p) => {
         try {
           const names = await Promise.race([
@@ -244,6 +279,13 @@ const server = createServer(async (req, res) => {
     const packId = reqPackId(url, req);
     const pack = PACKS.get(packId);
     if (!pack) return send(res, 400, { error: `Unbekanntes Pack: ${packId}` });
+    // „Coming soon"-Gate: gesperrtes Pack ohne Freischaltung -> Seite zurück zur Landing, API 401.
+    if (isLockedPack(packId) && !isUnlocked(req)) {
+      if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+        res.writeHead(302, { location: "/" }); return res.end();
+      }
+      return send(res, 401, { error: "locked", pack: packId });
+    }
     const GRAPH = dataFile(DATA_DIR, pack.id, "graph.json");
     const DIGEST = dataFile(DATA_DIR, pack.id, "digest.json");
     const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
@@ -251,7 +293,7 @@ const server = createServer(async (req, res) => {
     const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
 
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-      return send(res, 200, await indexHtml(pack), "text/html; charset=utf-8");
+      return send(res, 200, await indexHtml(pack, isUnlocked(req)), "text/html; charset=utf-8");
     }
 
     // Selbstauskunft: Pack + Key-Status + ob Feedback verfügbar ist (fürs Frontend beim Start)

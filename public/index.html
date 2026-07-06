@@ -808,6 +808,26 @@
 // Statischer Modus (GitHub Pages): graph wird eingebettet, Live-/Schreib-Aktionen sind aus.
 const STATIC = !!window.LIKE_GRAPH;
 
+// ---- „Coming soon"-Gate ----
+// Der Server markiert nicht-öffentliche Packs mit locked=true und injiziert window.LIKE_UNLOCKED.
+// Ohne gesetztes Server-Passwort ist nichts locked -> lokal/Desktop bleibt alles offen.
+let UNLOCKED = !!window.LIKE_UNLOCKED;
+function packLocked(id) {
+  const p = (window.LIKE_PACKS || []).find((x) => x.id === id);
+  return !!(p && p.locked) && !UNLOCKED;
+}
+// Passwort abfragen -> freischalten -> Callback (z. B. Pack-Wechsel). Bei Erfolg gilt die
+// Freischaltung ab dem nächsten Reload (Cookie); wir wechseln direkt dorthin.
+async function unlockThen(id, go) {
+  const pw = window.prompt("Diese Domäne ist noch in Arbeit.\nPasswort eingeben, um sie freizuschalten:");
+  if (pw == null) return;
+  try {
+    const r = await fetch("/api/unlock", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: pw }) });
+    if (r.ok) { UNLOCKED = true; go(); }
+    else { toast("Falsches Passwort"); }
+  } catch { toast("Freischalten fehlgeschlagen"); }
+}
+
 // ---- Domain-Pack-Config ----
 // Der Server (bzw. export-static) injiziert window.LIKE_CFG aus packs/<id>/pack.mjs.
 // Fallback: Musik-Defaults — so verhält sich die Seite auch ohne Injektion wie bisher.
@@ -859,8 +879,16 @@ function applyCfg() {
   // Pack-Umschalter befüllen (nur im Live-Modus; static hat window.LIKE_PACKS nicht)
   const sw = $("packSwitch");
   if (sw && Array.isArray(window.LIKE_PACKS) && window.LIKE_PACKS.length > 1) {
-    sw.innerHTML = window.LIKE_PACKS.map((p) => `<option value="${esc(p.id)}"${p.id === CFG.id ? " selected" : ""}>${esc(p.title)}</option>`).join("");
-    sw.onchange = (e) => switchPackTo(e.target.value); // weicher Übergang + Reload mit neuem Pack
+    sw.innerHTML = window.LIKE_PACKS.map((p) => {
+      const locked = p.locked && !UNLOCKED;
+      const label = esc(p.title) + (locked ? " · coming soon" : "");
+      return `<option value="${esc(p.id)}"${p.id === CFG.id ? " selected" : ""}${locked ? ' data-locked="1"' : ""}>${label}</option>`;
+    }).join("");
+    sw.onchange = (e) => {
+      const id = e.target.value;
+      if (packLocked(id)) { e.target.value = CFG.id; unlockThen(id, () => switchPackTo(id)); return; }
+      switchPackTo(id); // weicher Übergang + Reload mit neuem Pack
+    };
   } else if (sw) { sw.style.display = "none"; }
   // Cross-Pack-Brücken & Fingerabdruck brauchen mehrere Domänen + den Live-Server
   const multi = Array.isArray(window.LIKE_PACKS) && window.LIKE_PACKS.length > 1 && !STATIC;
@@ -2729,8 +2757,11 @@ document.getElementById("crossBtn").onclick = async () => {
     el.innerHTML = res.hits.map((h) =>
       `<div data-pack="${esc(h.pack)}" data-n="${encodeURIComponent(h.name)}" title="Zu ${esc(h.packTitle)} wechseln und dort erkunden"><span>${esc(h.name)}</span><small>${esc(h.packTitle)} ↗</small></div>`
     ).join("");
-    el.querySelectorAll("[data-pack]").forEach((d) => d.onclick = () =>
-      switchPackTo(d.dataset.pack, "&q=" + d.dataset.n));
+    el.querySelectorAll("[data-pack]").forEach((d) => d.onclick = () => {
+      const id = d.dataset.pack, q = "&q=" + d.dataset.n;
+      if (packLocked(id)) { unlockThen(id, () => switchPackTo(id, q)); return; }
+      switchPackTo(id, q);
+    });
   } catch (e) { el.innerHTML = '<small style="color:var(--muted)">Fehler: ' + esc(e.message) + '</small>'; }
 };
 
@@ -2863,7 +2894,7 @@ function maybeShowIntro() {
   try {
     const hasQuery = new URLSearchParams(location.search).has("pack");
     const saved = localStorage.getItem("like_active_pack");
-    if (!hasQuery && saved && saved !== CFG.id && (window.LIKE_PACKS || []).some((p) => p.id === saved)) {
+    if (!hasQuery && saved && saved !== CFG.id && !packLocked(saved) && (window.LIKE_PACKS || []).some((p) => p.id === saved)) {
       location.replace("/?pack=" + encodeURIComponent(saved));
     }
   } catch {}
