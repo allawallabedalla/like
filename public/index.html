@@ -1499,6 +1499,10 @@ function tick() {
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
     // Halo-Radien + Puffer anheben, damit sich die Planeten sauber auseinanderschieben.
     if (planetMode && l.a._haloR && l.b._haloR) rest = Math.max(rest, l.a._haloR + l.b._haloR + 60);
+    // Ruhelänge NIE kürzer als der Kollisionsabstand — sonst zieht die Feder zwei (große)
+    // verbundene Kugeln enger zusammen, als die harte Kollision erlaubt: sie schieben sich
+    // gegenseitig endlos hin und her (Zappeln). So sind sich Feder und Kollision einig.
+    rest = Math.max(rest, radius(l.a) + radius(l.b) + COLLIDE_PAD);
     let dx = l.b.x - l.a.x, dy = l.b.y - l.a.y;
     const d = Math.hypot(dx, dy) || 0.01;
     const f = (d - rest) * SPRING * alpha;
@@ -1611,10 +1615,11 @@ function glowFactor(n) {
   if (!(n.listeners > 0)) return 0;
   return Math.max(0, Math.min(1, (Math.log10(n.listeners) - 3) / 4));
 }
-// Zielgröße: Grad (weit gespreizt: Monde klein, Hubs groß) + Popularitäts-Bonus (bis +7).
+// Zielgröße: Grad + Popularitäts-Bonus. Bewusst MODERAT gespreizt — die Popularität liest
+// sich vor allem über den Glow; zu große Kugeln überlappen sonst und lassen die Physik zappeln.
 function radiusTarget(n) {
-  const base = 4 + Math.min(24, Math.pow(Math.max(1, n.deg | 0), 0.72) * 3.4);
-  return base + popFactor(n) * 7;
+  const base = 4 + Math.min(16, Math.pow(Math.max(1, n.deg | 0), 0.68) * 2.6);
+  return base + popFactor(n) * 5;
 }
 // Angezeigte Größe nähert sich der Zielgröße sanft an (siehe stepSizes). So wachsen
 // Änderungen — etwa wenn Hörerzahlen nachladen — organisch rein statt hektisch zu „ploppen".
