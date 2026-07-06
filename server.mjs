@@ -21,6 +21,7 @@ import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, materialize, addEvent, emptyGraph, upsertArtist } from "./lib/store.mjs";
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
+import { startScheduler } from "./lib/cron.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
 import { miniCluster, landingHtml } from "./lib/landing.mjs";
@@ -156,6 +157,47 @@ async function neighborsFor(pack, name, limit) {
   const r = await pack.explore(name); return { canonical: r.canonical || name, list: (r.similar || []).slice(0, limit) };
 }
 
+// Popularität der markierten Einträge eines Packs snapshotten (füttert das Momentum).
+// Geteilt von POST /api/snapshot (App-Start) und dem Auto-Crawl (runDailyCrawl).
+async function snapshotPack(pack) {
+  if (!pack.popularity) return { snapshotted: 0, marked: 0 };
+  const GRAPH = dataFile(DATA_DIR, pack.id, "graph.json");
+  const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
+  const g = await loadGraph(GRAPH);
+  const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
+  const stats = await loadStats(STATS);
+  let statsChanged = false, graphChanged = false, n = 0;
+  for (const a of marked) {
+    try {
+      const p = await pack.popularity(a.name);
+      if (p) {
+        if (a.listeners !== p) { a.listeners = p; graphChanged = true; }
+        if (addSnapshot(stats, a.id, p)) { statsChanged = true; n++; }
+      }
+    } catch { /* ohne Popularität weiter */ }
+  }
+  if (statsChanged) await saveStats(STATS, stats);
+  if (graphChanged) { radarCache.delete(pack.id); await saveGraph(GRAPH, g); }
+  return { snapshotted: n, marked: marked.length };
+}
+
+// Auto-Crawl: snapshottet ALLE Packs mit Popularität. Vom Scheduler (täglich) und
+// vom getokenten POST /api/cron aufgerufen. Hält das Momentum-Signal aktuell, ohne
+// dass die App geöffnet werden muss.
+async function runDailyCrawl() {
+  const packs = [...PACKS.values()].filter((p) => p.popularity);
+  let total = 0, marked = 0;
+  for (const pack of packs) {
+    try {
+      const r = await snapshotPack(pack);
+      total += r.snapshotted; marked += r.marked;
+      if (r.marked) console.log(`  [cron] ${pack.id}: ${r.snapshotted} Snapshots / ${r.marked} markiert`);
+    } catch (e) { console.error(`  [cron] ${pack.id}: ${e.message}`); }
+  }
+  console.log(`[cron] Auto-Crawl fertig: ${total} Snapshots über ${packs.length} Pack(s) (${marked} markierte Einträge)`);
+  return { snapshotted: total, marked, packs: packs.length };
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -236,6 +278,18 @@ const server = createServer(async (req, res) => {
         } catch { return null; }
       }))).filter(Boolean);
       return send(res, 200, { ok: true, hits });
+    }
+
+    // Externer Auto-Crawl-Trigger (Render-Cron / GitHub-Action / cron-job.org).
+    // Nur aktiv, wenn LIKE_CRON_TOKEN gesetzt ist; Aufruf braucht denselben Token.
+    // Ergänzt den internen Timer für Setups, die zwischendurch schlafen (Free-Tier).
+    if (req.method === "POST" && url.pathname === "/api/cron") {
+      const token = process.env.LIKE_CRON_TOKEN;
+      if (!token) return send(res, 404, { error: "cron-trigger deaktiviert (kein LIKE_CRON_TOKEN gesetzt)" });
+      const given = url.searchParams.get("token") || req.headers["x-like-cron-token"];
+      if (given !== token) return send(res, 403, { error: "forbidden" });
+      const r = await runDailyCrawl();
+      return send(res, 200, { ok: true, ...r });
     }
 
     const packId = reqPackId(url, req);
@@ -700,23 +754,8 @@ const server = createServer(async (req, res) => {
 
     // Beim App-Start: Popularität der markierten Einträge still snapshotten.
     if (req.method === "POST" && url.pathname === "/api/snapshot") {
-      if (!pack.popularity) return send(res, 200, { ok: true, snapshotted: 0, marked: 0 });
-      const g = await loadGraph(GRAPH);
-      const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
-      const stats = await loadStats(STATS);
-      let statsChanged = false, graphChanged = false, n = 0;
-      for (const a of marked) {
-        try {
-          const p = await pack.popularity(a.name);
-          if (p) {
-            if (a.listeners !== p) { a.listeners = p; graphChanged = true; }
-            if (addSnapshot(stats, a.id, p)) { statsChanged = true; n++; }
-          }
-        } catch { /* ohne Popularität weiter */ }
-      }
-      if (statsChanged) await saveStats(STATS, stats);
-      if (graphChanged) await persist(g);
-      return send(res, 200, { ok: true, snapshotted: n, marked: marked.length });
+      const r = await snapshotPack(pack);
+      return send(res, 200, { ok: true, ...r });
     }
 
     // Wochen-Digest: welche markierten Einträge sind gewachsen/geschrumpft.
@@ -803,9 +842,32 @@ function openBrowser(url) {
   import("node:child_process").then(({ exec }) => exec(cmd, () => {}));
 }
 
-// nur lokal binden — der Server (inkl. eingebettetem API-Key) soll nicht im LAN erreichbar sein.
-server.listen(PORT, "127.0.0.1", () => {
-  const url = `http://127.0.0.1:${server.address().port}`;
+// Standard: nur lokal binden — der Server (inkl. eingebettetem API-Key) soll nicht im
+// LAN erreichbar sein. Gehostet (Docker/Render) muss er aber von außen antworten:
+// dort LIKE_HOST=0.0.0.0 setzen. Default bleibt sicher 127.0.0.1.
+const HOST = process.env.LIKE_HOST || "127.0.0.1";
+server.listen(PORT, HOST, () => {
+  const shown = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;
+  const url = `http://${shown}:${server.address().port}`;
   console.log(`Like läuft auf ${url} (Packs: ${[...PACKS.keys()].join(", ")}; Default: ${DEFAULT_PACK})`);
   if (process.argv.includes("--open") || process.env.LIKE_OPEN) openBrowser(url);
+  startAutoCrawl();
 });
+
+// Auto-Crawl-Scheduler: hält das Momentum-Signal aktuell, auch wenn niemand die App
+// öffnet. Abschaltbar mit LIKE_CRON=0/off/false; Intervall über LIKE_CRON_HOURS (Default 24).
+function startAutoCrawl() {
+  const flag = (process.env.LIKE_CRON || "").toLowerCase();
+  if (["0", "off", "false", "no"].includes(flag)) {
+    console.log("Auto-Crawl deaktiviert (LIKE_CRON=" + process.env.LIKE_CRON + ")");
+    return;
+  }
+  const hours = Number(process.env.LIKE_CRON_HOURS) > 0 ? Number(process.env.LIKE_CRON_HOURS) : 24;
+  if (![...PACKS.values()].some((p) => p.popularity)) return; // kein Pack mit Popularität -> nichts zu crawlen
+  startScheduler({
+    stateFile: dataFile(DATA_DIR, "cron", "state.json"),
+    intervalMs: hours * 36e5,
+    task: runDailyCrawl,
+    log: (m) => console.log("[cron] " + m),
+  });
+}

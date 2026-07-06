@@ -6,6 +6,11 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 ---
 
 ## ✅ Erledigt (autonom, ohne Keys/Kosten)
+- **Auto-Crawl (Server):** gehostet snapshottet like die Popularität aller markierten
+  Einträge selbstständig ~täglich (interner Timer, persistenter `lastRun`, holt Versäumtes
+  nach) — Momentum füllt sich ohne App-Öffnen. `LIKE_CRON`/`LIKE_CRON_HOURS`; externer
+  Trigger `POST /api/cron?token=` (`LIKE_CRON_TOKEN`) für schlafende Free-Tier-Dienste.
+  Nebenbei: Host-Binding via `LIKE_HOST` konfigurierbar (Default sicher `127.0.0.1`).
 - Booking-Infos aus RA im Panel (Agentur/Kontakt, Region, Socials, Website)
 - „tritt auf?"-Badge (RA upcoming events) + grüner Punkt am Knoten
 - Genres für alle Acts (beim Anklicken via Last.fm-Tags nachgeladen)

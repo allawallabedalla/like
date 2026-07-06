@@ -7,6 +7,8 @@ COPY . .
 # gehen sie beim Neustart/Redeploy verloren.
 ENV LIKE_DATA_DIR=/data
 ENV PORT=8080
+# Gehostet von außen erreichbar binden (lokal/Desktop bleibt sicher auf 127.0.0.1).
+ENV LIKE_HOST=0.0.0.0
 VOLUME ["/data"]
 EXPOSE 8080
 CMD ["node", "server.mjs"]

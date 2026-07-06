@@ -11,6 +11,20 @@ services:
     envVars:
       - key: LIKE_DATA_DIR
         value: /var/data
+      # Von außen erreichbar binden (der Server bindet sonst nur lokal).
+      - key: LIKE_HOST
+        value: 0.0.0.0
+      # Auto-Crawl: hält das Momentum-Signal (▲ +x%/Monat) täglich aktuell, auch wenn
+      # niemand die App öffnet. Läuft als interner Timer, solange der Dienst wach ist
+      # (Plan "starter" o.ä.). Steuerung: LIKE_CRON=0 aus, LIKE_CRON_HOURS=<n> Intervall.
+      #
+      # Free-Tier schläft nach Inaktivität ein -> der interne Timer pausiert dann. Für
+      # zuverlässig-tägliches Crawlen auf dem Free-Tier: LIKE_CRON_TOKEN im Dashboard
+      # setzen und von außen (z.B. cron-job.org, GitHub-Action) einmal am Tag
+      #   POST https://<deine-url>/api/cron?token=<TOKEN>
+      # aufrufen — der Aufruf weckt den Dienst und löst den Crawl aus.
+      - key: LIKE_CRON_TOKEN
+        sync: false
       # Optionale Heimat für „Like Travel" (Standard: Berlin, Deutschland)
       - key: LIKE_TRAVEL_HOME
         sync: false

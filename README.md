@@ -64,6 +64,13 @@ Sind Key/app_id hinterlegt, werden diese Quellen automatisch mit RA zusammengef�
 - **Auto-Snapshot + Wochen-Digest**: Beim Start snapshottet like still die Hörerzahlen
   deiner markierten Acts (füttert das Momentum) und zeigt oben einen Digest-Streifen
   („▲ Act X +38 %/Monat und 2 weitere im Aufwind").
+- **Auto-Crawl (gehostet)**: Läuft like als Server (Docker/Render), snapshottet er die
+  Hörer-/Popularitätszahlen aller markierten Einträge **selbstständig ~einmal am Tag** —
+  über alle Packs. So füllt sich das Momentum-Signal auch, wenn die App tagelang nicht
+  geöffnet wird. Abschaltbar mit `LIKE_CRON=0`, Intervall über `LIKE_CRON_HOURS=<n>`.
+  Für Setups, die zwischendurch schlafen (Render-Free-Tier), lässt sich der Crawl extern
+  anstoßen: `LIKE_CRON_TOKEN` setzen und einmal täglich `POST /api/cron?token=<TOKEN>`
+  aufrufen (z.B. via cron-job.org / GitHub-Action).
 - **Klangprobe (30 s)**: Ein ▶-Knopf im Panel (neben dem Namen) und an jedem
   Radar-Eintrag spielt eine 30-Sekunden-Vorschau direkt in der App — über
   **Deezer** (kein Key), Fallback **iTunes**. Beides gratis; nochmal klicken stoppt.
