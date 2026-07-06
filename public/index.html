@@ -1596,19 +1596,19 @@ function world(p) { return { x: (p.x - view.x) / view.k, y: (p.y - view.y) / vie
 const POP_BIG = CFG.popularity?.big || 0;
 const POP_LO = POP_BIG > 0 ? Math.log10(POP_BIG) - 3 : 0;
 const POP_HI = POP_BIG > 0 ? Math.log10(POP_BIG) + 0.5 : 0;
+// Popularität eines Knotens als 0..1 (aus der Hörerzahl, log-skaliert). Steuert Größe UND Glow.
+function popFactor(n) {
+  if (!(n.listeners > 0)) return 0;
+  return POP_BIG > 0
+    ? Math.max(0, Math.min(1, (Math.log10(n.listeners) - POP_LO) / (POP_HI - POP_LO)))
+    : Math.max(0, Math.min(1, (Math.log10(n.listeners) - 2.5) / 4));
+}
 function radius(n) {
   // Grundgröße nach Grad (Verbindungen), bewusst weit gespreizt: Monde klein, Hubs groß.
   // Vorher stark gestaucht (sqrt, Deckel 12) -> alles ähnlich groß; jetzt deutlich getrennt.
   const base = 4 + Math.min(24, Math.pow(Math.max(1, n.deg | 0), 0.72) * 3.4);
   // Popularität (Hörerzahl) legt bis zu +7 obendrauf -> bekannte Acts sind klar größer.
-  let pop = 0;
-  if (n.listeners > 0) {
-    const t = POP_BIG > 0
-      ? Math.max(0, Math.min(1, (Math.log10(n.listeners) - POP_LO) / (POP_HI - POP_LO)))
-      : Math.max(0, Math.min(1, (Math.log10(n.listeners) - 2.5) / 4));
-    pop = t * 7;
-  }
-  return base + pop;
+  return base + popFactor(n) * 7;
 }
 function nodeColor(n) {
   if (n.venue) return getCss("--venue");      // eingeblendeter Spielort
@@ -1711,12 +1711,13 @@ function draw() {
       const ap = n.appear ?? 1; if (ap < 0.05) continue;
       if (dimNode(n) && !(selected && n.id === selected.id)) continue; // gedimmte Knoten ohne Hof
       const r = radius(n);
-      const hR = r + 7 + Math.sqrt(Math.max(0, n.deg || 0)) * 8; // Reichweite -> Hofausdehnung
+      const pf = popFactor(n); // Popularität steuert zusätzlich den Glow: bekannte Acts leuchten stärker
+      const hR = r + 7 + Math.sqrt(Math.max(0, n.deg || 0)) * 8 + pf * 26; // Reichweite + Popularität -> Hofausdehnung
       if (!isFinite(r) || !isFinite(hR) || !isFinite(n.x) || !isFinite(n.y)) continue;
       const rgb = parseRGB(nodeColor(n));
       const g = ctx.createRadialGradient(n.x, n.y, r * 0.55, n.x, n.y, hR);
       g.addColorStop(0, rgbStr(rgb, 0));
-      g.addColorStop(0.5, rgbStr(rgb, 0.18 * ap));
+      g.addColorStop(0.5, rgbStr(rgb, (0.14 + pf * 0.32) * ap)); // Grund-Hof + hellerer Kern für beliebte
       g.addColorStop(1, rgbStr(rgb, 0));
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, hR, 0, 7); ctx.fill();
     }
