@@ -1399,7 +1399,7 @@ function tick() {
           const minD = rad[i] + rad[j] + COLLIDE_PAD;
           if (d < minD) {
             const push = (minD - d) * 0.5, ux = dx / d, uy = dy / d;
-            const aFixed = a === dragNode || a.pinned, bFixed = b === dragNode || b.pinned;
+            const aFixed = a === dragNode || a.pinned || a._moon, bFixed = b === dragNode || b.pinned || b._moon;
             if (!aFixed) { a.x += ux * push * (bFixed ? 2 : 1); a.y += uy * push * (bFixed ? 2 : 1); }
             if (!bFixed) { b.x -= ux * push * (aFixed ? 2 : 1); b.y -= uy * push * (aFixed ? 2 : 1); }
           }
@@ -1420,11 +1420,45 @@ function tick() {
     a.vy += (H / 2 - a.y) * 0.00024 * alpha;
     // fixierte Knoten (nach manuellem Ziehen) bleiben stehen, stoßen aber weiter ab —
     // so lässt sich das Netz von Hand sortieren, ohne dass die Physik es zurückzieht
-    if (a === dragNode || a.pinned) { a.vx = 0; a.vy = 0; continue; }
+    if (a === dragNode || a.pinned || a._moon) { a.vx = 0; a.vy = 0; continue; } // Monde folgen ihrer Umlaufbahn
     a.vx *= DAMP; a.vy *= DAMP;
     a.x += a.vx; a.y += a.vy;
   }
   alpha *= ALPHA_DECAY;
+}
+
+// Planeten-Modus Stufe 2: echte Satelliten (Grad 1, an einem echten Hub) kreisen als Monde
+// um ihren Planeten. Sie werden von der Physik wie fixiert behandelt (stoßen andere ab,
+// folgen aber ihrer Umlaufbahn). Gibt true zurück, solange sich Monde bewegen.
+const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function orbitMoons() {
+  for (const n of nodes) if (n._moon) n._moon = false;
+  if (!planetMode) return false;
+  const byParent = new Map();
+  for (const n of nodes) {
+    if (n.venue || n === dragNode || (n.deg | 0) !== 1) continue;
+    const nb = adj.get(n.id); if (!nb || nb.size !== 1) continue;
+    const parent = nodeById.get([...nb][0]);
+    if (!parent || parent.venue || (parent.deg | 0) < 2) continue; // nur um echte Hubs kreisen
+    let arr = byParent.get(parent.id); if (!arr) byParent.set(parent.id, arr = []);
+    arr.push(n);
+  }
+  let any = false;
+  for (const [pid, moons] of byParent) {
+    const parent = nodeById.get(pid), pr = radius(parent);
+    moons.forEach((m, i) => {
+      m._moon = true; any = true;
+      if (m._moonAng == null) m._moonAng = (i / moons.length) * 6.2832 + (pid.length % 6);
+      if (m._moonSpeed == null) m._moonSpeed = (0.5 + ((i * 13) % 7) / 10) * ((i % 2) ? 1 : -1);
+      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.01;
+      const haloExt = 10 + Math.sqrt(Math.max(1, parent.deg | 0)) * 8; // etwa der Reichweiten-Hof
+      const orbitR = pr + haloExt + radius(m) + 14 + (i % 3) * 15;     // klar außerhalb des Hofs
+      m.x = parent.x + Math.cos(m._moonAng) * orbitR;
+      m.y = parent.y + Math.sin(m._moonAng) * orbitR;
+      m.vx = 0; m.vy = 0;
+    });
+  }
+  return any && !REDUCE_MOTION;
 }
 
 function world(p) { return { x: (p.x - view.x) / view.k, y: (p.y - view.y) / view.k }; }
@@ -1724,9 +1758,10 @@ function stepNodeAnims() {
   return live;
 }
 function loop() {
+  const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
   tick();
   const anims = stepNodeAnims();
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims;
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
