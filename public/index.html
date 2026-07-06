@@ -1823,6 +1823,7 @@ const tp = (t) => { const r = cv.getBoundingClientRect(); return { x: t.clientX 
 cv.addEventListener("touchstart", (e) => {
   e.preventDefault();
   clearTimeout(longTimer);
+  hideCtx(); // offenes Kontextmenü schließen, sobald eine neue Geste auf der Karte beginnt
   if (e.touches.length === 1) {
     const p = tp(e.touches[0]);
     const n = pick(p.x, p.y);
@@ -1869,8 +1870,8 @@ cv.addEventListener("touchend", (e) => {
   e.preventDefault();
   clearTimeout(longTimer);
   if (!touch) return;
-  hideCtx();
-  const isTap = touch.mode !== "pinch" && !touch.moved && !touch.longFired && (Date.now() - touch.t0 < 480);
+  if (touch.longFired) { touch = null; return; } // Long-Press-Menü offen lassen (schließt erst bei neuer Geste / Auswahl)
+  const isTap = touch.mode !== "pinch" && !touch.moved && (Date.now() - touch.t0 < 480);
   if (touch.mode === "node" && touch.moved && touch.node) touch.node.pinned = true;
   if (isTap) {
     const p = touch.start;
