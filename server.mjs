@@ -220,6 +220,48 @@ function dataRootFor(req, authUser) {
   return DATA_DIR;
 }
 
+// Zwei Graphen verlustfrei vereinen (Union): fehlende Acts/Kanten übernehmen, vorhandene
+// nur mit fehlenden Feldern ergänzen. So gehen weder die aktuelle Karte noch bereits im
+// Konto gespeicherte Likes verloren.
+function mergeGraphInto(dst, src) {
+  for (const [id, a] of Object.entries(src.artists || {})) {
+    const e = dst.artists[id];
+    if (!e) { dst.artists[id] = a; continue; }
+    e.seed = e.seed || a.seed;
+    e.known = e.known || a.known;
+    e.explored = e.explored || a.explored;
+    if (!e.status && a.status) e.status = a.status;
+    if (!e.note && a.note) e.note = a.note;
+    if ((!e.genres || !e.genres.length) && a.genres?.length) e.genres = a.genres;
+    if (!e.url && a.url) e.url = a.url;
+    if (!e.mbid && a.mbid) e.mbid = a.mbid;
+    if (a.booking && !e.booking) e.booking = a.booking;
+  }
+  const seen = new Set((dst.edges || []).map((x) => `${x.from}|${x.to}|${x.type}|${x.source}`));
+  for (const ed of src.edges || []) {
+    const k = `${ed.from}|${ed.to}|${ed.type}|${ed.source}`;
+    if (!seen.has(k) && dst.artists[ed.from] && dst.artists[ed.to]) { dst.edges.push(ed); seen.add(k); }
+  }
+}
+
+// Beim Anmelden/Registrieren: die anonyme Tab-Karte (falls vorhanden) in den Account
+// übernehmen — damit der aktuelle Screen erhalten bleibt und dauerhaft gespeichert wird.
+async function migrateAnonToUser(req, user) {
+  const anon = sanitizeId(req.headers["x-like-anon"]);
+  if (!anon || !user) return;
+  const anonRoot = join(DATA_DIR, "anon", anon);
+  const userRoot = join(DATA_DIR, "users", sanitizeId(user));
+  for (const [id] of PACKS) {
+    try {
+      const anonG = await loadGraph(dataFile(anonRoot, id, "graph.json"));
+      if (!Object.keys(anonG.artists || {}).length) continue; // nichts zu übernehmen
+      const userG = await loadGraph(dataFile(userRoot, id, "graph.json"));
+      mergeGraphInto(userG, anonG);
+      await saveGraph(dataFile(userRoot, id, "graph.json"), userG);
+    } catch {}
+  }
+}
+
 // Optionaler Heimatort für „Like Travel" aus dem Request (Header „x-like-home: lat,lon").
 // Ermöglicht pro Nutzer einen eigenen Heimatort (Geolocation/Eingabe) statt der ENV.
 function reqHome(req) {
@@ -271,6 +313,7 @@ const server = createServer(async (req, res) => {
       const b = await readBody(req).catch(() => ({}));
       const r = await register(b.username, b.password);
       if (r.error) return send(res, 400, { ok: false, error: r.error });
+      await migrateAnonToUser(req, r.user);
       setCookie(res, "like_session", makeSession(r.user), req);
       return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
     }
@@ -278,14 +321,17 @@ const server = createServer(async (req, res) => {
       if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
       const b = await readBody(req).catch(() => ({}));
       if (!verify(b.username, b.password)) return send(res, 401, { ok: false, error: "Name oder Passwort falsch" });
-      setCookie(res, "like_session", makeSession(String(b.username).trim().toLowerCase()), req);
-      return send(res, 200, { ok: true, user: String(b.username).trim().toLowerCase() });
+      const uid = String(b.username).trim().toLowerCase();
+      await migrateAnonToUser(req, uid);
+      setCookie(res, "like_session", makeSession(uid), req);
+      return send(res, 200, { ok: true, user: uid });
     }
     if (req.method === "POST" && url.pathname === "/api/auth/reset") {
       if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
       const b = await readBody(req).catch(() => ({}));
       const r = await resetPassword(b.username, b.recovery, b.password);
       if (r.error) return send(res, 400, { ok: false, error: r.error });
+      await migrateAnonToUser(req, r.user);
       setCookie(res, "like_session", makeSession(r.user), req);
       return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
     }
@@ -932,6 +978,14 @@ const server = createServer(async (req, res) => {
       let names = [];
       try { names = pack.suggest ? await pack.suggest(q) : []; } catch {}
       return send(res, 200, { names });
+    }
+
+    // „Überrasch mich" (leere Seite): ein zufälliger, eher unbekannter Eintrag zum Reinstolpern.
+    if (req.method === "GET" && url.pathname === "/api/surprise") {
+      if (!pack.surprise) return send(res, 200, { ok: false });
+      let name = null;
+      try { name = await pack.surprise(); } catch {}
+      return name ? send(res, 200, { ok: true, name }) : send(res, 200, { ok: false });
     }
 
     // Markierte Einträge als CSV exportieren (Shortlist).

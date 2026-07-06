@@ -11,6 +11,23 @@ import { labelmates, artistByName as mbArtist } from "../../lib/musicbrainz.mjs"
 import { searchBand, discoverTag } from "../../lib/bandcamp.mjs";
 import { hasKey as hasSetlistKey, sharedBills } from "../../lib/setlistfm.mjs";
 
+// „Überrasch mich" (Kaltstart): kuratierter Pool eher kleiner/nischiger Acts über viele
+// Ecken der elektronischen/instrumentalen Musik. surprise() zieht daraus eine Zufalls-
+// stichprobe und nimmt den mit den WENIGSTEN Hörern -> echte Entdeckung, nicht der Hit.
+const SURPRISE_SEEDS = [
+  "Christian Löffler", "Rival Consoles", "Max Cooper", "Lusine", "Marconi Union", "Loscil",
+  "Hania Rani", "Peter Broderick", "Poppy Ackroyd", "Rafael Anton Irisarri", "Benoît Pioulard",
+  "GoGo Penguin", "Mammal Hands", "Portico Quartet", "Nubya Garcia", "Alfa Mist", "Emma-Jean Thackray",
+  "This Is The Kit", "Novo Amor", "Julie Byrne", "Bill Ryder-Jones", "Ryley Walker", "Aldous Harding",
+  "Clark", "Lanark Artefax", "Konx-om-Pax", "Loraine James", "Skee Mask", "upsammy", "Yves De Mey",
+  "Vril", "Rrose", "Zenker Brothers", "Refracted", "Sedef Adasi", "Perila", "Purelink",
+  "Rodriguez Jr.", "Nicolas Bougaïeff", "Innellea", "Fejká", "Marsh", "Tinlicker", "Yotto",
+  "Hammock", "A Winged Victory for the Sullen", "Sophie Hutchings", "Bruno Sanfilippo", "offthesky",
+  "Kiasmos", "Fort Romeau", "Roman Flügel", "Hodge", "Batu", "Peverelist", "Facta",
+  "Anz", "India Jordan", "Nabihah Iqbal", "Space Afrika", "Actress", "Beatrice Dillon", "Pariah",
+  "Shackleton", "Andy Stott", "Demdike Stare", "Karen Gwyer", "Aleksi Perälä", "Bibio", "Gold Panda",
+];
+
 export default {
   id: "music",
 
@@ -127,6 +144,24 @@ export default {
     try { p = await topTrackPreview(name); } catch {}
     if (!p?.url) { try { p = await previewByName(name); } catch {} }
     return p?.url ? p : null;
+  },
+
+  // „Überrasch mich" (Kaltstart, leere Seite): 4 Zufallskandidaten aus dem Pool ziehen,
+  // ihre Hörerzahl prüfen und den mit den WENIGSTEN nehmen -> eher ein Geheimtipp.
+  // Fällt ohne Netz/Key auf einen einfachen Zufallszug zurück.
+  async surprise() {
+    const pick = () => SURPRISE_SEEDS[Math.floor(Math.random() * SURPRISE_SEEDS.length)];
+    const cands = new Set(); while (cands.size < 4) cands.add(pick());
+    let best = null, bestL = Infinity;
+    for (const name of cands) {
+      try {
+        const info = await getArtistInfo(name);
+        const l = info?.listeners;
+        if (l != null && l < bestL) { bestL = l; best = name; }
+        else if (best == null) best = name;
+      } catch { if (best == null) best = name; }
+    }
+    return best || pick();
   },
 
   // Label-Umfeld (MusicBrainz): Labels + wer dort noch veröffentlicht.

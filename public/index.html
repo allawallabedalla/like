@@ -310,8 +310,20 @@
 
   /* Leerer Graph: freundlicher Startpunkt statt weißer Fläche */
   .empty { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5;
-    pointer-events: none; }
+    flex-direction: column; gap: 14px; pointer-events: none; }
   .empty.show { display: flex; }
+  .surprisebtn { pointer-events: auto; border: 1px solid var(--line); background: var(--bg); color: var(--text);
+    border-radius: 999px; padding: 9px 18px; font: 600 13.5px inherit; cursor: pointer; opacity: .82;
+    transition: border-color .15s, opacity .15s, transform .08s; }
+  .surprisebtn:hover { border-color: var(--accent); opacity: 1; }
+  .surprisebtn:active { transform: translateY(1px); }
+  .surprisebtn[disabled] { opacity: .5; cursor: default; }
+  /* Dezenter Login-Hinweis unter der Suche — erklärt per Tooltip den Vorteil eines Kontos. */
+  .loginhint { pointer-events: auto; border: none; background: none; color: var(--muted);
+    font: 500 12.5px inherit; cursor: pointer; opacity: .85; padding: 4px 6px; margin-top: -2px;
+    display: inline-flex; align-items: center; gap: 6px; transition: color .15s, opacity .15s; }
+  .loginhint:hover { color: var(--accent); opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
+  .loginhint .lh-i { font-size: 12px; opacity: .8; }
   /* Leerer Zustand = nur eine große, zentrale Suchleiste im Fokus. */
   .emptysearch { pointer-events: auto; width: min(560px, 88vw); display: flex; align-items: center; gap: 0;
     border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg);
@@ -388,8 +400,10 @@
   .modal { background: var(--bg); border: 1px solid var(--line); width: min(440px, calc(100vw - 40px)); padding: 22px; }
   .modal h3 { margin: 0 0 10px; font-size: 17px; }
   .modal p { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 8px 0; }
-  .modal input { width: 100%; background: var(--bg); border: 1px solid var(--line-soft); padding: 9px 10px; outline: none; }
-  .modal input:focus { border-color: var(--line); }
+  .modal input, .modal textarea { width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--line-soft); padding: 9px 10px; outline: none; }
+  .modal input:focus, .modal textarea:focus { border-color: var(--line); }
+  .modal textarea::placeholder { color: var(--muted); }
   .modal .row { display: flex; gap: 8px; margin-top: 14px; }
   .modal .row button { flex: 1; border-left: 1px solid var(--line-soft); }
 
@@ -626,6 +640,11 @@
       <input id="q2" placeholder="Act suchen…   z.B. Bonobo" autocomplete="off" />
       <button id="go2">Suchen</button>
     </div>
+    <button id="surpriseBtn" class="surprisebtn hideStatic" title="Zeig mir einen zufälligen, eher unbekannten Act">✦ Überrasch mich</button>
+    <button id="loginHint" class="loginhint hideStatic" style="display:none"
+      title="Anonym lebt deine Karte nur in diesem Tab und geht beim Schließen verloren. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.">
+      <span class="lh-i">↗</span> Anmelden — deine Karte dauerhaft &amp; auf allen Geräten sichern
+    </button>
     <div class="box" id="emptyStatic" style="display:none"><h3 id="emptyTitle"></h3></div>
   </div>
 
@@ -3063,6 +3082,16 @@ function renderAcct() {
     box.querySelector("#acctLogin").onclick = () => { closeMore(); openAuth("login"); };
   }
 }
+// Login-Hinweis auf dem leeren Start-Screen: nur zeigen, solange nicht angemeldet
+// (und nicht im statischen Read-only-Build). Klick öffnet direkt die Registrierung.
+function refreshLoginHint() {
+  const el = document.getElementById("loginHint"); if (!el) return;
+  el.style.display = (!STATIC && !window.LIKE_USER) ? "inline-flex" : "none";
+}
+(function wireLoginHint() {
+  const el = document.getElementById("loginHint");
+  if (el) el.addEventListener("click", () => openAuth("register"));
+})();
 function setAuthMsg(t, ok) { const m = document.getElementById("authMsg"); m.textContent = t || ""; m.style.color = ok ? "#1a9e54" : "#d23"; }
 function openAuth(mode) {
   authMode = mode; authModal.classList.add("show");
@@ -3093,13 +3122,20 @@ async function doAuthSubmit() {
   let r; try { r = await POST(path, { username, password, recovery }); } catch { setAuthMsg("Netzwerkfehler."); return; }
   if (!r || !r.ok) { setAuthMsg((r && r.error) || "Fehlgeschlagen."); return; }
   if (r.recovery) alert("Dein Recovery-Code — JETZT sicher aufbewahren!\nNur damit kannst du dein Passwort zurücksetzen:\n\n" + r.recovery);
+  // Der Server hat die aktuelle (anonyme) Karte bereits in den Account übernommen.
+  // Kein Reload: der aktuelle Screen bleibt erhalten, künftige Änderungen landen im Konto.
   try { sessionStorage.removeItem("like_anon"); } catch {}
-  location.reload();
+  window.LIKE_USER = r.user;
+  authModal.classList.remove("show");
+  renderAcct();
+  refreshLoginHint();
+  toast(authMode === "register" ? "Konto erstellt — deine Karte ist jetzt gespeichert ✓" : "Angemeldet — deine Karte ist jetzt geräteübergreifend gespeichert ✓");
 }
 document.getElementById("authSubmit").onclick = doAuthSubmit;
 ["authPw", "authRec", "authUser"].forEach((id) => document.getElementById(id).addEventListener("keydown", (e) => { if (e.key === "Enter") doAuthSubmit(); }));
 async function doLogout() { try { await POST("/api/auth/logout", {}); } catch {} try { sessionStorage.removeItem("like_anon"); } catch {} location.reload(); }
 renderAcct();
+refreshLoginHint();
 
 // Zufalls-Streifzug: gewichteter Random-Walk von einem Like weg, Pfad pulsiert nach.
 function surpriseMe() {
@@ -3424,6 +3460,20 @@ document.getElementById("egBtn")?.addEventListener("click", () => exploreByName(
   const run2 = () => { const v = q2.value.trim(); if (v) { q2.value = ""; exploreByName(v); } };
   go2.addEventListener("click", run2);
   q2.addEventListener("keydown", (e) => { if (e.key === "Enter") run2(); });
+  // „Überrasch mich": zufälliger, eher unbekannter Act vom Server -> direkt reinstolpern.
+  const sBtn = document.getElementById("surpriseBtn");
+  if (sBtn) {
+    if (STATIC || !FEAT.preview) sBtn.style.display = "none"; // nur wo Live-Suche sinnvoll ist
+    sBtn.addEventListener("click", async () => {
+      sBtn.disabled = true; const label = sBtn.textContent; sBtn.textContent = "✦ Suche …";
+      try {
+        const r = await GET("/api/surprise");
+        if (r && r.ok && r.name) await exploreByName(r.name);
+        else toast("Gerade keine Überraschung zur Hand");
+      } catch { toast("Überraschung fehlgeschlagen"); }
+      finally { sBtn.disabled = false; sBtn.textContent = label; }
+    });
+  }
   // Beim Öffnen der leeren Karte den Fokus auf die Leiste legen.
   if (!STATIC && !nodes.length) setTimeout(() => q2.focus(), 60);
 })();
