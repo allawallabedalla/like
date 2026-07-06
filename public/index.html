@@ -975,7 +975,7 @@ const PREVIEW_TITLE = CFG.previewLabel || "30-Sekunden-Klangprobe abspielen";
 // Läuft sofort beim Start — vor dem ersten Zeichnen.
 function applyCfg() {
   const $ = (id) => document.getElementById(id);
-  const escT = (v) => String(v ?? "");
+  const escT = (v) => esc(String(v ?? "")); // HTML-escapen (Pack-Labels landen via innerHTML in der Legende)
   document.title = CFG.title || "Like";
   // Pack-Umschalter befüllen (nur im Live-Modus; static hat window.LIKE_PACKS nicht)
   const sw = $("packSwitch");
@@ -2854,9 +2854,13 @@ document.getElementById("labelBtn").onclick = async () => {
   if (!selected || selected.venue) return;
   if (STATIC) { toast("Nur im lokalen Tool"); return; }
   const el = document.getElementById("pLabels");
+  const forId = selected.id; // Auswahl kann sich während des Ladens ändern
   el.innerHTML = `<small style="color:var(--muted)">${esc(CFG.contextWait || "Lade Umfeld …")}</small>`;
-  const res = await API.context(selected.id);
-  if (res.error) { el.innerHTML = `<small style="color:var(--muted)">Fehler: ${esc(res.error)}</small>`; return; }
+  let res;
+  try { res = await API.context(forId); }
+  catch { el.innerHTML = '<small style="color:var(--muted)">Umfeld konnte nicht geladen werden.</small>'; return; }
+  if (!selected || selected.id !== forId) return; // Nutzer hat inzwischen etwas anderes gewählt
+  if (!res || res.error) { el.innerHTML = `<small style="color:var(--muted)">Fehler: ${esc((res && res.error) || "unbekannt")}</small>`; return; }
   const items = (res.groups || []).flatMap((g) => g.items || []);
   if (!items.length) { el.innerHTML = '<small style="color:var(--muted)">Kein Umfeld gefunden.</small>'; return; }
   el.innerHTML = (res.note ? `<small style="color:var(--muted)">${esc(res.note)}</small>` : "") +
@@ -3346,6 +3350,8 @@ addEventListener("keydown", (e) => {
   // Bei offenem Modal (Intro/Key/Feedback) keine Karten-Shortcuts — die haben eigene Handler.
   if (introEl.classList.contains("show") || keyModal.classList.contains("show")) return;
   if (feedbackModal.classList.contains("show")) { if (e.key === "Escape") closeFeedback(); return; }
+  if (authModal.classList.contains("show")) { if (e.key === "Escape") authModal.classList.remove("show"); return; }
+  if (tasteModal && tasteModal.classList.contains("show")) { if (e.key === "Escape") tasteModal.classList.remove("show"); return; }
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
@@ -3442,7 +3448,11 @@ function maybeShowIntro() {
     document.body.appendChild(b);
   }
   resize(); // sicherstellen, dass das Canvas vermessen ist, bevor Knoten platziert werden
-  graph = await API.graph();
+  // Erst-Graph robust laden: schlägt der Aufruf fehl (offline, Server-5xx, kaputtes JSON),
+  // NICHT den ganzen Start abbrechen — sonst startet die Render-Schleife nie und die App
+  // bleibt schwarz. Stattdessen leer starten + Hinweis; der Rest (loop, Intro …) läuft weiter.
+  try { graph = await API.graph(); }
+  catch { graph = { artists: {}, edges: [] }; try { toast("Server nicht erreichbar — leer gestartet. Später neu laden."); } catch {} }
   rebuild();
   for (let i = 0; i < 120; i++) tick();
   // letzte Ansicht wiederherstellen, sonst passend einblenden
