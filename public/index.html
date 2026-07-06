@@ -526,6 +526,8 @@
 
   <!-- „Ansicht & Export"-Menü: hält die Anzeige-Optionen + Export, damit die Topbar nie überläuft -->
   <div class="morebox" id="morebox">
+    <div class="mtitle hideStatic">Konto</div>
+    <div id="acctBox" class="hideStatic" style="margin-bottom:10px; font-size:12.5px"></div>
     <div class="mtitle mobileonly">Werkzeuge</div>
     <div class="mrow mobileonly">
       <button id="mDiscover" title="Entdeck-Werkzeuge">✦ Entdecken</button>
@@ -741,6 +743,22 @@
       <h3>◈ Dein Geschmacks-Fingerabdruck</h3>
       <div id="tasteBody" class="tastebody"><small style="color:var(--muted)">Lade …</small></div>
       <div class="row"><button id="tasteClose">Schließen</button></div>
+    </div>
+  </div>
+
+  <div class="modal-back" id="authModal">
+    <div class="modal" style="max-width:400px">
+      <h3 id="authTitle">Anmelden</h3>
+      <p style="color:var(--muted); font-size:12.5px; margin:0 0 12px" id="authIntro">Melde dich an, damit deine Karte auf allen Geräten gleich ist.</p>
+      <input id="authUser" placeholder="Nutzername" autocomplete="username" style="width:100%; margin-bottom:8px; padding:9px 10px; background:var(--bg); border:1px solid var(--line-soft)" />
+      <input id="authPw" type="password" placeholder="Passwort" autocomplete="current-password" style="width:100%; margin-bottom:8px; padding:9px 10px; background:var(--bg); border:1px solid var(--line-soft)" />
+      <input id="authRec" placeholder="Recovery-Code (XXXX-XXXX-XXXX-XXXX)" style="width:100%; margin-bottom:8px; padding:9px 10px; background:var(--bg); border:1px solid var(--line-soft); display:none" />
+      <div id="authMsg" style="font-size:12.5px; min-height:18px; margin-bottom:8px"></div>
+      <div class="row" style="display:flex; gap:8px">
+        <button class="primary" id="authSubmit" style="flex:1">Anmelden</button>
+        <button id="authCancel">Abbrechen</button>
+      </div>
+      <div id="authSwitch" style="margin-top:12px; font-size:12.5px; color:var(--muted); display:flex; flex-direction:column; gap:5px"></div>
     </div>
   </div>
 
@@ -999,6 +1017,11 @@ const PACK_HEADERS = CFG.id ? { "x-like-pack": CFG.id } : {};
 // Heimat-Distanz geräteübergreifend aus der Nutzer-Wahl statt aus der Server-ENV kommt.
 function reqHeaders(extra) {
   const h = { ...PACK_HEADERS };
+  // Anonym: eigener, temporärer View pro Tab (Anon-ID im sessionStorage -> beim Schließen weg).
+  // Eingeloggt: Server nutzt den Account-Namensraum, keine Anon-ID nötig.
+  if (!window.LIKE_USER) {
+    try { let a = sessionStorage.getItem("like_anon"); if (!a) { a = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))); sessionStorage.setItem("like_anon", a); } h["x-like-anon"] = a; } catch {}
+  }
   if (CFG.id === "travel") {
     try { const home = JSON.parse(localStorage.getItem("like_travel_home") || "null");
       if (home && isFinite(home.lat) && isFinite(home.lon)) h["x-like-home"] = home.lat + "," + home.lon; } catch {}
@@ -2795,6 +2818,57 @@ if (CFG.id === "travel") {
   const hb = document.getElementById("homeBtn"), ht = document.getElementById("homeTitle");
   if (hb && ht) { hb.style.display = ""; ht.style.display = ""; refreshHomeLabel(); hb.onclick = () => { closeMore(); setTravelHome(); }; }
 }
+
+// ---- Accounts (optional): Login/Registrierung/Passwort-Reset ----
+const authModal = document.getElementById("authModal");
+let authMode = "login";
+function renderAcct() {
+  const box = document.getElementById("acctBox"); if (!box) return;
+  if (window.LIKE_USER) {
+    box.innerHTML = `Angemeldet als <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">abmelden</a>`;
+    box.querySelector("#acctLogout").onclick = doLogout;
+  } else {
+    box.innerHTML = `<button id="acctLogin" style="width:100%">Anmelden / Registrieren</button><div style="color:var(--muted);margin-top:6px;line-height:1.4">Ohne Login: eigener, temporärer View (nur in diesem Tab). Angemeldet: deine Karte auf allen Geräten.</div>`;
+    box.querySelector("#acctLogin").onclick = () => { closeMore(); openAuth("login"); };
+  }
+}
+function setAuthMsg(t, ok) { const m = document.getElementById("authMsg"); m.textContent = t || ""; m.style.color = ok ? "#1a9e54" : "#d23"; }
+function openAuth(mode) {
+  authMode = mode; authModal.classList.add("show");
+  const T = document.getElementById("authTitle"), intro = document.getElementById("authIntro"),
+    rec = document.getElementById("authRec"), pw = document.getElementById("authPw"),
+    sub = document.getElementById("authSubmit"), sw = document.getElementById("authSwitch");
+  setAuthMsg(""); document.getElementById("authUser").value = ""; pw.value = ""; rec.value = "";
+  rec.style.display = mode === "reset" ? "" : "none";
+  pw.placeholder = mode === "reset" ? "Neues Passwort" : "Passwort";
+  if (mode === "login") { T.textContent = "Anmelden"; intro.textContent = "Melde dich an — deine Karte ist dann auf allen Geräten gleich."; sub.textContent = "Anmelden";
+    sw.innerHTML = `<a data-m="register" style="cursor:pointer;text-decoration:underline">Neu hier? Konto erstellen</a><a data-m="reset" style="cursor:pointer;text-decoration:underline">Passwort vergessen?</a>`; }
+  else if (mode === "register") { T.textContent = "Konto erstellen"; intro.textContent = "Nutzername + Passwort wählen. Danach bekommst du einen Recovery-Code — bitte sicher aufbewahren!"; sub.textContent = "Konto erstellen";
+    sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">Schon ein Konto? Anmelden</a>`; }
+  else { T.textContent = "Passwort zurücksetzen"; intro.textContent = "Nutzername, Recovery-Code und neues Passwort eingeben."; sub.textContent = "Zurücksetzen";
+    sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">Zurück zum Anmelden</a>`; }
+  sw.querySelectorAll("[data-m]").forEach((a) => a.onclick = () => openAuth(a.dataset.m));
+}
+document.getElementById("authCancel").onclick = () => authModal.classList.remove("show");
+authModal.addEventListener("mousedown", (e) => { if (e.target === authModal) authModal.classList.remove("show"); });
+async function doAuthSubmit() {
+  const username = document.getElementById("authUser").value.trim();
+  const password = document.getElementById("authPw").value;
+  const recovery = document.getElementById("authRec").value.trim();
+  if (!username || !password) { setAuthMsg("Bitte Nutzername und Passwort ausfüllen."); return; }
+  if (authMode === "reset" && !recovery) { setAuthMsg("Bitte den Recovery-Code eingeben."); return; }
+  const path = authMode === "register" ? "/api/auth/register" : authMode === "reset" ? "/api/auth/reset" : "/api/auth/login";
+  setAuthMsg("…", true);
+  let r; try { r = await POST(path, { username, password, recovery }); } catch { setAuthMsg("Netzwerkfehler."); return; }
+  if (!r || !r.ok) { setAuthMsg((r && r.error) || "Fehlgeschlagen."); return; }
+  if (r.recovery) alert("Dein Recovery-Code — JETZT sicher aufbewahren!\nNur damit kannst du dein Passwort zurücksetzen:\n\n" + r.recovery);
+  try { sessionStorage.removeItem("like_anon"); } catch {}
+  location.reload();
+}
+document.getElementById("authSubmit").onclick = doAuthSubmit;
+["authPw", "authRec", "authUser"].forEach((id) => document.getElementById(id).addEventListener("keydown", (e) => { if (e.key === "Enter") doAuthSubmit(); }));
+async function doLogout() { try { await POST("/api/auth/logout", {}); } catch {} try { sessionStorage.removeItem("like_anon"); } catch {} location.reload(); }
+renderAcct();
 
 // Zufalls-Streifzug: gewichteter Random-Walk von einem Like weg, Pfad pulsiert nach.
 function surpriseMe() {

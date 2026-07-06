@@ -25,6 +25,7 @@ import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
 import { miniCluster, landingHtml } from "./lib/landing.mjs";
+import { initAuth, register, verify, resetPassword, makeSession, userFromCookie } from "./lib/auth.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -128,6 +129,19 @@ const RADAR_TTL = 10 * 60 * 1000;
 
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
 const FEEDBACK_ON = await hasPushover();
+await initAuth(DATA_DIR); // Accounts (optional): Nutzer-Store + Session-Secret laden
+// einfache In-Memory-Drossel gegen Auth-Brute-Force: pro IP max. 12 Versuche / 5 Min
+const authHits = new Map();
+function authThrottled(req) {
+  const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "?";
+  const now = Date.now(), arr = (authHits.get(ip) || []).filter((t) => now - t < 300000);
+  arr.push(now); authHits.set(ip, arr); return arr.length > 12;
+}
+function setCookie(res, name, val, req) {
+  const secure = (req.headers["x-forwarded-proto"] === "https") ? " Secure;" : "";
+  const clear = val === "";
+  res.setHeader("set-cookie", `${name}=${val}; Path=/; Max-Age=${clear ? 0 : 60 * 60 * 24 * 180}; SameSite=Lax;${secure} HttpOnly`);
+}
 // simple In-Memory-Drossel gegen Spam: max. 6 Feedback-Nachrichten pro 5 Minuten (global).
 let fbHits = [];
 
@@ -154,6 +168,18 @@ function reqPackId(url, req) {
   return url.searchParams.get("pack") || req.headers["x-like-pack"] || DEFAULT_PACK;
 }
 
+// Datenraum pro Request: eingeloggt -> eigener dauerhafter Namensraum; anonym -> eigener
+// temporärer Namensraum pro Tab (Client schickt x-like-anon aus dem sessionStorage);
+// ganz ohne Kennung -> gemeinsamer Fallback (z. B. Desktop/lokal). So teilt sich niemand
+// unbeabsichtigt eine Karte, und anonyme Views sind vergänglich.
+const sanitizeId = (s) => String(s || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+function dataRootFor(req, authUser) {
+  if (authUser) return join(DATA_DIR, "users", sanitizeId(authUser));
+  const anon = sanitizeId(req.headers["x-like-anon"]);
+  if (anon) return join(DATA_DIR, "anon", anon);
+  return DATA_DIR;
+}
+
 // Optionaler Heimatort für „Like Travel" aus dem Request (Header „x-like-home: lat,lon").
 // Ermöglicht pro Nutzer einen eigenen Heimatort (Geolocation/Eingabe) statt der ENV.
 function reqHome(req) {
@@ -163,11 +189,12 @@ function reqHome(req) {
 }
 
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
-async function indexHtml(pack, unlocked) {
+async function indexHtml(pack, unlocked, user) {
   const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
   const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};</script>\n<script>`);
+  const u = JSON.stringify(user || null).replace(/</g, "\\u003c");
+  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};</script>\n<script>`);
 }
 
 async function hasApiKey(pack) {
@@ -187,10 +214,44 @@ async function neighborsFor(pack, name, limit) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    const authUser = userFromCookie(req.headers.cookie);      // eingeloggter Nutzer (oder null)
+    const dataRoot = dataRootFor(req, authUser);              // Datenraum dieses Requests
 
     // Pack-Liste braucht keinen konkreten Pack-Kontext.
     if (req.method === "GET" && url.pathname === "/api/packs") {
       return send(res, 200, { ok: true, packs: PACK_LIST, default: DEFAULT_PACK });
+    }
+
+    // ---- Accounts (optional) ----
+    if (req.method === "GET" && url.pathname === "/api/auth/me") {
+      return send(res, 200, { ok: true, user: authUser });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/register") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const b = await readBody(req).catch(() => ({}));
+      const r = await register(b.username, b.password);
+      if (r.error) return send(res, 400, { ok: false, error: r.error });
+      setCookie(res, "like_session", makeSession(r.user), req);
+      return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/login") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const b = await readBody(req).catch(() => ({}));
+      if (!verify(b.username, b.password)) return send(res, 401, { ok: false, error: "Name oder Passwort falsch" });
+      setCookie(res, "like_session", makeSession(String(b.username).trim().toLowerCase()), req);
+      return send(res, 200, { ok: true, user: String(b.username).trim().toLowerCase() });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/reset") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const b = await readBody(req).catch(() => ({}));
+      const r = await resetPassword(b.username, b.recovery, b.password);
+      if (r.error) return send(res, 400, { ok: false, error: r.error });
+      setCookie(res, "like_session", makeSession(r.user), req);
+      return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/logout") {
+      setCookie(res, "like_session", "", req);
+      return send(res, 200, { ok: true });
     }
 
     // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
@@ -232,7 +293,7 @@ const server = createServer(async (req, res) => {
       const genrePacks = new Map(); // genreLower -> { name, packs:Set }
       for (const [id, pk] of PACKS) {
         if (isLockedPack(id) && !unlocked) continue; // gesperrte Packs nicht mitzählen
-        const g = await loadGraph(dataFile(DATA_DIR, id, "graph.json"));
+        const g = await loadGraph(dataFile(dataRoot, id, "graph.json"));
         const liked = Object.values(g.artists).filter((a) => a.seed || a.known || (a.status && a.status !== "declined"));
         const gc = new Map();
         for (const a of liked) for (const gn of a.genres || []) {
@@ -294,14 +355,14 @@ const server = createServer(async (req, res) => {
       }
       return send(res, 401, { error: "locked", pack: packId });
     }
-    const GRAPH = dataFile(DATA_DIR, pack.id, "graph.json");
-    const DIGEST = dataFile(DATA_DIR, pack.id, "digest.json");
-    const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
+    const GRAPH = dataFile(dataRoot, pack.id, "graph.json");
+    const DIGEST = dataFile(dataRoot, pack.id, "digest.json");
+    const STATS = dataFile(dataRoot, pack.id, "stats.json");
     // Graph speichern UND den Radar-Cache dieses Packs verwerfen (nie veraltete Vorschläge).
     const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
 
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-      return send(res, 200, await indexHtml(pack, isUnlocked(req)), "text/html; charset=utf-8");
+      return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser), "text/html; charset=utf-8");
     }
 
     // Heimatort-Eingabe (Like Travel) zu Koordinaten auflösen — fürs geräteübergreifende „Zuhause".
@@ -562,7 +623,7 @@ const server = createServer(async (req, res) => {
       }
       try {
         const cur = await readFile(GRAPH, "utf8");
-        await writeFile(dataFile(DATA_DIR, pack.id, "graph.bak.json"), cur, "utf8");
+        await writeFile(dataFile(dataRoot, pack.id, "graph.bak.json"), cur, "utf8");
       } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
       const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
         events: incoming.events || [], sources: incoming.sources || [] };
