@@ -134,12 +134,16 @@ function landingPage(unlocked) {
 // muss vom Betreiber ergänzt werden (per ENV LIKE_IMPRINT_ADDRESS / _NAME / _EMAIL überschreibbar).
 function impressumPage() {
   const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas R").trim();
-  const email = (process.env.LIKE_IMPRINT_EMAIL || "nicolasreis@me.com").trim();
   const addr = (process.env.LIKE_IMPRINT_ADDRESS || "").trim();
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const addrHtml = addr ? esc(addr).replace(/\n/g, "<br>")
     : `<span class="todo">[Straße &amp; Hausnummer]</span><br><span class="todo">[PLZ Ort, Land]</span>`;
   const addrNote = addr ? "" : `<p class="muted todo">Bitte die ladungsfähige Anschrift ergänzen (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — ohne sie ist das Impressum nicht vollständig.</p>`;
+  // Name nur separat voranstellen, wenn die Anschrift ihn nicht ohnehin schon als erste Zeile trägt
+  // (sonst stünde er doppelt — z. B. „Nicolas R" + „Nicolas R." aus der Adresse).
+  const norm = (s) => s.toLowerCase().replace(/[.\s]+$/, "").trim();
+  const addrFirst = addr.split("\n")[0] || "";
+  const providerHtml = addr && norm(addrFirst) === norm(name) ? addrHtml : `${esc(name)}<br>${addrHtml}`;
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Impressum — like</title>
@@ -156,10 +160,10 @@ function impressumPage() {
   <h1>Impressum</h1>
   <p class="muted">Angaben gemäß § 5 TMG und § 18 Abs. 2 MStV.</p>
   <h2>Diensteanbieter</h2>
-  <p>${esc(name)}<br>${addrHtml}</p>
+  <p>${providerHtml}</p>
   ${addrNote}
   <h2>Kontakt</h2>
-  <p>E-Mail: <a href="mailto:${esc(email)}">${esc(email)}</a></p>
+  <p>Kontaktaufnahme über den Feedback-Knopf (✉) in der App.</p>
   <h2>Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
   <p>Der oben genannte Diensteanbieter.</p>
   <h2>Haftung für Inhalte &amp; Links</h2>

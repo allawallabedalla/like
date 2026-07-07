@@ -249,9 +249,9 @@
   .toast a { pointer-events: auto; }
   /* Globales „läuft gerade"-Band (Klangprobe): oben mittig, von überall stoppbar */
   .nowplaying { position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-6px);
-    display: flex; align-items: center; gap: 9px; background: var(--panel); color: var(--text);
-    border: 1px solid var(--line); border-radius: 999px; padding: 5px 15px 5px 6px; z-index: 15;
-    box-shadow: 0 6px 22px rgba(0,0,0,.20); font-size: 12.5px; max-width: min(80vw, 440px);
+    display: flex; align-items: center; gap: 8px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px 4px 5px; z-index: 15;
+    box-shadow: 0 6px 22px rgba(0,0,0,.20); font-size: 12px; max-width: min(80vw, 440px);
     opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
   .nowplaying.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
   .nowplaying #npText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -264,7 +264,11 @@
   .npeq i:nth-child(2) { animation-delay: .3s; } .npeq i:nth-child(3) { animation-delay: .6s; }
   @keyframes npbar { 0%, 100% { height: 30%; } 50% { height: 100%; } }
   @media (prefers-reduced-motion: reduce) { .npeq i { animation: none; height: 60%; } }
-  /* Scrub-/Spul-Leiste: durch das 30-Sek-Snippet klicken oder ziehen */
+  /* Scrub-/Spul-Leiste: kompakt gehalten — fährt erst sanft ein, wenn die Maus die Pille
+     berührt (Hover), sonst bleibt die Pille schmal. Auf Touch per Tipp auf die Pille (.expanded). */
+  .nowplaying .npscrub { display: inline-flex; align-items: center; gap: 9px; max-width: 0; opacity: 0;
+    overflow: hidden; margin-left: -9px; transition: max-width .26s ease, opacity .18s ease, margin-left .26s ease; }
+  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { max-width: 260px; opacity: 1; margin-left: 0; }
   .nowplaying #npBar { flex: none; position: relative; width: 92px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
@@ -980,7 +984,7 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
-  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></div>
+  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></div>
 </div>
 
 <script>
@@ -1328,6 +1332,11 @@ npBar.addEventListener("pointerdown", (e) => { scrubbing = true; try { npBar.set
 npBar.addEventListener("pointermove", (e) => { if (scrubbing) seekFromEvent(e); });
 npBar.addEventListener("pointerup", (e) => { if (!scrubbing) return; scrubbing = false; try { npBar.releasePointerCapture(e.pointerId); } catch {} });
 npBar.addEventListener("pointercancel", () => { scrubbing = false; });
+// Touch: Antippen der Pille blendet die Spulleiste ein/aus (auf dem Desktop macht das der Hover).
+document.getElementById("nowplaying").addEventListener("click", (e) => {
+  if (e.target.closest("#npBar, #npStop")) return; // Stop/Scrub nicht abfangen
+  e.currentTarget.classList.toggle("expanded");
+});
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
 // Nach dem Laden hält der View den fokussierten Knoten mittig, bis sich das Layout beruhigt
 // hat — sonst „rutscht" der frisch platzierte Planet aus der Mitte, während die Physik nachläuft.
@@ -1794,13 +1803,24 @@ function draw() {
   const fs = focusSet();
   const hi = compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null);
   const pe = null;
-  const hidden = (id) => fs && !fs.has(id);
+  // Genre-Filter (Topbar-Textfeld ODER angeklickte Panel-Pills): blendet nicht passende Knoten
+  // KOMPLETT aus (nicht nur abdunkeln) — samt ihrer Kanten und Labels. Der aktive Knoten bleibt.
+  const genreMiss = (n) => {
+    if (fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg))) return true;
+    if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
+    return false;
+  };
+  const hidden = (id) => {
+    if (fs && !fs.has(id)) return true;
+    if (!fg && !activeGenres.size) return false;
+    const n = nodeById.get(id);
+    if (!n || (selected && id === selected.id)) return false; // aktiver Knoten bleibt sichtbar
+    return genreMiss(n);
+  };
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
   const dimNode = (n) => {
     if (selected && n.id === selected.id) return false;
     if (compareSet.has(n.id)) return false;
-    if (fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg))) return true;
-    if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
     if (dim && n.status) return true;
     if (dimBig && n.listeners != null && n.listeners >= (CFG.popularity?.big ?? Infinity)) return true;
     if (hi && !hi.has(n.id)) return true;
