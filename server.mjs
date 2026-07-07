@@ -763,7 +763,7 @@ const server = createServer(async (req, res) => {
           const keep = new Set();
           for (const e of g.edges) { keep.add(e.from); keep.add(e.to); }
           for (const a of Object.values(g.artists)) {
-            if (!a.seed && !a.known && !a.note && !keep.has(a.id)) delete g.artists[a.id];
+            if (!a.seed && !a.known && !a.note && !a.status && !keep.has(a.id)) delete g.artists[a.id];
           }
         } else {
           return send(res, 400, { error: "scope muss all|lineups|discovered sein" });

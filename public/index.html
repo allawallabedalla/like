@@ -250,6 +250,14 @@
   .npeq i:nth-child(2) { animation-delay: .3s; } .npeq i:nth-child(3) { animation-delay: .6s; }
   @keyframes npbar { 0%, 100% { height: 30%; } 50% { height: 100%; } }
   @media (prefers-reduced-motion: reduce) { .npeq i { animation: none; height: 60%; } }
+  /* Scrub-/Spul-Leiste: durch das 30-Sek-Snippet klicken oder ziehen */
+  .nowplaying #npBar { flex: none; position: relative; width: 92px; height: 6px; border-radius: 3px;
+    background: var(--line-soft); cursor: pointer; touch-action: none; }
+  .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
+  .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .nowplaying #npTime { flex: none; color: var(--muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  @media (max-width: 480px) { .nowplaying #npBar { width: 64px; } }
   .badge { display: inline-block; font-size: 11px; padding: 2px 7px; margin-left: 6px; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .5px; }
   .badge.known { background: #000; color: #fff; }
   .badge.seed { background: #fff; color: #000; }
@@ -483,7 +491,7 @@
   .labels-list div:hover { color: var(--muted); }
   .labels-list small { color: var(--muted); }
 
-  /* Onboarding-Intro (4 Slides, animierte SVG-Illustrationen — GIF-Feeling ohne GIF) */
+  /* Onboarding-Intro (5 Slides, animierte SVG-Illustrationen — GIF-Feeling ohne GIF) */
   .introcard { position: relative; background: var(--bg); border: 1px solid var(--line);
     width: min(460px, calc(100vw - 32px)); padding: 26px 26px 18px; }
   .introcard .iclose { position: absolute; top: 10px; right: 12px; z-index: 3; background: none; border: none;
@@ -640,7 +648,8 @@
     <label class="toggle" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
     <label class="toggle" id="dimBigWrap" title="Acts mit ≥20k Last.fm-Hörern abdunkeln (sobald die Hörerzahl geladen ist) — nur die Kleinen leuchten"><input type="checkbox" id="dimBig" /> <span id="dimBigLabel">Große dämpfen</span></label>
     <label class="toggle" id="venueWrap" style="display:none" title="Spielorte aus den gemeinsamen Auftritten als eigene Punkte einblenden — zeigt, welche Venues deine Acts verbinden"><input type="checkbox" id="venueToggle" /> Venues</label>
-    <div class="mtitle hideStatic">Karte leeren</div>
+    <div class="mtitle hideStatic">Aufräumen</div>
+    <button id="pruneOrphans" class="hideStatic" style="width:100%" title="Acts ohne jede Verbindung von der Karte nehmen — z. B. Monde, die nach dem Löschen ihrer Sonne allein übrig bleiben. Gesuchte, gebuchte/notierte Acts bleiben.">Unverknüpfte aufräumen</button>
     <select id="reset" class="hideStatic" title="Ansicht leeren">
       <option value="">Leeren…</option>
       <option value="discovered">Entdeckte Acts</option>
@@ -791,8 +800,9 @@
             </svg>
           </div>
           <h3 id="tourT2">Suchen &amp; durchklicken</h3>
-          <p id="tourP2">Such oben einen Act, den du magst. <b>Doppelklick</b> auf einen Punkt lädt seine
-          Nachbarn — so hangelst du dich Schritt für Schritt durch die Szene.</p>
+          <p id="tourP2">Such oben einen Act, den du magst. Ein <b>Klick</b> auf einen Punkt öffnet seine Info,
+          <b>Doppelklick</b> lädt seine Nachbarn — so hangelst du dich durch die Szene. Der <b>▶</b> an der
+          Kugel spielt eine 30-Sek-Klangprobe (öffnet bewusst kein Panel).</p>
         </div>
         <!-- Slide 3: Radar -->
         <div class="slide" data-s="2">
@@ -823,6 +833,24 @@
           <h3 id="tourT4">Sammeln &amp; exportieren</h3>
           <p id="tourP4">Mit <b>like!</b> wandern Favoriten in dein <b>Lineup</b> — als CSV exportierbar fürs
           Booking. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!</p>
+        </div>
+        <!-- Slide 5: Entdecken, Szenen, Aufräumen -->
+        <div class="slide" data-s="4">
+          <div class="iart">
+            <svg viewBox="0 0 200 120" class="anim-net">
+              <ellipse cx="72" cy="56" rx="40" ry="32" fill="#4e79a7" opacity="0.14"/>
+              <ellipse cx="140" cy="66" rx="32" ry="26" fill="#f28e2b" opacity="0.14"/>
+              <line x1="62" y1="48" x2="96" y2="64" class="e sim"/>
+              <line x1="96" y1="64" x2="138" y2="60" class="e tog"/>
+              <circle cx="62" cy="48" r="9" class="nd seed"/>
+              <circle cx="96" cy="64" r="7" class="nd"/>
+              <circle cx="138" cy="60" r="8" class="nd"/>
+            </svg>
+          </div>
+          <h3 id="tourT5">Entdecken, hören &amp; aufräumen</h3>
+          <p id="tourP5"><b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen dazu
+          in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, klickst du am
+          Punkt mit <b>×</b> weg; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene Acts.</p>
         </div>
       </div>
       <div class="inav">
@@ -943,7 +971,7 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
-  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span></div>
+  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></div>
 </div>
 
 <script>
@@ -1050,6 +1078,7 @@ function applyCfg() {
   if (FEAT.active && CFG.activeLabel) leg.push(`<div><span class="dot" style="background:#1a9e54"></span> ${escT(CFG.activeLabel)}</div>`);
   if (FEAT.venues) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> Venue (eingeblendet)</div>`);
   leg.push(`<div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>`);
+  leg.push(`<div id="legendScenes"></div>`); // dynamischer Teil: Szenen-Farben (wenn „Szenen zeigen" an)
   leg.push(`<div id="legendGenres"></div>`); // dynamischer Teil: Genre-Farben im Cluster-Modus
   $("legend").innerHTML = leg.join("");
   // Popularität / "Große dämpfen"
@@ -1264,6 +1293,35 @@ document.addEventListener("click", (e) => {
 });
 // Globaler Stopp: pausiert die laufende Klangprobe unabhängig davon, welcher Act offen ist.
 document.getElementById("npStop").onclick = () => { audio.pause(); };
+// ---- Scrub/Spulen im Mini-Player: durch das 30-Sek-Snippet klicken oder ziehen ----
+const npBar = document.getElementById("npBar");
+const npFill = document.getElementById("npFill");
+const npKnob = document.getElementById("npKnob");
+const npTime = document.getElementById("npTime");
+const fmtTime = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+function updateScrub() {
+  const d = audio.duration, t = audio.currentTime || 0;
+  const frac = (d && isFinite(d)) ? Math.min(1, t / d) : 0;
+  npFill.style.width = (frac * 100) + "%";
+  npKnob.style.left = (frac * 100) + "%";
+  npTime.textContent = (d && isFinite(d)) ? `${fmtTime(t)} / ${fmtTime(d)}` : fmtTime(t);
+}
+audio.addEventListener("timeupdate", updateScrub);
+audio.addEventListener("loadedmetadata", updateScrub);
+audio.addEventListener("durationchange", updateScrub);
+audio.addEventListener("emptied", updateScrub);
+function seekFromEvent(e) {
+  const d = audio.duration; if (!d || !isFinite(d)) return;
+  const r = npBar.getBoundingClientRect();
+  const cx = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+  const frac = Math.max(0, Math.min(1, (cx - r.left) / r.width));
+  audio.currentTime = frac * d; updateScrub();
+}
+let scrubbing = false;
+npBar.addEventListener("pointerdown", (e) => { scrubbing = true; try { npBar.setPointerCapture(e.pointerId); } catch {} seekFromEvent(e); e.preventDefault(); });
+npBar.addEventListener("pointermove", (e) => { if (scrubbing) seekFromEvent(e); });
+npBar.addEventListener("pointerup", (e) => { if (!scrubbing) return; scrubbing = false; try { npBar.releasePointerCapture(e.pointerId); } catch {} });
+npBar.addEventListener("pointercancel", () => { scrubbing = false; });
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
 // Nach dem Laden hält der View den fokussierten Knoten mittig, bis sich das Layout beruhigt
 // hat — sonst „rutscht" der frisch platzierte Planet aus der Mitte, während die Physik nachläuft.
@@ -1952,6 +2010,15 @@ function draw() {
     ctx.font = `italic 700 ${b.info.r * 1.5}px ${CANVAS_FONT}`;
     ctx.fillText("i", b.info.x, b.info.y + 0.4 / view.k);
     ctx.textBaseline = "alphabetic";
+    // × unten rechts — Mond von der Karte nehmen (mit Undo, wie das Lösch-× der Seeds)
+    ctx.beginPath(); ctx.arc(b.del.x, b.del.y, b.del.r, 0, 7);
+    ctx.fillStyle = getCss("--bg"); ctx.fill();
+    ctx.lineWidth = 1.4 / view.k; ctx.strokeStyle = "#e15759"; ctx.stroke();
+    const ds = b.del.r * 0.46; ctx.lineCap = "round"; ctx.lineWidth = 1.7 / view.k; ctx.strokeStyle = "#e15759";
+    ctx.beginPath();
+    ctx.moveTo(b.del.x - ds, b.del.y - ds); ctx.lineTo(b.del.x + ds, b.del.y + ds);
+    ctx.moveTo(b.del.x + ds, b.del.y - ds); ctx.lineTo(b.del.x - ds, b.del.y + ds);
+    ctx.stroke(); ctx.lineCap = "butt";
   }
 
   // Brücken-Kandidaten als helle "Geister" zwischen A und B (noch nicht Teil des Graphen)
@@ -2131,7 +2198,8 @@ function isMoonHover(n) {
 }
 function moonBadges(n) {
   const d = (radius(n) + 16 / view.k) / Math.SQRT2, r = 9.5 / view.k;
-  return { plus: { x: n.x + d, y: n.y - d, r }, info: { x: n.x - d, y: n.y - d, r } };
+  // ＋ oben rechts, ⓘ oben links, × unten rechts (Act wegklicken, den man nicht mag).
+  return { plus: { x: n.x + d, y: n.y - d, r }, info: { x: n.x - d, y: n.y - d, r }, del: { x: n.x + d, y: n.y + d, r } };
 }
 function onMoonBadge(n, px, py) {
   if (!isMoonHover(n)) return null;
@@ -2140,6 +2208,7 @@ function onMoonBadge(n, px, py) {
 
   if ((b.plus.x - w.x) ** 2 + (b.plus.y - w.y) ** 2 < h2) return "plus";
   if ((b.info.x - w.x) ** 2 + (b.info.y - w.y) ** 2 < h2) return "info";
+  if ((b.del.x - w.x) ** 2 + (b.del.y - w.y) ** 2 < h2) return "del";
   return null;
 }
 // ⓘ-Info-Badge auch an gesuchten Acts (Seed): oben links — Gegenstück zum Lösch-× oben rechts.
@@ -2226,18 +2295,20 @@ addEventListener("mouseup", (e) => {
     // Klick auf ＋/ⓘ am gehoverten Mond -> ausbauen bzw. Info öffnen (kein Play)
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
-      const m = hover; dragging = false; dragNode = null; cv.classList.remove("grabbing");
+      const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
       if (mb === "plus") { selectNode(m); exploreByName(m.name); } // Mond -> eigener Planet
+      else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
       else { selectNode(m); }                                      // nur Info-Karte
       return;
     }
     // Klick auf das ⓘ am gesuchten Act -> nur Info-Karte
     if (hover && onSeedInfo(hover, p.x, p.y)) { const s = hover; dragging = false; dragNode = null; cv.classList.remove("grabbing"); selectNode(s); return; }
-    // Klick auf den ▶-Knopf -> Klangprobe (der EINZIGE Weg zum Abspielen)
+    // Klick auf den ▶-Knopf -> NUR Klangprobe (öffnet bewusst NICHT das Panel;
+    // die Info-Karte gibt es nur über das ⓘ bzw. einen Klick auf die Kugel).
     const pbNode = onPlayBtn(p.x, p.y);
     if (pbNode && !e.shiftKey && !bridgeFrom && !(bridge && bridge.cands.length)) {
       dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      selectNode(pbNode); togglePreview(pbNode.name); return;
+      togglePreview(pbNode.name); return;
     }
     const gi = (bridge && bridge.cands.length) ? pickGhost(p.x, p.y) : -1;
     if (gi >= 0) { addBridge(gi); }               // Brücken-Kandidat gewählt -> einfügen
@@ -2657,6 +2728,23 @@ document.getElementById("reset").onchange = async (e) => {
   toast("Geleert.");
 };
 
+// Unverknüpfte (grad-0) Acts wegräumen — z. B. Monde, die nach dem Löschen ihrer Sonne
+// allein übrig bleiben. Kuratierte Acts (gesucht/gebucht/Status/Notiz) bleiben erhalten.
+document.getElementById("pruneOrphans").onclick = async () => {
+  if (STATIC) { toast("Nur im lokalen Tool änderbar"); return; }
+  closeMore();
+  const linked = new Set();
+  for (const l of links) { linked.add(l.a.id); linked.add(l.b.id); }
+  const orphans = nodes.filter(n => !n.venue && !linked.has(n.id) && !n.seed && !n.status && !n.note && !n.known);
+  if (!orphans.length) { toast("Keine unverknüpften Acts — alles hängt zusammen."); return; }
+  const n = orphans.length;
+  if (!confirm(`${n} unverknüpfte${n === 1 ? "n Act" : " Acts"} von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.`)) return;
+  const res = await API.reset("discovered");
+  if (res.error) { toast("Fehler: " + res.error); return; }
+  graph = res.graph; rebuild(new Map(nodes.map(x => [x.id, x])));
+  toast(`${n} unverknüpfte${n === 1 ? "r Act" : " Acts"} aufgeräumt`);
+};
+
 function doSearch() {
   const v = document.getElementById("q").value.trim();
   if (v) { closeSug(); document.getElementById("q").value = ""; exploreByName(v); }
@@ -3016,7 +3104,7 @@ document.getElementById("labelBtn").onclick = async () => {
 };
 document.getElementById("dimBig").onchange = requestDraw;
 
-// ---- Onboarding-Intro (4 animierte Slides) ----
+// ---- Onboarding-Intro (5 animierte Slides) ----
 const introEl = document.getElementById("intro");
 const introSlides = [...introEl.querySelectorAll(".slide")];
 let introIdx = 0;
@@ -3125,6 +3213,37 @@ function sceneColorOf() {
   const idx = new Map(order.map((l, i) => [l, i]));
   return (id) => { const l = comm.get(id); return idx.has(l) ? SCENE_PALETTE[idx.get(l) % SCENE_PALETTE.length] : null; };
 }
+// Szenen-Legende (links unten): benennt jede hervorgehobene Szene nach ihrem häufigsten Genre
+// und zeigt ihre Farbe — so sieht man, welche Farbfläche wofür steht. Nur wenn „Szenen zeigen" an ist.
+let _sceneLegendSig = "";
+function updateSceneLegend() {
+  const el = document.getElementById("legendScenes");
+  if (!el) return;
+  if (!scenesMode || nodes.filter((n) => !n.venue).length < 6) {
+    if (_sceneLegendSig !== "") { el.innerHTML = ""; _sceneLegendSig = ""; }
+    return;
+  }
+  const colorOf = sceneColorOf();
+  const groups = new Map();
+  for (const n of nodes) { if (n.venue) continue; const c = colorOf(n.id); if (!c) continue; (groups.get(c) || groups.set(c, []).get(c)).push(n); }
+  const entries = [];
+  for (const [col, members] of groups) {
+    if (members.length < 3) continue;
+    const gc = new Map(); // häufigstes Genre der Szene = ihr Name
+    for (const m of members) for (const g of (m.genres || []).slice(0, 2)) { const k = g.toLowerCase(); gc.set(k, { name: g, c: (gc.get(k)?.c || 0) + 1 }); }
+    const topg = [...gc.values()].sort((a, b) => b.c - a.c)[0];
+    entries.push({ col, size: members.length, name: topg ? topg.name : null });
+  }
+  entries.sort((a, b) => b.size - a.size);
+  entries.forEach((e, i) => { if (!e.name) e.name = "Szene " + (i + 1); });
+  const sig = entries.map((e) => e.col + e.name + e.size).join("|");
+  if (sig === _sceneLegendSig) return; // nichts geändert -> DOM in Ruhe lassen
+  _sceneLegendSig = sig;
+  el.innerHTML = entries.length
+    ? '<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px;color:var(--text)">Szenen (Farbflächen)</div>' +
+      entries.map((e) => `<div><span class="dot" style="background:${e.col}"></span> ${esc(e.name)} <small style="opacity:.6">· ${e.size}</small></div>`).join("")
+    : "";
+}
 // Convex Hull (Andrew's monotone chain) für die Szenen-Blobs
 function convexHull(pts) {
   if (pts.length < 3) return pts.slice();
@@ -3136,6 +3255,7 @@ function convexHull(pts) {
 }
 // Szenen-Flächen ins Canvas malen (im Welt-Koordinatensystem, VOR Kanten/Knoten)
 function drawScenes() {
+  updateSceneLegend(); // Legende mitziehen (räumt sich selbst auf, wenn Szenen aus sind)
   if (!scenesMode || nodes.length < 6) return;
   const colorOf = sceneColorOf();
   const groups = new Map();
