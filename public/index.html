@@ -3553,7 +3553,15 @@ function maybeShowIntro() {
   for (let i = 0; i < 120; i++) tick();
   // letzte Ansicht wiederherstellen, sonst passend einblenden
   let savedView = null; try { savedView = JSON.parse(localStorage.getItem(LSK("like_view")) || "null"); } catch {}
-  if (savedView && Number.isFinite(savedView.k) && nodes.length) view = savedView; else fitAll();
+  if (savedView && Number.isFinite(savedView.k) && nodes.length) {
+    view = savedView;
+    // Sicherheitsnetz: liegt der Graph-Schwerpunkt mit der gemerkten Ansicht praktisch außerhalb
+    // des Bildes (z. B. weil sich das Layout/die Größen geändert haben), doch alles einpassen,
+    // statt nach dem Start ins Leere / auf den Rand zu schauen.
+    let cx = 0, cy = 0; for (const n of nodes) { cx += n.x; cy += n.y; } cx /= nodes.length; cy /= nodes.length;
+    const sx = cx * view.k + view.x, sy = cy * view.k + view.y;
+    if (sx < W * 0.12 || sx > W * 0.88 || sy < 60 || sy > H * 0.94) fitAll();
+  } else fitAll();
   loop();
   maybeShowIntro();
   checkKey();
