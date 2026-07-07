@@ -104,7 +104,10 @@
   input[type=checkbox]:checked { background: var(--edge-together); border-color: var(--edge-together); }
   input[type=checkbox]:checked::after { content: ""; position: absolute; left: 4.5px; top: 1px; width: 4px; height: 8px;
     border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
-  .search { display: flex; gap: 0; }
+  /* min-width:0 -> Suchfeld schrumpft sauber statt seine Kinder auf den Nachbarn (Space/Flat) zu
+     schieben; position/z-index -> das Textfeld liegt immer vorne, wird nie überlappt. */
+  .search { display: flex; gap: 0; min-width: 0; position: relative; z-index: 3; }
+  .search input { min-width: 0; }
   .search input { width: clamp(140px, 16vw, 240px); background: var(--bg); border: 1px solid var(--line-soft);
     padding: 8px 10px; outline: none; }
   .search input:focus { border-color: var(--line); }
@@ -142,15 +145,26 @@
   /* Handy: Werkzeug-Buttons + Genre-Filter aus der Leiste ins ⋯-Menü verlagern, damit
      die Topbar nicht überläuft. Sichtbar bleiben Marke, Pack, Suche, Theme und ⋯. */
   .mobileonly { display: none; }
+  /* Zwei Stufen, damit die Leiste nie überläuft oder überlappt:
+     (1) ≤1180px: die sekundären Werkzeuge (Radar/Entdecken/Profil/Hilfe) wandern ins ⋯-Menü —
+         die volle Inline-Leiste braucht sonst ~1180px und quetscht sich sichtbar. Suche,
+         Space/Flat-Toggle und ⋯ bleiben in der Leiste.
+     (2) ≤1040px: der Genre-Filter wandert ins Menü (bereits via .gfilter-Regel unten).
+     (3) ≤640px: auch die Suche wandert ins Menü (echtes Handy). */
+  @media (max-width: 1180px) {
+    #radarBtn, #discoverBtn, #tasteBtn, #feedbackBtn, #helpBtn { display: none !important; }
+    #toolsTitle { display: block; }
+    #toolsRow1, #toolsRow2 { display: flex; }
+    #toolsRow1 button, #toolsRow2 button { flex: 1; }
+  }
+  @media (max-width: 1040px) {
+    #mGenre { display: block !important; } /* Genre-Filter ins Menü, sobald er aus der Leiste fällt */
+  }
   @media (max-width: 640px) {
-    #radarBtn, #discoverBtn, #tasteBtn, #helpBtn, #genreFilter, #go, .search { display: none !important; }
+    #go, .search { display: none !important; }
+    #searchTitle { display: block; }
+    #mSearch { display: block !important; } /* schlägt .gfilter{display:none} im Menü */
     .bar { gap: 7px; }
-    /* Suche wandert auf Handy ins ⋯-Menü (#mSearch) — sonst überlädt sie mit dem
-       Space/Flat-Toggle die Leiste und quillt über die Buttons. */
-    .morebox .mtitle.mobileonly { display: block; }
-    .morebox .mrow.mobileonly { display: flex; }
-    .morebox .mrow.mobileonly button { flex: 1; }
-    .morebox input.mobileonly { display: block !important; } /* schlägt .gfilter{display:none} im Menü */
   }
   /* Touch/Handy: Browser-Gesten der Karte überlassen wir dem Canvas selbst; kein Gummiband-Scroll. */
   #cv { touch-action: none; }
@@ -627,14 +641,14 @@
   <div class="morebox" id="morebox">
     <div class="mtitle hideStatic">Konto</div>
     <div id="acctBox" class="hideStatic" style="margin-bottom:10px; font-size:12.5px"></div>
-    <div class="mtitle mobileonly hideStatic">Suche</div>
+    <div class="mtitle mobileonly hideStatic" id="searchTitle">Suche</div>
     <input id="mSearch" class="gfilter mobileonly hideStatic" placeholder="Act suchen…" autocomplete="off" style="width:100%;margin-bottom:8px" />
-    <div class="mtitle mobileonly">Werkzeuge</div>
-    <div class="mrow mobileonly">
+    <div class="mtitle mobileonly" id="toolsTitle">Werkzeuge</div>
+    <div class="mrow mobileonly" id="toolsRow1">
       <button id="mDiscover" title="Entdeck-Werkzeuge">✦ Entdecken</button>
       <button id="mRadar" class="hideStatic" title="Geheimtipp-Radar">◎ Radar</button>
     </div>
-    <div class="mrow mobileonly">
+    <div class="mrow mobileonly" id="toolsRow2">
       <button id="mTaste" class="hideStatic" title="Geschmacks-Fingerabdruck">◈ Profil</button>
       <button id="mHelp" title="Bedienung & Shortcuts">? Hilfe</button>
     </div>
