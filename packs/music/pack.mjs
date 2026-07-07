@@ -93,7 +93,7 @@ export default {
   // Leichter „ähnlich"-Zugriff für die Brücke (nur getSimilar, ohne RA/Genres).
   async similar(name, { limit = 60 } = {}) {
     const r = await getSimilar(name, { limit });
-    return { canonical: r.sourceName, similar: r.similar.map((s) => ({ name: s.name, url: s.url, match: s.match || 0.5 })) };
+    return { canonical: r.sourceName, similar: r.similar.map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })) };
   },
 
   // Haupt-Flow: Last.fm bestimmt Identität + ähnlichen Stil, RA (+ optionale Quellen)
@@ -113,7 +113,7 @@ export default {
       canonical,
       genres: genres.slice(0, 6),
       similarSource: "lastfm",
-      similar: similar.slice(0, 25).map((s) => ({ name: s.name, url: s.url, match: s.match || 0.5 })),
+      similar: similar.slice(0, 25).map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })),
       together: coacts.slice(0, 25).map((c) => ({ name: c.name, weight: c.weight, shows: c.shows })),
       togetherSource: sources.join("+") || "ra",
       meta: booking || null,
@@ -124,18 +124,22 @@ export default {
 
   async enrich(a) {
     const out = {};
+    // mbid (aus getSimilar mitgeführt) löst Namensvetter auf: ein als „ähnlich zu David Guetta"
+    // entdecktes „Majestic" (House) bekommt so seine House-Genres/Hörer statt die der
+    // gleichnamigen Metal-Band, die eine reine Namenssuche liefern würde.
+    const mbid = a.mbid || undefined;
     if (!a.genres || !a.genres.length) {
-      try { const t = await getTopTags(a.name); if (t.length) out.genres = t; } catch {}
+      try { const t = await getTopTags(a.name, { mbid }); if (t.length) out.genres = t; } catch {}
     }
-    try { const info = await getArtistInfo(a.name); if (info?.listeners) out.popularity = info.listeners; } catch {}
+    try { const info = await getArtistInfo(a.name, { mbid }); if (info?.listeners) out.popularity = info.listeners; } catch {}
     if (!a.booking?.area && !a.bcLocation) {
       try { const b = await searchBand(a.name); if (b?.location) { out.location = b.location; out.locationUrl = b.url; } } catch {}
     }
     return out;
   },
 
-  async popularity(name) {
-    const info = await getArtistInfo(name);
+  async popularity(name, { mbid } = {}) {
+    const info = await getArtistInfo(name, { mbid });
     return info?.listeners || null;
   },
 

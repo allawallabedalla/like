@@ -595,7 +595,7 @@ const server = createServer(async (req, res) => {
         if (r.meta) { src.booking = r.meta; }
         if (r.active !== undefined) src.active = r.active;
         for (const s of (r.similar || []).slice(0, 25)) {
-          const t = upsertArtist(g, { name: s.name, url: s.url });
+          const t = upsertArtist(g, { name: s.name, url: s.url, mbid: s.mbid || null });
           addEdge(g, src.id, t.id, "similar", s.match || 0.5, r.similarSource || pack.id);
         }
         for (const c of (r.together || []).slice(0, 25)) {
@@ -940,7 +940,7 @@ const server = createServer(async (req, res) => {
         for (const c of graphCands.slice(0, 25)) {
           const a = g.artists[c.id];
           try {
-            const p = await pack.popularity(a.name);
+            const p = await pack.popularity(a.name, { mbid: a.mbid || undefined });
             if (p) {
               if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
               popById.set(c.id, p);
@@ -1007,11 +1007,11 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/snapshot") {
       if (!pack.popularity) return send(res, 200, { ok: true, snapshotted: 0, marked: 0 });
       const g0 = await loadGraph(GRAPH);
-      const marked = Object.values(g0.artists).filter((a) => a.seed || a.known || a.status).map((a) => ({ id: a.id, name: a.name }));
+      const marked = Object.values(g0.artists).filter((a) => a.seed || a.known || a.status).map((a) => ({ id: a.id, name: a.name, mbid: a.mbid || undefined }));
       // Netz-Aufruf außerhalb des Locks; Ergebnisse nach id sammeln.
       const popById = new Map();
       for (const m of marked) {
-        try { const p = await pack.popularity(m.name); if (p) popById.set(m.id, p); } catch { /* ohne Popularität weiter */ }
+        try { const p = await pack.popularity(m.name, { mbid: m.mbid }); if (p) popById.set(m.id, p); } catch { /* ohne Popularität weiter */ }
       }
       let n = 0;
       if (popById.size) {
@@ -1037,10 +1037,10 @@ const server = createServer(async (req, res) => {
       if (!pack.popularity) return send(res, 200, { ok: true, filled: 0, remaining: 0, listeners: {} });
       const g0 = await loadGraph(GRAPH);
       const all = Object.values(g0.artists).filter((a) => !a.venue && a.listeners == null);
-      const batch = all.slice(0, 40).map((a) => ({ id: a.id, name: a.name }));
+      const batch = all.slice(0, 40).map((a) => ({ id: a.id, name: a.name, mbid: a.mbid || undefined }));
       const popById = new Map();
       for (const m of batch) {
-        let p = null; try { p = await pack.popularity(m.name); } catch {}
+        let p = null; try { p = await pack.popularity(m.name, { mbid: m.mbid }); } catch {}
         popById.set(m.id, p ?? 0); // 0 = versucht, aber keine Zahl -> wird nicht endlos neu geholt
       }
       if (popById.size) await withGraphLock(GRAPH, async () => {
