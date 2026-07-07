@@ -115,7 +115,9 @@
     padding: 8px 12px; cursor: pointer; }
   button:hover { background: color-mix(in srgb, var(--text) 9%, var(--bg)); } /* themenabhängig statt hart hell (sonst waschen Icons im Dark aus) */
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-  button.primary:hover { background: #222; }
+  /* Hover themenabhängig: Akzent leicht Richtung Textfarbe mischen -> sichtbarer, aber der
+     Text (--on-accent) bleibt lesbar. Vorher fix #222 -> im Dark schwarze Schrift auf Dunkel. */
+  button.primary:hover { background: color-mix(in srgb, var(--accent) 82%, var(--on-accent)); }
   button:disabled { opacity: .5; cursor: default; }
   .counts { color: var(--muted); font-size: 12px; white-space: nowrap; }
   .iconbtn { border: 1px solid var(--line); width: 38px; height: 38px; color: var(--text); background: var(--bg);
@@ -264,18 +266,21 @@
   .npeq i:nth-child(2) { animation-delay: .3s; } .npeq i:nth-child(3) { animation-delay: .6s; }
   @keyframes npbar { 0%, 100% { height: 30%; } 50% { height: 100%; } }
   @media (prefers-reduced-motion: reduce) { .npeq i { animation: none; height: 60%; } }
-  /* Scrub-/Spul-Leiste: kompakt gehalten — fährt erst sanft ein, wenn die Maus die Pille
-     berührt (Hover), sonst bleibt die Pille schmal. Auf Touch per Tipp auf die Pille (.expanded). */
-  .nowplaying .npscrub { display: inline-flex; align-items: center; gap: 9px; max-width: 0; opacity: 0;
-    overflow: hidden; margin-left: -9px; transition: max-width .26s ease, opacity .18s ease, margin-left .26s ease; }
-  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { max-width: 260px; opacity: 1; margin-left: 0; }
-  .nowplaying #npBar { flex: none; position: relative; width: 92px; height: 6px; border-radius: 3px;
+  /* Mittelteil hält EQ+Titel UND die Scrub-Leiste im selben Kasten übereinander: bei Maus-
+     Näherung wird der Titel weich gegen die Spulleiste getauscht — die PILLENBREITE bleibt
+     gleich (Scrub liegt absolut über dem Titel). Maus weg -> wieder EQ+Titel. Touch: .expanded. */
+  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; min-width: 130px; }
+  .nowplaying .npidle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; transition: opacity .18s ease; }
+  .nowplaying .npscrub { position: absolute; inset: 0; display: inline-flex; align-items: center; gap: 9px;
+    opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+  .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { opacity: 0; }
+  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { opacity: 1; pointer-events: auto; }
+  .nowplaying #npBar { flex: 1 1 auto; position: relative; min-width: 40px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
   .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
     background: var(--accent); transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
   .nowplaying #npTime { flex: none; color: var(--muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  @media (max-width: 480px) { .nowplaying #npBar { width: 64px; } }
   .badge { display: inline-block; font-size: 11px; padding: 2px 7px; margin-left: 6px; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .5px; }
   .badge.known { background: #000; color: #fff; }
   .badge.seed { background: #fff; color: #000; }
@@ -984,7 +989,7 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
-  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></div>
+  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npmid"><span class="npidle"><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></span></div>
 </div>
 
 <script>
@@ -1053,6 +1058,31 @@ const FEAT = CFG.features || {};
 const LSK = (k) => CFG.id === "music" ? k : `${k}:${CFG.id}`;
 const PREVIEW_TITLE = CFG.previewLabel || "30-Sekunden-Klangprobe abspielen";
 
+// Dynamische Legende links unten: zeigt NUR Einträge, die aktuell auf der Karte vorkommen
+// (B12), und ohne die Datenquellen-Hinweise „(Last.fm)"/„(RA)" (B11). Wird bei jedem Rebuild
+// und bei Ansichts-Toggles neu gebaut.
+function renderLegend() {
+  const el = document.getElementById("legend"); if (!el) return;
+  const escT = (v) => esc(String(v ?? ""));
+  const strip = (s) => escT(String(s ?? "").replace(/\s*\([^)]*\)\s*$/, "")); // Quellenhinweis am Ende weg (B11)
+  const real = nodes.filter((n) => !n.venue);
+  const leg = [];
+  if (links.some((l) => l.type === "similar")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${strip(CFG.edges.similar.label)}</div>`);
+  if (links.some((l) => l.type !== "similar" && l.type !== "venue")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${strip(CFG.edges.together.label)}</div>`);
+  if (real.some((n) => n.seed)) leg.push(`<div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>`);
+  if (real.some((n) => !n.seed)) leg.push(`<div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>`);
+  if (real.some((n) => n.status)) leg.push(`<div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (${strip((CFG.statuses[1] || CFG.statuses[0]).label)}/…)</div>`);
+  if (FEAT.active && CFG.activeLabel && real.some((n) => n.active)) leg.push(`<div><span class="dot" style="background:#1a9e54"></span> ${strip(CFG.activeLabel)}</div>`);
+  if (nodes.some((n) => n.venue)) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> Venue (eingeblendet)</div>`);
+  if (nodes.some((n) => n.pinned)) leg.push(`<div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>`);
+  leg.push(`<div id="legendScenes"></div>`); // Szenen-Farben (wenn „Szenen zeigen" an)
+  leg.push(`<div id="legendGenres"></div>`); // Genre-Farben im Cluster-Modus
+  el.innerHTML = leg.join("");
+  el.style.display = real.length ? "" : "none"; // leere Karte -> keine Legende
+  _sceneLegendSig = ""; // Container neu -> Szenen-Legende neu befüllen lassen
+  if (typeof updateSceneLegend === "function") updateSceneLegend();
+  if (typeof updateGenreLegend === "function") updateGenreLegend();
+}
 // Pack-Config auf die (mit Musik-Texten ausgelieferte) Oberfläche anwenden.
 // Läuft sofort beim Start — vor dem ersten Zeichnen.
 function applyCfg() {
@@ -1080,20 +1110,7 @@ function applyCfg() {
   $("q").title = CFG.searchTitle || "";
   $("go").title = CFG.goTitle || "";
   $("genreFilter").placeholder = CFG.genreFilterPlaceholder || "Filtern…";
-  // Legende aus Kantentypen + Status-Farben bauen
-  const leg = [
-    `<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${escT(CFG.edges.similar.label)}</div>`,
-    `<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${escT(CFG.edges.together.label)}</div>`,
-    `<div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>`,
-    `<div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>`,
-    `<div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (${escT((CFG.statuses[1] || CFG.statuses[0]).label)}/…)</div>`,
-  ];
-  if (FEAT.active && CFG.activeLabel) leg.push(`<div><span class="dot" style="background:#1a9e54"></span> ${escT(CFG.activeLabel)}</div>`);
-  if (FEAT.venues) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> Venue (eingeblendet)</div>`);
-  leg.push(`<div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>`);
-  leg.push(`<div id="legendScenes"></div>`); // dynamischer Teil: Szenen-Farben (wenn „Szenen zeigen" an)
-  leg.push(`<div id="legendGenres"></div>`); // dynamischer Teil: Genre-Farben im Cluster-Modus
-  $("legend").innerHTML = leg.join("");
+  renderLegend(); // dynamische Legende (zeigt nur, was gerade da ist) ohne Quellen-Hinweise — B11/B12
   // Popularität / "Große dämpfen"
   if (CFG.popularity) {
     $("dimBigLabel").textContent = CFG.popularity.dimLabel || "Große dämpfen";
@@ -1410,7 +1427,7 @@ function toastUndo(msg, fn) {
   t._t = setTimeout(() => t.classList.remove("show"), 6000);
 }
 
-function rebuild(prev) {
+function rebuild(prev, reheatAmt = 1) {
   const arts = Object.values(graph.artists);
   const deg = {};
   for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
@@ -1507,7 +1524,8 @@ function rebuild(prev) {
   computeGenreColors(); // Cluster-Farben an den neuen Bestand anpassen
   communities = null;   // Szenen/Brücken neu berechnen lassen (Graph hat sich geändert)
   renderBasket();
-  reheat(1); // neues Layout durchrechnen lassen
+  renderLegend();       // dynamische Legende an den neuen Bestand anpassen (B12)
+  reheat(reheatAmt); // neues Layout durchrechnen lassen (beim ＋-Ausbauen bewusst sanfter -> weniger Zappeln, B4)
 }
 
 // ---- Ansicht: alles zeigen / zoomen ----
@@ -1564,6 +1582,13 @@ let dirty = true;                       // "muss neu gezeichnet werden"
 function requestDraw() { dirty = true; } // von jeder Interaktion aufrufen, die die Darstellung ändert
 function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
 
+// B9: liegt ein Knoten (in Screen-Koordinaten) nahe der Bildmitte? Solche Knoten werden
+// stillgestellt (Physik + Orbit), damit der Überblicks-Fokus ruhig bleibt.
+function nearScreenCenter(a) {
+  const sx = a.x * view.k + view.x, sy = a.y * view.k + view.y;
+  const cfr = Math.min(W, H) * 0.16;
+  return (sx - W / 2) ** 2 + (sy - (H + 52) / 2) ** 2 < cfr * cfr;
+}
 function tick() {
   if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
   const REP = 8800, SPRING = 0.012, DAMP = 0.86, CUT = 460, CUT2 = CUT * CUT; // etwas mehr Abstoßung -> luftigeres Netz
@@ -1636,6 +1661,7 @@ function tick() {
     // fixierte Knoten (nach manuellem Ziehen) bleiben stehen, stoßen aber weiter ab —
     // so lässt sich das Netz von Hand sortieren, ohne dass die Physik es zurückzieht
     if (a === dragNode || a.pinned || a._moon) { a.vx = 0; a.vy = 0; continue; } // Monde folgen ihrer Umlaufbahn
+    if (nearScreenCenter(a)) { a.vx = 0; a.vy = 0; continue; } // Bildzentrum: stillstehen (B9)
     a.vx *= DAMP; a.vy *= DAMP;
     // Geschwindigkeit deckeln: verhindert das wilde Überschießen/Zappeln, wenn ein neuer
     // Act mit vielen Nachbarn überlappend spawnt (v.a. in der Flat-Ansicht ohne Mond-Fixierung).
@@ -1702,7 +1728,8 @@ function orbitMoons() {
       const orbitR = pr + haloExt + radius(m) + 22 + ringIdx * RING_GAP + (1 - tie) * 12;
       // Winkelgeschwindigkeit ~ 1/Radius: sonst „rasen" weit außen liegende Monde sichtbar
       // schneller (Bahngeschwindigkeit v = ω·r). Referenz ~110 px; nur bremsen, nie beschleunigen.
-      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.00052 * slow * Math.min(1, 110 / orbitR);
+      // B9: steht der Planet im Bildzentrum, friert sein Mond-Orbit ein (Winkel unverändert).
+      if (!REDUCE_MOTION && !nearScreenCenter(parent)) m._moonAng += m._moonSpeed * 0.00052 * slow * Math.min(1, 110 / orbitR);
       if (orbitR > maxR) maxR = orbitR;
       m.x = parent.x + Math.cos(m._moonAng) * orbitR;
       m.y = parent.y + Math.sin(m._moonAng) * orbitR;
@@ -1803,30 +1830,15 @@ function draw() {
   ctx.translate(view.x, view.y); ctx.scale(view.k, view.k);
   const dim = document.getElementById("dimKnown").checked;
   const dimBig = document.getElementById("dimBig").checked;
-  const fg = filterGenre.toLowerCase();
   const fs = focusSet();
   const hi = compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null);
   const pe = null;
-  // Genre-Filter (Topbar-Textfeld ODER angeklickte Panel-Pills): blendet nicht passende Knoten
-  // KOMPLETT aus (nicht nur abdunkeln) — samt ihrer Kanten und Labels. Der aktive Knoten bleibt.
-  const genreMiss = (n) => {
-    if (fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg))) return true;
-    if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
-    return false;
-  };
-  // LOD: weit rausgezoomt auf dichten Karten die Grad-≤1-Blätter (und ihre Kanten) ausblenden.
-  // Kuratierte/gesuchte/gehoverte Acts bleiben immer.
+  // Nur der Fokus-Modus (Vergleich/Pfad, fs) versteckt hart. LOD (n._lodA) und Genre-Filter
+  // (n._genA) werden weich über eased Alphas geblendet — kein Ploppen (B2/B10). vis() liefert
+  // die kombinierte Sichtbarkeit 0..1 je Knoten.
   const zoomedOut = nodes.length > 40 && view.k < LEAF_ZOOM;
-  const lodHide = (n) => !(n.seed || n.status || n.note || n.known || n === hover || basket.has(n.id)) && (n.deg | 0) <= 1;
-  const hidden = (id) => {
-    if (fs && !fs.has(id)) return true;
-    const n = nodeById.get(id);
-    if (!n) return false;
-    if (selected && id === selected.id) return false; // aktiver Knoten bleibt immer sichtbar
-    if (zoomedOut && lodHide(n)) return true;
-    if ((fg || activeGenres.size) && genreMiss(n)) return true;
-    return false;
-  };
+  const hidden = (id) => (fs && !fs.has(id) && !(selected && id === selected.id));
+  const vis = (n) => (n._lodA ?? 1) * (n._genA ?? 1);
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
   const dimNode = (n) => {
     if (selected && n.id === selected.id) return false;
@@ -1845,7 +1857,7 @@ function draw() {
     const onPath = pe && pe.has(key);
     const hot = onPath || (selected && (l.a.id === selected.id || l.b.id === selected.id));
     const isSim = l.type === "similar";
-    const ea = Math.min(l.a.appear, l.b.appear); // Kante faded mit ihren Knoten ein
+    const ea = Math.min(l.a.appear, l.b.appear) * Math.min(vis(l.a), vis(l.b)); // Kante faded mit ihren Knoten ein (LOD + Genre, B2/B10)
     ctx.strokeStyle = onPath ? getCss("--text") : (l.type === "venue" ? cVen : isSim ? cSim : cTog);
     // Ähnlichkeit (Last.fm-Match 0..1) steuert Dicke UND Deckkraft: kaum verwandte Acts nur
     // als blasse Haarlinie, stark verwandte als kräftige, klar sichtbare Linie. Der
@@ -1866,7 +1878,7 @@ function draw() {
   if (planetMode) {
     for (const n of nodes) {
       if (hidden(n.id) || n.venue) continue;
-      const ap = n.appear ?? 1; if (ap < 0.05) continue;
+      const ap = (n.appear ?? 1) * vis(n); if (ap < 0.05) continue; // Hof faded mit LOD/Genre (B2/B10)
       if (dimNode(n) && !(selected && n.id === selected.id)) continue; // gedimmte Knoten ohne Hof
       const r = radius(n);
       // Glow ~ Popularität (Helligkeit ist das Hauptsignal), Grad nur als kleiner Struktur-Anteil.
@@ -1889,6 +1901,8 @@ function draw() {
   const labelJobs = []; // Labels erst sammeln, dann priorisiert + kollisionsfrei zeichnen
   for (const n of nodes) {
     if (hidden(n.id)) continue;
+    const lodA = vis(n); // kombinierte LOD-/Genre-Sichtbarkeit (B2/B10)
+    if (lodA < 0.02) continue; // vollständig ausgeblendet (weich)
     // Spawn-Animation: frische Knoten wachsen mit leichtem Überschwung ein (easeOutBack).
     const ap = n.appear ?? 1;
     const grow = ap >= 1 ? 1 : (1 + 1.7 * Math.pow(ap - 1, 3) + 1.7 * Math.pow(ap - 1, 2));
@@ -1896,7 +1910,7 @@ function draw() {
     const sel = selected && n.id === selected.id;
     const glow = hi && hi.has(n.id);
     const faded = !sel && !glow && dimNode(n);
-    const baseA = (faded ? 0.15 : 1) * ap;
+    const baseA = (faded ? 0.15 : 1) * ap * lodA;
     // weicher Hover-Schein hinter dem Knoten (nur der eine gehoverte — günstig)
     if (hovG && n.id === hovG.id && !faded && ap >= 1) {
       ctx.globalAlpha = 1; ctx.shadowColor = getCss("--edge-together"); ctx.shadowBlur = 16;
@@ -1971,24 +1985,25 @@ function draw() {
   ctx.textAlign = "center"; ctx.lineJoin = "round";
   for (const job of labelJobs) {
     const n = job.n;
+    const va = vis(n); if (va < 0.05) continue; // Label faded mit LOD/Genre mit (B2/B10)
     ctx.font = `${job.size / view.k}px ${CANVAS_FONT}`;
     const w = ctx.measureText(n.name).width, h = job.size / view.k, pad = 2 / view.k;
     const box = { x1: job.x - w / 2 - pad, y1: job.y - h - pad, x2: job.x + w / 2 + pad, y2: job.y + h * 0.35 + pad };
     const mustShow = job.sel || job.hov || n.seed; // Anker immer zeigen
     if (!mustShow && placedLabels.some(p => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1)) continue;
     placedLabels.push(box);
-    ctx.strokeStyle = getCss("--bg"); ctx.globalAlpha = job.faded ? 0.3 : 1; ctx.lineWidth = 3.5 / view.k;
+    ctx.strokeStyle = getCss("--bg"); ctx.globalAlpha = (job.faded ? 0.3 : 1) * va; ctx.lineWidth = 3.5 / view.k;
     ctx.strokeText(n.name, job.x, job.y);
-    ctx.globalAlpha = job.faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
+    ctx.globalAlpha = (job.faded ? 0.3 : 0.92) * va; ctx.fillStyle = getCss("--text");
     ctx.fillText(n.name, job.x, job.y);
     // Genre-Zeile nur ganz nah oder bei Hover/Auswahl — direkt unter dem Namen.
     const genreOk = job.hov || job.sel || view.k > GENRE_ZOOM;
     if (n.genres && n.genres.length && genreOk) {
       const gY = job.y + 12 / view.k;
       ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
-      ctx.globalAlpha = job.faded ? 0.25 : 0.9; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
+      ctx.globalAlpha = (job.faded ? 0.25 : 0.9) * va; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
       ctx.strokeText(n.genres.slice(0, 2).join(" · "), n.x, gY);
-      ctx.globalAlpha = job.faded ? 0.25 : 0.6; ctx.fillStyle = getCss("--muted");
+      ctx.globalAlpha = (job.faded ? 0.25 : 0.6) * va; ctx.fillStyle = getCss("--muted");
       ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, gY);
     }
   }
@@ -2139,6 +2154,20 @@ function stepNodeAnims() {
   for (const a of nodes) {
     if (a.appear < 1) { a.appear = Math.min(1, a.appear + 0.055); live = true; }
     if (a.likePulse > 0) { a.likePulse = Math.max(0, a.likePulse - 0.028); live = true; }
+    // LOD: Blätter weich ein-/ausblenden statt schlagartig ploppen (B2). Ziel 1 = sichtbar, 0 = aus.
+    const lodT = lodHiddenNode(a) ? 0 : 1;
+    if (a._lodA == null) a._lodA = lodT;
+    else if (a._lodA !== lodT) {
+      a._lodA += (lodT - a._lodA) * 0.16;
+      if (Math.abs(lodT - a._lodA) < 0.01) a._lodA = lodT; else live = true;
+    }
+    // Genre-Filter: nicht passende Acts weich ausblenden statt schlagartig verschwinden (B10)
+    const genT = (selected && a.id === selected.id) ? 1 : (genreFilterActive() && genreMissNode(a) ? 0 : 1);
+    if (a._genA == null) a._genA = genT;
+    else if (a._genA !== genT) {
+      a._genA += (genT - a._genA) * 0.18;
+      if (Math.abs(genT - a._genA) < 0.01) a._genA = genT; else live = true;
+    }
   }
   return live;
 }
@@ -2213,6 +2242,22 @@ function mmJump(e) {
 mmEl.addEventListener("mousedown", (e) => { mmJump(e); const mv = (ev) => mmJump(ev); const up = () => { removeEventListener("mousemove", mv); removeEventListener("mouseup", up); }; addEventListener("mousemove", mv); addEventListener("mouseup", up); });
 
 // ---- Picking ----
+// LOD-Sichtbarkeit: dieselbe Regel wie in draw() — weit rausgezoomt sind auf dichten Karten
+// die Grad-≤1-Blätter ausgeblendet. Zentral, damit sie auch NICHT pickbar/hoverbar sind und
+// keine Aktionen (＋/ⓘ/×/▶) tragen, solange man sie nicht durch Reinzoomen sichtbar macht (B1).
+function lodHiddenNode(n) {
+  if (!n || nodes.length <= 40 || view.k >= LEAF_ZOOM) return false;
+  if (n.seed || n.status || n.note || n.known || (selected && n.id === selected.id) || basket.has(n.id)) return false;
+  return (n.deg | 0) <= 1;
+}
+// Genre-Filter (Topbar-Text ODER Panel-Pills): passt ein Knoten NICHT? (für weiches Ausblenden, B10)
+function genreFilterActive() { return !!filterGenre || activeGenres.size > 0; }
+function genreMissNode(n) {
+  const fg = filterGenre.toLowerCase();
+  if (fg && !(n.genres || []).some((x) => x.toLowerCase().includes(fg))) return true;
+  if (activeGenres.size && !(n.genres || []).some((x) => activeGenres.has(x))) return true;
+  return false;
+}
 function pick(px, py) {
   const w = world({ x: px, y: py });
   const fs = focusSet();
@@ -2222,6 +2267,7 @@ function pick(px, py) {
   const minHit = (COARSE ? 22 : 16) / view.k;
   for (const n of nodes) {
     if (fs && !fs.has(n.id)) continue;
+    if (lodHiddenNode(n)) continue; // ausgeblendete Blätter reagieren nicht auf Hover/Klick (B1)
     const r = Math.max(radius(n) + 6, minHit);
     const d = (n.x - w.x) ** 2 + (n.y - w.y) ** 2;
     if (d < r * r && d < bestD) { bestD = d; best = n; }
@@ -2249,7 +2295,8 @@ function onDeleteBadge(n, px, py) {
 // Gesuchte Knoten (Seed) tragen stattdessen das Lösch-× — daher hier ausgeschlossen (kein Konflikt).
 function isMoonHover(n) {
   if (!n || n.venue || n.seed || (n.appear ?? 1) < 1) return false;
-  return planetMode ? !!n._moon : true;
+  if (lodHiddenNode(n)) return false; // ausgeblendete Blätter tragen keine Aktionen (B1)
+  return true; // ＋/ⓘ/× an JEDEM nicht-gesuchten Knoten — auch an Nicht-Monden/geteilten Nachbarn (B6)
 }
 function moonBadges(n) {
   const d = (radius(n) + 16 / view.k) / Math.SQRT2, r = 9.5 / view.k;
@@ -2280,7 +2327,7 @@ function onPlayBtn(px, py) {
   if (!FEAT.preview) return null;
   const w = world({ x: px, y: py });
   let g = null, gd = Infinity;
-  for (const n of nodes) { if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id)) continue; const dd = Math.hypot(w.x - n.x, w.y - n.y); if (dd < gd) { gd = dd; g = n; } }
+  for (const n of nodes) { if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id) || lodHiddenNode(n)) continue; const dd = Math.hypot(w.x - n.x, w.y - n.y); if (dd < gd) { gd = dd; g = n; } }
   if (!g) return null;
   const rr = radius(g), R = Math.max(rr * 0.66, 8 / view.k), fadeStart = rr + 78 / view.k;
   const vis = (g === hover || gd <= rr) ? 1 : (fadeStart - gd) / (fadeStart - rr);
@@ -2316,6 +2363,12 @@ addEventListener("mousemove", (e) => {
     const onMoonB = !n && hover && overCanvas && onMoonBadge(hover, p.x, p.y);
     const onSeedI = !n && hover && overCanvas && onSeedInfo(hover, p.x, p.y);
     if (onX || onMoonB || onSeedI) n = hover; // Badges zählen zum Hover, sonst verschwänden sie beim Anpeilen
+    // Sanfte Halte-Zone: solange die Maus im Hof des gehoverten Knotens (inkl. seiner ＋/ⓘ/×-Badges)
+    // bleibt, den Hover NICHT fallenlassen — sonst flackern die Badges beim Anpeilen weg (B8).
+    if (!n && hover && overCanvas && (hover.appear ?? 1) >= 1 && !lodHiddenNode(hover)) {
+      const wm = world(p), holdR = radius(hover) + 34 / view.k;
+      if ((hover.x - wm.x) ** 2 + (hover.y - wm.y) ** 2 < holdR * holdR) n = hover;
+    }
     if (n !== hover) { hover = n; requestDraw(); }
     else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen (beide Modi)
     cv.style.cursor = (onX || onMoonB || onSeedI) ? "pointer" : (n ? "pointer" : "grab");
@@ -2351,9 +2404,9 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { selectNode(m); exploreByName(m.name); } // Mond -> eigener Planet
+      if (mb === "plus") { exploreByName(m.name, { select: false, center: false, reheatAmt: 0.5 }); } // ＋ = nur ausbauen, KEINE Info, kein Recenter (B7), sanftes Reheat (B4)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
-      else { selectNode(m); }                                      // nur Info-Karte
+      else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;
     }
     // Klick auf das ⓘ am gesuchten Act -> nur Info-Karte
@@ -2376,7 +2429,7 @@ addEventListener("mouseup", (e) => {
       } else if (!bridge) { closePanel(); }       // Leerklick: Panel zu (nicht während Brücke)
     }
   }
-  if (dragNode && moved) dragNode.pinned = true;  // gezogen = fixiert (Rechtsklick löst)
+  if (dragNode && moved) { dragNode.pinned = true; renderLegend(); }  // gezogen = fixiert (Rechtsklick löst); Legende „fixiert" (B12)
   dragging = false; dragNode = null; cv.classList.remove("grabbing");
 });
 cv.addEventListener("dblclick", (e) => {
@@ -2662,6 +2715,7 @@ document.getElementById("status").onchange = async (e) => {
   if (res.ok) {
     selected.status = status;
     const a = graph.artists[selected.id]; if (a) { a.status = status; a.known = status !== ""; }
+    renderLegend(); // „Status-Ring"-Eintrag ein-/ausblenden (B12)
     requestDraw(); // Status-Farbring am Knoten aktualisieren
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
@@ -2728,19 +2782,22 @@ document.getElementById("exportPng").onclick = () => {
 // ---- Laden / Erkunden ----
 function slugify(s) { return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, ""); }
 
-async function reload(focusName) {
+async function reload(focusName, { select = true, center = true, reheatAmt = 1 } = {}) {
   const prev = new Map(nodes.map(n => [n.id, n]));
   graph = await API.graph();
-  rebuild(prev);
+  rebuild(prev, reheatAmt);
   if (focusName) {
     const k = slugify(focusName);
     const n = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
-    if (n) { selectNode(n); followNode = n; centerOn(n); } // Panel zuerst öffnen -> centerOn kennt seine Breite; dann mittig halten
+    if (n) {
+      if (select) selectNode(n);       // Panel zuerst öffnen -> centerOn kennt seine Breite
+      if (center) { followNode = n; centerOn(n); } // ... dann mittig halten
+    }
   }
 }
 
 let busy = false;
-async function exploreByName(name) {
+async function exploreByName(name, { select = true, center = true, reheatAmt = 1 } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
   busy = true;
@@ -2756,7 +2813,7 @@ async function exploreByName(name) {
       else toast("Fehler: " + res.error);
       return;
     }
-    await reload(res.name);
+    await reload(res.name, { select, center, reheatAmt });
     addTrail(res.name);
     fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
     fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift
