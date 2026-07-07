@@ -120,10 +120,10 @@
     align-items: center; justify-content: center; transition: border-color .15s, color .15s; }
   .iconbtn:hover { border-color: var(--edge-together); color: var(--edge-together); background: var(--bg); }
   /* Immer sichtbarer Ansicht-Umschalter Space | Flat (segmentierter Toggle) */
-  .viewseg { display: inline-flex; flex: none; border: 1px solid var(--line-soft); border-radius: 999px; overflow: hidden; background: var(--bg); }
-  .viewseg { height: 38px; align-items: stretch; } /* Höhe an die übrigen Topbar-Controls angleichen */
-  .viewseg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600;
-    padding: 0 14px; height: 100%; cursor: pointer; line-height: 1; letter-spacing: .01em; display: inline-flex; align-items: center; }
+  .viewseg { display: inline-flex; flex: none; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden;
+    background: var(--bg); height: 38px; }
+  .viewseg button { flex: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px;
+    font-weight: 600; padding: 0 15px; height: 38px; line-height: 38px; cursor: pointer; letter-spacing: .01em; white-space: nowrap; }
   .viewseg button.on { background: var(--text); color: var(--bg); }
   .viewseg button:not(.on):hover { color: var(--text); }
   @media (max-width: 640px) { .viewseg button { padding: 0 9px; font-size: 12px; } }
@@ -1446,8 +1446,8 @@ function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
 
 function tick() {
   if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
-  const REP = 6000, SPRING = 0.012, DAMP = 0.86, CUT = 400, CUT2 = CUT * CUT;
-  const COLLIDE_PAD = 22; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
+  const REP = 8800, SPRING = 0.012, DAMP = 0.86, CUT = 460, CUT2 = CUT * CUT; // etwas mehr Abstoßung -> luftigeres Netz
+  const COLLIDE_PAD = 30; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
   const n = nodes.length;
   // Radien einmal pro Frame vorberechnen (radius() liest Grad/Popularität) — für die Kollision
   const rad = new Array(n);
