@@ -266,18 +266,21 @@
   .npeq i:nth-child(2) { animation-delay: .3s; } .npeq i:nth-child(3) { animation-delay: .6s; }
   @keyframes npbar { 0%, 100% { height: 30%; } 50% { height: 100%; } }
   @media (prefers-reduced-motion: reduce) { .npeq i { animation: none; height: 60%; } }
-  /* Scrub-/Spul-Leiste: kompakt gehalten — fährt erst sanft ein, wenn die Maus die Pille
-     berührt (Hover), sonst bleibt die Pille schmal. Auf Touch per Tipp auf die Pille (.expanded). */
-  .nowplaying .npscrub { display: inline-flex; align-items: center; gap: 9px; max-width: 0; opacity: 0;
-    overflow: hidden; margin-left: -9px; transition: max-width .26s ease, opacity .18s ease, margin-left .26s ease; }
-  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { max-width: 260px; opacity: 1; margin-left: 0; }
-  .nowplaying #npBar { flex: none; position: relative; width: 92px; height: 6px; border-radius: 3px;
+  /* Mittelteil hält EQ+Titel UND die Scrub-Leiste im selben Kasten übereinander: bei Maus-
+     Näherung wird der Titel weich gegen die Spulleiste getauscht — die PILLENBREITE bleibt
+     gleich (Scrub liegt absolut über dem Titel). Maus weg -> wieder EQ+Titel. Touch: .expanded. */
+  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; min-width: 130px; }
+  .nowplaying .npidle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; transition: opacity .18s ease; }
+  .nowplaying .npscrub { position: absolute; inset: 0; display: inline-flex; align-items: center; gap: 9px;
+    opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+  .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { opacity: 0; }
+  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { opacity: 1; pointer-events: auto; }
+  .nowplaying #npBar { flex: 1 1 auto; position: relative; min-width: 40px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
   .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
     background: var(--accent); transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
   .nowplaying #npTime { flex: none; color: var(--muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  @media (max-width: 480px) { .nowplaying #npBar { width: 64px; } }
   .badge { display: inline-block; font-size: 11px; padding: 2px 7px; margin-left: 6px; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .5px; }
   .badge.known { background: #000; color: #fff; }
   .badge.seed { background: #fff; color: #000; }
@@ -986,7 +989,7 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
-  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></div>
+  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npmid"><span class="npidle"><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></span></div>
 </div>
 
 <script>

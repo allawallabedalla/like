@@ -21,7 +21,7 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
   erscheinen, sollen sie **weich einblenden** (Alpha-Fade), nicht schlagartig aufpoppen.
   Analog beim Ausblenden. Zoom-Schwelle 0.85 mit weichem Übergangsband statt hartem Cutoff.
 
-- [ ] **B3 — Preview-Pill: Größe bei Maus-Näherung konstant.** Aktuell fährt die Scrub-Leiste
+- [x] **B3 — Preview-Pill: Größe bei Maus-Näherung konstant.** Aktuell fährt die Scrub-Leiste
   ein und die Pille wird breiter. Gewünscht: **Breite bleibt gleich**; bei Maus-Näherung
   **ersetzt die Scrub-Leiste den restlichen Inhalt** (Stop bleibt, statt EQ+Titel kommt die
   Spulleiste + Zeit). Maus weg → wieder die ursprüngliche Ansicht (EQ + Titel).
