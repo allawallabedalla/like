@@ -674,7 +674,7 @@
       <button id="exportPng" title="Karte als Bild (PNG)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>PNG</button>
     </div>
     <div class="counts" id="counts" title="Größe der Karte: Acts und Verbindungen">–</div>
-    <div style="margin-top:8px;font-size:11.5px;opacity:.6"><a href="/impressum" target="_blank" style="color:inherit">Impressum</a></div>
+    <div style="margin-top:8px;font-size:11.5px;opacity:.6"><a href="/impressum" target="_blank" style="color:inherit">Impressum</a> · <a href="/datenschutz" target="_blank" style="color:inherit">Datenschutz</a></div>
   </div>
 
   <div id="trail" class="trail"></div>
@@ -1176,6 +1176,7 @@ const API = {
   radar: (extraLikes, force) => POST("/api/radar", { extraLikes, force }),
   snapshot: () => POST("/api/snapshot", {}),
   popfill: () => POST("/api/popfill", {}),
+  genrefill: () => POST("/api/genrefill", {}),
   digest: () => POST("/api/digest", {}),
   diag: () => POST("/api/diag", {}),
   import: (graph) => POST("/api/import", { graph }),
@@ -2758,6 +2759,7 @@ async function exploreByName(name) {
     await reload(res.name);
     addTrail(res.name);
     fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
+    fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift
     toast(`${res.name}: ${res.similar} ${CFG.edges.similar.count || "ähnlich"} · ${res.together} ${CFG.edges.together.count || "verbunden"}`);
   } catch (e) {
     toast("Fehler: " + e.message);
@@ -3838,6 +3840,7 @@ async function startupTasks() {
   try { await API.snapshot(); } catch {}
   try { renderDigest(await API.digest()); } catch {}
   fillSizes(); // Hörerzahlen im Hintergrund nachladen (Größen/Glow richten sich nach Popularität)
+  fillGenres(); // Genres im Hintergrund nachladen -> Genre-Filter greift auf die ganze Karte
   updateCheck();
 }
 // Hörerzahlen für noch nicht befüllte Knoten gedrosselt nachladen, damit sich Kugelgröße
@@ -3859,6 +3862,30 @@ async function fillSizes() {
       if (!r.remaining) break;
     }
   } finally { _fillingSizes = false; }
+}
+// Genres für ALLE Knoten gedrosselt nachladen -> der Genre-Filter (und die Cluster-Farben)
+// greifen dann auch auf noch nicht geöffnete Nachbarn, nicht nur auf angeklickte Acts.
+let _fillingGenres = false;
+async function fillGenres() {
+  if (STATIC || _fillingGenres) return;
+  _fillingGenres = true;
+  try {
+    for (let round = 0; round < 12; round++) {
+      let r; try { r = await API.genrefill(); } catch { break; }
+      if (!r || !r.ok) break;
+      let any = false;
+      if (r.genres) for (const id in r.genres) {
+        const n = nodeById.get(id);
+        if (n && !(n.genres && n.genres.length) && r.genres[id].length) {
+          n.genres = r.genres[id];
+          if (graph.artists[id]) graph.artists[id].genres = r.genres[id];
+          any = true;
+        }
+      }
+      if (any) { computeGenreColors(); requestDraw(); }
+      if (!r.remaining) break;
+    }
+  } finally { _fillingGenres = false; }
 }
 // Still prüfen, ob auf GitHub eine neuere Version liegt -> dezenter Hinweis am Versions-Badge.
 function semverGt(a, b) {
