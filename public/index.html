@@ -1817,13 +1817,12 @@ function draw() {
   // LOD: weit rausgezoomt auf dichten Karten die Grad-≤1-Blätter (und ihre Kanten) ausblenden.
   // Kuratierte/gesuchte/gehoverte Acts bleiben immer.
   const zoomedOut = nodes.length > 40 && view.k < LEAF_ZOOM;
-  const lodHide = (n) => !(n.seed || n.status || n.note || n.known || n === hover || basket.has(n.id)) && (n.deg | 0) <= 1;
   const hidden = (id) => {
     if (fs && !fs.has(id)) return true;
     const n = nodeById.get(id);
     if (!n) return false;
     if (selected && id === selected.id) return false; // aktiver Knoten bleibt immer sichtbar
-    if (zoomedOut && lodHide(n)) return true;
+    if (lodHiddenNode(n)) return true;
     if ((fg || activeGenres.size) && genreMiss(n)) return true;
     return false;
   };
@@ -2213,6 +2212,14 @@ function mmJump(e) {
 mmEl.addEventListener("mousedown", (e) => { mmJump(e); const mv = (ev) => mmJump(ev); const up = () => { removeEventListener("mousemove", mv); removeEventListener("mouseup", up); }; addEventListener("mousemove", mv); addEventListener("mouseup", up); });
 
 // ---- Picking ----
+// LOD-Sichtbarkeit: dieselbe Regel wie in draw() — weit rausgezoomt sind auf dichten Karten
+// die Grad-≤1-Blätter ausgeblendet. Zentral, damit sie auch NICHT pickbar/hoverbar sind und
+// keine Aktionen (＋/ⓘ/×/▶) tragen, solange man sie nicht durch Reinzoomen sichtbar macht (B1).
+function lodHiddenNode(n) {
+  if (!n || nodes.length <= 40 || view.k >= LEAF_ZOOM) return false;
+  if (n.seed || n.status || n.note || n.known || (selected && n.id === selected.id) || basket.has(n.id)) return false;
+  return (n.deg | 0) <= 1;
+}
 function pick(px, py) {
   const w = world({ x: px, y: py });
   const fs = focusSet();
@@ -2222,6 +2229,7 @@ function pick(px, py) {
   const minHit = (COARSE ? 22 : 16) / view.k;
   for (const n of nodes) {
     if (fs && !fs.has(n.id)) continue;
+    if (lodHiddenNode(n)) continue; // ausgeblendete Blätter reagieren nicht auf Hover/Klick (B1)
     const r = Math.max(radius(n) + 6, minHit);
     const d = (n.x - w.x) ** 2 + (n.y - w.y) ** 2;
     if (d < r * r && d < bestD) { bestD = d; best = n; }
@@ -2249,7 +2257,8 @@ function onDeleteBadge(n, px, py) {
 // Gesuchte Knoten (Seed) tragen stattdessen das Lösch-× — daher hier ausgeschlossen (kein Konflikt).
 function isMoonHover(n) {
   if (!n || n.venue || n.seed || (n.appear ?? 1) < 1) return false;
-  return planetMode ? !!n._moon : true;
+  if (lodHiddenNode(n)) return false; // ausgeblendete Blätter tragen keine Aktionen (B1)
+  return true; // ＋/ⓘ/× an JEDEM nicht-gesuchten Knoten — auch an Nicht-Monden/geteilten Nachbarn (B6)
 }
 function moonBadges(n) {
   const d = (radius(n) + 16 / view.k) / Math.SQRT2, r = 9.5 / view.k;
@@ -2280,7 +2289,7 @@ function onPlayBtn(px, py) {
   if (!FEAT.preview) return null;
   const w = world({ x: px, y: py });
   let g = null, gd = Infinity;
-  for (const n of nodes) { if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id)) continue; const dd = Math.hypot(w.x - n.x, w.y - n.y); if (dd < gd) { gd = dd; g = n; } }
+  for (const n of nodes) { if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id) || lodHiddenNode(n)) continue; const dd = Math.hypot(w.x - n.x, w.y - n.y); if (dd < gd) { gd = dd; g = n; } }
   if (!g) return null;
   const rr = radius(g), R = Math.max(rr * 0.66, 8 / view.k), fadeStart = rr + 78 / view.k;
   const vis = (g === hover || gd <= rr) ? 1 : (fadeStart - gd) / (fadeStart - rr);
@@ -2316,6 +2325,12 @@ addEventListener("mousemove", (e) => {
     const onMoonB = !n && hover && overCanvas && onMoonBadge(hover, p.x, p.y);
     const onSeedI = !n && hover && overCanvas && onSeedInfo(hover, p.x, p.y);
     if (onX || onMoonB || onSeedI) n = hover; // Badges zählen zum Hover, sonst verschwänden sie beim Anpeilen
+    // Sanfte Halte-Zone: solange die Maus im Hof des gehoverten Knotens (inkl. seiner ＋/ⓘ/×-Badges)
+    // bleibt, den Hover NICHT fallenlassen — sonst flackern die Badges beim Anpeilen weg (B8).
+    if (!n && hover && overCanvas && (hover.appear ?? 1) >= 1 && !lodHiddenNode(hover)) {
+      const wm = world(p), holdR = radius(hover) + 34 / view.k;
+      if ((hover.x - wm.x) ** 2 + (hover.y - wm.y) ** 2 < holdR * holdR) n = hover;
+    }
     if (n !== hover) { hover = n; requestDraw(); }
     else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen (beide Modi)
     cv.style.cursor = (onX || onMoonB || onSeedI) ? "pointer" : (n ? "pointer" : "grab");
@@ -2351,9 +2366,9 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { selectNode(m); exploreByName(m.name); } // Mond -> eigener Planet
+      if (mb === "plus") { exploreByName(m.name, { select: false, center: false }); } // ＋ = nur ausbauen, KEINE Info, kein Recenter (B7)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
-      else { selectNode(m); }                                      // nur Info-Karte
+      else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;
     }
     // Klick auf das ⓘ am gesuchten Act -> nur Info-Karte
@@ -2728,19 +2743,22 @@ document.getElementById("exportPng").onclick = () => {
 // ---- Laden / Erkunden ----
 function slugify(s) { return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, ""); }
 
-async function reload(focusName) {
+async function reload(focusName, { select = true, center = true } = {}) {
   const prev = new Map(nodes.map(n => [n.id, n]));
   graph = await API.graph();
   rebuild(prev);
   if (focusName) {
     const k = slugify(focusName);
     const n = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
-    if (n) { selectNode(n); followNode = n; centerOn(n); } // Panel zuerst öffnen -> centerOn kennt seine Breite; dann mittig halten
+    if (n) {
+      if (select) selectNode(n);       // Panel zuerst öffnen -> centerOn kennt seine Breite
+      if (center) { followNode = n; centerOn(n); } // ... dann mittig halten
+    }
   }
 }
 
 let busy = false;
-async function exploreByName(name) {
+async function exploreByName(name, { select = true, center = true } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
   busy = true;
@@ -2756,7 +2774,7 @@ async function exploreByName(name) {
       else toast("Fehler: " + res.error);
       return;
     }
-    await reload(res.name);
+    await reload(res.name, { select, center });
     addTrail(res.name);
     fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
     fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift

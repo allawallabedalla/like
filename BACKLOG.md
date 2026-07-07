@@ -11,7 +11,7 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
 
 ## Offene Punkte
 
-- [ ] **B1 — Nicht sichtbare Planeten haben keine Hover-Funktion.** Durch das Zoom-LOD
+- [x] **B1 — Nicht sichtbare Planeten haben keine Hover-Funktion.** Durch das Zoom-LOD
   ausgeblendete Grad-≤1-Blätter dürfen bei Hover **keine** Aktion/Badge/Tooltip auslösen.
   Erst wenn sie durch Reinzoomen sichtbar sind, reagieren sie. → `pick()`/Hover/Badges
   müssen dieselbe LOD-Sichtbarkeit respektieren wie `draw()` (heute nur visuell ausgeblendet,
@@ -32,14 +32,14 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
 - [ ] **B5 — Abstands↔Ähnlichkeits-Korrelation prüfen.** Stimmt die Feder-Ruhelänge noch mit
   der %-Ähnlichkeit (Last.fm-`match`) überein? Näher = ähnlicher soll klar ablesbar sein.
 
-- [ ] **B6 — Manche Acts zeigen kein „+".** Warum fehlt bei manchen Planeten die ＋-Erweiterung?
+- [x] **B6 — Manche Acts zeigen kein „+".** Warum fehlt bei manchen Planeten die ＋-Erweiterung?
   Bedingung in `isMoonHover()`/Badge-Logik prüfen (Grad, `_moon`, seed, appear).
 
-- [ ] **B7 — „+" öffnet auch die Info.** Klick auf ＋ ruft zusätzlich `selectNode` (öffnet Panel).
+- [x] **B7 — „+" öffnet auch die Info.** Klick auf ＋ ruft zusätzlich `selectNode` (öffnet Panel).
   Das soll ＋ **nicht** — ＋ nur ausbauen, Info bleibt dem ⓘ/Kugelklick vorbehalten
   (wie schon beim Play-Knopf getrennt).
 
-- [ ] **B8 — Hitboxen/Hover um ＋ und ⓘ verbessern.** Fühlt sich hakelig an. Trefferflächen,
+- [x] **B8 — Hitboxen/Hover um ＋ und ⓘ verbessern.** Fühlt sich hakelig an. Trefferflächen,
   Hover-Persistenz und das „Badges zählen zum Hover"-Verhalten überarbeiten, damit das Anpeilen
   der Badges sauber und ruhig ist.
 
