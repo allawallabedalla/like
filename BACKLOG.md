@@ -56,7 +56,7 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
 - [x] **B12 — Legende dynamisch.** Die Main-Screen-Legende soll nur zeigen, was **gerade sichtbar**
   ist (nur vorkommende Kantentypen/Zustände/Farben), statt statisch alles aufzulisten.
 
-- [ ] **B13 — Intro-Modal: Hover-Zustand der Knöpfe prüfen.** Ist das Intro-Modal sauber
+- [x] **B13 — Intro-Modal: Hover-Zustand der Knöpfe prüfen.** Ist das Intro-Modal sauber
   (die zuletzt ergänzte Slide 5)? Insbesondere die **Button-Darstellung bei Hover** prüfen
   und ggf. korrigieren.
 
