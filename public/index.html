@@ -1197,6 +1197,9 @@ let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechn
 // Heranzoomen erscheinen alle Namen (LABEL_ZOOM) bzw. Genres (GENRE_ZOOM). Anker-Knoten
 // (gesucht/Hub/Auswahl/Hover) sind davon ausgenommen und immer beschriftet.
 const LABEL_ZOOM = 1.25, GENRE_ZOOM = 1.55;
+// LOD: unter dieser Zoomstufe (weit weg) werden auf dichten Karten die Grad-≤1-Blätter
+// samt Kanten ausgeblendet — der „Igel" löst sich auf, Hubs/gesuchte bleiben. Reinzoomen holt sie zurück.
+const LEAF_ZOOM = 0.85;
 // Grobe Zeigegeräte (Finger) brauchen größere Trefferflächen als eine Maus.
 const COARSE = (() => { try { return matchMedia("(pointer: coarse)").matches; } catch { return false; } })();
 let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
@@ -1810,12 +1813,18 @@ function draw() {
     if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
     return false;
   };
+  // LOD: weit rausgezoomt auf dichten Karten die Grad-≤1-Blätter (und ihre Kanten) ausblenden.
+  // Kuratierte/gesuchte/gehoverte Acts bleiben immer.
+  const zoomedOut = nodes.length > 40 && view.k < LEAF_ZOOM;
+  const lodHide = (n) => !(n.seed || n.status || n.note || n.known || n === hover || basket.has(n.id)) && (n.deg | 0) <= 1;
   const hidden = (id) => {
     if (fs && !fs.has(id)) return true;
-    if (!fg && !activeGenres.size) return false;
     const n = nodeById.get(id);
-    if (!n || (selected && id === selected.id)) return false; // aktiver Knoten bleibt sichtbar
-    return genreMiss(n);
+    if (!n) return false;
+    if (selected && id === selected.id) return false; // aktiver Knoten bleibt immer sichtbar
+    if (zoomedOut && lodHide(n)) return true;
+    if ((fg || activeGenres.size) && genreMiss(n)) return true;
+    return false;
   };
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
   const dimNode = (n) => {
@@ -1845,7 +1854,7 @@ function draw() {
     if (l.type === "venue") { base = 1; aBase = 0.5; }
     else if (isSim) { base = 0.35 + w * w * 4.4; aBase = 0.2 + w * 0.65; }        // 0.35–4.75px · 0.2–0.85
     else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
-    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase)) * ea;
+    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase * (zoomedOut ? 0.5 : 1))) * ea;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
   }
@@ -1876,6 +1885,7 @@ function draw() {
 
   // Knoten
   const hovG = hover; // welcher Knoten bekommt den weichen Hover-Schein
+  const labelJobs = []; // Labels erst sammeln, dann priorisiert + kollisionsfrei zeichnen
   for (const n of nodes) {
     if (hidden(n.id)) continue;
     // Spawn-Animation: frische Knoten wachsen mit leichtem Überschwung ein (easeOutBack).
@@ -1938,32 +1948,50 @@ function draw() {
     // Acts (seed), gut vernetzte Hubs, Auswahl, Hover und Highlights — sie geben Orientierung.
     const anchor = n.seed || (n.deg | 0) >= 3 || n === hover || sel || glow || compareSet.has(n.id);
     if (anchor || view.k > LABEL_ZOOM) {
-      ctx.textAlign = "center";
-      // Halo in Hintergrundfarbe hinter jeden Text -> Labels bleiben über Kanten
-      // und einander lesbar (das eigentliche "Überlappen"-Problem bei Hubs).
-      ctx.lineJoin = "round"; ctx.strokeStyle = getCss("--bg");
       // Mond-Namen etwas kleiner (weniger Gedränge); der gerade gehoverte Mond bleibt normal groß.
       const moonSmall = planetMode && n._moon && n !== hover;
       const nameSize = moonSmall ? 10 : 12;
-      const nameY = n.y + r + nameSize / view.k;
-      ctx.font = `${nameSize / view.k}px ${CANVAS_FONT}`;
-      ctx.globalAlpha = faded ? 0.3 : 1; ctx.lineWidth = 3.5 / view.k;
-      ctx.strokeText(n.name, n.x, nameY);
-      ctx.globalAlpha = faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
-      ctx.fillText(n.name, n.x, nameY);
-      // Genre-Zeile nur ganz nah oder bei Hover/Auswahl — sonst ist bei vielen Knoten jede
-      // zweite Zeile Textflut. Weit draußen bleiben die Genres komplett aus.
-      const genreOk = n === hover || sel || view.k > GENRE_ZOOM;
-      if (n.genres && n.genres.length && genreOk) {
-        const gY = n.y + r + 24 / view.k;
-        ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
-        ctx.globalAlpha = faded ? 0.25 : 0.9; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
-        ctx.strokeText(n.genres.slice(0, 2).join(" · "), n.x, gY);
-        ctx.globalAlpha = faded ? 0.25 : 0.6; ctx.fillStyle = getCss("--muted");
-        ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, gY);
-      }
+      // Gehoverter Mond: Label unter die Aktions-Badges (× unten rechts) schieben, damit sie es nicht verdecken.
+      const moonHov = n === hover && isMoonHover(n);
+      const nameY = moonHov
+        ? n.y + (radius(n) + 16 / view.k) / Math.SQRT2 + (11 + nameSize) / view.k
+        : n.y + r + nameSize / view.k;
+      // Priorität fürs Entzerren: Auswahl/Hover/gesucht > Highlights > gut vernetzt/populär.
+      const prio = (sel ? 1000 : 0) + (n === hover ? 900 : 0) + (n.seed ? 500 : 0)
+        + (glow || compareSet.has(n.id) ? 400 : 0) + (n.deg | 0) * 3
+        + (n.listeners ? Math.min(20, Math.log10(Math.max(1, n.listeners)) * 4) : 0);
+      labelJobs.push({ n, x: n.x, y: nameY, size: nameSize, faded, sel, hov: n === hover, prio });
     }
   }
+  // Labels priorisiert + kollisionsfrei zeichnen: schon platzierte Boxen merken, überlappende
+  // (nicht-Anker) auslassen — löst das „Namen liegen übereinander"-Gedränge bei Hubs.
+  labelJobs.sort((a, b) => b.prio - a.prio);
+  const placedLabels = [];
+  ctx.textAlign = "center"; ctx.lineJoin = "round";
+  for (const job of labelJobs) {
+    const n = job.n;
+    ctx.font = `${job.size / view.k}px ${CANVAS_FONT}`;
+    const w = ctx.measureText(n.name).width, h = job.size / view.k, pad = 2 / view.k;
+    const box = { x1: job.x - w / 2 - pad, y1: job.y - h - pad, x2: job.x + w / 2 + pad, y2: job.y + h * 0.35 + pad };
+    const mustShow = job.sel || job.hov || n.seed; // Anker immer zeigen
+    if (!mustShow && placedLabels.some(p => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1)) continue;
+    placedLabels.push(box);
+    ctx.strokeStyle = getCss("--bg"); ctx.globalAlpha = job.faded ? 0.3 : 1; ctx.lineWidth = 3.5 / view.k;
+    ctx.strokeText(n.name, job.x, job.y);
+    ctx.globalAlpha = job.faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
+    ctx.fillText(n.name, job.x, job.y);
+    // Genre-Zeile nur ganz nah oder bei Hover/Auswahl — direkt unter dem Namen.
+    const genreOk = job.hov || job.sel || view.k > GENRE_ZOOM;
+    if (n.genres && n.genres.length && genreOk) {
+      const gY = job.y + 12 / view.k;
+      ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
+      ctx.globalAlpha = job.faded ? 0.25 : 0.9; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
+      ctx.strokeText(n.genres.slice(0, 2).join(" · "), n.x, gY);
+      ctx.globalAlpha = job.faded ? 0.25 : 0.6; ctx.fillStyle = getCss("--muted");
+      ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, gY);
+    }
+  }
+  ctx.globalAlpha = 1;
 
   // Lösch-„×" am gehoverten Knoten — nur an Hauptkugeln (gesuchte Acts), klar außerhalb der Kugel
   if (hovG && hovG.seed && !hovG.venue && nodeById.has(hovG.id) && (hovG.appear ?? 1) >= 1) {
