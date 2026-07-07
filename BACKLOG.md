@@ -50,10 +50,10 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
   (Spawn, Badges, Labels, Panel, Pille, Szenen, Brücken, Radar) und jedes schlagartige
   Erscheinen/Verschwinden in ein weiches Ein-/Ausblenden überführen.
 
-- [ ] **B11 — Legende: Datenquellen-Hinweise entfernen.** Auf dem Main-Screen die Quellenangaben
+- [x] **B11 — Legende: Datenquellen-Hinweise entfernen.** Auf dem Main-Screen die Quellenangaben
   in der Legende (z. B. „(Last.fm)", „(RA)") wegnehmen.
 
-- [ ] **B12 — Legende dynamisch.** Die Main-Screen-Legende soll nur zeigen, was **gerade sichtbar**
+- [x] **B12 — Legende dynamisch.** Die Main-Screen-Legende soll nur zeigen, was **gerade sichtbar**
   ist (nur vorkommende Kantentypen/Zustände/Farben), statt statisch alles aufzulisten.
 
 - [ ] **B13 — Intro-Modal: Hover-Zustand der Knöpfe prüfen.** Ist das Intro-Modal sauber

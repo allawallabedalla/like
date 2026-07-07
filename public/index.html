@@ -1053,6 +1053,31 @@ const FEAT = CFG.features || {};
 const LSK = (k) => CFG.id === "music" ? k : `${k}:${CFG.id}`;
 const PREVIEW_TITLE = CFG.previewLabel || "30-Sekunden-Klangprobe abspielen";
 
+// Dynamische Legende links unten: zeigt NUR Einträge, die aktuell auf der Karte vorkommen
+// (B12), und ohne die Datenquellen-Hinweise „(Last.fm)"/„(RA)" (B11). Wird bei jedem Rebuild
+// und bei Ansichts-Toggles neu gebaut.
+function renderLegend() {
+  const el = document.getElementById("legend"); if (!el) return;
+  const escT = (v) => esc(String(v ?? ""));
+  const strip = (s) => escT(String(s ?? "").replace(/\s*\([^)]*\)\s*$/, "")); // Quellenhinweis am Ende weg (B11)
+  const real = nodes.filter((n) => !n.venue);
+  const leg = [];
+  if (links.some((l) => l.type === "similar")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${strip(CFG.edges.similar.label)}</div>`);
+  if (links.some((l) => l.type !== "similar" && l.type !== "venue")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${strip(CFG.edges.together.label)}</div>`);
+  if (real.some((n) => n.seed)) leg.push(`<div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>`);
+  if (real.some((n) => !n.seed)) leg.push(`<div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>`);
+  if (real.some((n) => n.status)) leg.push(`<div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (${strip((CFG.statuses[1] || CFG.statuses[0]).label)}/…)</div>`);
+  if (FEAT.active && CFG.activeLabel && real.some((n) => n.active)) leg.push(`<div><span class="dot" style="background:#1a9e54"></span> ${strip(CFG.activeLabel)}</div>`);
+  if (nodes.some((n) => n.venue)) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> Venue (eingeblendet)</div>`);
+  if (nodes.some((n) => n.pinned)) leg.push(`<div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>`);
+  leg.push(`<div id="legendScenes"></div>`); // Szenen-Farben (wenn „Szenen zeigen" an)
+  leg.push(`<div id="legendGenres"></div>`); // Genre-Farben im Cluster-Modus
+  el.innerHTML = leg.join("");
+  el.style.display = real.length ? "" : "none"; // leere Karte -> keine Legende
+  _sceneLegendSig = ""; // Container neu -> Szenen-Legende neu befüllen lassen
+  if (typeof updateSceneLegend === "function") updateSceneLegend();
+  if (typeof updateGenreLegend === "function") updateGenreLegend();
+}
 // Pack-Config auf die (mit Musik-Texten ausgelieferte) Oberfläche anwenden.
 // Läuft sofort beim Start — vor dem ersten Zeichnen.
 function applyCfg() {
@@ -1080,20 +1105,7 @@ function applyCfg() {
   $("q").title = CFG.searchTitle || "";
   $("go").title = CFG.goTitle || "";
   $("genreFilter").placeholder = CFG.genreFilterPlaceholder || "Filtern…";
-  // Legende aus Kantentypen + Status-Farben bauen
-  const leg = [
-    `<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${escT(CFG.edges.similar.label)}</div>`,
-    `<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${escT(CFG.edges.together.label)}</div>`,
-    `<div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>`,
-    `<div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>`,
-    `<div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (${escT((CFG.statuses[1] || CFG.statuses[0]).label)}/…)</div>`,
-  ];
-  if (FEAT.active && CFG.activeLabel) leg.push(`<div><span class="dot" style="background:#1a9e54"></span> ${escT(CFG.activeLabel)}</div>`);
-  if (FEAT.venues) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> Venue (eingeblendet)</div>`);
-  leg.push(`<div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>`);
-  leg.push(`<div id="legendScenes"></div>`); // dynamischer Teil: Szenen-Farben (wenn „Szenen zeigen" an)
-  leg.push(`<div id="legendGenres"></div>`); // dynamischer Teil: Genre-Farben im Cluster-Modus
-  $("legend").innerHTML = leg.join("");
+  renderLegend(); // dynamische Legende (zeigt nur, was gerade da ist) ohne Quellen-Hinweise — B11/B12
   // Popularität / "Große dämpfen"
   if (CFG.popularity) {
     $("dimBigLabel").textContent = CFG.popularity.dimLabel || "Große dämpfen";
@@ -1507,6 +1519,7 @@ function rebuild(prev) {
   computeGenreColors(); // Cluster-Farben an den neuen Bestand anpassen
   communities = null;   // Szenen/Brücken neu berechnen lassen (Graph hat sich geändert)
   renderBasket();
+  renderLegend();       // dynamische Legende an den neuen Bestand anpassen (B12)
   reheat(1); // neues Layout durchrechnen lassen
 }
 
@@ -2391,7 +2404,7 @@ addEventListener("mouseup", (e) => {
       } else if (!bridge) { closePanel(); }       // Leerklick: Panel zu (nicht während Brücke)
     }
   }
-  if (dragNode && moved) dragNode.pinned = true;  // gezogen = fixiert (Rechtsklick löst)
+  if (dragNode && moved) { dragNode.pinned = true; renderLegend(); }  // gezogen = fixiert (Rechtsklick löst); Legende „fixiert" (B12)
   dragging = false; dragNode = null; cv.classList.remove("grabbing");
 });
 cv.addEventListener("dblclick", (e) => {
@@ -2677,6 +2690,7 @@ document.getElementById("status").onchange = async (e) => {
   if (res.ok) {
     selected.status = status;
     const a = graph.artists[selected.id]; if (a) { a.status = status; a.known = status !== ""; }
+    renderLegend(); // „Status-Ring"-Eintrag ein-/ausblenden (B12)
     requestDraw(); // Status-Farbring am Knoten aktualisieren
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
