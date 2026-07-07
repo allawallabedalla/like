@@ -233,6 +233,23 @@
   /* Links im Toast (z.B. "Rückgängig") müssen klickbar sein, obwohl der Toast
      selbst pointer-events:none hat (sonst blockiert er die Karte darunter) */
   .toast a { pointer-events: auto; }
+  /* Globales „läuft gerade"-Band (Klangprobe): oben mittig, von überall stoppbar */
+  .nowplaying { position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-6px);
+    display: flex; align-items: center; gap: 9px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 15px 5px 6px; z-index: 15;
+    box-shadow: 0 6px 22px rgba(0,0,0,.20); font-size: 12.5px; max-width: min(80vw, 440px);
+    opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
+  .nowplaying.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .nowplaying #npText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowplaying #npStop { flex: none; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    border: 1px solid var(--line-soft); background: var(--bg); color: var(--text); font-size: 9px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+  .nowplaying #npStop:hover { border-color: var(--accent); color: var(--accent); }
+  .npeq { flex: none; display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .npeq i { width: 3px; background: var(--accent); height: 40%; animation: npbar .9s ease-in-out infinite; }
+  .npeq i:nth-child(2) { animation-delay: .3s; } .npeq i:nth-child(3) { animation-delay: .6s; }
+  @keyframes npbar { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .npeq i { animation: none; height: 60%; } }
   .badge { display: inline-block; font-size: 11px; padding: 2px 7px; margin-left: 6px; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .5px; }
   .badge.known { background: #000; color: #fff; }
   .badge.seed { background: #fff; color: #000; }
@@ -926,6 +943,7 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
+  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span></div>
 </div>
 
 <script>
@@ -1187,6 +1205,20 @@ const SVG_SUN = '<svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.
 const audio = new Audio();
 audio.preload = "none";
 let previewName = null; // welcher Act läuft/lädt gerade
+let previewLabel = "";  // Anzeigetext fürs globale Mini-Player-Band
+// Safari/iOS „entsperren" die Audio-Wiedergabe nur direkt in einer Nutzergeste. Weil wir die
+// Vorschau-URL erst per fetch holen, geht die Geste über das await verloren -> play() wird
+// blockiert (v. a. bei NICHT gecachten Acts, wo der fetch spürbar dauert). Deshalb einmalig
+// beim allerersten Klick/Tastendruck ein Stück Stille abspielen: danach ist das <audio>-Element
+// aktiviert und späteres programmatische play() nach dem fetch ist erlaubt.
+let audioPrimed = false;
+const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+function primeAudio() {
+  if (audioPrimed) return; audioPrimed = true;
+  try { audio.src = SILENCE; const p = audio.play(); if (p && p.catch) p.catch(() => {}); } catch {}
+}
+window.addEventListener("pointerdown", primeAudio, { once: true, capture: true });
+window.addEventListener("keydown", primeAudio, { once: true, capture: true });
 // alle Preview-Buttons (Panel + Radar) tragen data-preview="<name>" — Zustand
 // wird zentral über den DOM gesetzt, damit nichts auseinanderläuft.
 function refreshPreviewButtons(loadingName) {
@@ -1198,22 +1230,31 @@ function refreshPreviewButtons(loadingName) {
     b.title = playing ? "Wiedergabe stoppen" : PREVIEW_TITLE;
   });
 }
-audio.addEventListener("ended", () => { previewName = null; refreshPreviewButtons(); });
-audio.addEventListener("pause", () => refreshPreviewButtons());
-audio.addEventListener("play", () => refreshPreviewButtons());
+audio.addEventListener("ended", () => { previewName = null; refreshPreviewButtons(); updateNowPlaying(); });
+audio.addEventListener("pause", () => { refreshPreviewButtons(); updateNowPlaying(); });
+audio.addEventListener("play", () => { refreshPreviewButtons(); updateNowPlaying(); });
+// Globales Mini-Player-Band: erscheint, sobald eine Vorschau läuft, und lässt sich von ÜBERALL
+// stoppen — auch wenn man den Act längst verlassen hat (kein Zurückscrollen zum ▶ nötig).
+function updateNowPlaying() {
+  const el = document.getElementById("nowplaying"); if (!el) return;
+  const playing = previewName && audio.src && !audio.paused && !audio.ended;
+  if (playing) { document.getElementById("npText").textContent = previewLabel || previewName; el.classList.add("show"); }
+  else el.classList.remove("show");
+}
 async function togglePreview(name) {
   if (previewName === name && !audio.paused) { audio.pause(); return; }
-  if (previewName === name && audio.paused && audio.src) { audio.play().catch(() => {}); return; }
+  if (previewName === name && audio.paused && audio.src && audio.src !== SILENCE) { audio.play().catch(() => {}); return; }
   previewName = name;
   refreshPreviewButtons(name); // "…" am gewählten Button
   try {
     const res = await API.preview(name);
     if (!res.ok || !res.url) { toast(`Keine Klangprobe für „${name}" gefunden`); previewName = null; refreshPreviewButtons(); return; }
+    previewLabel = `${res.artist || name}${res.track ? " — " + res.track : ""}`;
     audio.src = res.url; audio.currentTime = 0;
     await audio.play();
-    toast(`▶ ${res.artist || name}${res.track ? " — " + res.track : ""} (30 s)`);
+    toast(`▶ ${previewLabel} (30 s)`);
   } catch {
-    toast("Vorschau nicht abspielbar"); previewName = null; refreshPreviewButtons();
+    toast("Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)"); previewName = null; refreshPreviewButtons(); updateNowPlaying();
   }
 }
 // zentrale Klick-Delegation für alle Preview-Buttons
@@ -1221,6 +1262,8 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-preview]");
   if (b) { e.preventDefault(); togglePreview(decodeURIComponent(b.dataset.preview)); }
 });
+// Globaler Stopp: pausiert die laufende Klangprobe unabhängig davon, welcher Act offen ist.
+document.getElementById("npStop").onclick = () => { audio.pause(); };
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
 // Nach dem Laden hält der View den fokussierten Knoten mittig, bis sich das Layout beruhigt
 // hat — sonst „rutscht" der frisch platzierte Planet aus der Mitte, während die Physik nachläuft.
@@ -1578,9 +1621,11 @@ function orbitMoons() {
         const stop = 44 / view.k, far = 175 / view.k;
         slow = dd > far ? 1 : dd < stop ? 0 : (dd - stop) / (far - stop);
       }
-      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.0006 * slow;
       const tie = m._moonTie != null ? m._moonTie : 0.5;
       const orbitR = pr + haloExt + radius(m) + 22 + ringIdx * RING_GAP + (1 - tie) * 12;
+      // Winkelgeschwindigkeit ~ 1/Radius: sonst „rasen" weit außen liegende Monde sichtbar
+      // schneller (Bahngeschwindigkeit v = ω·r). Referenz ~110 px; nur bremsen, nie beschleunigen.
+      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.00052 * slow * Math.min(1, 110 / orbitR);
       if (orbitR > maxR) maxR = orbitR;
       m.x = parent.x + Math.cos(m._moonAng) * orbitR;
       m.y = parent.y + Math.sin(m._moonAng) * orbitR;
