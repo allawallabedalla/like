@@ -249,9 +249,9 @@
   .toast a { pointer-events: auto; }
   /* Globales „läuft gerade"-Band (Klangprobe): oben mittig, von überall stoppbar */
   .nowplaying { position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-6px);
-    display: flex; align-items: center; gap: 9px; background: var(--panel); color: var(--text);
-    border: 1px solid var(--line); border-radius: 999px; padding: 5px 15px 5px 6px; z-index: 15;
-    box-shadow: 0 6px 22px rgba(0,0,0,.20); font-size: 12.5px; max-width: min(80vw, 440px);
+    display: flex; align-items: center; gap: 8px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px 4px 5px; z-index: 15;
+    box-shadow: 0 6px 22px rgba(0,0,0,.20); font-size: 12px; max-width: min(80vw, 440px);
     opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
   .nowplaying.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
   .nowplaying #npText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -264,7 +264,11 @@
   .npeq i:nth-child(2) { animation-delay: .3s; } .npeq i:nth-child(3) { animation-delay: .6s; }
   @keyframes npbar { 0%, 100% { height: 30%; } 50% { height: 100%; } }
   @media (prefers-reduced-motion: reduce) { .npeq i { animation: none; height: 60%; } }
-  /* Scrub-/Spul-Leiste: durch das 30-Sek-Snippet klicken oder ziehen */
+  /* Scrub-/Spul-Leiste: kompakt gehalten — fährt erst sanft ein, wenn die Maus die Pille
+     berührt (Hover), sonst bleibt die Pille schmal. Auf Touch per Tipp auf die Pille (.expanded). */
+  .nowplaying .npscrub { display: inline-flex; align-items: center; gap: 9px; max-width: 0; opacity: 0;
+    overflow: hidden; margin-left: -9px; transition: max-width .26s ease, opacity .18s ease, margin-left .26s ease; }
+  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { max-width: 260px; opacity: 1; margin-left: 0; }
   .nowplaying #npBar { flex: none; position: relative; width: 92px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
@@ -670,7 +674,7 @@
       <button id="exportPng" title="Karte als Bild (PNG)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>PNG</button>
     </div>
     <div class="counts" id="counts" title="Größe der Karte: Acts und Verbindungen">–</div>
-    <div style="margin-top:8px;font-size:11.5px;opacity:.6"><a href="/impressum" target="_blank" style="color:inherit">Impressum</a></div>
+    <div style="margin-top:8px;font-size:11.5px;opacity:.6"><a href="/impressum" target="_blank" style="color:inherit">Impressum</a> · <a href="/datenschutz" target="_blank" style="color:inherit">Datenschutz</a></div>
   </div>
 
   <div id="trail" class="trail"></div>
@@ -980,7 +984,7 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
-  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></div>
+  <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></div>
 </div>
 
 <script>
@@ -1172,6 +1176,7 @@ const API = {
   radar: (extraLikes, force) => POST("/api/radar", { extraLikes, force }),
   snapshot: () => POST("/api/snapshot", {}),
   popfill: () => POST("/api/popfill", {}),
+  genrefill: () => POST("/api/genrefill", {}),
   digest: () => POST("/api/digest", {}),
   diag: () => POST("/api/diag", {}),
   import: (graph) => POST("/api/import", { graph }),
@@ -1193,6 +1198,9 @@ let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechn
 // Heranzoomen erscheinen alle Namen (LABEL_ZOOM) bzw. Genres (GENRE_ZOOM). Anker-Knoten
 // (gesucht/Hub/Auswahl/Hover) sind davon ausgenommen und immer beschriftet.
 const LABEL_ZOOM = 1.25, GENRE_ZOOM = 1.55;
+// LOD: unter dieser Zoomstufe (weit weg) werden auf dichten Karten die Grad-≤1-Blätter
+// samt Kanten ausgeblendet — der „Igel" löst sich auf, Hubs/gesuchte bleiben. Reinzoomen holt sie zurück.
+const LEAF_ZOOM = 0.85;
 // Grobe Zeigegeräte (Finger) brauchen größere Trefferflächen als eine Maus.
 const COARSE = (() => { try { return matchMedia("(pointer: coarse)").matches; } catch { return false; } })();
 let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
@@ -1328,6 +1336,11 @@ npBar.addEventListener("pointerdown", (e) => { scrubbing = true; try { npBar.set
 npBar.addEventListener("pointermove", (e) => { if (scrubbing) seekFromEvent(e); });
 npBar.addEventListener("pointerup", (e) => { if (!scrubbing) return; scrubbing = false; try { npBar.releasePointerCapture(e.pointerId); } catch {} });
 npBar.addEventListener("pointercancel", () => { scrubbing = false; });
+// Touch: Antippen der Pille blendet die Spulleiste ein/aus (auf dem Desktop macht das der Hover).
+document.getElementById("nowplaying").addEventListener("click", (e) => {
+  if (e.target.closest("#npBar, #npStop")) return; // Stop/Scrub nicht abfangen
+  e.currentTarget.classList.toggle("expanded");
+});
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
 // Nach dem Laden hält der View den fokussierten Knoten mittig, bis sich das Layout beruhigt
 // hat — sonst „rutscht" der frisch platzierte Planet aus der Mitte, während die Physik nachläuft.
@@ -1794,13 +1807,30 @@ function draw() {
   const fs = focusSet();
   const hi = compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null);
   const pe = null;
-  const hidden = (id) => fs && !fs.has(id);
+  // Genre-Filter (Topbar-Textfeld ODER angeklickte Panel-Pills): blendet nicht passende Knoten
+  // KOMPLETT aus (nicht nur abdunkeln) — samt ihrer Kanten und Labels. Der aktive Knoten bleibt.
+  const genreMiss = (n) => {
+    if (fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg))) return true;
+    if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
+    return false;
+  };
+  // LOD: weit rausgezoomt auf dichten Karten die Grad-≤1-Blätter (und ihre Kanten) ausblenden.
+  // Kuratierte/gesuchte/gehoverte Acts bleiben immer.
+  const zoomedOut = nodes.length > 40 && view.k < LEAF_ZOOM;
+  const lodHide = (n) => !(n.seed || n.status || n.note || n.known || n === hover || basket.has(n.id)) && (n.deg | 0) <= 1;
+  const hidden = (id) => {
+    if (fs && !fs.has(id)) return true;
+    const n = nodeById.get(id);
+    if (!n) return false;
+    if (selected && id === selected.id) return false; // aktiver Knoten bleibt immer sichtbar
+    if (zoomedOut && lodHide(n)) return true;
+    if ((fg || activeGenres.size) && genreMiss(n)) return true;
+    return false;
+  };
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
   const dimNode = (n) => {
     if (selected && n.id === selected.id) return false;
     if (compareSet.has(n.id)) return false;
-    if (fg && !(n.genres || []).some(x => x.toLowerCase().includes(fg))) return true;
-    if (activeGenres.size && !(n.genres || []).some(x => activeGenres.has(x))) return true;
     if (dim && n.status) return true;
     if (dimBig && n.listeners != null && n.listeners >= (CFG.popularity?.big ?? Infinity)) return true;
     if (hi && !hi.has(n.id)) return true;
@@ -1825,7 +1855,7 @@ function draw() {
     if (l.type === "venue") { base = 1; aBase = 0.5; }
     else if (isSim) { base = 0.35 + w * w * 4.4; aBase = 0.2 + w * 0.65; }        // 0.35–4.75px · 0.2–0.85
     else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
-    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase)) * ea;
+    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase * (zoomedOut ? 0.5 : 1))) * ea;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
   }
@@ -1856,6 +1886,7 @@ function draw() {
 
   // Knoten
   const hovG = hover; // welcher Knoten bekommt den weichen Hover-Schein
+  const labelJobs = []; // Labels erst sammeln, dann priorisiert + kollisionsfrei zeichnen
   for (const n of nodes) {
     if (hidden(n.id)) continue;
     // Spawn-Animation: frische Knoten wachsen mit leichtem Überschwung ein (easeOutBack).
@@ -1918,32 +1949,50 @@ function draw() {
     // Acts (seed), gut vernetzte Hubs, Auswahl, Hover und Highlights — sie geben Orientierung.
     const anchor = n.seed || (n.deg | 0) >= 3 || n === hover || sel || glow || compareSet.has(n.id);
     if (anchor || view.k > LABEL_ZOOM) {
-      ctx.textAlign = "center";
-      // Halo in Hintergrundfarbe hinter jeden Text -> Labels bleiben über Kanten
-      // und einander lesbar (das eigentliche "Überlappen"-Problem bei Hubs).
-      ctx.lineJoin = "round"; ctx.strokeStyle = getCss("--bg");
       // Mond-Namen etwas kleiner (weniger Gedränge); der gerade gehoverte Mond bleibt normal groß.
       const moonSmall = planetMode && n._moon && n !== hover;
       const nameSize = moonSmall ? 10 : 12;
-      const nameY = n.y + r + nameSize / view.k;
-      ctx.font = `${nameSize / view.k}px ${CANVAS_FONT}`;
-      ctx.globalAlpha = faded ? 0.3 : 1; ctx.lineWidth = 3.5 / view.k;
-      ctx.strokeText(n.name, n.x, nameY);
-      ctx.globalAlpha = faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
-      ctx.fillText(n.name, n.x, nameY);
-      // Genre-Zeile nur ganz nah oder bei Hover/Auswahl — sonst ist bei vielen Knoten jede
-      // zweite Zeile Textflut. Weit draußen bleiben die Genres komplett aus.
-      const genreOk = n === hover || sel || view.k > GENRE_ZOOM;
-      if (n.genres && n.genres.length && genreOk) {
-        const gY = n.y + r + 24 / view.k;
-        ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
-        ctx.globalAlpha = faded ? 0.25 : 0.9; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
-        ctx.strokeText(n.genres.slice(0, 2).join(" · "), n.x, gY);
-        ctx.globalAlpha = faded ? 0.25 : 0.6; ctx.fillStyle = getCss("--muted");
-        ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, gY);
-      }
+      // Gehoverter Mond: Label unter die Aktions-Badges (× unten rechts) schieben, damit sie es nicht verdecken.
+      const moonHov = n === hover && isMoonHover(n);
+      const nameY = moonHov
+        ? n.y + (radius(n) + 16 / view.k) / Math.SQRT2 + (11 + nameSize) / view.k
+        : n.y + r + nameSize / view.k;
+      // Priorität fürs Entzerren: Auswahl/Hover/gesucht > Highlights > gut vernetzt/populär.
+      const prio = (sel ? 1000 : 0) + (n === hover ? 900 : 0) + (n.seed ? 500 : 0)
+        + (glow || compareSet.has(n.id) ? 400 : 0) + (n.deg | 0) * 3
+        + (n.listeners ? Math.min(20, Math.log10(Math.max(1, n.listeners)) * 4) : 0);
+      labelJobs.push({ n, x: n.x, y: nameY, size: nameSize, faded, sel, hov: n === hover, prio });
     }
   }
+  // Labels priorisiert + kollisionsfrei zeichnen: schon platzierte Boxen merken, überlappende
+  // (nicht-Anker) auslassen — löst das „Namen liegen übereinander"-Gedränge bei Hubs.
+  labelJobs.sort((a, b) => b.prio - a.prio);
+  const placedLabels = [];
+  ctx.textAlign = "center"; ctx.lineJoin = "round";
+  for (const job of labelJobs) {
+    const n = job.n;
+    ctx.font = `${job.size / view.k}px ${CANVAS_FONT}`;
+    const w = ctx.measureText(n.name).width, h = job.size / view.k, pad = 2 / view.k;
+    const box = { x1: job.x - w / 2 - pad, y1: job.y - h - pad, x2: job.x + w / 2 + pad, y2: job.y + h * 0.35 + pad };
+    const mustShow = job.sel || job.hov || n.seed; // Anker immer zeigen
+    if (!mustShow && placedLabels.some(p => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1)) continue;
+    placedLabels.push(box);
+    ctx.strokeStyle = getCss("--bg"); ctx.globalAlpha = job.faded ? 0.3 : 1; ctx.lineWidth = 3.5 / view.k;
+    ctx.strokeText(n.name, job.x, job.y);
+    ctx.globalAlpha = job.faded ? 0.3 : 0.92; ctx.fillStyle = getCss("--text");
+    ctx.fillText(n.name, job.x, job.y);
+    // Genre-Zeile nur ganz nah oder bei Hover/Auswahl — direkt unter dem Namen.
+    const genreOk = job.hov || job.sel || view.k > GENRE_ZOOM;
+    if (n.genres && n.genres.length && genreOk) {
+      const gY = job.y + 12 / view.k;
+      ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
+      ctx.globalAlpha = job.faded ? 0.25 : 0.9; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
+      ctx.strokeText(n.genres.slice(0, 2).join(" · "), n.x, gY);
+      ctx.globalAlpha = job.faded ? 0.25 : 0.6; ctx.fillStyle = getCss("--muted");
+      ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, gY);
+    }
+  }
+  ctx.globalAlpha = 1;
 
   // Lösch-„×" am gehoverten Knoten — nur an Hauptkugeln (gesuchte Acts), klar außerhalb der Kugel
   if (hovG && hovG.seed && !hovG.venue && nodeById.has(hovG.id) && (hovG.appear ?? 1) >= 1) {
@@ -2710,6 +2759,7 @@ async function exploreByName(name) {
     await reload(res.name);
     addTrail(res.name);
     fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
+    fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift
     toast(`${res.name}: ${res.similar} ${CFG.edges.similar.count || "ähnlich"} · ${res.together} ${CFG.edges.together.count || "verbunden"}`);
   } catch (e) {
     toast("Fehler: " + e.message);
@@ -3790,6 +3840,7 @@ async function startupTasks() {
   try { await API.snapshot(); } catch {}
   try { renderDigest(await API.digest()); } catch {}
   fillSizes(); // Hörerzahlen im Hintergrund nachladen (Größen/Glow richten sich nach Popularität)
+  fillGenres(); // Genres im Hintergrund nachladen -> Genre-Filter greift auf die ganze Karte
   updateCheck();
 }
 // Hörerzahlen für noch nicht befüllte Knoten gedrosselt nachladen, damit sich Kugelgröße
@@ -3811,6 +3862,30 @@ async function fillSizes() {
       if (!r.remaining) break;
     }
   } finally { _fillingSizes = false; }
+}
+// Genres für ALLE Knoten gedrosselt nachladen -> der Genre-Filter (und die Cluster-Farben)
+// greifen dann auch auf noch nicht geöffnete Nachbarn, nicht nur auf angeklickte Acts.
+let _fillingGenres = false;
+async function fillGenres() {
+  if (STATIC || _fillingGenres) return;
+  _fillingGenres = true;
+  try {
+    for (let round = 0; round < 12; round++) {
+      let r; try { r = await API.genrefill(); } catch { break; }
+      if (!r || !r.ok) break;
+      let any = false;
+      if (r.genres) for (const id in r.genres) {
+        const n = nodeById.get(id);
+        if (n && !(n.genres && n.genres.length) && r.genres[id].length) {
+          n.genres = r.genres[id];
+          if (graph.artists[id]) graph.artists[id].genres = r.genres[id];
+          any = true;
+        }
+      }
+      if (any) { computeGenreColors(); requestDraw(); }
+      if (!r.remaining) break;
+    }
+  } finally { _fillingGenres = false; }
 }
 // Still prüfen, ob auf GitHub eine neuere Version liegt -> dezenter Hinweis am Versions-Badge.
 function semverGt(a, b) {

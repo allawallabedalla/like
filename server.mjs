@@ -124,7 +124,7 @@ function landingPage(unlocked) {
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     cardSub: (c) => c.item.plur,
-    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a>`,
+    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
     lockLabel: "Coming soon",
   });
@@ -134,12 +134,16 @@ function landingPage(unlocked) {
 // muss vom Betreiber ergänzt werden (per ENV LIKE_IMPRINT_ADDRESS / _NAME / _EMAIL überschreibbar).
 function impressumPage() {
   const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas R").trim();
-  const email = (process.env.LIKE_IMPRINT_EMAIL || "nicolasreis@me.com").trim();
   const addr = (process.env.LIKE_IMPRINT_ADDRESS || "").trim();
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const addrHtml = addr ? esc(addr).replace(/\n/g, "<br>")
     : `<span class="todo">[Straße &amp; Hausnummer]</span><br><span class="todo">[PLZ Ort, Land]</span>`;
   const addrNote = addr ? "" : `<p class="muted todo">Bitte die ladungsfähige Anschrift ergänzen (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — ohne sie ist das Impressum nicht vollständig.</p>`;
+  // Name nur separat voranstellen, wenn die Anschrift ihn nicht ohnehin schon als erste Zeile trägt
+  // (sonst stünde er doppelt — z. B. „Nicolas R" + „Nicolas R." aus der Adresse).
+  const norm = (s) => s.toLowerCase().replace(/[.\s]+$/, "").trim();
+  const addrFirst = addr.split("\n")[0] || "";
+  const providerHtml = addr && norm(addrFirst) === norm(name) ? addrHtml : `${esc(name)}<br>${addrHtml}`;
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Impressum — like</title>
@@ -156,14 +160,56 @@ function impressumPage() {
   <h1>Impressum</h1>
   <p class="muted">Angaben gemäß § 5 TMG und § 18 Abs. 2 MStV.</p>
   <h2>Diensteanbieter</h2>
-  <p>${esc(name)}<br>${addrHtml}</p>
+  <p>${providerHtml}</p>
   ${addrNote}
   <h2>Kontakt</h2>
-  <p>E-Mail: <a href="mailto:${esc(email)}">${esc(email)}</a></p>
+  <p>Kontaktaufnahme über den Feedback-Knopf (✉) in der App.</p>
   <h2>Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
   <p>Der oben genannte Diensteanbieter.</p>
   <h2>Haftung für Inhalte &amp; Links</h2>
   <p class="muted">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
+  <p class="muted" style="margin-top:14px"><a href="/datenschutz">Datenschutzerklärung</a></p>
+</div></body></html>`;
+}
+
+// Datenschutzerklärung — beschreibt die TATSÄCHLICHEN Datenflüsse der App (bewusst knapp und
+// ehrlich). Vorlage: bei geändertem Betrieb / vor kommerzieller Nutzung juristisch prüfen lassen.
+function datenschutzPage() {
+  const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas R").trim();
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datenschutz — like</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;min-height:100vh;background:radial-gradient(130% 90% at 72% -12%,#101c33,#0a0f1c 42%,#05070d);color:#e7e9ee;font:16px/1.6 system-ui,-apple-system,sans-serif}
+  .wrap{max-width:680px;margin:0 auto;padding:52px 22px 60px}
+  a{color:#ff8a3d} h1{font-size:28px;margin:0 0 4px} h2{font-size:15px;margin:24px 0 4px}
+  p,li{margin:5px 0;opacity:.92} .muted{opacity:.6;font-size:13px} ul{margin:5px 0;padding-left:20px}
+  .back{display:inline-block;margin-bottom:22px;opacity:.7;text-decoration:none;color:inherit}
+</style></head><body><div class="wrap">
+  <a class="back" href="/">← zurück zu like</a>
+  <h1>Datenschutzerklärung</h1>
+  <p class="muted">„like" ist ein privates, nicht-kommerzielles Projekt. Es werden so wenig Daten wie möglich verarbeitet — kein Tracking, keine Werbung, keine Analyse-Cookies.</p>
+  <h2>Verantwortlicher</h2>
+  <p>${esc(name)} · Kontaktaufnahme über den Feedback-Knopf (✉) in der App. Näheres im <a href="/impressum">Impressum</a>.</p>
+  <h2>Hosting &amp; Server-Logs</h2>
+  <p>Die App läuft bei einem Hosting-Anbieter (Render). Beim Aufruf entstehen technisch notwendige Server-Logs (u. a. IP-Adresse, Zeitpunkt, angeforderte Ressource) zur Auslieferung und Sicherheit der Seite. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Der Anbieter kann Server außerhalb der EU betreiben; entsprechende Übermittlungen erfolgen ggf. auf Grundlage geeigneter Garantien.</p>
+  <h2>Cookies &amp; lokale Speicherung</h2>
+  <ul>
+    <li><b>sessionStorage</b> (anonyme Tab-Kennung): hält deine Karte innerhalb eines Browser-Tabs zusammen. Keine dauerhafte Speicherung, kein Cookie.</li>
+    <li><b>localStorage</b> (Theme, Ansicht, gemerkter Kartenausschnitt): reine Komfort-Einstellungen, verbleiben auf deinem Gerät.</li>
+    <li><b>Login-Cookie</b>: nur wenn du dir freiwillig ein Konto anlegst — hält dich angemeldet.</li>
+  </ul>
+  <h2>Konto (optional)</h2>
+  <p>Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an einen anonymen, temporären Tab gebunden.</p>
+  <h2>Deine Karte</h2>
+  <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Tab-Kennung.</p>
+  <h2>Externe Dienste</h2>
+  <p>Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
+  <h2>Deine Rechte</h2>
+  <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie ein Beschwerderecht bei einer Aufsichtsbehörde. Ein Konto lässt sich samt Daten auf Anfrage löschen; ohne Konto genügt das Leeren des Browser-Speichers.</p>
+  <p class="muted" style="margin-top:16px">Stand: Vorlage — bei geändertem Betrieb bitte aktualisieren und juristisch prüfen lassen.</p>
 </div></body></html>`;
 }
 
@@ -403,6 +449,11 @@ const server = createServer(async (req, res) => {
     // Impressum (öffentlich, ohne Pack/Login).
     if (req.method === "GET" && (url.pathname === "/impressum" || url.pathname === "/impressum.html")) {
       return send(res, 200, impressumPage(), "text/html; charset=utf-8");
+    }
+
+    // Datenschutzerklärung (öffentlich, ohne Pack/Login).
+    if (req.method === "GET" && (url.pathname === "/datenschutz" || url.pathname === "/datenschutz.html")) {
+      return send(res, 200, datenschutzPage(), "text/html; charset=utf-8");
     }
 
     // „Coming soon"-Gate freischalten: richtiges Passwort -> Cookie setzen (Hash, HttpOnly).
@@ -1050,6 +1101,32 @@ const server = createServer(async (req, res) => {
       });
       const out = {}; for (const [id, p] of popById) out[id] = p;
       return send(res, 200, { ok: true, filled: popById.size, remaining: Math.max(0, all.length - batch.length), listeners: out });
+    }
+
+    // Genres für alle noch nicht befüllten Knoten gedrosselt nachladen -> der Genre-Filter greift
+    // dann auch auf (noch nicht geöffnete) Nachbarn, nicht nur auf angeklickte Acts. Gedrosselt +
+    // gecacht; pro Aufruf gedeckelt, der Client ruft bei Bedarf mehrmals. `genresChecked` verhindert,
+    // dass Acts ohne gefundene Tags endlos neu abgefragt werden.
+    if (req.method === "POST" && url.pathname === "/api/genrefill") {
+      const g0 = await loadGraph(GRAPH);
+      const all = Object.values(g0.artists).filter((a) => !a.venue && !(a.genres && a.genres.length) && !a.genresChecked);
+      const batch = all.slice(0, 20);
+      const byId = new Map();
+      for (const a of batch) {
+        let genres = []; try { genres = (await pack.enrich(a))?.genres || []; } catch {}
+        byId.set(a.id, genres.slice(0, 6));
+      }
+      if (byId.size) await withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        for (const [id, genres] of byId) {
+          const a = g.artists[id]; if (!a) continue;
+          if (genres.length && !(a.genres && a.genres.length)) a.genres = genres;
+          a.genresChecked = true; // versucht — auch wenn nichts gefunden -> kein endloses Neuholen
+        }
+        await persist(g);
+      });
+      const out = {}; for (const [id, gs] of byId) if (gs.length) out[id] = gs;
+      return send(res, 200, { ok: true, filled: byId.size, remaining: Math.max(0, all.length - batch.length), genres: out });
     }
 
     // Wochen-Digest: welche markierten Einträge sind gewachsen/geschrumpft.
