@@ -17,7 +17,7 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
   müssen dieselbe LOD-Sichtbarkeit respektieren wie `draw()` (heute nur visuell ausgeblendet,
   aber weiter pickbar).
 
-- [ ] **B2 — Reinfaden statt reinploppen (LOD).** Wenn Blätter/Kanten durchs Zoomen wieder
+- [x] **B2 — Reinfaden statt reinploppen (LOD).** Wenn Blätter/Kanten durchs Zoomen wieder
   erscheinen, sollen sie **weich einblenden** (Alpha-Fade), nicht schlagartig aufpoppen.
   Analog beim Ausblenden. Zoom-Schwelle 0.85 mit weichem Übergangsband statt hartem Cutoff.
 
@@ -26,10 +26,10 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
   **ersetzt die Scrub-Leiste den restlichen Inhalt** (Stop bleibt, statt EQ+Titel kommt die
   Spulleiste + Zeit). Maus weg → wieder die ursprüngliche Ansicht (EQ + Titel).
 
-- [ ] **B4 — „+" an Planet zappelt.** Beim Klick auf ＋ (ausbauen/Nachbarn laden) zappelt das
+- [x] **B4 — „+" an Planet zappelt.** Beim Klick auf ＋ (ausbauen/Nachbarn laden) zappelt das
   Layout noch spürbar. Reheat/Federn beruhigen, damit der Vorgang ruhig aussieht.
 
-- [ ] **B5 — Abstands↔Ähnlichkeits-Korrelation prüfen.** Stimmt die Feder-Ruhelänge noch mit
+- [x] **B5 — Abstands↔Ähnlichkeits-Korrelation geprüft: stimmt.** rest = 85 + (1-strength)*90, strength = Last.fm-match für similar -> höhere % = kürzere Ruhelänge = näher. Korrekt. (Nur bei sehr großen Kugeln/Planeten-Halos übersteuert der Kollisions/Halo-Mindestabstand die Ähnlichkeit — unvermeidbar.) Stimmt die Feder-Ruhelänge noch mit
   der %-Ähnlichkeit (Last.fm-`match`) überein? Näher = ähnlicher soll klar ablesbar sein.
 
 - [x] **B6 — Manche Acts zeigen kein „+".** Warum fehlt bei manchen Planeten die ＋-Erweiterung?
@@ -43,10 +43,10 @@ Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
   Hover-Persistenz und das „Badges zählen zum Hover"-Verhalten überarbeiten, damit das Anpeilen
   der Badges sauber und ruhig ist.
 
-- [ ] **B9 — Zentrums-Planeten stillstellen.** Planeten nahe der Bildmitte (~50 % Screenhöhe/
+- [x] **B9 — Zentrums-Planeten stillstellen.** Planeten nahe der Bildmitte (~50 % Screenhöhe/
   -breite) sollen ruhen (nicht umherwandern/kreisen), damit der Überblick erhalten bleibt.
 
-- [ ] **B10 — Gesamt-Audit „keine plötzlichen Erscheinungen".** Alle Funktionen durchgehen
+- [x] **B10 — Gesamt-Audit „keine plötzlichen Erscheinungen".** Alle Funktionen durchgehen
   (Spawn, Badges, Labels, Panel, Pille, Szenen, Brücken, Radar) und jedes schlagartige
   Erscheinen/Verschwinden in ein weiches Ein-/Ausblenden überführen.
 
