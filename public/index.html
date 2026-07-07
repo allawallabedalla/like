@@ -434,7 +434,6 @@
   .morebox .toggle .tlong { display: inline; }
   .morebox .mrow { display: flex; gap: 6px; }
   .morebox .mrow button { flex: 1; }
-  .morebox #reset { width: 100%; }
   .morebox .counts { margin-top: 6px; font-size: 11.5px; }
   .diag { margin-top: 8px; }
   .diag .drow { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; gap: 8px; }
@@ -650,11 +649,7 @@
     <label class="toggle" id="venueWrap" style="display:none" title="Spielorte aus den gemeinsamen Auftritten als eigene Punkte einblenden — zeigt, welche Venues deine Acts verbinden"><input type="checkbox" id="venueToggle" /> Venues</label>
     <div class="mtitle hideStatic">Aufräumen</div>
     <button id="pruneOrphans" class="hideStatic" style="width:100%" title="Acts ohne jede Verbindung von der Karte nehmen — z. B. Monde, die nach dem Löschen ihrer Sonne allein übrig bleiben. Gesuchte, gebuchte/notierte Acts bleiben.">Unverknüpfte aufräumen</button>
-    <select id="reset" class="hideStatic" title="Ansicht leeren">
-      <option value="">Leeren…</option>
-      <option value="discovered">Entdeckte Acts</option>
-      <option value="all">Alles</option>
-    </select>
+    <button id="resetAll" class="hideStatic" style="width:100%" title="Die ganze Karte leeren — Acts, Verbindungen, Notizen und Markierungen. Mit Sicherheitsabfrage.">Alles löschen</button>
     <div class="mtitle">Export</div>
     <div class="mrow">
       <button id="export" title="Markierte Acts als CSV"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>CSV</button>
@@ -1104,9 +1099,6 @@ function applyCfg() {
     $("labelBtn").textContent = CFG.contextButton || "Umfeld laden";
   } else $("fieldContext").style.display = "none";
   $("basketBtn").textContent = CFG.likeLabel || "like!";
-  // "Leeren…"-Auswahl
-  const opt = document.querySelector('#reset option[value="discovered"]');
-  if (opt) opt.textContent = `Entdeckte ${CFG.item.plur}`;
   // Key-Dialog
   if (CFG.key) {
     $("keyTitle").textContent = `${CFG.key.name} einrichten`;
@@ -2710,20 +2702,14 @@ async function exploreByName(name) {
   } finally { busy = false; busyId = null; }
 }
 
-document.getElementById("reset").onchange = async (e) => {
-  const scope = e.target.value;
-  e.target.value = "";
-  if (!scope) return;
+document.getElementById("resetAll").onclick = async () => {
   if (STATIC) { toast("Nur im lokalen Tool"); return; }
-  const msg = {
-    all: "Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)",
-    discovered: "Noch nicht geöffnete Acts entfernen? Gesuchte, gebuchte/notierte Acts bleiben.",
-  }[scope];
-  if (!confirm(msg)) return;
-  const res = await API.reset(scope);
+  closeMore();
+  if (!confirm("Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)")) return;
+  const res = await API.reset("all");
   if (res.error) { toast("Fehler: " + res.error); return; }
   closePanel();
-  if (scope === "all") { trail = []; renderTrail(); }
+  trail = []; renderTrail();
   graph = res.graph; rebuild();
   toast("Geleert.");
 };
