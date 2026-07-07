@@ -121,8 +121,9 @@
   .iconbtn:hover { border-color: var(--edge-together); color: var(--edge-together); background: var(--bg); }
   /* Immer sichtbarer Ansicht-Umschalter Space | Flat (segmentierter Toggle) */
   .viewseg { display: inline-flex; flex: none; border: 1px solid var(--line-soft); border-radius: 999px; overflow: hidden; background: var(--bg); }
-  .viewseg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600;
-    padding: 0 13px; height: 34px; cursor: pointer; line-height: 1; letter-spacing: .01em; }
+  .viewseg { height: 38px; align-items: stretch; } /* Höhe an die übrigen Topbar-Controls angleichen */
+  .viewseg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600;
+    padding: 0 14px; height: 100%; cursor: pointer; line-height: 1; letter-spacing: .01em; display: inline-flex; align-items: center; }
   .viewseg button.on { background: var(--text); color: var(--bg); }
   .viewseg button:not(.on):hover { color: var(--text); }
   @media (max-width: 640px) { .viewseg button { padding: 0 9px; font-size: 12px; } }
@@ -3550,18 +3551,11 @@ function maybeShowIntro() {
   try { graph = await API.graph(); }
   catch { graph = { artists: {}, edges: [] }; try { toast("Server nicht erreichbar — leer gestartet. Später neu laden."); } catch {} }
   rebuild();
-  for (let i = 0; i < 120; i++) tick();
-  // letzte Ansicht wiederherstellen, sonst passend einblenden
-  let savedView = null; try { savedView = JSON.parse(localStorage.getItem(LSK("like_view")) || "null"); } catch {}
-  if (savedView && Number.isFinite(savedView.k) && nodes.length) {
-    view = savedView;
-    // Sicherheitsnetz: liegt der Graph-Schwerpunkt mit der gemerkten Ansicht praktisch außerhalb
-    // des Bildes (z. B. weil sich das Layout/die Größen geändert haben), doch alles einpassen,
-    // statt nach dem Start ins Leere / auf den Rand zu schauen.
-    let cx = 0, cy = 0; for (const n of nodes) { cx += n.x; cy += n.y; } cx /= nodes.length; cy /= nodes.length;
-    const sx = cx * view.k + view.x, sy = cy * view.k + view.y;
-    if (sx < W * 0.12 || sx > W * 0.88 || sy < 60 || sy > H * 0.94) fitAll();
-  } else fitAll();
+  // Layout VOR dem ersten Zeichnen fertig ausrechnen (bis es ruhig ist) — so wackelt beim
+  // Anzeigen nichts mehr (kein sichtbares Zappeln direkt nach dem Start). Deckel als Notbremse.
+  { let guard = 0; do { tick(); } while (alpha >= ALPHA_MIN && ++guard < 500); }
+  // Immer alles einpassen und zentrieren: so weit rauszoomen, dass der ganze Graph sichtbar ist.
+  fitAll();
   loop();
   maybeShowIntro();
   checkKey();
