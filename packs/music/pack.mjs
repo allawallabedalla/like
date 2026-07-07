@@ -5,11 +5,28 @@
 
 import { getSimilar, getTopTags, getArtistInfo, searchArtists, clearKeyCache } from "../../lib/lastfm.mjs";
 import { coAppearances } from "../../lib/coappear.mjs";
-import { relatedArtists, topTrackPreview, artistByName as dzArtist } from "../../lib/deezer.mjs";
+import { relatedArtists, topTrackPreview, trackPreviewSearch, artistByName as dzArtist } from "../../lib/deezer.mjs";
 import { previewByName } from "../../lib/itunes.mjs";
 import { labelmates, artistByName as mbArtist } from "../../lib/musicbrainz.mjs";
 import { searchBand, discoverTag } from "../../lib/bandcamp.mjs";
 import { hasKey as hasSetlistKey, sharedBills } from "../../lib/setlistfm.mjs";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool eher kleiner/nischiger Acts über viele
+// Ecken der elektronischen/instrumentalen Musik. surprise() zieht daraus eine Zufalls-
+// stichprobe und nimmt den mit den WENIGSTEN Hörern -> echte Entdeckung, nicht der Hit.
+const SURPRISE_SEEDS = [
+  "Christian Löffler", "Rival Consoles", "Max Cooper", "Lusine", "Marconi Union", "Loscil",
+  "Hania Rani", "Peter Broderick", "Poppy Ackroyd", "Rafael Anton Irisarri", "Benoît Pioulard",
+  "GoGo Penguin", "Mammal Hands", "Portico Quartet", "Nubya Garcia", "Alfa Mist", "Emma-Jean Thackray",
+  "This Is The Kit", "Novo Amor", "Julie Byrne", "Bill Ryder-Jones", "Ryley Walker", "Aldous Harding",
+  "Clark", "Lanark Artefax", "Konx-om-Pax", "Loraine James", "Skee Mask", "upsammy", "Yves De Mey",
+  "Vril", "Rrose", "Zenker Brothers", "Refracted", "Sedef Adasi", "Perila", "Purelink",
+  "Rodriguez Jr.", "Nicolas Bougaïeff", "Innellea", "Fejká", "Marsh", "Tinlicker", "Yotto",
+  "Hammock", "A Winged Victory for the Sullen", "Sophie Hutchings", "Bruno Sanfilippo", "offthesky",
+  "Kiasmos", "Fort Romeau", "Roman Flügel", "Hodge", "Batu", "Peverelist", "Facta",
+  "Anz", "India Jordan", "Nabihah Iqbal", "Space Afrika", "Actress", "Beatrice Dillon", "Pariah",
+  "Shackleton", "Andy Stott", "Demdike Stare", "Karen Gwyer", "Aleksi Perälä", "Bibio", "Gold Panda",
+];
 
 export default {
   id: "music",
@@ -76,7 +93,7 @@ export default {
   // Leichter „ähnlich"-Zugriff für die Brücke (nur getSimilar, ohne RA/Genres).
   async similar(name, { limit = 60 } = {}) {
     const r = await getSimilar(name, { limit });
-    return { canonical: r.sourceName, similar: r.similar.map((s) => ({ name: s.name, url: s.url, match: s.match || 0.5 })) };
+    return { canonical: r.sourceName, similar: r.similar.map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })) };
   },
 
   // Haupt-Flow: Last.fm bestimmt Identität + ähnlichen Stil, RA (+ optionale Quellen)
@@ -96,7 +113,7 @@ export default {
       canonical,
       genres: genres.slice(0, 6),
       similarSource: "lastfm",
-      similar: similar.slice(0, 25).map((s) => ({ name: s.name, url: s.url, match: s.match || 0.5 })),
+      similar: similar.slice(0, 25).map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })),
       together: coacts.slice(0, 25).map((c) => ({ name: c.name, weight: c.weight, shows: c.shows })),
       togetherSource: sources.join("+") || "ra",
       meta: booking || null,
@@ -107,26 +124,52 @@ export default {
 
   async enrich(a) {
     const out = {};
+    // mbid (aus getSimilar mitgeführt) löst Namensvetter auf: ein als „ähnlich zu David Guetta"
+    // entdecktes „Majestic" (House) bekommt so seine House-Genres/Hörer statt die der
+    // gleichnamigen Metal-Band, die eine reine Namenssuche liefern würde.
+    const mbid = a.mbid || undefined;
     if (!a.genres || !a.genres.length) {
-      try { const t = await getTopTags(a.name); if (t.length) out.genres = t; } catch {}
+      try { const t = await getTopTags(a.name, { mbid }); if (t.length) out.genres = t; } catch {}
     }
-    try { const info = await getArtistInfo(a.name); if (info?.listeners) out.popularity = info.listeners; } catch {}
+    try { const info = await getArtistInfo(a.name, { mbid }); if (info?.listeners) out.popularity = info.listeners; } catch {}
     if (!a.booking?.area && !a.bcLocation) {
       try { const b = await searchBand(a.name); if (b?.location) { out.location = b.location; out.locationUrl = b.url; } } catch {}
     }
     return out;
   },
 
-  async popularity(name) {
-    const info = await getArtistInfo(name);
+  async popularity(name, { mbid } = {}) {
+    const info = await getArtistInfo(name, { mbid });
     return info?.listeners || null;
   },
 
+  // Klangprobe über mehrere Quellen, in Reihenfolge steigender „Breite", jede streng am
+  // Künstlernamen verankert (nie ein fremder Act): Deezer-Top-Track → Deezer-Track-Suche
+  // (falls /top leer) → iTunes (zwei Anläufe). So gibt es deutlich seltener „keine Vorschau".
   async preview(name) {
-    let p = null;
-    try { p = await topTrackPreview(name); } catch {}
-    if (!p?.url) { try { p = await previewByName(name); } catch {} }
-    return p?.url ? p : null;
+    const tries = [topTrackPreview, trackPreviewSearch, previewByName];
+    for (const fn of tries) {
+      try { const p = await fn(name); if (p?.url) return p; } catch {}
+    }
+    return null;
+  },
+
+  // „Überrasch mich" (Kaltstart, leere Seite): 4 Zufallskandidaten aus dem Pool ziehen,
+  // ihre Hörerzahl prüfen und den mit den WENIGSTEN nehmen -> eher ein Geheimtipp.
+  // Fällt ohne Netz/Key auf einen einfachen Zufallszug zurück.
+  async surprise() {
+    const pick = () => SURPRISE_SEEDS[Math.floor(Math.random() * SURPRISE_SEEDS.length)];
+    const cands = new Set(); while (cands.size < 4) cands.add(pick());
+    let best = null, bestL = Infinity;
+    for (const name of cands) {
+      try {
+        const info = await getArtistInfo(name);
+        const l = info?.listeners;
+        if (l != null && l < bestL) { bestL = l; best = name; }
+        else if (best == null) best = name;
+      } catch { if (best == null) best = name; }
+    }
+    return best || pick();
   },
 
   // Label-Umfeld (MusicBrainz): Labels + wer dort noch veröffentlicht.

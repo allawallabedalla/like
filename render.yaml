@@ -6,17 +6,23 @@ services:
   - type: web
     name: like
     runtime: docker
-    plan: free            # Gratis-Tier: schläft nach Inaktivität ein (Kaltstart ~30s). Für „immer wach": starter.
+    plan: starter         # Instance-Type „Starter" (~7 $/Mon): immer wach, persistente Platte. (Free erlaubt keine Disk.)
     healthCheckPath: /api/packs
     envVars:
+      - key: HOST
+        value: 0.0.0.0        # öffentlich lauschen, damit Render den Container erreicht
       - key: LIKE_DATA_DIR
-        value: /var/data
+        value: /data
+      # „Coming soon"-Gate: gesetzt = nur das öffentliche Pack (Default: music) ist frei,
+      # alle anderen brauchen dieses Passwort. Leer/ungesetzt = alles offen.
+      - key: LIKE_UNLOCK_PASSWORD
+        sync: false
       # Optionale Heimat für „Like Travel" (Standard: Berlin, Deutschland)
       - key: LIKE_TRAVEL_HOME
         sync: false
       # Keys für die Key-Packs — im Render-Dashboard eintragen (nicht ins Repo!).
       # Die key-losen Packs (Reisen, Wikipedia-Universal, Pflanzen, Bücher, Paper,
-      # Brettspiele, Podcasts) laufen auch ganz ohne.
+      # Brettspiele, Podcasts, Indie-Games) laufen auch ganz ohne.
       - key: LASTFM_API_KEY    # Like Music
         sync: false
       - key: TMDB_API_KEY      # Like Movies
@@ -28,8 +34,8 @@ services:
       - key: PUSHOVER_USER
         sync: false
     # Persistente Platte, damit gebaute Karten einen Neustart überleben.
-    # (Auf dem Free-Tier nicht verfügbar — dort ist der Speicher flüchtig; Plan „starter" o.ä. nötig.)
+    # (Braucht einen bezahlten Instance-Type wie „starter" — auf „free" sind keine Disks erlaubt.)
     disk:
       name: like-data
-      mountPath: /var/data
+      mountPath: /data
       sizeGB: 1

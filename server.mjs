@@ -15,7 +15,12 @@
 //   POST /api/bridge       { from, to } -> verbindende Einträge (Meet-in-the-middle)
 
 import { createServer } from "node:http";
-import { readFile, writeFile, access } from "node:fs/promises";
+import { createHash, timingSafeEqual } from "node:crypto";
+// Konstantzeit-Vergleich (gegen Timing-Angriffe aufs Unlock-Passwort); längenverschieden -> false.
+const timingEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && timingSafeEqual(A, B); };
+import { readFile, writeFile, access, rename } from "node:fs/promises";
+// JSON atomar schreiben (tmp+rename) — kein zerhacktes digest.json bei Absturz/voller Platte.
+const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, materialize, addEvent, emptyGraph, upsertArtist } from "./lib/store.mjs";
@@ -24,6 +29,7 @@ import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
 import { miniCluster, landingHtml } from "./lib/landing.mjs";
+import { initAuth, register, verify, resetPassword, makeSession, userFromCookie } from "./lib/auth.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -54,6 +60,23 @@ function mergeShows(a = [], b = []) {
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.LIKE_DATA_DIR || ROOT;
 const PORT = process.env.PORT || 5173;
+// Bind-Host: lokal/Desktop = loopback (Server + eingebetteter Key nicht im LAN sichtbar).
+// Gehostet (Docker/Render) HOST=0.0.0.0 setzen, damit der Plattform-Proxy den Container erreicht.
+const HOST = process.env.HOST || "127.0.0.1";
+
+// „Coming soon"-Gate: nur das öffentliche Pack ist frei; alle anderen brauchen ein Passwort.
+// Aktiv NUR wenn LIKE_UNLOCK_PASSWORD gesetzt ist -> lokal/Desktop bleibt alles offen.
+const UNLOCK_PW = (process.env.LIKE_UNLOCK_PASSWORD || "").trim();
+const GATING_ON = !!UNLOCK_PW;
+const PUBLIC_PACK = (process.env.LIKE_PUBLIC_PACK || "music").trim();
+const isLockedPack = (id) => GATING_ON && id !== PUBLIC_PACK;
+// Cookie-Wert = Hash des Passworts (Passwort selbst steht nie im Cookie).
+const unlockToken = () => createHash("sha256").update("like-unlock:" + UNLOCK_PW).digest("hex").slice(0, 32);
+function isUnlocked(req) {
+  if (!GATING_ON) return true;
+  const m = (req.headers.cookie || "").match(/(?:^|;\s*)like_unlock=([a-f0-9]+)/);
+  return !!m && m[1] === unlockToken();
+}
 
 // Alle Packs beim Start laden (validiert sie gleich; Import ist netzfrei -> schnell).
 const PACKS = new Map();
@@ -64,7 +87,7 @@ for (const id of await listPacks()) {
 const DEFAULT_PACK = PACKS.has(await resolvePackId()) ? await resolvePackId() : (PACKS.has("music") ? "music" : [...PACKS.keys()][0]);
 if (!PACKS.size) { console.error("Keine Packs gefunden (packs/<id>/pack.mjs)."); process.exit(1); }
 // Leichte Liste für den Umschalter (ohne die vollen Configs).
-const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.title, item: p.config.item, brand: p.config.brand }));
+const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.title, item: p.config.item, brand: p.config.brand, locked: isLockedPack(p.id) }));
 
 // Version aus package.json lesen (bleibt so automatisch synchron mit dem Release).
 let APP_VERSION = "";
@@ -77,12 +100,15 @@ for (const p of PACKS.values()) {
   let g = { artists: {}, edges: [] };
   try { g = JSON.parse(await readFile(join(ROOT, "packs", p.id, "demo.json"), "utf8")); } catch {}
   LANDING_CARDS.push({
-    id: p.id, title: p.config.title, item: p.config.item,
+    id: p.id, title: p.config.title, item: p.config.item, locked: isLockedPack(p.id),
     n: Object.keys(g.artists || {}).length, e: (g.edges || []).length, mini: miniCluster(g),
   });
 }
 // Statisch ausgelieferte PWA-Dateien (Pfad -> Datei in public/ + Content-Type).
 const PWA_ASSETS = {
+  // Favicon: Browser fordern /favicon.ico automatisch an — auf ein vorhandenes Icon mappen,
+  // damit es keinen 404 gibt (BUGS.md B1). PNG wird als Favicon problemlos akzeptiert.
+  "/favicon.ico": { file: "icons/icon-192.png", type: "image/png", cache: "public, max-age=604800" },
   "/manifest.webmanifest": { file: "manifest.webmanifest", type: "application/manifest+json; charset=utf-8", cache: "no-cache" },
   "/sw.js": { file: "sw.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   "/icons/icon-192.png": { file: "icons/icon-192.png", type: "image/png", cache: "public, max-age=604800" },
@@ -91,15 +117,54 @@ const PWA_ASSETS = {
   "/icons/apple-touch-icon.png": { file: "icons/apple-touch-icon.png", type: "image/png", cache: "public, max-age=604800" },
 };
 
-function landingPage() {
+function landingPage(unlocked) {
   return landingHtml(LANDING_CARDS, {
     hrefFor: (id) => `/?pack=${encodeURIComponent(id)}`,
     pageTitle: "like — Übersicht",
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     cardSub: (c) => c.item.plur,
-    footer: APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App` : "",
+    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a>`,
+    gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
+    lockLabel: "Coming soon",
   });
+}
+
+// Impressum (Pflicht in DE): minimale Angaben. Adresse ist als Platzhalter markiert und
+// muss vom Betreiber ergänzt werden (per ENV LIKE_IMPRINT_ADDRESS / _NAME / _EMAIL überschreibbar).
+function impressumPage() {
+  const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas R").trim();
+  const email = (process.env.LIKE_IMPRINT_EMAIL || "nicolasreis@me.com").trim();
+  const addr = (process.env.LIKE_IMPRINT_ADDRESS || "").trim();
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const addrHtml = addr ? esc(addr).replace(/\n/g, "<br>")
+    : `<span class="todo">[Straße &amp; Hausnummer]</span><br><span class="todo">[PLZ Ort, Land]</span>`;
+  const addrNote = addr ? "" : `<p class="muted todo">Bitte die ladungsfähige Anschrift ergänzen (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — ohne sie ist das Impressum nicht vollständig.</p>`;
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impressum — like</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;min-height:100vh;background:radial-gradient(130% 90% at 72% -12%,#101c33,#0a0f1c 42%,#05070d);color:#e7e9ee;font:16px/1.6 system-ui,-apple-system,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:52px 22px 60px}
+  a{color:#ff8a3d} h1{font-size:28px;margin:0 0 4px} h2{font-size:15px;margin:24px 0 4px}
+  p{margin:5px 0;opacity:.92} .muted{opacity:.6;font-size:13px} .todo{color:#ffcf99}
+  code{background:#ffffff14;padding:1px 5px;border-radius:4px;font-size:12px}
+  .back{display:inline-block;margin-bottom:22px;opacity:.7;text-decoration:none;color:inherit}
+</style></head><body><div class="wrap">
+  <a class="back" href="/">← zurück zu like</a>
+  <h1>Impressum</h1>
+  <p class="muted">Angaben gemäß § 5 TMG und § 18 Abs. 2 MStV.</p>
+  <h2>Diensteanbieter</h2>
+  <p>${esc(name)}<br>${addrHtml}</p>
+  ${addrNote}
+  <h2>Kontakt</h2>
+  <p>E-Mail: <a href="mailto:${esc(email)}">${esc(email)}</a></p>
+  <h2>Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
+  <p>Der oben genannte Diensteanbieter.</p>
+  <h2>Haftung für Inhalte &amp; Links</h2>
+  <p class="muted">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
+</div></body></html>`;
 }
 
 // Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO PACK.
@@ -108,22 +173,82 @@ const RADAR_TTL = 10 * 60 * 1000;
 
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
 const FEEDBACK_ON = await hasPushover();
+await initAuth(DATA_DIR); // Accounts (optional): Nutzer-Store + Session-Secret laden
+// Datei-Cache beschränken: beim Start + täglich alte Einträge löschen (sonst füllt er die Platte).
+import("./lib/cache.mjs").then(({ pruneCache }) => {
+  pruneCache().catch(() => {});
+  setInterval(() => pruneCache().catch(() => {}), 24 * 60 * 60 * 1000).unref?.();
+}).catch(() => {});
+// einfache In-Memory-Drossel gegen Auth-Brute-Force: pro IP max. 12 Versuche / 5 Min
+const authHits = new Map();
+let authGlobal = []; // globaler Backstop: greift auch, wenn X-Forwarded-For gefälscht/rotiert wird
+function authThrottled(req) {
+  const now = Date.now();
+  authGlobal = authGlobal.filter((t) => now - t < 300000); authGlobal.push(now);
+  // Rechtester XFF-Eintrag = vom vertrauenswürdigsten (nächsten) Proxy gesetzt; vom Client
+  // vorangestellte Fake-Einträge stehen links und zählen so nicht.
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const ip = xff[xff.length - 1] || req.socket.remoteAddress || "?";
+  const arr = (authHits.get(ip) || []).filter((t) => now - t < 300000); arr.push(now);
+  if (arr.length) authHits.set(ip, arr); else authHits.delete(ip);
+  return arr.length > 12 || authGlobal.length > 240; // pro IP 12/5min; globaler Backstop 240/5min (gegen XFF-Rotation, ohne legitime Nutzer im Andrang auszusperren)
+}
+// Speicher-Leak vermeiden: IPs, die nicht wiederkommen, periodisch aus der Map werfen.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, arr] of authHits) { const f = arr.filter((t) => now - t < 300000); if (f.length) authHits.set(ip, f); else authHits.delete(ip); }
+}, 600000).unref?.();
+function setCookie(res, name, val, req) {
+  const secure = (req.headers["x-forwarded-proto"] === "https") ? " Secure;" : "";
+  const clear = val === "";
+  res.setHeader("set-cookie", `${name}=${val}; Path=/; Max-Age=${clear ? 0 : 60 * 60 * 24 * 180}; SameSite=Lax;${secure} HttpOnly`);
+}
 // simple In-Memory-Drossel gegen Spam: max. 6 Feedback-Nachrichten pro 5 Minuten (global).
 let fbHits = [];
 
 function send(res, code, body, type = "application/json") {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  res.writeHead(code, { "content-type": type, "cache-control": "no-store" });
+  const headers = { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" };
+  if (type.startsWith("text/html")) headers["x-frame-options"] = "SAMEORIGIN"; // Clickjacking-Schutz für die Seiten
+  res.writeHead(code, headers);
   res.end(data);
 }
 
+// Serialisiert Lese-Ändern-Schreib-Zyklen PRO Graph-Datei. Ein Prozess -> ein In-Memory-
+// Mutex genügt. Ohne das laden zwei gleichzeitige Requests denselben Stand, jeder ändert
+// seine Kopie, jeder speichert -> das erste Update geht verloren (lost update). Verschiedene
+// Nutzer haben verschiedene Pfade und blockieren sich daher nicht gegenseitig.
+const graphGate = new Map();
+function withGraphLock(path, fn) {
+  const prev = graphGate.get(path) || Promise.resolve();
+  const run = prev.then(fn, fn); // läuft unabhängig vom Ausgang des Vorgängers
+  const tail = run.then(() => {}, () => {});
+  graphGate.set(path, tail);
+  // Kette leer -> Eintrag entfernen (kein unbegrenztes Wachstum bei vielen Anon-Namensräumen).
+  tail.then(() => { if (graphGate.get(path) === tail) graphGate.delete(path); });
+  return run;
+}
+
+// Sprachcode für Wikipedia-Hosts absichern: nur 2–3 Kleinbuchstaben (z. B. „de", „en").
+// Verhindert SSRF, weil `lang` sonst roh in den Request-Host interpoliert würde.
+const safeLang = (s) => (/^[a-z]{2,3}$/.test(String(s || "")) ? String(s) : "en");
+// Ganzzahl aus Nutzereingabe auf sinnvolle Grenzen klemmen (gegen Amplification).
+const clampInt = (v, def, lo, hi) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def; };
+
 function readBody(req) {
+  const MAX = 512 * 1024; // 512 KB: großzügig für Graph-Import, aber Deckel gegen Speicher-DoS
   return new Promise((resolve, reject) => {
-    let s = "";
-    req.on("data", (c) => (s += c));
+    let s = "", len = 0, done = false;
+    req.on("data", (c) => {
+      if (done) return;
+      len += c.length;
+      if (len > MAX) { done = true; const e = new Error("Anfrage zu groß"); e.statusCode = 413; reject(e); return; } // ab hier nicht mehr sammeln
+      s += c;
+    });
     req.on("end", () => {
+      if (done) return;
       try { resolve(s ? JSON.parse(s) : {}); }
-      catch (e) { reject(e); }
+      catch { const e = new Error("ungültiges JSON"); e.statusCode = 400; reject(e); }
     });
     req.on("error", reject);
   });
@@ -134,12 +259,78 @@ function reqPackId(url, req) {
   return url.searchParams.get("pack") || req.headers["x-like-pack"] || DEFAULT_PACK;
 }
 
+// Datenraum pro Request: eingeloggt -> eigener dauerhafter Namensraum; anonym -> eigener
+// temporärer Namensraum pro Tab (Client schickt x-like-anon aus dem sessionStorage);
+// ganz ohne Kennung -> gemeinsamer Fallback (z. B. Desktop/lokal). So teilt sich niemand
+// unbeabsichtigt eine Karte, und anonyme Views sind vergänglich.
+const sanitizeId = (s) => String(s || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+function dataRootFor(req, authUser) {
+  if (authUser) return join(DATA_DIR, "users", sanitizeId(authUser));
+  const anon = sanitizeId(req.headers["x-like-anon"]);
+  if (anon) return join(DATA_DIR, "anon", anon);
+  return DATA_DIR;
+}
+
+// Zwei Graphen verlustfrei vereinen (Union): fehlende Acts/Kanten übernehmen, vorhandene
+// nur mit fehlenden Feldern ergänzen. So gehen weder die aktuelle Karte noch bereits im
+// Konto gespeicherte Likes verloren.
+function mergeGraphInto(dst, src) {
+  for (const [id, a] of Object.entries(src.artists || {})) {
+    const e = dst.artists[id];
+    if (!e) { dst.artists[id] = a; continue; }
+    e.seed = e.seed || a.seed;
+    e.known = e.known || a.known;
+    e.explored = e.explored || a.explored;
+    if (!e.status && a.status) e.status = a.status;
+    if (!e.note && a.note) e.note = a.note;
+    if ((!e.genres || !e.genres.length) && a.genres?.length) e.genres = a.genres;
+    if (!e.url && a.url) e.url = a.url;
+    if (!e.mbid && a.mbid) e.mbid = a.mbid;
+    if (a.booking && !e.booking) e.booking = a.booking;
+  }
+  const seen = new Set((dst.edges || []).map((x) => `${x.from}|${x.to}|${x.type}|${x.source}`));
+  for (const ed of src.edges || []) {
+    const k = `${ed.from}|${ed.to}|${ed.type}|${ed.source}`;
+    if (!seen.has(k) && dst.artists[ed.from] && dst.artists[ed.to]) { dst.edges.push(ed); seen.add(k); }
+  }
+}
+
+// Beim Anmelden/Registrieren: die anonyme Tab-Karte (falls vorhanden) in den Account
+// übernehmen — damit der aktuelle Screen erhalten bleibt und dauerhaft gespeichert wird.
+async function migrateAnonToUser(req, user) {
+  const anon = sanitizeId(req.headers["x-like-anon"]);
+  if (!anon || !user) return;
+  const anonRoot = join(DATA_DIR, "anon", anon);
+  const userRoot = join(DATA_DIR, "users", sanitizeId(user));
+  for (const [id] of PACKS) {
+    try {
+      const anonG = await loadGraph(dataFile(anonRoot, id, "graph.json"));
+      if (!Object.keys(anonG.artists || {}).length) continue; // nichts zu übernehmen
+      const userPath = dataFile(userRoot, id, "graph.json");
+      await withGraphLock(userPath, async () => { // unter Lock: kein Race mit gleichzeitigen Writes ins Konto
+        const userG = await loadGraph(userPath);
+        mergeGraphInto(userG, anonG);
+        await saveGraph(userPath, userG);
+      });
+    } catch {}
+  }
+}
+
+// Optionaler Heimatort für „Like Travel" aus dem Request (Header „x-like-home: lat,lon").
+// Ermöglicht pro Nutzer einen eigenen Heimatort (Geolocation/Eingabe) statt der ENV.
+function reqHome(req) {
+  const h = req.headers["x-like-home"]; if (!h) return null;
+  const [la, lo] = String(h).split(",").map(Number);
+  return (isFinite(la) && isFinite(lo)) ? { lat: la, lon: lo } : null;
+}
+
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
-async function indexHtml(pack) {
+async function indexHtml(pack, unlocked, user) {
   const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
   const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};</script>\n<script>`);
+  const u = JSON.stringify(user || null).replace(/</g, "\\u003c");
+  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};</script>\n<script>`);
 }
 
 async function hasApiKey(pack) {
@@ -159,16 +350,75 @@ async function neighborsFor(pack, name, limit) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    const authUser = userFromCookie(req.headers.cookie);      // eingeloggter Nutzer (oder null)
+    const dataRoot = dataRootFor(req, authUser);              // Datenraum dieses Requests
 
     // Pack-Liste braucht keinen konkreten Pack-Kontext.
     if (req.method === "GET" && url.pathname === "/api/packs") {
       return send(res, 200, { ok: true, packs: PACK_LIST, default: DEFAULT_PACK });
     }
 
+    // ---- Accounts (optional) ----
+    if (req.method === "GET" && url.pathname === "/api/auth/me") {
+      return send(res, 200, { ok: true, user: authUser });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/register") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const b = await readBody(req).catch(() => ({}));
+      const r = await register(b.username, b.password);
+      if (r.error) return send(res, 400, { ok: false, error: r.error });
+      await migrateAnonToUser(req, r.user);
+      setCookie(res, "like_session", makeSession(r.user), req);
+      return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/login") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const b = await readBody(req).catch(() => ({}));
+      if (!verify(b.username, b.password)) return send(res, 401, { ok: false, error: "Name oder Passwort falsch" });
+      const uid = String(b.username).trim().toLowerCase();
+      await migrateAnonToUser(req, uid);
+      setCookie(res, "like_session", makeSession(uid), req);
+      return send(res, 200, { ok: true, user: uid });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/reset") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const b = await readBody(req).catch(() => ({}));
+      const r = await resetPassword(b.username, b.recovery, b.password);
+      if (r.error) return send(res, 400, { ok: false, error: r.error });
+      await migrateAnonToUser(req, r.user);
+      setCookie(res, "like_session", makeSession(r.user), req);
+      return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/logout") {
+      setCookie(res, "like_session", "", req);
+      return send(res, 200, { ok: true });
+    }
+
     // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
-      return send(res, 200, landingPage(), "text/html; charset=utf-8");
+      return send(res, 200, landingPage(isUnlocked(req)), "text/html; charset=utf-8");
+    }
+
+    // Impressum (öffentlich, ohne Pack/Login).
+    if (req.method === "GET" && (url.pathname === "/impressum" || url.pathname === "/impressum.html")) {
+      return send(res, 200, impressumPage(), "text/html; charset=utf-8");
+    }
+
+    // „Coming soon"-Gate freischalten: richtiges Passwort -> Cookie setzen (Hash, HttpOnly).
+    if (req.method === "POST" && url.pathname === "/api/unlock") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const body = await readBody(req).catch(() => ({}));
+      if (GATING_ON && timingEq(String(body.password || ""), UNLOCK_PW)) {
+        const secure = (req.headers["x-forwarded-proto"] === "https") ? " Secure;" : "";
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+          "set-cookie": `like_unlock=${unlockToken()}; Path=/; Max-Age=${60 * 60 * 24 * 180}; SameSite=Lax;${secure} HttpOnly`,
+        });
+        return res.end(JSON.stringify({ ok: true }));
+      }
+      return send(res, 401, { ok: false, error: "falsches Passwort" });
     }
 
     // PWA-Assets (Manifest, Service-Worker, Icons) — statisch aus public/, ohne Pack-Kontext.
@@ -184,10 +434,12 @@ const server = createServer(async (req, res) => {
     // Geschmacks-Fingerabdruck: Likes + Top-Themen ÜBER ALLE Domänen (nur lokale Graphen,
     // kein Netz). Plus "verbindende Themen": Genres, die in ≥2 Domänen vorkommen.
     if (req.method === "GET" && url.pathname === "/api/taste") {
+      const unlocked = isUnlocked(req);
       const per = [];
       const genrePacks = new Map(); // genreLower -> { name, packs:Set }
       for (const [id, pk] of PACKS) {
-        const g = await loadGraph(dataFile(DATA_DIR, id, "graph.json"));
+        if (isLockedPack(id) && !unlocked) continue; // gesperrte Packs nicht mitzählen
+        const g = await loadGraph(dataFile(dataRoot, id, "graph.json"));
         const liked = Object.values(g.artists).filter((a) => a.seed || a.known || (a.status && a.status !== "declined"));
         const gc = new Map();
         for (const a of liked) for (const gn of a.genres || []) {
@@ -224,7 +476,8 @@ const server = createServer(async (req, res) => {
         if (c.includes(q) || q.includes(c)) return true;
         return [...tokens].some((t) => c.split(" ").includes(t));
       };
-      const others = [...PACKS.values()].filter((p) => p.id !== currentId && p.suggest);
+      const unlocked = isUnlocked(req);
+      const others = [...PACKS.values()].filter((p) => p.id !== currentId && p.suggest && (unlocked || !isLockedPack(p.id)));
       const hits = (await Promise.all(others.map(async (p) => {
         try {
           const names = await Promise.race([
@@ -241,14 +494,29 @@ const server = createServer(async (req, res) => {
     const packId = reqPackId(url, req);
     const pack = PACKS.get(packId);
     if (!pack) return send(res, 400, { error: `Unbekanntes Pack: ${packId}` });
-    const GRAPH = dataFile(DATA_DIR, pack.id, "graph.json");
-    const DIGEST = dataFile(DATA_DIR, pack.id, "digest.json");
-    const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
+    // „Coming soon"-Gate: gesperrtes Pack ohne Freischaltung -> Seite zurück zur Landing, API 401.
+    if (isLockedPack(packId) && !isUnlocked(req)) {
+      if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+        res.writeHead(302, { location: "/" }); return res.end();
+      }
+      return send(res, 401, { error: "locked", pack: packId });
+    }
+    const GRAPH = dataFile(dataRoot, pack.id, "graph.json");
+    const DIGEST = dataFile(dataRoot, pack.id, "digest.json");
+    const STATS = dataFile(dataRoot, pack.id, "stats.json");
     // Graph speichern UND den Radar-Cache dieses Packs verwerfen (nie veraltete Vorschläge).
     const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
 
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-      return send(res, 200, await indexHtml(pack), "text/html; charset=utf-8");
+      return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser), "text/html; charset=utf-8");
+    }
+
+    // Heimatort-Eingabe (Like Travel) zu Koordinaten auflösen — fürs geräteübergreifende „Zuhause".
+    if (req.method === "GET" && url.pathname === "/api/geocode") {
+      if (!pack.geocodeHome) return send(res, 400, { ok: false, error: "nicht unterstützt" });
+      const q = url.searchParams.get("q") || "";
+      const r = q ? await pack.geocodeHome(q) : null;
+      return r ? send(res, 200, { ok: true, ...r }) : send(res, 404, { ok: false, error: "Ort nicht gefunden" });
     }
 
     // Selbstauskunft: Pack + Key-Status + ob Feedback verfügbar ist (fürs Frontend beim Start)
@@ -289,8 +557,11 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, sources });
     }
 
-    // Key aus der App heraus speichern (Erststart ohne eingebetteten Key).
+    // Key aus der App heraus speichern (Erststart ohne eingebetteten Key). Nur im lokalen
+    // Tool: auf dem gehosteten Multi-User-Deploy (Gate aktiv) dürfen anonyme Besucher den
+    // gemeinsamen Key nicht überschreiben — dort kommt der Key aus der ENV.
     if (req.method === "POST" && url.pathname === "/api/key") {
+      if (GATING_ON) return send(res, 403, { error: "Auf diesem Deploy nicht verfügbar (Key kommt aus der Umgebung)." });
       if (!pack.key) return send(res, 400, { error: "Dieses Pack braucht keinen API-Key." });
       const { key } = await readBody(req);
       const k = String(key || "").trim();
@@ -312,28 +583,30 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && (url.pathname === "/api/explore" || url.pathname === "/api/expand")) {
       const { name } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
-      const g = await loadGraph(GRAPH);
       let r;
-      try { r = await pack.explore(name); }
+      // Netz-Aufruf BEWUSST außerhalb des Graph-Locks (langsame I/O soll den Mutex nicht halten).
+      try { r = await pack.explore(name, { home: reqHome(req) }); }
       catch (err) { return send(res, 502, { error: err.message }); }
-
-      const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, seed: true });
-      src.explored = true;
-      if (r.genres?.length) src.genres = r.genres.slice(0, 6);
-      if (r.meta) { src.booking = r.meta; }
-      if (r.active !== undefined) src.active = r.active;
-      for (const s of (r.similar || []).slice(0, 25)) {
-        const t = upsertArtist(g, { name: s.name, url: s.url });
-        addEdge(g, src.id, t.id, "similar", s.match || 0.5, r.similarSource || pack.id);
-      }
-      for (const c of (r.together || []).slice(0, 25)) {
-        const t = upsertArtist(g, { name: c.name, url: c.url });
-        addEdge(g, src.id, t.id, "together", c.weight || 1, r.togetherSource || pack.id, c.shows);
-      }
-      await persist(g);
-      return send(res, 200, {
-        ok: true, name: src.name, similar: (r.similar || []).length, together: (r.together || []).length,
-        sources: r.sources || [], graph: materialize(g),
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, seed: true });
+        src.explored = true;
+        if (r.genres?.length) src.genres = r.genres.slice(0, 6);
+        if (r.meta) { src.booking = r.meta; }
+        if (r.active !== undefined) src.active = r.active;
+        for (const s of (r.similar || []).slice(0, 25)) {
+          const t = upsertArtist(g, { name: s.name, url: s.url, mbid: s.mbid || null });
+          addEdge(g, src.id, t.id, "similar", s.match || 0.5, r.similarSource || pack.id);
+        }
+        for (const c of (r.together || []).slice(0, 25)) {
+          const t = upsertArtist(g, { name: c.name, url: c.url });
+          addEdge(g, src.id, t.id, "together", c.weight || 1, r.togetherSource || pack.id, c.shows);
+        }
+        await persist(g);
+        return send(res, 200, {
+          ok: true, name: src.name, similar: (r.similar || []).length, together: (r.together || []).length,
+          sources: r.sources || [], graph: materialize(g),
+        });
       });
     }
 
@@ -437,59 +710,67 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/bridge/add") {
       const { from, to, via = [], fromId, toId } = await readBody(req);
       if (!from || !to || !via.length) return send(res, 400, { error: "from/to/via fehlt" });
-      const g = await loadGraph(GRAPH);
-      const aNode = (fromId && g.artists[fromId]) || upsertArtist(g, { name: from });
-      const bNode = (toId && g.artists[toId]) || upsertArtist(g, { name: to });
-      const chain = [aNode, ...via.map((name) => upsertArtist(g, { name })), bNode];
-      for (let i = 0; i < chain.length - 1; i++) addEdge(g, chain[i].id, chain[i + 1].id, "similar", 0.5, "bridge");
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const aNode = (fromId && g.artists[fromId]) || upsertArtist(g, { name: from });
+        const bNode = (toId && g.artists[toId]) || upsertArtist(g, { name: to });
+        const chain = [aNode, ...via.map((name) => upsertArtist(g, { name })), bNode];
+        for (let i = 0; i < chain.length - 1; i++) addEdge(g, chain[i].id, chain[i + 1].id, "similar", 0.5, "bridge");
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/delete") {
       const { id } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      if (!g.artists[id]) return send(res, 404, { error: "Eintrag unbekannt" });
-      delete g.artists[id];
-      g.edges = g.edges.filter((e) => e.from !== id && e.to !== id);
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        if (!g.artists[id]) return send(res, 404, { error: "Eintrag unbekannt" });
+        delete g.artists[id];
+        g.edges = g.edges.filter((e) => e.from !== id && e.to !== id);
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/restore") {
       const { artist, edges = [] } = await readBody(req);
       if (!artist?.id) return send(res, 400, { error: "artist fehlt" });
-      const g = await loadGraph(GRAPH);
-      g.artists[artist.id] = artist;
-      for (const e of edges) {
-        if (!g.edges.find((x) => x.type === e.type && x.from === e.from && x.to === e.to)) g.edges.push(e);
-      }
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        g.artists[artist.id] = artist;
+        for (const e of edges) {
+          if (!g.edges.find((x) => x.type === e.type && x.from === e.from && x.to === e.to)) g.edges.push(e);
+        }
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/reset") {
       const { scope = "all" } = await readBody(req);
-      let g;
-      if (scope === "all") {
-        g = emptyGraph();
-      } else if (scope === "lineups") {
-        g = await loadGraph(GRAPH);
-        g.events = [];
-        for (const a of Object.values(g.artists)) { delete a.bl; delete a.wikiChecked; delete a.wiki; }
-        g.sources = (g.sources || []).filter((s) => s.id !== "wikipedia");
-      } else if (scope === "discovered") {
-        g = await loadGraph(GRAPH);
-        const keep = new Set();
-        for (const e of g.edges) { keep.add(e.from); keep.add(e.to); }
-        for (const a of Object.values(g.artists)) {
-          if (!a.seed && !a.known && !a.note && !keep.has(a.id)) delete g.artists[a.id];
+      return withGraphLock(GRAPH, async () => {
+        let g;
+        if (scope === "all") {
+          g = emptyGraph();
+        } else if (scope === "lineups") {
+          g = await loadGraph(GRAPH);
+          g.events = [];
+          for (const a of Object.values(g.artists)) { delete a.bl; delete a.wikiChecked; delete a.wiki; }
+          g.sources = (g.sources || []).filter((s) => s.id !== "wikipedia");
+        } else if (scope === "discovered") {
+          g = await loadGraph(GRAPH);
+          const keep = new Set();
+          for (const e of g.edges) { keep.add(e.from); keep.add(e.to); }
+          for (const a of Object.values(g.artists)) {
+            if (!a.seed && !a.known && !a.note && !a.status && !keep.has(a.id)) delete g.artists[a.id];
+          }
+        } else {
+          return send(res, 400, { error: "scope muss all|lineups|discovered sein" });
         }
-      } else {
-        return send(res, 400, { error: "scope muss all|lineups|discovered sein" });
-      }
-      await persist(g);
-      return send(res, 200, { ok: true, graph: materialize(g) });
+        await persist(g);
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      });
     }
 
     // Ganzen Graphen importieren (Backup wiederherstellen / auf anderen Rechner mitnehmen).
@@ -499,81 +780,96 @@ const server = createServer(async (req, res) => {
       if (!incoming || typeof incoming !== "object" || typeof incoming.artists !== "object" || !Array.isArray(incoming.edges)) {
         return send(res, 400, { error: "Keine gültige Graph-Datei (erwartet { artists, edges })." });
       }
-      try {
-        const cur = await readFile(GRAPH, "utf8");
-        await writeFile(dataFile(DATA_DIR, pack.id, "graph.bak.json"), cur, "utf8");
-      } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
-      const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
-        events: incoming.events || [], sources: incoming.sources || [] };
-      await persist(g);
-      const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
-      return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
+      return withGraphLock(GRAPH, async () => {
+        try {
+          const cur = await readFile(GRAPH, "utf8");
+          await writeFile(dataFile(dataRoot, pack.id, "graph.bak.json"), cur, "utf8");
+        } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
+        const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
+          events: incoming.events || [], sources: incoming.sources || [] };
+        await persist(g);
+        const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
+        return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
+      });
     }
 
     // Legacy (nur Musik): Wikipedia-Lineups / Auto-Entdeckung.
     if (req.method === "POST" && url.pathname === "/api/auto" && pack.id === "music") {
-      const { lang = "en", maxArtists = 60, minArtists = 2, maxFestivals = 30 } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      try {
-        const { discoverAndScrape } = await import("./lib/discover.mjs");
-        const summary = await discoverAndScrape(g, { lang, maxArtists, minArtists, maxFestivals });
-        await persist(g);
-        return send(res, 200, { ok: true, summary, graph: materialize(g) });
-      } catch (err) {
-        return send(res, 502, { error: err.message });
-      }
+      const b = await readBody(req);
+      const lang = safeLang(b.lang);                                  // SSRF-Schutz: nur echte Sprachcodes
+      const maxArtists = clampInt(b.maxArtists, 60, 1, 200);          // Amplification-Deckel
+      const minArtists = clampInt(b.minArtists, 2, 1, 50);
+      const maxFestivals = clampInt(b.maxFestivals, 30, 1, 100);
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        try {
+          const { discoverAndScrape } = await import("./lib/discover.mjs");
+          const summary = await discoverAndScrape(g, { lang, maxArtists, minArtists, maxFestivals });
+          await persist(g);
+          return send(res, 200, { ok: true, summary, graph: materialize(g) });
+        } catch (err) {
+          return send(res, 502, { error: err.message });
+        }
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/scrape" && pack.id === "music") {
-      const { target, lang = "en", name, date, place } = await readBody(req);
+      const { target, lang: langRaw, name, date, place } = await readBody(req);
+      const lang = safeLang(langRaw); // SSRF-Schutz: nur echte Sprachcodes im Wikipedia-Host
       if (!target) return send(res, 400, { error: "target (URL oder Titel) fehlt" });
-      const g = await loadGraph(GRAPH);
-      try {
-        const { fetchLineup } = await import("./lib/wikipedia.mjs");
-        const r = await fetchLineup(target, { lang });
-        if (!r.lineup.length) return send(res, 200, { ok: false, error: "Kein Lineup gefunden", eventName: r.eventName });
-        const { event, artistCount } = addEvent(g, {
-          name: name || r.eventName, date, place, lineup: r.lineup, sourceUrl: r.sourceUrl,
-        });
-        await persist(g);
-        return send(res, 200, { ok: true, eventName: event.name, artistCount, graph: materialize(g) });
-      } catch (err) {
-        return send(res, 502, { error: err.message });
-      }
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        try {
+          const { fetchLineup } = await import("./lib/wikipedia.mjs");
+          const r = await fetchLineup(target, { lang });
+          if (!r.lineup.length) return send(res, 200, { ok: false, error: "Kein Lineup gefunden", eventName: r.eventName });
+          const { event, artistCount } = addEvent(g, {
+            name: name || r.eventName, date, place, lineup: r.lineup, sourceUrl: r.sourceUrl,
+          });
+          await persist(g);
+          return send(res, 200, { ok: true, eventName: event.name, artistCount, graph: materialize(g) });
+        } catch (err) {
+          return send(res, 502, { error: err.message });
+        }
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/artist") {
       const { id, known, note, status } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      const a = g.artists[id];
-      if (!a) return send(res, 404, { error: "Eintrag unbekannt" });
-      if (typeof known === "boolean") a.known = known;
-      if (typeof note === "string") a.note = note;
-      if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
-      await persist(g);
-      return send(res, 200, { ok: true, artist: a });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const a = g.artists[id];
+        if (!a) return send(res, 404, { error: "Eintrag unbekannt" });
+        if (typeof known === "boolean") a.known = known;
+        if (typeof note === "string") a.note = note;
+        if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
+        await persist(g);
+        return send(res, 200, { ok: true, artist: a });
+      });
     }
 
     // Steckbrief beim Anklicken nachladen: Genres + Popularität (+ Momentum) + Ort.
     if (req.method === "POST" && url.pathname === "/api/enrich") {
       const { id } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      const a = g.artists[id];
-      if (!a) return send(res, 404, { error: "unbekannt" });
-      let changed = false, growth = null;
-      let patch = {};
-      try { patch = await pack.enrich(a) || {}; } catch {}
-      if (patch.genres?.length && (!a.genres || !a.genres.length)) { a.genres = patch.genres; changed = true; }
-      if (patch.url && !a.url) { a.url = patch.url; changed = true; }
-      if (patch.popularity) {
-        if (a.listeners !== patch.popularity) { a.listeners = patch.popularity; changed = true; }
-        const stats = await loadStats(STATS);
-        if (addSnapshot(stats, id, patch.popularity)) await saveStats(STATS, stats);
-        growth = growthPerMonth(stats, id);
-      }
-      if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
-      if (changed) await persist(g);
-      return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const a = g.artists[id];
+        if (!a) return send(res, 404, { error: "unbekannt" });
+        let changed = false, growth = null;
+        let patch = {};
+        try { patch = await pack.enrich(a, { home: reqHome(req) }) || {}; } catch {}
+        if (patch.genres?.length && (!a.genres || !a.genres.length)) { a.genres = patch.genres; changed = true; }
+        if (patch.url && !a.url) { a.url = patch.url; changed = true; }
+        if (patch.popularity) {
+          if (a.listeners !== patch.popularity) { a.listeners = patch.popularity; changed = true; }
+          const stats = await loadStats(STATS);
+          if (addSnapshot(stats, id, patch.popularity)) await saveStats(STATS, stats);
+          growth = growthPerMonth(stats, id);
+        }
+        if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
+        if (changed) await persist(g);
+        return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+      });
     }
 
     // Vorschau/Klangprobe — nur, wenn das Pack eine liefert.
@@ -638,21 +934,30 @@ const server = createServer(async (req, res) => {
       const graphCands = [...cand.values()].sort((x, y) => y.closeness - x.closeness).slice(0, 30);
 
       const stats = await loadStats(STATS);
-      let statsChanged = false, graphChanged = false;
+      let statsChanged = false;
+      const popById = new Map();
       if (pack.popularity) {
         for (const c of graphCands.slice(0, 25)) {
           const a = g.artists[c.id];
           try {
-            const p = await pack.popularity(a.name);
+            const p = await pack.popularity(a.name, { mbid: a.mbid || undefined });
             if (p) {
-              if (a.listeners !== p) { a.listeners = p; graphChanged = true; }
+              if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
+              popById.set(c.id, p);
               if (addSnapshot(stats, c.id, p)) statsChanged = true;
             }
           } catch { /* ohne Popularität weiter */ }
         }
       }
       if (statsChanged) await saveStats(STATS, stats);
-      if (graphChanged) await persist(g);
+      // Hörerzahlen NACH id in den AKTUELLEN Graph mergen (unter Lock) — nie die alte Kopie
+      // zurückschreiben, sonst überschriebe man parallel dazwischen erkundete Acts (lost update).
+      if (popById.size) await withGraphLock(GRAPH, async () => {
+        const gCur = await loadGraph(GRAPH);
+        let ch = false;
+        for (const [id, p] of popById) { const a = gCur.artists[id]; if (a && a.listeners !== p) { a.listeners = p; ch = true; } }
+        if (ch) await persist(gCur);
+      });
 
       // (b) Pack-spezifische Zusatzkandidaten (Musik: Deezer-Related + Bandcamp-Releases)
       let extras = [];
@@ -691,7 +996,7 @@ const server = createServer(async (req, res) => {
       try {
         let dg = {}; try { dg = JSON.parse(await readFile(DIGEST, "utf8")); } catch {}
         dg.seenRadar = [...new Set([...(dg.seenRadar || []), ...radar.map((r) => r.name)])].slice(-400);
-        await writeFile(DIGEST, JSON.stringify(dg), "utf8");
+        await writeJsonAtomic(DIGEST, dg);
       } catch {}
       const payload = { ok: true, likes: likes.size, radar, computedAt: Date.now() };
       radarCache.set(pack.id, { at: payload.computedAt, key: cacheKey, payload });
@@ -701,22 +1006,50 @@ const server = createServer(async (req, res) => {
     // Beim App-Start: Popularität der markierten Einträge still snapshotten.
     if (req.method === "POST" && url.pathname === "/api/snapshot") {
       if (!pack.popularity) return send(res, 200, { ok: true, snapshotted: 0, marked: 0 });
-      const g = await loadGraph(GRAPH);
-      const marked = Object.values(g.artists).filter((a) => a.seed || a.known || a.status);
-      const stats = await loadStats(STATS);
-      let statsChanged = false, graphChanged = false, n = 0;
-      for (const a of marked) {
-        try {
-          const p = await pack.popularity(a.name);
-          if (p) {
-            if (a.listeners !== p) { a.listeners = p; graphChanged = true; }
-            if (addSnapshot(stats, a.id, p)) { statsChanged = true; n++; }
-          }
-        } catch { /* ohne Popularität weiter */ }
+      const g0 = await loadGraph(GRAPH);
+      const marked = Object.values(g0.artists).filter((a) => a.seed || a.known || a.status).map((a) => ({ id: a.id, name: a.name, mbid: a.mbid || undefined }));
+      // Netz-Aufruf außerhalb des Locks; Ergebnisse nach id sammeln.
+      const popById = new Map();
+      for (const m of marked) {
+        try { const p = await pack.popularity(m.name, { mbid: m.mbid }); if (p) popById.set(m.id, p); } catch { /* ohne Popularität weiter */ }
       }
-      if (statsChanged) await saveStats(STATS, stats);
-      if (graphChanged) await persist(g);
+      let n = 0;
+      if (popById.size) {
+        const stats = await loadStats(STATS);
+        let statsChanged = false;
+        for (const [id, p] of popById) if (addSnapshot(stats, id, p)) { statsChanged = true; n++; }
+        if (statsChanged) await saveStats(STATS, stats);
+        // Hörerzahlen nach id in den AKTUELLEN Graph mergen (unter Lock) — nicht die alte Kopie clobbern.
+        await withGraphLock(GRAPH, async () => {
+          const g = await loadGraph(GRAPH);
+          let changed = false;
+          for (const [id, p] of popById) { const a = g.artists[id]; if (a && a.listeners !== p) { a.listeners = p; changed = true; } }
+          if (changed) await persist(g);
+        });
+      }
       return send(res, 200, { ok: true, snapshotted: n, marked: marked.length });
+    }
+
+    // Hörerzahlen für noch nicht befüllte Knoten nachladen -> Kugelgröße/Glow richten sich
+    // auch für (noch nicht geöffnete) Nachbarn nach der Popularität. Gedrosselt + gecacht;
+    // pro Aufruf gedeckelt, der Client ruft bei Bedarf mehrmals. Gibt nur die neuen Werte zurück.
+    if (req.method === "POST" && url.pathname === "/api/popfill") {
+      if (!pack.popularity) return send(res, 200, { ok: true, filled: 0, remaining: 0, listeners: {} });
+      const g0 = await loadGraph(GRAPH);
+      const all = Object.values(g0.artists).filter((a) => !a.venue && a.listeners == null);
+      const batch = all.slice(0, 40).map((a) => ({ id: a.id, name: a.name, mbid: a.mbid || undefined }));
+      const popById = new Map();
+      for (const m of batch) {
+        let p = null; try { p = await pack.popularity(m.name, { mbid: m.mbid }); } catch {}
+        popById.set(m.id, p ?? 0); // 0 = versucht, aber keine Zahl -> wird nicht endlos neu geholt
+      }
+      if (popById.size) await withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        for (const [id, p] of popById) { const a = g.artists[id]; if (a && a.listeners == null) a.listeners = p; }
+        await persist(g);
+      });
+      const out = {}; for (const [id, p] of popById) out[id] = p;
+      return send(res, 200, { ok: true, filled: popById.size, remaining: Math.max(0, all.length - batch.length), listeners: out });
     }
 
     // Wochen-Digest: welche markierten Einträge sind gewachsen/geschrumpft.
@@ -740,22 +1073,24 @@ const server = createServer(async (req, res) => {
       let dg = {}; try { dg = JSON.parse(await readFile(DIGEST, "utf8")); } catch {}
       const sinceDays = dg.lastOpen ? Math.round((Date.now() - dg.lastOpen) / 864e5) : null;
       dg.lastOpen = Date.now();
-      try { await writeFile(DIGEST, JSON.stringify(dg), "utf8"); } catch {}
+      try { await writeJsonAtomic(DIGEST, dg); } catch {}
       return send(res, 200, { ok: true, grown: grown.slice(0, 6), shrunk: shrunk.slice(0, 3), marked: marked.length, historyDays, sinceDays });
     }
 
     // Genres für einen bereits vorhandenen Eintrag nachladen — beim Anklicken.
     if (req.method === "POST" && url.pathname === "/api/genres") {
       const { id } = await readBody(req);
-      const g = await loadGraph(GRAPH);
-      const a = g.artists[id];
-      if (!a) return send(res, 404, { error: "unbekannt" });
-      if (a.genres && a.genres.length) return send(res, 200, { ok: true, genres: a.genres });
-      let genres = [];
-      try { genres = (await pack.enrich(a))?.genres || []; } catch {}
-      a.genres = genres;
-      await persist(g);
-      return send(res, 200, { ok: true, genres });
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const a = g.artists[id];
+        if (!a) return send(res, 404, { error: "unbekannt" });
+        if (a.genres && a.genres.length) return send(res, 200, { ok: true, genres: a.genres });
+        let genres = [];
+        try { genres = (await pack.enrich(a))?.genres || []; } catch {}
+        a.genres = genres;
+        await persist(g);
+        return send(res, 200, { ok: true, genres });
+      });
     }
 
     // Suchvorschläge (Autocomplete).
@@ -765,6 +1100,14 @@ const server = createServer(async (req, res) => {
       let names = [];
       try { names = pack.suggest ? await pack.suggest(q) : []; } catch {}
       return send(res, 200, { names });
+    }
+
+    // „Überrasch mich" (leere Seite): ein zufälliger, eher unbekannter Eintrag zum Reinstolpern.
+    if (req.method === "GET" && url.pathname === "/api/surprise") {
+      if (!pack.surprise) return send(res, 200, { ok: false });
+      let name = null;
+      try { name = await pack.surprise(); } catch {}
+      return name ? send(res, 200, { ok: true, name }) : send(res, 200, { ok: false });
     }
 
     // Markierte Einträge als CSV exportieren (Shortlist).
@@ -791,7 +1134,11 @@ const server = createServer(async (req, res) => {
 
     send(res, 404, { error: "not found" });
   } catch (err) {
-    send(res, 500, { error: err.message });
+    // Erwartete Client-Fehler (ungültiges JSON 400, zu große Anfrage 413) sauber melden;
+    // unerwartete Fehler NICHT im Klartext nach außen geben (kein Info-Leak) — nur loggen.
+    if (err && err.statusCode) return send(res, err.statusCode, { error: err.message });
+    console.error("Unerwarteter Fehler:", err && err.stack || err);
+    send(res, 500, { error: "interner Fehler" });
   }
 });
 
@@ -803,9 +1150,9 @@ function openBrowser(url) {
   import("node:child_process").then(({ exec }) => exec(cmd, () => {}));
 }
 
-// nur lokal binden — der Server (inkl. eingebettetem API-Key) soll nicht im LAN erreichbar sein.
-server.listen(PORT, "127.0.0.1", () => {
-  const url = `http://127.0.0.1:${server.address().port}`;
+// Default loopback (Desktop/lokal); gehostet via HOST=0.0.0.0 (siehe oben).
+server.listen(PORT, HOST, () => {
+  const url = `http://${HOST}:${server.address().port}`;
   console.log(`Like läuft auf ${url} (Packs: ${[...PACKS.keys()].join(", ")}; Default: ${DEFAULT_PACK})`);
   if (process.argv.includes("--open") || process.env.LIKE_OPEN) openBrowser(url);
 });

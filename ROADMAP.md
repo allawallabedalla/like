@@ -44,8 +44,14 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
   eingebetteten Key), Systemschrift statt Google Fonts (offline-fähig), responsive Topbar,
   Korb/Legende ohne Überlappung, Tooltip/Kontextmenü bleiben im Fenster
 
-### Offen (braucht Keys/OAuth → nicht autonom)
-- Spotify Audio-Features (OAuth), Songkick/Bandsintown aktivieren (Key/app_id) — Adapter liegen bereit
+### Offen (braucht Keys → nicht autonom)
+- Songkick/Bandsintown aktivieren (Key/app_id) — Adapter liegen bereit
+
+> **Spotify Audio-Features gestrichen.** Spotify hat die dafür nötigen Endpoints
+> (`audio-features`, `audio-analysis`, `recommendations`, `related-artists`) am
+> 27.11.2024 für neu angelegte Apps abgeschaltet — ein frischer App-Key käme nicht
+> mehr an die Daten. Als dritte Klang-/Ähnlichkeitsquelle wäre stattdessen
+> **ListenBrainz** (gratis, MusicBrainz-basiert, kein OAuth) die realistische Option.
 
 ### Offen (größer, später)
 - Quadtree/Barnes-Hut fürs Layout (erst ab ~800 Knoten nötig), SQLite, Mobile/Touch,
@@ -79,8 +85,9 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 
 ## 🟣 Datenqualität & weitere Quellen
 
-- **Spotify Audio-Features.** Echte Klang-Ähnlichkeit (tempo, energy, valence) als dritte Kantenart.
-  Braucht OAuth-Setup.
+- **ListenBrainz „similar artists".** Aus echten Hördaten (MusicBrainz-basiert) eine dritte
+  Ähnlichkeits-Relation — gratis, kein OAuth, passt zur mbid-Mechanik. (Ersetzt die gestrichenen
+  Spotify-Audio-Features, deren Endpoints Spotify am 27.11.2024 für neue Apps abgeschaltet hat.)
 - **Songkick/Bandsintown aktivieren.** Adapter sind eingebaut — nur Key/app_id hinterlegen, dann
   fließen sie automatisch in „zusammen aufgetreten" ein (breitere, nicht nur elektronische Abdeckung).
 - **Alias-/Dublettenabgleich.** RA `aliases`, MusicBrainz-IDs → denselben Act nicht doppelt.

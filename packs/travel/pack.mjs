@@ -19,7 +19,14 @@ const HOME_NAME = (process.env.LIKE_TRAVEL_HOME || "Berlin, Deutschland").trim()
 const fmtKm = (km) => km.toLocaleString("de-DE");
 
 let homePromise = null;
-function home() { return homePromise ??= geocode(HOME_NAME).catch(() => null); }
+function envHome() { return homePromise ??= geocode(HOME_NAME).catch(() => null); }
+// Heimatort: pro Request überschreibbar (Geolocation/Eingabe des Nutzers via ctx.home),
+// sonst Fallback auf die ENV/Standard-Heimat (Berlin).
+async function homeCoord(ctx) {
+  const h = ctx && ctx.home;
+  if (h && isFinite(h.lat) && isFinite(h.lon)) return { lat: h.lat, lon: h.lon };
+  return envHome();
+}
 
 // Koordinaten eines Ziels: bevorzugt Wikivoyage (spart Nominatim-Anfragen), sonst Nominatim.
 async function coordFor(art, name) {
@@ -29,9 +36,9 @@ async function coordFor(art, name) {
 
 // Stil-Tags + Heimat-Distanz-Chip zu einer Genre-Liste bündeln (Distanz ans Ende, damit
 // die Cluster-Färbung weiter den Reisestil nimmt, nicht die eindeutige Kilometerzahl).
-async function genresFor(tags, coord) {
+async function genresFor(tags, coord, ctx) {
   const g = [...tags];
-  const h = await home();
+  const h = await homeCoord(ctx);
   const km = h && coord ? haversineKm(h, coord) : null;
   if (km != null) g.push(`${fmtKm(km)} km ab Zuhause`);
   return g;
@@ -91,7 +98,7 @@ export default {
     try { return await suggestTitles(q, { limit: 6 }); } catch { return []; }
   },
 
-  async explore(name) {
+  async explore(name, ctx) {
     const hit = await resolveTitle(name);
     if (!hit) throw new Error(`„${name}" nicht bei Wikivoyage gefunden (Reiseziele)`);
     const art = await article(hit.lang, hit.title);
@@ -116,7 +123,7 @@ export default {
     return {
       canonical: hit.title,
       url: voyUrl(hit.lang, hit.title),
-      genres: await genresFor(tags, coord),
+      genres: await genresFor(tags, coord, ctx),
       similarSource: "wikivoyage",
       togetherSource: "wikivoyage",
       similar: similar.slice(0, 20),
@@ -125,7 +132,7 @@ export default {
     };
   },
 
-  async enrich(a) {
+  async enrich(a, ctx) {
     const out = {};
     try {
       const hit = await resolveTitle(a.name);
@@ -135,9 +142,15 @@ export default {
       if (!a.url) out.url = voyUrl(hit.lang, hit.title);
       const { tags } = styleTags(art.wikitext);
       // Distanz nutzt Wikivoyage-Koordinaten (kein Nominatim-Aufruf pro Nachbar).
-      if (!a.genres?.length || a.genres.length < 2) out.genres = await genresFor(tags, art.coord);
+      if (!a.genres?.length || a.genres.length < 2) out.genres = await genresFor(tags, art.coord, ctx);
     } catch {}
     return out;
+  },
+
+  // Heimatort aus Nutzer-Eingabe zu Koordinaten auflösen (für den „Heimat-Distanz"-Chip).
+  async geocodeHome(q) {
+    try { const g = await geocode(String(q || "").trim()); return g ? { name: g.name || String(q).trim(), lat: g.lat, lon: g.lon } : null; }
+    catch { return null; }
   },
 
   async popularity(name) {

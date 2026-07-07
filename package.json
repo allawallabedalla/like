@@ -7,11 +7,15 @@
   "scripts": {
     "start": "electron .",
     "check": "node scripts/check-config.mjs && node scripts/smoke.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
+    "test:e2e:report": "playwright show-report",
     "dist": "electron-builder --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:win": "electron-builder --win --publish never"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "electron": "^37.10.3",
@@ -50,7 +54,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ]
     },
@@ -59,11 +65,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

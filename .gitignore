@@ -1,4 +1,9 @@
 # API-Keys / app_ids / Feedback-Credentials niemals committen
+.session-secret
+users.json
+# Nutzer-/Anon-Datenräume (Accounts) – gehören auf die Server-Platte, nie ins Repo
+users/
+anon/
 .lastfm-key
 .tmdb-key
 .tastedive-key
@@ -28,3 +33,9 @@ dist/
 # statischer Export bettet den echten Graph (Acts/Booking-Kontakte) direkt als JS ein –
 # genau die Daten, die graph.json oben schon schützt. Bei Bedarf separat/gescrubbt teilen.
 docs/
+
+# E2E (Playwright)
+.e2e-data/
+test-results/
+playwright-report/
+blob-report/
