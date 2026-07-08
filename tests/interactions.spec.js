@@ -78,6 +78,15 @@ test.describe("App-Interaktionen (Regression)", () => {
     expect(errors, errors.join("\n")).toEqual([]);
   });
 
+  test("Max-Zoom: Planeten versteckt, Sonnen sichtbar", async ({ page }) => {
+    await openApp(page);
+    for (let i = 0; i < 10; i++) { await page.click("#zoomOut"); await page.waitForTimeout(40); }
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => ({ leaf: window.__e2e.lodHidden("h0_l5"), sun: window.__e2e.lodHidden("h0") }));
+    expect(r.leaf).toBe(true);   // Planet/Blatt: weg
+    expect(r.sun).toBe(false);   // Sonne/Hub: bleibt
+  });
+
   test("LOD-/Zoom-Blende-Arithmetik stimmt", async ({ page }) => {
     await openApp(page);
     const r = await page.evaluate(() => {

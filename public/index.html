@@ -1241,6 +1241,9 @@ let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechn
 // Heranzoomen erscheinen alle Namen (LABEL_ZOOM) bzw. Genres (GENRE_ZOOM). Anker-Knoten
 // (gesucht/Hub/Auswahl/Hover) sind davon ausgenommen und immer beschriftet.
 const LABEL_ZOOM = 1.25, GENRE_ZOOM = 1.55;
+// Unter diesem Zoom werden GAR KEINE Namen/Genres gezeichnet (außer bewusst gehovert/gewählt):
+// ganz weit draußen zählen dann wirklich nur die Sonnen als Punkte — kein Titel, kein Genre.
+const LABEL_MIN_ZOOM = 0.5;
 // LOD: unter dieser Zoomstufe (weit weg) werden auf dichten Karten die Grad-≤1-Blätter
 // samt Kanten ausgeblendet — der „Igel" löst sich auf, Hubs/gesuchte bleiben. Reinzoomen holt sie zurück.
 const LEAF_ZOOM = 0.85;
@@ -1680,7 +1683,11 @@ function centerSpeed(a) {
   return base + (1 - base) * settle;
 }
 function tick() {
-  if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
+  // Beruhigt -> CPU schonen UND Ruhe halten. WICHTIG: ein bloßes Klick-Halten (dragNode gesetzt,
+  // aber noch nicht bewegt) darf die Physik NICHT wieder anwerfen — sonst schiebt die Kollision
+  // beim Anklicken das Netz kurz auseinander (das „Wackeln beim Klicken"). Nur echtes Ziehen zählt.
+  const draggingNow = dragNode && moved;
+  if (alpha < ALPHA_MIN && !draggingNow) return;
   const REP = 8800, SPRING = 0.012, DAMP = 0.86, CUT = 460, CUT2 = CUT * CUT; // etwas mehr Abstoßung -> luftigeres Netz
   const COLLIDE_PAD = 30; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
   const n = nodes.length;
@@ -1725,7 +1732,9 @@ function tick() {
           // unabhängig von alpha, damit sie am Ende garantiert Abstand haben.
           const minD = rad[i] + rad[j] + COLLIDE_PAD;
           if (d < minD) {
-            const push = (minD - d) * 0.5, ux = dx / d, uy = dy / d;
+            // Beim Ziehen die Nachbarn nur SANFT wegschieben (statt hart schnappen) -> die
+            // Umgebung reagiert ruhig statt hektisch (Erscheinung). Sonst voller Push.
+            const push = (minD - d) * (draggingNow ? 0.16 : 0.5), ux = dx / d, uy = dy / d;
             const aFixed = a === dragNode || a.pinned || a._moon, bFixed = b === dragNode || b.pinned || b._moon;
             if (!aFixed) { a.x += ux * push * (bFixed ? 2 : 1); a.y += uy * push * (bFixed ? 2 : 1); }
             if (!bFixed) { b.x -= ux * push * (aFixed ? 2 : 1); b.y -= uy * push * (aFixed ? 2 : 1); }
@@ -2115,7 +2124,10 @@ function draw() {
     // Heranzoomen alle Namen erscheinen. Immer beschriftet bleiben nur die Anker: gesuchte
     // Acts (seed), gut vernetzte Hubs, Auswahl, Hover und Highlights — sie geben Orientierung.
     const anchor = n.seed || (n.deg | 0) >= 3 || n === hover || sel || glow || compareSet.has(n.id);
-    if (anchor || view.k > LABEL_ZOOM) {
+    // Ganz weit draußen (unter LABEL_MIN_ZOOM) KEINE Labels — nur die Sonnen als Punkte. Nur ein
+    // bewusst gehoverter/gewählter Knoten darf trotzdem beschriftet sein.
+    const labelAllowed = view.k >= LABEL_MIN_ZOOM || n === hover || sel;
+    if (labelAllowed && (anchor || view.k > LABEL_ZOOM)) {
       // Mond-Namen etwas kleiner (weniger Gedränge); der gerade gehoverte Mond bleibt normal groß.
       const moonSmall = planetMode && n._moon && n !== hover;
       const nameSize = moonSmall ? 10 : 12;
@@ -2624,7 +2636,7 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.35 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), sanftes Reheat (B4)
+      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.2 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), SEHR sanftes Reheat -> kaum Zappeln (B4)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
       else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;
