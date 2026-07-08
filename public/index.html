@@ -2865,6 +2865,9 @@ async function loadDetails(n) {
     }
     if (res.listeners != null) { n.listeners = res.listeners; if (graph.artists[n.id]) graph.artists[n.id].listeners = res.listeners; }
     if (res.location && !n.booking?.area) n.bcLocation = res.location;
+    // Hörer-Trend (aus der App-Historie) am Knoten merken — nur gesetzt, wenn GENUG Daten da
+    // sind (growthPerMonth liefert sonst null). Wird fürs Teilen genutzt.
+    n._growth = (res.growth != null) ? res.growth : null;
     if (res.genres?.length) computeGenreColors(); // nachgeladene Genres in die Cluster-Farben einbeziehen
     if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); }
     requestDraw();
@@ -2891,11 +2894,15 @@ document.getElementById("shareBtn").onclick = async () => {
   if (!selected || selected.venue) return;
   const n = selected, b = n.booking || {};
   const region = [b.area, b.country].filter(Boolean).join(", ") || n.bcLocation || "";
+  // Trend NUR anhängen, wenn genug App-Historie gesammelt wurde (n._growth != null).
+  const trend = (typeof n._growth === "number")
+    ? (n._growth >= 5 ? " (steigend)" : n._growth <= -5 ? " (fallend)" : " (konstant)")
+    : "";
   const info = [
     n.name,
     (n.genres && n.genres.length) ? `Genre: ${n.genres.slice(0, 4).join(", ")}` : "",
     region ? `Region: ${region}` : "",
-    (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}` : "",
+    (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}${trend}` : "",
     n.note ? `Notiz: ${n.note}` : "",
   ].filter(Boolean);
   const links = [];
