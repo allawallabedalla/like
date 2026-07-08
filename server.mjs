@@ -261,6 +261,36 @@ function setCookie(res, name, val, req) {
 // simple In-Memory-Drossel gegen Spam: max. 6 Feedback-Nachrichten pro 5 Minuten (global).
 let fbHits = [];
 
+// Besuchs-Benachrichtigung: Pushover, wenn jemand ANDERES als du die Seite öffnet.
+// Aktiv nur, wenn LIKE_OWNER_SECRET gesetzt ist (sonst aus). Du selbst schließt dich aus,
+// indem du EINMAL die Seite mit ?owner=<secret> öffnest -> setzt ein like_owner-Cookie.
+// Bewusst datensparsam: KEINE volle IP in der Nachricht (nur grob maskiert), nur Browser/Quelle.
+const OWNER_SECRET = (process.env.LIKE_OWNER_SECRET || "").trim();
+const visitNotified = new Map(); // ip -> letzter Push (Dedupe, damit Reloads nicht spammen)
+const isOwnerReq = (req) => /(?:^|;\s*)like_owner=1(?:;|$)/.test(req.headers.cookie || "");
+function clientIp(req) {
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return xff[xff.length - 1] || req.socket.remoteAddress || "?";
+}
+function maskIp(ip) {
+  if (ip.includes(".")) { const p = ip.split("."); return p.length === 4 ? `${p[0]}.${p[1]}.*.*` : ip; }
+  if (ip.includes(":")) return ip.split(":").slice(0, 2).join(":") + ":…"; // IPv6 grob
+  return "?";
+}
+async function notifyVisitMaybe(req, pack) {
+  if (!OWNER_SECRET || isOwnerReq(req)) return;   // Feature aus / oder du selbst
+  if (!(await hasPushover())) return;
+  const ip = clientIp(req), now = Date.now();
+  if (now - (visitNotified.get(ip) || 0) < 6 * 3600e3) return; // pro IP höchstens alle 6 h
+  visitNotified.set(ip, now);
+  if (visitNotified.size > 800) for (const [k, t] of visitNotified) if (now - t > 24 * 3600e3) visitNotified.delete(k);
+  const ua = String(req.headers["user-agent"] || "").slice(0, 140);
+  const ref = String(req.headers["referer"] || "").slice(0, 140);
+  const where = pack.id !== "music" ? ` (${pack.id})` : "";
+  const msg = `Jemand hat „like"${where} geöffnet.\nRegion: ${maskIp(ip)}${ua ? `\n${ua}` : ""}${ref ? `\nvon: ${ref}` : ""}`;
+  sendFeedback({ title: "like — neuer Besuch", message: msg }).catch(() => {}); // best effort, blockiert die Seite nicht
+}
+
 function send(res, code, body, type = "application/json") {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
   const headers = { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" };
@@ -572,6 +602,12 @@ const server = createServer(async (req, res) => {
     const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
 
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+      // Owner meldet sich einmalig per ?owner=<secret> ab -> Cookie setzen, sauber weiterleiten.
+      if (OWNER_SECRET && url.searchParams.get("owner") === OWNER_SECRET) {
+        setCookie(res, "like_owner", "1", req);
+        res.writeHead(302, { location: "/" }); return res.end();
+      }
+      notifyVisitMaybe(req, pack); // Besuch melden (nur Fremde, gedrosselt) — läuft nebenher
       return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser), "text/html; charset=utf-8");
     }
 
