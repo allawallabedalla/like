@@ -92,6 +92,15 @@ const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.ti
 // Version aus package.json lesen (bleibt so automatisch synchron mit dem Release).
 let APP_VERSION = "";
 try { APP_VERSION = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")).version || ""; } catch {}
+// Deploy-Nachverfolgung (E1): zeigt, WELCHER Stand gerade live ist, verlinkt auf GitHub.
+//  - LIKE_BUILD_PR (z. B. "17") gesetzt  -> „PR #17" mit Link auf den Pull Request.
+//  - sonst der Deploy-Commit (LIKE_BUILD_REF oder Renders RENDER_GIT_COMMIT) -> Kurz-SHA + Commit-Link.
+// So lässt sich jederzeit nachvollziehen, welche Änderungen deployed sind.
+const REPO_URL = "https://github.com/allawallabedalla/like";
+const _BUILD_PR = (process.env.LIKE_BUILD_PR || "").replace(/\D/g, "");
+const _BUILD_SHA = (process.env.LIKE_BUILD_REF || process.env.RENDER_GIT_COMMIT || "").trim();
+const BUILD_REF = _BUILD_PR ? { label: `PR #${_BUILD_PR}`, href: `${REPO_URL}/pull/${_BUILD_PR}` }
+  : (_BUILD_SHA ? { label: _BUILD_SHA.slice(0, 7), href: `${REPO_URL}/commit/${_BUILD_SHA}` } : null);
 
 // „Kugeln"-Landing (GET / ohne ?pack): eine Karte je Pack mit Mini-Netz aus dem Demo-Graphen.
 // Der Demo-Graph dient nur der Vorschau-Optik; die echte Karte startet leer und füllt sich beim Suchen.
@@ -124,7 +133,7 @@ function landingPage(unlocked) {
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     cardSub: (c) => c.item.plur,
-    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>`,
+    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
     lockLabel: "Coming soon",
   });
@@ -572,7 +581,7 @@ const server = createServer(async (req, res) => {
 
     // Selbstauskunft: Pack + Key-Status + ob Feedback verfügbar ist (fürs Frontend beim Start)
     if (req.method === "GET" && url.pathname === "/api/health") {
-      return send(res, 200, { ok: true, key: await hasApiKey(pack), version: APP_VERSION, pack: pack.id, feedback: FEEDBACK_ON });
+      return send(res, 200, { ok: true, key: await hasApiKey(pack), version: APP_VERSION, build: BUILD_REF, pack: pack.id, feedback: FEEDBACK_ON });
     }
 
     // Testuser-Feedback -> Pushover an den Betreiber. Nur wenn Credentials hinterlegt sind.

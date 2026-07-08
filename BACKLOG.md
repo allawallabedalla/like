@@ -7,7 +7,7 @@
 
 ## Punkte
 
-- [ ] **E1 — Landing-Footer / „PR#" (RÜCKFRAGE).** Footer zeigt „v2.4.0 · alle Domänen in einer App ·
+- [x] **E1 — Deploy-Nachverfolgung.** PR- bzw. Commit-Ref im Footer UND in der App (verlinkt auf GitHub). LIKE_BUILD_PR="17" -> "PR #17"; sonst RENDER_GIT_COMMIT -> Kurz-SHA + Commit-Link.
   Impressum · Datenschutz". Unklar, was „überall den PR# einfügen" meint — mit dir klären.
 
 - [x] **E2 — Spawn-Stagger kontinuierlich.** Der zeitversetzte Fade-in klappt noch nicht: aktuell
