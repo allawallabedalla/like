@@ -2997,11 +2997,21 @@ async function finishBridge(target) {
   try {
     const res = await API.bridge(a.name, target.name);
     if (res.error) { toast("Fehler: " + res.error); clearBridge(); return; }
-    // Einträge, die schon auf der Karte liegen, sind keine "fehlende" Brücke -> rausfiltern
-    const present = (name) => { const k = slugify(name); return nodeById.has(k) || nodes.some((n) => slugify(n.name) === k); };
-    const cands = (res.candidates || []).filter((c) => !c.via.some((v) => present(v.name)));
+    // Nur Kandidaten rausfiltern, deren VOLLE Kette (A—via…—B) als Kanten SCHON existiert — dann
+    // ist die Verbindung wirklich da. Ist ein Zwischen-Eintrag zwar auf der Karte, aber (noch)
+    // nicht mit beiden Seiten verbunden, BLEIBT der Kandidat: die Brücke ergänzt die fehlenden
+    // Kanten und das verbindende Netz erscheint. (Vorher fälschlich alles mit vorhandenem via raus → E4.)
+    const idOf = (name) => { const k = slugify(name); const n = nodeById.get(k) || nodes.find((x) => slugify(x.name) === k); return n ? n.id : null; };
+    const hasEdge = (i1, i2) => links.some((l) => l.type !== "venue" && ((l.a.id === i1 && l.b.id === i2) || (l.a.id === i2 && l.b.id === i1)));
+    const chainExists = (c) => {
+      const chain = [a.id, ...c.via.map((v) => idOf(v.name)), target.id];
+      if (chain.some((x) => x == null)) return false; // ein Glied fehlt auf der Karte -> Kette existiert nicht
+      for (let i = 0; i < chain.length - 1; i++) if (!hasEdge(chain[i], chain[i + 1])) return false;
+      return true;
+    };
+    const cands = (res.candidates || []).filter((c) => !chainExists(c));
     if (!cands.length) {
-      toast(res.candidates?.length ? "Die verbindenden Einträge sind schon auf der Karte." : "Kein verbindender Eintrag gefunden (auch nicht über mehrere Schichten).");
+      toast(res.candidates?.length ? `„${a.name}" und „${target.name}" sind über die vorhandenen Einträge schon verbunden.` : "Kein verbindender Eintrag gefunden (auch nicht über mehrere Schichten).");
       clearBridge(); return;
     }
     bridge.cands = cands; bridge.loading = false; bridge.mode = res.mode;

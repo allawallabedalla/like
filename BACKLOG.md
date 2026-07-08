@@ -18,7 +18,7 @@
   neu eingefügte Artist liegt manchmal weit draußen. Platzierung prüfen & korrigieren (Seed +
   seine neuen Nachbarn sinnvoll um die Mitte gruppieren).
 
-- [ ] **E4 — Brücke bauen defekt + findet wenig.** Brücke zwischen zwei noch unverknüpften Acts
+- [x] **E4 — Brücke bauen defekt + findet wenig.** Brücke zwischen zwei noch unverknüpften Acts
   klappt nicht: Meldung „sind schon auf der Karte", aber kein verbindendes Netz sichtbar. Zudem
   findet der Brückenbauer wenig — nachschärfen.
 

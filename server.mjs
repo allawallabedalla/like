@@ -686,12 +686,19 @@ const server = createServer(async (req, res) => {
             cands.push({ via: [{ name: s.name, url: s.url || t.url || null }], strength: ((s.match || 0.5) + (t.match || 0.5)) / 2 });
         }
         cands.sort((x, y) => y.strength - x.strength);
-        cands = cands.slice(0, 15);
+        cands = cands.slice(0, 25);
+        // Mehr-Stationen-Brücken deduped an die direkten anhängen (E4: mehr Ergebnisse behalten,
+        // statt sie zu ersetzen).
+        const appendCands = (extra) => {
+          const seenVia = new Set(cands.map((c) => c.via.map((v) => lc(v.name)).join("|")));
+          for (const c of extra) { const k = c.via.map((v) => lc(v.name)).join("|"); if (seenVia.has(k)) continue; seenVia.add(k); cands.push(c); }
+          cands = cands.slice(0, 20);
+        };
 
-        // Reicht das nicht: von BEIDEN Seiten je eine Ebene expandieren und in der Mitte treffen.
-        // Das findet auch Brücken, die keine gemeinsame direkte Verbindung haben (mehrere Schichten).
-        if (!cands.length) {
-          const K = 8;
+        // Zu WENIGE direkte Brücken (E4: nicht erst bei 0): von beiden Seiten eine Ebene expandieren
+        // und in der Mitte treffen — findet auch Brücken ohne gemeinsamen direkten Nachbarn.
+        if (cands.length < 5) {
+          const K = 10;
           const topA = NA.slice(0, K), topB = NB.slice(0, K);
           const [expA, expB] = await Promise.all([
             Promise.all(topA.map((x) => neighborsFor(pack, x.name, 40).then((r) => ({ x, list: r.list })).catch(() => null))),
@@ -715,10 +722,10 @@ const server = createServer(async (req, res) => {
             if (s && !skip.has(lc(x.name)) && lc(x.name) !== lc(y.name)) addTwo(s, y, ((s.match || 0.5) + (x.match || 0.5) + (y.match || 0.5)) / 3);
           }
           if (two.length) {
-            mode = "two"; two.sort((a, b) => b.strength - a.strength); cands = two.slice(0, 12);
+            if (!cands.length) mode = "two"; two.sort((a, b) => b.strength - a.strength); appendCands(two.slice(0, 15));
           } else {
             // 3) drei Stationen: A—X—M—Y—B  (M gemeinsamer Nachbar einer A-seitigen und einer B-seitigen Station)
-            mode = "three";
+            if (!cands.length) mode = "three";
             const bSets = BY.map(({ y, list }) => ({ y, set: new Map(list.map((m) => [lc(m.name), m])) }));
             const three = [], seen3 = new Set();
             for (const { x, list } of AX) for (const m of list) {
@@ -733,7 +740,7 @@ const server = createServer(async (req, res) => {
                   strength: ((x.match || 0.5) + (m.match || 0.5) + (mm.match || 0.5) + (y.match || 0.5)) / 4 });
               }
             }
-            three.sort((a, b) => b.strength - a.strength); cands = three.slice(0, 10);
+            three.sort((a, b) => b.strength - a.strength); appendCands(three.slice(0, 12));
           }
         }
 
