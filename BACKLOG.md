@@ -1,69 +1,53 @@
-# BACKLOG — Politur „fließend & organisch"
+# BACKLOG — Runde 3 (Politur & Radar/Entdecken)
 
-**Angelegt:** 2026-07-07 15:54 CEST (13:54 UTC)
-**Autonomer Start geplant:** 2026-07-07 17:21 CEST
-**Branch:** `claude/chat-crash-unresponsive-aya13j` → danach PR nach `main`.
+**Angelegt:** 2026-07-08 07:38 CEST (05:38 UTC)
+**Branch:** `claude/chat-crash-unresponsive-aya13j` → danach PR nach `main` (nicht mergen ohne Freigabe).
 
-Leitmotiv über allem: **alles soll fließend und organisch wirken — keine plötzlichen
-Erscheinungen, kein Zappeln, keine hakeligen Trefferflächen.**
+Leitmotiv weiter: fließend/organisch, klares Feedback, sinnvolle Defaults.
 
 ---
 
 ## Offene Punkte
 
-- [x] **B1 — Nicht sichtbare Planeten haben keine Hover-Funktion.** Durch das Zoom-LOD
-  ausgeblendete Grad-≤1-Blätter dürfen bei Hover **keine** Aktion/Badge/Tooltip auslösen.
-  Erst wenn sie durch Reinzoomen sichtbar sind, reagieren sie. → `pick()`/Hover/Badges
-  müssen dieselbe LOD-Sichtbarkeit respektieren wie `draw()` (heute nur visuell ausgeblendet,
-  aber weiter pickbar).
+- [ ] **C1 — Fade-in gestaffelt/random.** Der Planeten-Fade-in ist gut, aber alle blenden
+  gleichzeitig ein. Stattdessen zeitlich minimal versetzt (leicht randomisiert) nacheinander.
 
-- [x] **B2 — Reinfaden statt reinploppen (LOD).** Wenn Blätter/Kanten durchs Zoomen wieder
-  erscheinen, sollen sie **weich einblenden** (Alpha-Fade), nicht schlagartig aufpoppen.
-  Analog beim Ausblenden. Zoom-Schwelle 0.85 mit weichem Übergangsband statt hartem Cutoff.
+- [ ] **C2 — ＋ fokussiert das neue Sternensystem.** Klick auf ＋ an einem Mond soll den View auf
+  den neu erzeugten „Sonne"-Act (den ausgebauten Artist im Zentrum) zentrieren/folgen — nur ohne
+  das Info-Panel zu öffnen (das war C-alt B7). Also center=true, select=false.
 
-- [x] **B3 — Preview-Pill: Größe bei Maus-Näherung konstant.** Aktuell fährt die Scrub-Leiste
-  ein und die Pille wird breiter. Gewünscht: **Breite bleibt gleich**; bei Maus-Näherung
-  **ersetzt die Scrub-Leiste den restlichen Inhalt** (Stop bleibt, statt EQ+Titel kommt die
-  Spulleiste + Zeit). Maus weg → wieder die ursprüngliche Ansicht (EQ + Titel).
+- [ ] **C3 — Kein Intro-Modal im Private-Tab.** Im privaten Fenster erscheint beim Start kein
+  Onboarding-Intro. Prüfen, ob das am Browser (localStorage/Storage-Partitionierung) liegt oder an
+  einer App-Bedingung — und ggf. so lösen, dass es im Private-Tab trotzdem beim Erststart kommt.
 
-- [x] **B4 — „+" an Planet zappelt.** Beim Klick auf ＋ (ausbauen/Nachbarn laden) zappelt das
-  Layout noch spürbar. Reheat/Federn beruhigen, damit der Vorgang ruhig aussieht.
+- [ ] **C4 — Intro erklärt Linien + Größe/Abstand.** Im Intro-Modal erklären, was die beiden
+  Linienfarben bedeuten (blau = ähnlicher Stil, orange = zusammen aufgetreten) UND was
+  Planetengröße (Popularität/Hörer) und Abstand (Ähnlichkeit) aussagen.
 
-- [x] **B5 — Abstands↔Ähnlichkeits-Korrelation geprüft: stimmt.** rest = 85 + (1-strength)*90, strength = Last.fm-match für similar -> höhere % = kürzere Ruhelänge = näher. Korrekt. (Nur bei sehr großen Kugeln/Planeten-Halos übersteuert der Kollisions/Halo-Mindestabstand die Ähnlichkeit — unvermeidbar.) Stimmt die Feder-Ruhelänge noch mit
-  der %-Ähnlichkeit (Last.fm-`match`) überein? Näher = ähnlicher soll klar ablesbar sein.
+- [ ] **C5 — Vorschau-Indikator am Mond.** Der Knoten, dessen Klangprobe gerade läuft, soll wieder
+  einen kleinen Indikator (Ring/Puls) bekommen (gab es früher schon mal).
 
-- [x] **B6 — Manche Acts zeigen kein „+".** Warum fehlt bei manchen Planeten die ＋-Erweiterung?
-  Bedingung in `isMoonHover()`/Badge-Logik prüfen (Grad, `_moon`, seed, appear).
+- [ ] **C6 — Preview-Plausi-Check gegen Genres.** In der Artist-Match/Preview kam wieder eine
+  Klangprobe, die nicht zu den angezeigten Genres passt. Plausibilitätsprüfung einbauen (Track/
+  Artist der Vorschau gegen den Act/seine Genres abgleichen, sonst keine bzw. bessere Vorschau).
 
-- [x] **B7 — „+" öffnet auch die Info.** Klick auf ＋ ruft zusätzlich `selectNode` (öffnet Panel).
-  Das soll ＋ **nicht** — ＋ nur ausbauen, Info bleibt dem ⓘ/Kugelklick vorbehalten
-  (wie schon beim Play-Knopf getrennt).
+- [ ] **C7 — Scrub-Line konstante Größe.** Die Pille passt sich weiter dem Titel an (langer Name =
+  breitere Pille), aber die Scrub-Leiste selbst soll IMMER gleich groß sein (feste Breite), nicht
+  mit dem Titel mitwachsen.
 
-- [x] **B8 — Hitboxen/Hover um ＋ und ⓘ verbessern.** Fühlt sich hakelig an. Trefferflächen,
-  Hover-Persistenz und das „Badges zählen zum Hover"-Verhalten überarbeiten, damit das Anpeilen
-  der Badges sauber und ruhig ist.
+- [ ] **C8 — Radar nur im sichtbaren Bild.** Das Radar soll neue Artists nur im aktuell sichtbaren
+  Ausschnitt auftun/platzieren, nicht irgendwo außerhalb.
 
-- [x] **B9 — Zentrums-Planeten stillstellen.** Planeten nahe der Bildmitte (~50 % Screenhöhe/
-  -breite) sollen ruhen (nicht umherwandern/kreisen), damit der Überblick erhalten bleibt.
+- [ ] **C9 — Entdecken als Dropdown.** Das „Entdecken"-Modul öffnet aktuell am rechten
+  Bildschirmrand; es soll als Dropdown direkt unter dem „Entdecken"-Knopf erscheinen.
 
-- [x] **B10 — Gesamt-Audit „keine plötzlichen Erscheinungen".** Alle Funktionen durchgehen
-  (Spawn, Badges, Labels, Panel, Pille, Szenen, Brücken, Radar) und jedes schlagartige
-  Erscheinen/Verschwinden in ein weiches Ein-/Ausblenden überführen.
-
-- [x] **B11 — Legende: Datenquellen-Hinweise entfernen.** Auf dem Main-Screen die Quellenangaben
-  in der Legende (z. B. „(Last.fm)", „(RA)") wegnehmen.
-
-- [x] **B12 — Legende dynamisch.** Die Main-Screen-Legende soll nur zeigen, was **gerade sichtbar**
-  ist (nur vorkommende Kantentypen/Zustände/Farben), statt statisch alles aufzulisten.
-
-- [x] **B13 — Intro-Modal: Hover-Zustand der Knöpfe prüfen.** Ist das Intro-Modal sauber
-  (die zuletzt ergänzte Slide 5)? Insbesondere die **Button-Darstellung bei Hover** prüfen
-  und ggf. korrigieren.
+- [ ] **C10 — Radar-Knopf-Feedback + Schließen.** Der Radar-Knopf gibt kein Feedback (aktiv/offen),
+  und man weiß nicht, wie man das Radar-Fenster wieder schließt. Aktiv-Zustand am Knopf + klare
+  Schließen-Möglichkeit.
 
 ---
 
-## Arbeitsweise für den autonomen Lauf
-1. Jeden Punkt einzeln umsetzen, Haken setzen.
-2. Wo möglich im vorinstallierten Chromium verifizieren (Server + Playwright, wie in `NOTES.md`).
-3. In sinnvollen Commits bündeln, dann **PR nach `main`** (nicht ungefragt mergen — auf Freigabe warten).
-4. Bei echter Mehrdeutigkeit kurz nachfragen statt raten.
+## Arbeitsweise
+1. Punkt für Punkt, Haken setzen.
+2. Wo möglich im vorinstallierten Chromium verifizieren (Server + Playwright; Graph via /api/import).
+3. Sinnvolle Commits, am Ende PR nach `main` — nicht ungefragt mergen.
