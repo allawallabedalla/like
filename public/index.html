@@ -1456,10 +1456,10 @@ function rebuild(prev, reheatAmt = 1) {
       pinned: old?.pinned ?? false,
       // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar
       appear: old?.appear ?? (old ? 1 : 0),
-      // E2/C1: frische Knoten blenden als KASKADE ein — jeder etwas später als der vorige
-      // (fortlaufender Zähler + kleiner Jitter), nicht alle gleichzeitig als Klumpen. Ergebnis:
-      // ein kontinuierliches „Mehr-Erscheinen" über ~1–1,5 s.
-      _appearDelay: old ? 0 : (_spawnSeq++ * 2.6 + Math.random() * 6),
+      // E2/C1: frische Knoten blenden als KASKADE ein — jeder deutlich später als der vorige.
+      // Der feste Abstand (·6) muss GRÖSSER als der Jitter (·2) sein, sonst überlappen die
+      // Startzeiten und es klumpt. So erscheint einer nach dem anderen (kontinuierlich).
+      _appearDelay: old ? 0 : (_spawnSeq++ * 6 + Math.random() * 2),
       likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
     };
   });
@@ -1894,7 +1894,9 @@ function draw() {
   // Nur der Fokus-Modus (Vergleich/Pfad, fs) versteckt hart. LOD (n._lodA) und Genre-Filter
   // (n._genA) werden weich über eased Alphas geblendet — kein Ploppen (B2/B10). vis() liefert
   // die kombinierte Sichtbarkeit 0..1 je Knoten.
-  const zoomedOut = nodes.length > 40 && view.k < LEAF_ZOOM;
+  // Kanten weich mit dem Zoom ausblenden: bei LEAF_ZOOM voll da, bei starkem Rauszoomen
+  // (k ≤ 0.4) komplett weg — weit draußen zählt nur noch die Sternenform, keine Linien.
+  const linkFade = Math.max(0, Math.min(1, (view.k - 0.4) / (LEAF_ZOOM - 0.4)));
   const hidden = (id) => (fs && !fs.has(id) && !(selected && id === selected.id));
   const vis = (n) => (n._lodA ?? 1) * (n._genA ?? 1);
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
@@ -1925,7 +1927,7 @@ function draw() {
     if (l.type === "venue") { base = 1; aBase = 0.5; }
     else if (isSim) { base = 0.35 + w * w * 4.4; aBase = 0.2 + w * 0.65; }        // 0.35–4.75px · 0.2–0.85
     else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
-    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase * (zoomedOut ? 0.5 : 1))) * ea;
+    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase)) * ea * linkFade;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
   }
@@ -2218,7 +2220,7 @@ function stepNodeAnims() {
   for (const a of nodes) {
     if (a.appear < 1) {
       if (a._appearDelay > 0) { a._appearDelay -= 1; live = true; } // C1: erst kurz warten (gestaffelt)
-      else { a.appear = Math.min(1, a.appear + 0.06); live = true; }
+      else { a.appear = Math.min(1, a.appear + 0.05); live = true; }
     }
     if (a.likePulse > 0) { a.likePulse = Math.max(0, a.likePulse - 0.028); live = true; }
     // LOD: Blätter weich ein-/ausblenden statt schlagartig ploppen (B2). Ziel 1 = sichtbar, 0 = aus.
