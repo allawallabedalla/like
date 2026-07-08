@@ -1631,6 +1631,7 @@ function tick() {
         for (const j of cell) {
           if (j <= i) continue; // jedes Paar nur einmal
           const b = nodes[j];
+          if (a.venue || b.venue) continue; // D3: Venues stoßen niemanden ab (Overlay-Marker)
           let dx = a.x - b.x, dy = a.y - b.y;
           let d2 = dx * dx + dy * dy || 0.01;
           if (d2 > CUT2) continue;
@@ -1654,6 +1655,7 @@ function tick() {
     }
   }
   for (const l of links) {
+    if (l.type === "venue") continue; // D3: Venue-Kanten ziehen nicht — Venues folgen ihren Acts, nicht umgekehrt
     let rest = 85 + (1 - l.strength) * 90;
     // Planeten-Modus: zwei benachbarte Planeten (beide mit Mond-Halo) brauchen Platz für ihre
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
@@ -1670,6 +1672,7 @@ function tick() {
     l.a.vx += fx; l.a.vy += fy; l.b.vx -= fx; l.b.vy -= fy;
   }
   for (const a of nodes) {
+    if (a.venue) continue; // D3: Venues werden separat über positionVenues() am Schwerpunkt ihrer Acts platziert
     a.vx += (W / 2 - a.x) * 0.00024 * alpha;
     a.vy += (H / 2 - a.y) * 0.00024 * alpha;
     // fixierte Knoten (nach manuellem Ziehen) bleiben stehen, stoßen aber weiter ab —
@@ -1689,6 +1692,23 @@ function tick() {
 // Planeten-Modus Stufe 2: echte Satelliten (Grad 1, an einem echten Hub) kreisen als Monde
 // um ihren Planeten. Sie werden von der Physik wie fixiert behandelt (stoßen andere ab,
 // folgen aber ihrer Umlaufbahn). Gibt true zurück, solange sich Monde bewegen.
+// D3: Venues sitzen am Schwerpunkt der Acts, die dort gespielt haben (Position = „mitten unter
+// seinen Acts") — sie werden von der Physik ausgenommen und hier direkt platziert. Kein Umherschieben
+// der Artists mehr; die Venue folgt ihnen. Neu hinzugekommene Venues faden zusätzlich ein (appear).
+function positionVenues() {
+  if (!venueMode) return;
+  const nbOf = new Map();
+  for (const l of links) {
+    if (l.type !== "venue") continue;
+    const v = l.a.venue ? l.a : l.b.venue ? l.b : null; if (!v) continue;
+    const other = l.a === v ? l.b : l.a;
+    (nbOf.get(v) || nbOf.set(v, []).get(v)).push(other);
+  }
+  for (const [v, acts] of nbOf) {
+    let sx = 0, sy = 0; for (const o of acts) { sx += o.x; sy += o.y; }
+    v.x = sx / acts.length; v.y = sy / acts.length; v.vx = 0; v.vy = 0;
+  }
+}
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let mouseWorld = null; // aktuelle Mausposition in Weltkoordinaten (für Näherungs-Verlangsamung)
 function orbitMoons() {
@@ -1782,6 +1802,7 @@ function glowFactor(n) {
 // Zielgröße: Grad + Popularitäts-Bonus. Bewusst MODERAT gespreizt — die Popularität liest
 // sich vor allem über den Glow; zu große Kugeln überlappen sonst und lassen die Physik zappeln.
 function radiusTarget(n) {
+  if (n.venue) return 6.5; // D3: Venue = kleiner Ort-Marker, kein Planet (Größe kodiert keine Popularität)
   const base = 4 + Math.min(16, Math.pow(Math.max(1, n.deg | 0), 0.68) * 2.6);
   return base + popFactor(n) * 5;
 }
@@ -1830,6 +1851,11 @@ function focusSet() {
   const s = new Set([focusId]);
   for (const nb of (adj.get(focusId) || [])) s.add(nb);
   return s;
+}
+// D3: Venue als Raute (Ort-Marker) zeichnen, Artists weiter als Kreis — klar unterscheidbar.
+function traceNode(n, r) {
+  if (n.venue) { const s = r * 1.25; ctx.beginPath(); ctx.moveTo(n.x, n.y - s); ctx.lineTo(n.x + s, n.y); ctx.lineTo(n.x, n.y + s); ctx.lineTo(n.x - s, n.y); ctx.closePath(); }
+  else { ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); }
 }
 function draw() {
   ctx.clearRect(0, 0, W, H);
@@ -1929,12 +1955,12 @@ function draw() {
     // weicher Hover-Schein hinter dem Knoten (nur der eine gehoverte — günstig)
     if (hovG && n.id === hovG.id && !faded && ap >= 1) {
       ctx.globalAlpha = 1; ctx.shadowColor = getCss("--edge-together"); ctx.shadowBlur = 16;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fillStyle = nodeColor(n); ctx.fill();
+      traceNode(n, r); ctx.fillStyle = nodeColor(n); ctx.fill();
       ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
     }
     ctx.globalAlpha = baseA;
-    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
-    ctx.fillStyle = nodeColor(n); ctx.fill(); // flach einfarbig (auch im Planeten-Modus)
+    traceNode(n, r);
+    ctx.fillStyle = nodeColor(n); ctx.fill(); // flach einfarbig (Venues als Raute, Artists als Kreis)
     const sCol = STATUS_COLOR[n.status];
     if (sel) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--text"); ctx.stroke(); }
     else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
@@ -2212,6 +2238,7 @@ function loop() {
   const sizing = stepSizes();     // Kugelgrößen sanft an ihr Ziel führen (organisch, kein Plopp)
   const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
   tick();
+  positionVenues(); // D3: Venues an den Schwerpunkt ihrer Acts setzen (nach der Physik)
   // Fokussierten Knoten mittig halten, solange sich das Layout noch bewegt (kein „Wegrutschen").
   if (followNode) {
     if (dragNode || !nodeById.has(followNode.id)) followNode = null;

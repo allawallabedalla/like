@@ -16,7 +16,7 @@
   wenige Linien kreuzen. Ansatz: Communities/Szenen in getrennte Sektoren um die Mitte legen +
   innerhalb gleichmäßig streuen, dann sanft settlen (Kollision/Abstände, kein Zappeln).
 
-- [ ] **D3 — Venues-Ansicht überarbeiten.** Aktuell erscheinen Venues als eigene Planeten, deren
+- [x] **D3 — Venues-Ansicht überarbeiten.** Aktuell erscheinen Venues als eigene Planeten, deren
   Position und Größe nicht zum Artist-Gedanken passen. Sinnvoller: Venue sitzt am **Schwerpunkt der
   Acts**, die dort gespielt haben (Position = „mitten unter seinen Acts"), und ist als **Ort** klar
   von Artists unterscheidbar (Form/Größe), ohne die Artists umherzuschieben.
