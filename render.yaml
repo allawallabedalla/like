@@ -2,6 +2,17 @@
 # Anleitung: Repo bei Render verbinden → „New +" → „Blueprint" → dieses Repo wählen.
 # Render liest diese Datei, baut das Dockerfile und startet den Server öffentlich per HTTPS.
 # Danach: die vergebene URL in Safari öffnen → „Teilen → Zum Home-Bildschirm" = iPhone-App.
+
+# Pull-Request-Previews: Für JEDE offene PR baut Render automatisch eine eigene, temporäre
+# Instanz mit eigener URL (z. B. like-pr-42.onrender.com). Dort visuell abnehmen, DANN erst
+# die PR nach main mergen (= Produktions-Deploy). Läuft nur nach der eigentlichen main-Instanz
+# hoch. Previews räumen sich nach ein paar Tagen ohne neue Commits selbst auf.
+# Hinweis: Jede Preview ist eine eigene (pro-rata berechnete) Instanz — bei Bedarf im Render-
+# Dashboard unter Settings → Pull Request Previews abschaltbar.
+previews:
+  generation: automatic
+  expireAfterDays: 5
+
 services:
   - type: web
     name: like

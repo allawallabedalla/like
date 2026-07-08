@@ -8,6 +8,7 @@
     "start": "electron .",
     "check": "node scripts/check-config.mjs && node scripts/smoke.mjs",
     "test:e2e": "playwright test",
+    "test:ci": "playwright test tests/api.spec.js tests/pages.spec.js tests/pwa.spec.js tests/lock.spec.js tests/responsive.spec.js tests/interactions.spec.js",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:e2e:report": "playwright show-report",
     "dist": "electron-builder --publish never",

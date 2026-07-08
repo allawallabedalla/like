@@ -1269,6 +1269,19 @@ let graph = { artists: {}, edges: [] };
 let nodes = [];          // {id,name,x,y,vx,vy,deg,seed,known}
 let links = [];          // {a,b,type,weight}
 const nodeById = new Map();
+// Test-Hook (nur mit ?e2e in der URL aktiv, sonst komplett inert): read-only Einblick für die
+// Playwright-Regressionstests — Knotenposition, LOD-/Halo-Status. Kein Effekt in Produktion.
+try {
+  if (new URLSearchParams(location.search).has("e2e")) {
+    window.__e2e = {
+      pos: (id) => { const n = nodeById.get(id); return n ? { x: n.x, y: n.y } : null; },
+      screenPos: (id) => { const n = nodeById.get(id); return n ? { x: n.x * view.k + view.x, y: n.y * view.k + view.y } : null; },
+      lodHidden: (id) => { const n = nodeById.get(id); return n ? lodHiddenNode(n) : null; },
+      haloOn: (id) => { const n = nodeById.get(id); return n ? !!n._haloOn : null; },
+      count: () => nodes.length,
+    };
+  }
+} catch {}
 // Start-View: identische Abbildung (kein Offset!) — Knoten spawnen um (W/2,H/2)
 // in Weltkoordinaten. Nach dem Laden zieht fitAll() die Karte passend auf.
 // (view ist oben vor resize() deklariert.)
