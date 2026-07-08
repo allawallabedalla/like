@@ -925,11 +925,11 @@ const server = createServer(async (req, res) => {
 
     // Vorschau/Klangprobe — nur, wenn das Pack eine liefert.
     if (req.method === "POST" && url.pathname === "/api/preview") {
-      const { name } = await readBody(req);
+      const { name, listeners } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
       if (!pack.preview) return send(res, 200, { ok: false });
       let p = null;
-      try { p = await pack.preview(name); } catch {}
+      try { p = await pack.preview(name, { listeners: typeof listeners === "number" ? listeners : null }); } catch {}
       if (!p?.url) return send(res, 200, { ok: false });
       return send(res, 200, { ok: true, url: p.url, track: p.track, artist: p.artist });
     }
@@ -951,12 +951,18 @@ const server = createServer(async (req, res) => {
 
     // Radar: Geheimtipp-Score — kleine Einträge nah an deinen Likes, mit Begründung.
     if (req.method === "POST" && url.pathname === "/api/radar") {
-      const { limit = 10, extraLikes = [], force = false } = await readBody(req);
+      const { limit = 10, extraLikes = [], visible = null, force = false } = await readBody(req);
       const g = await loadGraph(GRAPH);
       const extra = new Set(extraLikes);
-      const likes = new Set(Object.values(g.artists)
-        .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
-        .map((a) => a.id));
+      // C8: Sind sichtbare Acts mitgegeben, leitet das Radar seine Vorschläge NUR aus dem gerade
+      // sichtbaren Ausschnitt ab (plus explizite Likes). Sonst wie bisher aus allen gesuchten/
+      // gemerkten Acts.
+      const fromVisible = Array.isArray(visible) && visible.some((id) => g.artists[id]);
+      const likes = fromVisible
+        ? new Set([...visible.filter((id) => g.artists[id]), ...[...extra].filter((id) => g.artists[id])])
+        : new Set(Object.values(g.artists)
+            .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
+            .map((a) => a.id));
       if (!likes.size) return send(res, 400, { error: "Erst ein paar Einträge suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann." });
 
       const cacheKey = [...likes].sort().join(",") + "|" + limit;
@@ -1049,7 +1055,7 @@ const server = createServer(async (req, res) => {
         dg.seenRadar = [...new Set([...(dg.seenRadar || []), ...radar.map((r) => r.name)])].slice(-400);
         await writeJsonAtomic(DIGEST, dg);
       } catch {}
-      const payload = { ok: true, likes: likes.size, radar, computedAt: Date.now() };
+      const payload = { ok: true, likes: likes.size, fromVisible, radar, computedAt: Date.now() };
       radarCache.set(pack.id, { at: payload.computedAt, key: cacheKey, payload });
       return send(res, 200, payload);
     }

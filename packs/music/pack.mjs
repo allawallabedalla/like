@@ -146,9 +146,17 @@ export default {
   // Klangprobe über mehrere Quellen, in Reihenfolge steigender „Breite", jede streng am
   // Künstlernamen verankert (nie ein fremder Act): Deezer-Top-Track → Deezer-Track-Suche
   // (falls /top leer) → iTunes (zwei Anläufe). So gibt es deutlich seltener „keine Vorschau".
-  async preview(name) {
-    const tries = [topTrackPreview, trackPreviewSearch, previewByName];
-    for (const fn of tries) {
+  async preview(name, opts = {}) {
+    const listeners = opts.listeners ?? null;
+    // Plausi (C6): ist der Act auf Last.fm klein, der gefundene Deezer-Treffer aber ein Mega-Act,
+    // handelt es sich fast sicher um einen berühmten NAMENSVETTER (anderes Genre). Dann lieber KEINE
+    // Klangprobe als die eines fremden Acts — und auch nicht auf einen namensgleichen Fallback ausweichen.
+    const plausibleFans = (fans) => fans == null || listeners == null || !(listeners < 20000 && fans > 300000);
+    try {
+      const p = await topTrackPreview(name);
+      if (p?.url) return plausibleFans(p.fans) ? p : null; // unplausibel -> gar keine (kein fremder Fallback)
+    } catch {}
+    for (const fn of [trackPreviewSearch, previewByName]) {
       try { const p = await fn(name); if (p?.url) return p; } catch {}
     }
     return null;

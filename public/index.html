@@ -269,13 +269,14 @@
   /* Mittelteil hält EQ+Titel UND die Scrub-Leiste im selben Kasten übereinander: bei Maus-
      Näherung wird der Titel weich gegen die Spulleiste getauscht — die PILLENBREITE bleibt
      gleich (Scrub liegt absolut über dem Titel). Maus weg -> wieder EQ+Titel. Touch: .expanded. */
-  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; min-width: 130px; }
+  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; min-width: 155px; }
   .nowplaying .npidle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; transition: opacity .18s ease; }
   .nowplaying .npscrub { position: absolute; inset: 0; display: inline-flex; align-items: center; gap: 9px;
     opacity: 0; pointer-events: none; transition: opacity .18s ease; }
   .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { opacity: 0; }
   .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { opacity: 1; pointer-events: auto; }
-  .nowplaying #npBar { flex: 1 1 auto; position: relative; min-width: 40px; height: 6px; border-radius: 3px;
+  /* Scrub-Leiste konstante Breite (C7): die Pille wächst mit dem Titel, die Spulleiste bleibt gleich. */
+  .nowplaying #npBar { flex: none; position: relative; width: 96px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
   .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
@@ -431,6 +432,8 @@
   .helpbox .hclose:hover { color: var(--text); background: var(--line-soft); }
 
   /* Entdecken-Popover */
+  /* Aktiv-Zustand: Werkzeug-Knopf hervorheben, solange sein Fenster offen ist (C10, C9) */
+  #radarBtn.on, #discoverBtn.on { border-color: var(--edge-together); color: var(--edge-together); }
   .discoverbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
     padding: 12px 14px; width: 268px; display: none; font-size: 13px; box-shadow: 0 10px 34px rgba(0,0,0,.16); border-radius: 10px; }
   .discoverbox.show { display: block; }
@@ -776,6 +779,10 @@
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><path d="M1.8 11h12.4"/><path d="M2.6 11C2.6 6.6 5 4.5 8 4.5s5.4 2.1 5.4 6.5"/><path d="M5.4 11V8.1M10.6 11V8.1"/></svg></span>
       <span><b>Brückenbauer</b><small>Welche Einträge halten deine Szenen zusammen?</small></span>
     </div>
+    <div class="ditem" id="discTidy">
+      <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><circle cx="4.5" cy="4.5" r="2"/><circle cx="11.5" cy="4.5" r="2"/><circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/></svg></span>
+      <span><b>Netz sortieren</b><small>Ordnet die Karte neu — Szenen gruppiert, möglichst wenige gekreuzte Linien.</small></span>
+    </div>
   </div>
 
   <div class="modal-back" id="intro">
@@ -798,7 +805,9 @@
           <h3 id="tourT1">Willkommen bei like<span style="color:var(--edge-together)">.</span></h3>
           <p id="tourP1">like zeigt Künstler:innen als klickbare <b>Karte</b>. Zwei Verbindungsarten:
           <span style="color:var(--edge-similar)">— blau</span> = ähnlicher Stil,
-          <span style="color:var(--edge-together)">— orange</span> = zusammen aufgetreten.</p>
+          <span style="color:var(--edge-together)">— orange</span> = zusammen aufgetreten.
+          Die <b>Größe</b> eines Punkts zeigt die Popularität (Hörerzahl), die <b>Nähe</b> die
+          Ähnlichkeit — je näher zwei Punkte, desto verwandter.</p>
         </div>
         <!-- Slide 2: Suchen & Hangeln -->
         <div class="slide" data-s="1">
@@ -1190,14 +1199,14 @@ const API = {
   restore: (body) => POST("/api/restore", body),
   genres: (id) => POST("/api/genres", { id }),
   enrich: (id) => POST("/api/enrich", { id }),
-  radar: (extraLikes, force) => POST("/api/radar", { extraLikes, force }),
+  radar: (extraLikes, force, visible) => POST("/api/radar", { extraLikes, force, visible }),
   snapshot: () => POST("/api/snapshot", {}),
   popfill: () => POST("/api/popfill", {}),
   genrefill: () => POST("/api/genrefill", {}),
   digest: () => POST("/api/digest", {}),
   diag: () => POST("/api/diag", {}),
   import: (graph) => POST("/api/import", { graph }),
-  preview: (name) => POST("/api/preview", { name }),
+  preview: (name, listeners) => POST("/api/preview", { name, listeners }),
   context: (id) => POST("/api/context", { id }),
   bridge: (from, to) => POST("/api/bridge", { from, to }),
   bridgeAdd: (from, to, via, fromId, toId) => POST("/api/bridge/add", { from, to, via, fromId, toId }),
@@ -1307,7 +1316,9 @@ async function togglePreview(name) {
   previewName = name;
   refreshPreviewButtons(name); // "…" am gewählten Button
   try {
-    const res = await API.preview(name);
+    // Hörerzahl des Acts mitgeben -> Server kann berühmte Namensvetter erkennen (C6-Plausi-Check)
+    const node = nodes.find(n => n.name === name);
+    const res = await API.preview(name, node && typeof node.listeners === "number" ? node.listeners : null);
     if (!res.ok || !res.url) { toast(`Keine Klangprobe für „${name}" gefunden`); previewName = null; refreshPreviewButtons(); return; }
     previewLabel = `${res.artist || name}${res.track ? " — " + res.track : ""}`;
     audio.src = res.url; audio.currentTime = 0;
@@ -1446,6 +1457,9 @@ function rebuild(prev, reheatAmt = 1) {
       pinned: old?.pinned ?? false,
       // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar
       appear: old?.appear ?? (old ? 1 : 0),
+      // C1: frische Knoten starten leicht zeitversetzt (0..~22 Frames), damit sie nicht alle
+      // gleichzeitig einblenden, sondern organisch nacheinander.
+      _appearDelay: old ? 0 : Math.random() * 22,
       likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
     };
   });
@@ -1482,6 +1496,14 @@ function rebuild(prev, reheatAmt = 1) {
     const a = nodeById.get(ve.from), b = nodeById.get(ve.to);
     if (a && b) links.push({ a, b, type: "venue", weight: ve.weight, shows: [], strength: Math.min(1, 0.4 + 0.15 * ve.weight) });
   }
+  // Kombinierte BINDUNGSSTÄRKE pro Paar aus ALLEN Kantenarten (ähnlich + zusammen), probabilistisches
+  // ODER: bond = 1 − ∏(1 − strength_i). Ein Act, der ähnlich UND zusammen aufgetreten ist, bindet
+  // dadurch stärker als über nur eine Kante -> kürzere Feder-Ruhelänge -> sitzt näher an der Sonne.
+  // (Space & Flat gleich; Venue-Kanten bleiben außen vor.) Beide Kanten des Paars tragen dasselbe l.bond.
+  const bondByPair = new Map();
+  const pairKey = (l) => l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
+  for (const l of links) { if (l.type === "venue") continue; const k = pairKey(l); bondByPair.set(k, 1 - (1 - (bondByPair.get(k) ?? 0)) * (1 - (l.strength ?? 0.5))); }
+  for (const l of links) { l.bond = l.type === "venue" ? l.strength : (bondByPair.get(pairKey(l)) ?? l.strength); }
   // Adjazenz für Schnittmengen / Pfade
   adj.clear();
   for (const l of links) {
@@ -1617,6 +1639,7 @@ function tick() {
         for (const j of cell) {
           if (j <= i) continue; // jedes Paar nur einmal
           const b = nodes[j];
+          if (a.venue || b.venue) continue; // D3: Venues stoßen niemanden ab (Overlay-Marker)
           let dx = a.x - b.x, dy = a.y - b.y;
           let d2 = dx * dx + dy * dy || 0.01;
           if (d2 > CUT2) continue;
@@ -1640,7 +1663,8 @@ function tick() {
     }
   }
   for (const l of links) {
-    let rest = 85 + (1 - l.strength) * 90;
+    if (l.type === "venue") continue; // D3: Venue-Kanten ziehen nicht — Venues folgen ihren Acts, nicht umgekehrt
+    let rest = 85 + (1 - (l.bond ?? l.strength)) * 90; // kombinierte Bindung (ähnlich+zusammen => näher)
     // Planeten-Modus: zwei benachbarte Planeten (beide mit Mond-Halo) brauchen Platz für ihre
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
     // Halo-Radien + Puffer anheben, damit sich die Planeten sauber auseinanderschieben.
@@ -1656,6 +1680,7 @@ function tick() {
     l.a.vx += fx; l.a.vy += fy; l.b.vx -= fx; l.b.vy -= fy;
   }
   for (const a of nodes) {
+    if (a.venue) continue; // D3: Venues werden separat über positionVenues() am Schwerpunkt ihrer Acts platziert
     a.vx += (W / 2 - a.x) * 0.00024 * alpha;
     a.vy += (H / 2 - a.y) * 0.00024 * alpha;
     // fixierte Knoten (nach manuellem Ziehen) bleiben stehen, stoßen aber weiter ab —
@@ -1675,6 +1700,23 @@ function tick() {
 // Planeten-Modus Stufe 2: echte Satelliten (Grad 1, an einem echten Hub) kreisen als Monde
 // um ihren Planeten. Sie werden von der Physik wie fixiert behandelt (stoßen andere ab,
 // folgen aber ihrer Umlaufbahn). Gibt true zurück, solange sich Monde bewegen.
+// D3: Venues sitzen am Schwerpunkt der Acts, die dort gespielt haben (Position = „mitten unter
+// seinen Acts") — sie werden von der Physik ausgenommen und hier direkt platziert. Kein Umherschieben
+// der Artists mehr; die Venue folgt ihnen. Neu hinzugekommene Venues faden zusätzlich ein (appear).
+function positionVenues() {
+  if (!venueMode) return;
+  const nbOf = new Map();
+  for (const l of links) {
+    if (l.type !== "venue") continue;
+    const v = l.a.venue ? l.a : l.b.venue ? l.b : null; if (!v) continue;
+    const other = l.a === v ? l.b : l.a;
+    (nbOf.get(v) || nbOf.set(v, []).get(v)).push(other);
+  }
+  for (const [v, acts] of nbOf) {
+    let sx = 0, sy = 0; for (const o of acts) { sx += o.x; sy += o.y; }
+    v.x = sx / acts.length; v.y = sy / acts.length; v.vx = 0; v.vy = 0;
+  }
+}
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let mouseWorld = null; // aktuelle Mausposition in Weltkoordinaten (für Näherungs-Verlangsamung)
 function orbitMoons() {
@@ -1684,8 +1726,8 @@ function orbitMoons() {
   for (const n of nodes) {
     // gezogene (gepinnte) Monde aus der Umlaufbahn befreien -> bleiben liegen, wo man sie ablegt
     // (Rechtsklick löst die Fixierung, dann kreisen sie wieder).
-    if (n.venue || n === dragNode || n.pinned || (n.deg | 0) !== 1) continue;
-    const nb = adj.get(n.id); if (!nb || nb.size !== 1) continue;
+    if (n.venue || n === dragNode || n.pinned) continue;
+    const nb = adj.get(n.id); if (!nb || nb.size !== 1) continue; // genau EIN Nachbar (egal ob 1 oder 2 Kantenarten -> „beides"-Satelliten zählen auch, A)
     const parent = nodeById.get([...nb][0]);
     if (!parent || parent.venue || (parent.deg | 0) < 2) continue; // nur um echte Hubs kreisen
     let arr = byParent.get(parent.id); if (!arr) byParent.set(parent.id, arr = []);
@@ -1710,7 +1752,7 @@ function orbitMoons() {
         m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + Math.random() * 0.12;
         // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> leichte Radius-Nuance
         let tie = 0.5;
-        for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.strength != null ? l.strength : 0.5; break; } }
+        for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.bond != null ? l.bond : (l.strength ?? 0.5); break; } }
         m._moonTie = Math.max(0.05, Math.min(1, tie));
       }
       // Extrem subtil und PRO MOND randomisiert (Tempo + Richtung) -> natürliches, nicht
@@ -1768,6 +1810,7 @@ function glowFactor(n) {
 // Zielgröße: Grad + Popularitäts-Bonus. Bewusst MODERAT gespreizt — die Popularität liest
 // sich vor allem über den Glow; zu große Kugeln überlappen sonst und lassen die Physik zappeln.
 function radiusTarget(n) {
+  if (n.venue) return 6.5; // D3: Venue = kleiner Ort-Marker, kein Planet (Größe kodiert keine Popularität)
   const base = 4 + Math.min(16, Math.pow(Math.max(1, n.deg | 0), 0.68) * 2.6);
   return base + popFactor(n) * 5;
 }
@@ -1817,6 +1860,11 @@ function focusSet() {
   for (const nb of (adj.get(focusId) || [])) s.add(nb);
   return s;
 }
+// D3: Venue als Raute (Ort-Marker) zeichnen, Artists weiter als Kreis — klar unterscheidbar.
+function traceNode(n, r) {
+  if (n.venue) { const s = r * 1.25; ctx.beginPath(); ctx.moveTo(n.x, n.y - s); ctx.lineTo(n.x + s, n.y); ctx.lineTo(n.x, n.y + s); ctx.lineTo(n.x - s, n.y); ctx.closePath(); }
+  else { ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); }
+}
 function draw() {
   ctx.clearRect(0, 0, W, H);
   // Planeten-Ansicht (nur Dark-Mode): dezentes Sternenfeld im Bildschirmraum hinter dem Graphen
@@ -1833,6 +1881,7 @@ function draw() {
   const fs = focusSet();
   const hi = compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null);
   const pe = null;
+  const previewingName = (previewName && audio.src && !audio.paused && !audio.ended) ? previewName : null; // C5: laufende Klangprobe
   // Nur der Fokus-Modus (Vergleich/Pfad, fs) versteckt hart. LOD (n._lodA) und Genre-Filter
   // (n._genA) werden weich über eased Alphas geblendet — kein Ploppen (B2/B10). vis() liefert
   // die kombinierte Sichtbarkeit 0..1 je Knoten.
@@ -1914,12 +1963,12 @@ function draw() {
     // weicher Hover-Schein hinter dem Knoten (nur der eine gehoverte — günstig)
     if (hovG && n.id === hovG.id && !faded && ap >= 1) {
       ctx.globalAlpha = 1; ctx.shadowColor = getCss("--edge-together"); ctx.shadowBlur = 16;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fillStyle = nodeColor(n); ctx.fill();
+      traceNode(n, r); ctx.fillStyle = nodeColor(n); ctx.fill();
       ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
     }
     ctx.globalAlpha = baseA;
-    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
-    ctx.fillStyle = nodeColor(n); ctx.fill(); // flach einfarbig (auch im Planeten-Modus)
+    traceNode(n, r);
+    ctx.fillStyle = nodeColor(n); ctx.fill(); // flach einfarbig (Venues als Raute, Artists als Kreis)
     const sCol = STATUS_COLOR[n.status];
     if (sel) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--text"); ctx.stroke(); }
     else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
@@ -1937,6 +1986,12 @@ function draw() {
     if (n.likePulse > 0) {
       ctx.globalAlpha = n.likePulse * 0.7; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
       ctx.beginPath(); ctx.arc(n.x, n.y, r + (1 - n.likePulse) * 20 / view.k, 0, 7); ctx.stroke();
+    }
+    // C5: Vorschau-Indikator — sanft pulsierender Ring am Act, dessen Klangprobe gerade läuft.
+    if (previewingName && n.name === previewingName) {
+      const pl = 0.5 + 0.5 * Math.sin(Date.now() / 260);
+      ctx.globalAlpha = (0.55 + 0.4 * pl) * baseA; ctx.lineWidth = 2.2 / view.k; ctx.strokeStyle = getCss("--edge-together");
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + (5 + pl * 4) / view.k, 0, 7); ctx.stroke();
     }
     if (n.active) {
       ctx.globalAlpha = baseA;
@@ -2152,7 +2207,10 @@ let idleTick = 0;
 function stepNodeAnims() {
   let live = false;
   for (const a of nodes) {
-    if (a.appear < 1) { a.appear = Math.min(1, a.appear + 0.055); live = true; }
+    if (a.appear < 1) {
+      if (a._appearDelay > 0) { a._appearDelay -= 1; live = true; } // C1: erst kurz warten (gestaffelt)
+      else { a.appear = Math.min(1, a.appear + 0.06); live = true; }
+    }
     if (a.likePulse > 0) { a.likePulse = Math.max(0, a.likePulse - 0.028); live = true; }
     // LOD: Blätter weich ein-/ausblenden statt schlagartig ploppen (B2). Ziel 1 = sichtbar, 0 = aus.
     const lodT = lodHiddenNode(a) ? 0 : 1;
@@ -2188,13 +2246,15 @@ function loop() {
   const sizing = stepSizes();     // Kugelgrößen sanft an ihr Ziel führen (organisch, kein Plopp)
   const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
   tick();
+  positionVenues(); // D3: Venues an den Schwerpunkt ihrer Acts setzen (nach der Physik)
   // Fokussierten Knoten mittig halten, solange sich das Layout noch bewegt (kein „Wegrutschen").
   if (followNode) {
     if (dragNode || !nodeById.has(followNode.id)) followNode = null;
     else { centerOn(followNode); if (alpha < ALPHA_MIN) followNode = null; }
   }
   const anims = stepNodeAnims();
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive || sizing;
+  const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive || sizing || npPlaying;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -2404,7 +2464,7 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { exploreByName(m.name, { select: false, center: false, reheatAmt: 0.5 }); } // ＋ = nur ausbauen, KEINE Info, kein Recenter (B7), sanftes Reheat (B4)
+      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.5 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), sanftes Reheat (B4)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
       else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;
@@ -3122,11 +3182,16 @@ const radarEl = document.getElementById("radarbox");
 const radarBody = document.getElementById("radarBody");
 const radarStamp = document.getElementById("radarStamp");
 let radarBusy = false;
-function closeRadar() { radarEl.classList.remove("show"); }
+// C10: Aktiv-Zustand am Radar-Knopf + Außenklick schließt -> klar, wie man das Fenster loswird.
+function syncRadarBtn() { document.getElementById("radarBtn").classList.toggle("on", radarEl.classList.contains("show")); }
+function closeRadar() { radarEl.classList.remove("show"); syncRadarBtn(); }
 document.getElementById("radarClose").onclick = closeRadar;
 document.getElementById("radarBtn").onclick = () => {
-  if (radarEl.classList.contains("show")) closeRadar(); else { radarEl.classList.add("show"); runRadar(false); }
+  if (radarEl.classList.contains("show")) closeRadar(); else { radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
 };
+document.addEventListener("mousedown", (e) => {
+  if (radarEl.classList.contains("show") && !radarEl.contains(e.target) && e.target.id !== "radarBtn" && !document.getElementById("radarBtn").contains(e.target)) closeRadar();
+});
 document.getElementById("radarRefresh").onclick = () => runRadar(true);
 
 function agoText(t) {
@@ -3135,6 +3200,16 @@ function agoText(t) {
   if (s < 3600) return `vor ${Math.round(s / 60)} Min`;
   if (s < 86400) return `vor ${Math.round(s / 3600)} Std`;
   return `vor ${Math.round(s / 86400)} Tg`;
+}
+// C8: ids der gerade sichtbaren Acts (im Viewport, keine Venues) — Basis fürs Radar.
+function visibleActIds() {
+  const ids = [];
+  for (const n of nodes) {
+    if (n.venue || !nodeById.has(n.id)) continue;
+    const sx = n.x * view.k + view.x, sy = n.y * view.k + view.y;
+    if (sx >= 0 && sx <= W && sy >= 52 && sy <= H) ids.push(n.id);
+  }
+  return ids;
 }
 async function runRadar(force) {
   if (radarBusy) return;
@@ -3145,12 +3220,12 @@ async function runRadar(force) {
     ? "Radar wird neu berechnet …"
     : "Radar wird berechnet … (erste Berechnung dauert etwas)";
   try {
-    const res = await API.radar([...basket], force);
+    const res = await API.radar([...basket], force, visibleActIds()); // C8: aus dem sichtbaren Ausschnitt
     if (res.error) { radarBody.textContent = res.error; return; }
     if (!res.radar.length) { radarBody.textContent = `Nichts gefunden — erkunde erst ein paar ${CFG.item.plur}, dann hat das Radar Futter.`; return; }
     if (res.computedAt) {
       radarStamp.style.display = "block";
-      radarStamp.textContent = `${res.likes} Likes als Basis · Stand: ${agoText(res.computedAt)}${res.cached ? " (gecacht)" : ""}`;
+      radarStamp.textContent = `${res.likes} ${res.fromVisible ? "sichtbare Acts" : "Likes"} als Basis · Stand: ${agoText(res.computedAt)}${res.cached ? " (gecacht)" : ""}`;
     }
     radarBody.className = "";
     radarBody.innerHTML = res.radar.map((r, i) => {
@@ -3402,7 +3477,22 @@ function findBridges() {
 
 // ---- Discover-Popover ----
 const discoverEl = document.getElementById("discoverbox");
-function toggleDiscover() { discoverEl.classList.toggle("show"); syncScenesSwitch(); }
+// C9: das Fenster als Dropdown direkt unter seinem Knopf ausrichten (statt fix am rechten Rand).
+function positionUnder(box, btn) {
+  const r = btn.getBoundingClientRect();
+  box.style.right = "auto"; box.style.top = (r.bottom + 6) + "px";
+  box.style.left = "0px"; // provisorisch, damit offsetWidth korrekt ist
+  const bw = box.offsetWidth;
+  box.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 8 - bw)) + "px";
+}
+function closeDiscover() { discoverEl.classList.remove("show"); document.getElementById("discoverBtn").classList.remove("on"); }
+function toggleDiscover() {
+  const show = !discoverEl.classList.contains("show");
+  discoverEl.classList.toggle("show", show);
+  document.getElementById("discoverBtn").classList.toggle("on", show); // C10-artiges Feedback
+  if (show) positionUnder(discoverEl, document.getElementById("discoverBtn")); // C9
+  syncScenesSwitch();
+}
 function syncScenesSwitch() {
   const it = document.getElementById("discScenes");
   it.classList.toggle("on", scenesMode);
@@ -3410,16 +3500,44 @@ function syncScenesSwitch() {
 }
 document.getElementById("discoverBtn").onclick = toggleDiscover;
 document.getElementById("discScenes").onclick = () => { scenesMode = !scenesMode; syncScenesSwitch(); requestDraw(); };
-document.getElementById("discSurprise").onclick = () => { discoverEl.classList.remove("show"); surpriseMe(); };
-document.getElementById("discBridges").onclick = () => { discoverEl.classList.remove("show"); showBridges(); };
+document.getElementById("discSurprise").onclick = () => { closeDiscover(); surpriseMe(); };
+document.getElementById("discBridges").onclick = () => { closeDiscover(); showBridges(); };
+// D2: „Netz sortieren" — Communities/Szenen in getrennte Sektoren legen und innerhalb per
+// Goldwinkel-Spirale gleichmäßig streuen, dann sanft settlen. Ergebnis: zusammengehörige Acts
+// liegen beieinander -> deutlich weniger gekreuzte Linien, saubere Abstände, kein hartes Zappeln.
+function sortLayout() {
+  const real = nodes.filter((n) => !n.venue);
+  if (real.length < 3) return;
+  const comm = computeCommunities();
+  const groups = new Map();
+  for (const n of real) { const c = comm.get(n.id) ?? ("_" + n.id); (groups.get(c) || groups.set(c, []).get(c)).push(n); }
+  const order = [...groups.values()].sort((a, b) => b.length - a.length);
+  const cx = W / 2, cy = (H + 52) / 2, SP = 40; // SP > Kollisionsabstand -> Physik muss kaum nachschieben
+  const maxGR = Math.max(1, ...order.map((m) => 20 + Math.sqrt(m.length) * SP));
+  const G = order.length, ringR = G > 1 ? Math.max(maxGR * 1.5, 240) : 0;
+  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  order.forEach((members, gi) => {
+    const ga = (gi / G) * Math.PI * 2, ccx = cx + Math.cos(ga) * ringR, ccy = cy + Math.sin(ga) * ringR;
+    members.sort((a, b) => (b.deg | 0) - (a.deg | 0)); // Hubs nach innen
+    members.forEach((n, i) => {
+      if (n.pinned) return; // manuell platzierte Knoten in Ruhe lassen
+      const r = Math.sqrt(i) * SP, a = i * GOLDEN;
+      n.x = ccx + Math.cos(a) * r; n.y = ccy + Math.sin(a) * r; n.vx = 0; n.vy = 0; n._moonAng = null;
+    });
+  });
+  stopFollow();
+  fitAll();     // die sortierte Anordnung gleich einpassen
+  reheat(0.5);  // sanft feinjustieren (Kollision/Feder), kein hartes Zappeln
+}
+document.getElementById("discTidy").onclick = () => { closeDiscover(); sortLayout(); toast("Netz sortiert"); };
 document.addEventListener("mousedown", (e) => {
   if (discoverEl.classList.contains("show") && !discoverEl.contains(e.target) && e.target.id !== "discoverBtn" && !document.getElementById("discoverBtn").contains(e.target))
-    discoverEl.classList.remove("show");
+    closeDiscover();
 });
 
 // ---- „Ansicht & Export"-Menü ----
 const moreEl = document.getElementById("morebox");
-document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("show"); discoverEl.classList.remove("show"); };
+document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("show"); closeDiscover(); };
 document.addEventListener("mousedown", (e) => {
   if (moreEl.classList.contains("show") && !moreEl.contains(e.target) && e.target.id !== "moreBtn")
     moreEl.classList.remove("show");
@@ -3809,6 +3927,8 @@ function maybeShowIntro() {
 // ---- Start ----
 (async () => {
   applyCfg(); // Pack-Begriffe/Legende/Feature-Gates anwenden, bevor irgendwas rendert
+  maybeShowIntro(); // C3: Intro sofort zeigen (unabhängig vom Graph-Load) -> erscheint auch dann
+                    // zuverlässig, wenn der Erst-Graph in einem restriktiven/Private-Tab langsam lädt.
   if (STATIC) {
     document.body.classList.add("is-static");
     const b = document.createElement("div");
@@ -3829,7 +3949,6 @@ function maybeShowIntro() {
   // Immer alles einpassen und zentrieren: so weit rauszoomen, dass der ganze Graph sichtbar ist.
   fitAll();
   loop();
-  maybeShowIntro();
   checkKey();
   startupTasks();
   // Cross-Pack-Brücke: mit ?q=<Name> gelandet -> Eintrag direkt erkunden (einmalig,
