@@ -92,6 +92,15 @@ const PACK_LIST = [...PACKS.values()].map((p) => ({ id: p.id, title: p.config.ti
 // Version aus package.json lesen (bleibt so automatisch synchron mit dem Release).
 let APP_VERSION = "";
 try { APP_VERSION = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")).version || ""; } catch {}
+// Deploy-Nachverfolgung (E1): zeigt, WELCHER Stand gerade live ist, verlinkt auf GitHub.
+//  - LIKE_BUILD_PR (z. B. "17") gesetzt  -> „PR #17" mit Link auf den Pull Request.
+//  - sonst der Deploy-Commit (LIKE_BUILD_REF oder Renders RENDER_GIT_COMMIT) -> Kurz-SHA + Commit-Link.
+// So lässt sich jederzeit nachvollziehen, welche Änderungen deployed sind.
+const REPO_URL = "https://github.com/allawallabedalla/like";
+const _BUILD_PR = (process.env.LIKE_BUILD_PR || "").replace(/\D/g, "");
+const _BUILD_SHA = (process.env.LIKE_BUILD_REF || process.env.RENDER_GIT_COMMIT || "").trim();
+const BUILD_REF = _BUILD_PR ? { label: `PR #${_BUILD_PR}`, href: `${REPO_URL}/pull/${_BUILD_PR}` }
+  : (_BUILD_SHA ? { label: _BUILD_SHA.slice(0, 7), href: `${REPO_URL}/commit/${_BUILD_SHA}` } : null);
 
 // „Kugeln"-Landing (GET / ohne ?pack): eine Karte je Pack mit Mini-Netz aus dem Demo-Graphen.
 // Der Demo-Graph dient nur der Vorschau-Optik; die echte Karte startet leer und füllt sich beim Suchen.
@@ -124,7 +133,7 @@ function landingPage(unlocked) {
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     cardSub: (c) => c.item.plur,
-    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>`,
+    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
     lockLabel: "Coming soon",
   });
@@ -572,7 +581,7 @@ const server = createServer(async (req, res) => {
 
     // Selbstauskunft: Pack + Key-Status + ob Feedback verfügbar ist (fürs Frontend beim Start)
     if (req.method === "GET" && url.pathname === "/api/health") {
-      return send(res, 200, { ok: true, key: await hasApiKey(pack), version: APP_VERSION, pack: pack.id, feedback: FEEDBACK_ON });
+      return send(res, 200, { ok: true, key: await hasApiKey(pack), version: APP_VERSION, build: BUILD_REF, pack: pack.id, feedback: FEEDBACK_ON });
     }
 
     // Testuser-Feedback -> Pushover an den Betreiber. Nur wenn Credentials hinterlegt sind.
@@ -686,12 +695,19 @@ const server = createServer(async (req, res) => {
             cands.push({ via: [{ name: s.name, url: s.url || t.url || null }], strength: ((s.match || 0.5) + (t.match || 0.5)) / 2 });
         }
         cands.sort((x, y) => y.strength - x.strength);
-        cands = cands.slice(0, 15);
+        cands = cands.slice(0, 25);
+        // Mehr-Stationen-Brücken deduped an die direkten anhängen (E4: mehr Ergebnisse behalten,
+        // statt sie zu ersetzen).
+        const appendCands = (extra) => {
+          const seenVia = new Set(cands.map((c) => c.via.map((v) => lc(v.name)).join("|")));
+          for (const c of extra) { const k = c.via.map((v) => lc(v.name)).join("|"); if (seenVia.has(k)) continue; seenVia.add(k); cands.push(c); }
+          cands = cands.slice(0, 20);
+        };
 
-        // Reicht das nicht: von BEIDEN Seiten je eine Ebene expandieren und in der Mitte treffen.
-        // Das findet auch Brücken, die keine gemeinsame direkte Verbindung haben (mehrere Schichten).
-        if (!cands.length) {
-          const K = 8;
+        // Zu WENIGE direkte Brücken (E4: nicht erst bei 0): von beiden Seiten eine Ebene expandieren
+        // und in der Mitte treffen — findet auch Brücken ohne gemeinsamen direkten Nachbarn.
+        if (cands.length < 5) {
+          const K = 10;
           const topA = NA.slice(0, K), topB = NB.slice(0, K);
           const [expA, expB] = await Promise.all([
             Promise.all(topA.map((x) => neighborsFor(pack, x.name, 40).then((r) => ({ x, list: r.list })).catch(() => null))),
@@ -715,10 +731,10 @@ const server = createServer(async (req, res) => {
             if (s && !skip.has(lc(x.name)) && lc(x.name) !== lc(y.name)) addTwo(s, y, ((s.match || 0.5) + (x.match || 0.5) + (y.match || 0.5)) / 3);
           }
           if (two.length) {
-            mode = "two"; two.sort((a, b) => b.strength - a.strength); cands = two.slice(0, 12);
+            if (!cands.length) mode = "two"; two.sort((a, b) => b.strength - a.strength); appendCands(two.slice(0, 15));
           } else {
             // 3) drei Stationen: A—X—M—Y—B  (M gemeinsamer Nachbar einer A-seitigen und einer B-seitigen Station)
-            mode = "three";
+            if (!cands.length) mode = "three";
             const bSets = BY.map(({ y, list }) => ({ y, set: new Map(list.map((m) => [lc(m.name), m])) }));
             const three = [], seen3 = new Set();
             for (const { x, list } of AX) for (const m of list) {
@@ -733,7 +749,7 @@ const server = createServer(async (req, res) => {
                   strength: ((x.match || 0.5) + (m.match || 0.5) + (mm.match || 0.5) + (y.match || 0.5)) / 4 });
               }
             }
-            three.sort((a, b) => b.strength - a.strength); cands = three.slice(0, 10);
+            three.sort((a, b) => b.strength - a.strength); appendCands(three.slice(0, 12));
           }
         }
 
