@@ -38,10 +38,10 @@ Leitmotiv weiter: fließend/organisch, klares Feedback, sinnvolle Defaults.
 - [ ] **C8 — Radar nur im sichtbaren Bild.** Das Radar soll neue Artists nur im aktuell sichtbaren
   Ausschnitt auftun/platzieren, nicht irgendwo außerhalb.
 
-- [ ] **C9 — Entdecken als Dropdown.** Das „Entdecken"-Modul öffnet aktuell am rechten
+- [x] **C9 — Entdecken als Dropdown.** Das „Entdecken"-Modul öffnet aktuell am rechten
   Bildschirmrand; es soll als Dropdown direkt unter dem „Entdecken"-Knopf erscheinen.
 
-- [ ] **C10 — Radar-Knopf-Feedback + Schließen.** Der Radar-Knopf gibt kein Feedback (aktiv/offen),
+- [x] **C10 — Radar-Knopf-Feedback + Schließen.** Der Radar-Knopf gibt kein Feedback (aktiv/offen),
   und man weiß nicht, wie man das Radar-Fenster wieder schließt. Aktiv-Zustand am Knopf + klare
   Schließen-Möglichkeit.
 

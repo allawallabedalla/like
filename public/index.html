@@ -432,6 +432,8 @@
   .helpbox .hclose:hover { color: var(--text); background: var(--line-soft); }
 
   /* Entdecken-Popover */
+  /* Aktiv-Zustand: Werkzeug-Knopf hervorheben, solange sein Fenster offen ist (C10, C9) */
+  #radarBtn.on, #discoverBtn.on { border-color: var(--edge-together); color: var(--edge-together); }
   .discoverbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
     padding: 12px 14px; width: 268px; display: none; font-size: 13px; box-shadow: 0 10px 34px rgba(0,0,0,.16); border-radius: 10px; }
   .discoverbox.show { display: block; }
@@ -3137,11 +3139,16 @@ const radarEl = document.getElementById("radarbox");
 const radarBody = document.getElementById("radarBody");
 const radarStamp = document.getElementById("radarStamp");
 let radarBusy = false;
-function closeRadar() { radarEl.classList.remove("show"); }
+// C10: Aktiv-Zustand am Radar-Knopf + Außenklick schließt -> klar, wie man das Fenster loswird.
+function syncRadarBtn() { document.getElementById("radarBtn").classList.toggle("on", radarEl.classList.contains("show")); }
+function closeRadar() { radarEl.classList.remove("show"); syncRadarBtn(); }
 document.getElementById("radarClose").onclick = closeRadar;
 document.getElementById("radarBtn").onclick = () => {
-  if (radarEl.classList.contains("show")) closeRadar(); else { radarEl.classList.add("show"); runRadar(false); }
+  if (radarEl.classList.contains("show")) closeRadar(); else { radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
 };
+document.addEventListener("mousedown", (e) => {
+  if (radarEl.classList.contains("show") && !radarEl.contains(e.target) && e.target.id !== "radarBtn" && !document.getElementById("radarBtn").contains(e.target)) closeRadar();
+});
 document.getElementById("radarRefresh").onclick = () => runRadar(true);
 
 function agoText(t) {
@@ -3417,7 +3424,22 @@ function findBridges() {
 
 // ---- Discover-Popover ----
 const discoverEl = document.getElementById("discoverbox");
-function toggleDiscover() { discoverEl.classList.toggle("show"); syncScenesSwitch(); }
+// C9: das Fenster als Dropdown direkt unter seinem Knopf ausrichten (statt fix am rechten Rand).
+function positionUnder(box, btn) {
+  const r = btn.getBoundingClientRect();
+  box.style.right = "auto"; box.style.top = (r.bottom + 6) + "px";
+  box.style.left = "0px"; // provisorisch, damit offsetWidth korrekt ist
+  const bw = box.offsetWidth;
+  box.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 8 - bw)) + "px";
+}
+function closeDiscover() { discoverEl.classList.remove("show"); document.getElementById("discoverBtn").classList.remove("on"); }
+function toggleDiscover() {
+  const show = !discoverEl.classList.contains("show");
+  discoverEl.classList.toggle("show", show);
+  document.getElementById("discoverBtn").classList.toggle("on", show); // C10-artiges Feedback
+  if (show) positionUnder(discoverEl, document.getElementById("discoverBtn")); // C9
+  syncScenesSwitch();
+}
 function syncScenesSwitch() {
   const it = document.getElementById("discScenes");
   it.classList.toggle("on", scenesMode);
@@ -3425,16 +3447,16 @@ function syncScenesSwitch() {
 }
 document.getElementById("discoverBtn").onclick = toggleDiscover;
 document.getElementById("discScenes").onclick = () => { scenesMode = !scenesMode; syncScenesSwitch(); requestDraw(); };
-document.getElementById("discSurprise").onclick = () => { discoverEl.classList.remove("show"); surpriseMe(); };
-document.getElementById("discBridges").onclick = () => { discoverEl.classList.remove("show"); showBridges(); };
+document.getElementById("discSurprise").onclick = () => { closeDiscover(); surpriseMe(); };
+document.getElementById("discBridges").onclick = () => { closeDiscover(); showBridges(); };
 document.addEventListener("mousedown", (e) => {
   if (discoverEl.classList.contains("show") && !discoverEl.contains(e.target) && e.target.id !== "discoverBtn" && !document.getElementById("discoverBtn").contains(e.target))
-    discoverEl.classList.remove("show");
+    closeDiscover();
 });
 
 // ---- „Ansicht & Export"-Menü ----
 const moreEl = document.getElementById("morebox");
-document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("show"); discoverEl.classList.remove("show"); };
+document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("show"); closeDiscover(); };
 document.addEventListener("mousedown", (e) => {
   if (moreEl.classList.contains("show") && !moreEl.contains(e.target) && e.target.id !== "moreBtn")
     moreEl.classList.remove("show");
