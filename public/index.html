@@ -1521,10 +1521,11 @@ function rebuild(prev, reheatAmt = 1) {
       // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar.
       // Beim Initial-Load ist alles sofort voll sichtbar (appear 1), keine Kaskade.
       appear: old?.appear ?? (firstBuild ? 1 : 0),
-      // E2/C1: frische Knoten blenden als KASKADE ein — jeder deutlich später als der vorige.
-      // Der feste Abstand (·6) muss GRÖSSER als der Jitter (·2) sein, sonst überlappen die
+      // E2/C1: frische Knoten blenden als KASKADE ein — jeder etwas später als der vorige.
+      // Der feste Abstand (·4) muss GRÖSSER als der Jitter (·2) sein, sonst überlappen die
       // Startzeiten und es klumpt. Jitter deterministisch (aus der ID), damit kein Reload-Würfeln.
-      _appearDelay: old || firstBuild ? 0 : (_spawnSeq++ * 6 + seededRnd(a.id, "delay") * 2),
+      // ·4 statt ·6: die Monde erscheinen zügiger (v. a. auf dem iPhone spürbar).
+      _appearDelay: old || firstBuild ? 0 : (_spawnSeq++ * 4 + seededRnd(a.id, "delay") * 2),
       likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
     };
   });
@@ -2337,7 +2338,7 @@ function stepNodeAnims() {
   for (const a of nodes) {
     if (a.appear < 1) {
       if (a._appearDelay > 0) { a._appearDelay -= 1; live = true; } // C1: erst kurz warten (gestaffelt)
-      else { a.appear = Math.min(1, a.appear + 0.05); live = true; }
+      else { a.appear = Math.min(1, a.appear + 0.07); live = true; } // etwas schneller einblenden (iPhone)
     }
     if (a.likePulse > 0) { a.likePulse = Math.max(0, a.likePulse - 0.028); live = true; }
     // LOD: Blätter weich ein-/ausblenden statt schlagartig ploppen (B2). Ziel 1 = sichtbar, 0 = aus.
