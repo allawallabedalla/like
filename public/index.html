@@ -283,10 +283,9 @@
     opacity: 0; pointer-events: none; transition: opacity .18s ease; }
   .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { opacity: 0; }
   .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { opacity: 1; pointer-events: auto; }
-  /* Scrub-Leiste füllt die Pille: sie dehnt sich auf die Breite des Mittelteils (= Titelbreite),
-     sodass der Spulstrich beim Nähern „vollfüllend" erscheint statt als schmaler Fixbalken. */
-  .nowplaying .npscrub { width: 100%; }
-  .nowplaying #npBar { flex: 1 1 auto; position: relative; min-width: 60px; height: 6px; border-radius: 3px;
+  /* Scrub-Leiste IMMER gleich breit (fixe 70px) — egal wie lang der Artist-Titel ist. Die Pille
+     selbst wächst mit dem Titel (Idle-Zustand), die Spulleiste bleibt konstant. */
+  .nowplaying #npBar { flex: none; position: relative; width: 70px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
   .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
@@ -317,6 +316,11 @@
     background: var(--accent); color: var(--on-accent); border-radius: 20px; padding: 6px 14px; font-size: 12px; align-items: center; gap: 12px; }
   .modebar.show { display: flex; }
   .modebar a { color: var(--on-accent); text-decoration: underline; cursor: pointer; }
+  /* Lade-Spinner in der Modebar (Brückensuche „läuft") */
+  .modebar .mspin { display: inline-block; width: 11px; height: 11px; border: 2px solid color-mix(in srgb, var(--on-accent) 35%, transparent);
+    border-top-color: var(--on-accent); border-radius: 50%; vertical-align: -1px; margin-right: 2px; animation: mspin .8s linear infinite; }
+  @keyframes mspin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .modebar .mspin { animation-duration: 2.4s; } }
 
   /* Brücke-Regler: schwebt unten mittig, während Kandidaten als Geister-Knoten liegen */
   .bridgebar { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 13;
@@ -1582,6 +1586,7 @@ function rebuild(prev, reheatAmt = 1) {
   document.getElementById("counts").textContent = `${nodes.length} ${CFG.item.plur} · ${links.length} Kanten`;
   document.getElementById("empty").classList.toggle("show", nodes.length === 0);
   computeGenreColors(); // Cluster-Farben an den neuen Bestand anpassen
+  assignRevealK();      // LOD-Reveal-Schwellen rangweise neu verteilen (gleichmäßig pro Zoom-Step)
   communities = null;   // Szenen/Brücken neu berechnen lassen (Graph hat sich geändert)
   renderBasket();
   renderLegend();       // dynamische Legende an den neuen Bestand anpassen (B12)
@@ -1658,6 +1663,10 @@ function tick() {
   const REP = 8800, SPRING = 0.012, DAMP = 0.86, CUT = 460, CUT2 = CUT * CUT; // etwas mehr Abstoßung -> luftigeres Netz
   const COLLIDE_PAD = 30; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
   const n = nodes.length;
+  // Dichte-Ausgleich: bei vielen Knoten das ganze Gerüst luftiger auseinanderziehen (Feder-
+  // Ruhelängen länger, Zentrums-Sog schwächer) — sonst klumpen die Sonnen mit ihren Halos zu
+  // einem wilden Knäuel. ~sqrt(n), damit die Fläche ungefähr mit der Knotenzahl mitwächst.
+  const spread = Math.min(2.8, Math.max(1, Math.sqrt(n / 45)));
   // Radien einmal pro Frame vorberechnen (radius() liest Grad/Popularität) — für die Kollision
   const rad = new Array(n);
   for (let i = 0; i < n; i++) rad[i] = radius(nodes[i]);
@@ -1706,7 +1715,7 @@ function tick() {
   }
   for (const l of links) {
     if (l.type === "venue") continue; // D3: Venue-Kanten ziehen nicht — Venues folgen ihren Acts, nicht umgekehrt
-    let rest = 85 + (1 - (l.bond ?? l.strength)) * 90; // kombinierte Bindung (ähnlich+zusammen => näher)
+    let rest = (85 + (1 - (l.bond ?? l.strength)) * 90) * spread; // kombinierte Bindung (ähnlich+zusammen => näher), bei dichtem Netz luftiger
     // Planeten-Modus: zwei benachbarte Planeten (beide mit Mond-Halo) brauchen Platz für ihre
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
     // Halo-Radien + Puffer anheben, damit sich die Planeten sauber auseinanderschieben.
@@ -1723,8 +1732,9 @@ function tick() {
   }
   for (const a of nodes) {
     if (a.venue) continue; // D3: Venues werden separat über positionVenues() am Schwerpunkt ihrer Acts platziert
-    a.vx += (W / 2 - a.x) * 0.00024 * alpha;
-    a.vy += (H / 2 - a.y) * 0.00024 * alpha;
+    const centerK = 0.00024 / spread; // dichtes Netz: schwächerer Sog, damit es sich entzerren kann
+    a.vx += (W / 2 - a.x) * centerK * alpha;
+    a.vy += (H / 2 - a.y) * centerK * alpha;
     // fixierte Knoten (nach manuellem Ziehen) bleiben stehen, stoßen aber weiter ab —
     // so lässt sich das Netz von Hand sortieren, ohne dass die Physik es zurückzieht
     if (a === dragNode || a.pinned || a._moon) { a.vx = 0; a.vy = 0; continue; } // Monde folgen ihrer Umlaufbahn
@@ -1994,6 +2004,10 @@ function draw() {
       const r = radius(n);
       // Glow ~ Popularität (Helligkeit ist das Hauptsignal), Grad nur als kleiner Struktur-Anteil.
       const gf = glowFactor(n);
+      // Ein Hof macht nur da Sinn, wo er etwas AUSSAGT: bei populären Acts (Glow) und bei den
+      // Sonnen/Hubs (Reichweite). Kleine, unpopuläre Blätter/Monde bekommen KEINEN Hof — sonst
+      // überlagern sich lauter bedeutungslose Nebelscheiben zu einem diffusen Grau.
+      if (gf < 0.12 && !lodSun(n)) continue;
       const degExt = Math.min(16, Math.sqrt(Math.max(0, n.deg || 0)) * 3);
       const hR = r + 6 + degExt + gf * 46; // Ausdehnung: wenig durch Grad, viel durch Popularität
       if (!isFinite(r) || !isFinite(hR) || !isFinite(n.x) || !isFinite(n.y)) continue;
@@ -2165,6 +2179,7 @@ function draw() {
     let g = null, gd = Infinity;
     for (const n of nodes) {
       if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id)) continue;
+      if (lodHiddenNode(n) || vis(n) < 0.5) continue; // ausgeblendete (LOD) Knoten bekommen keinen Play-Knopf
       const dx = mouseWorld.x - n.x, dy = mouseWorld.y - n.y, dd = Math.sqrt(dx * dx + dy * dy);
       if (dd < gd) { gd = dd; g = n; }
     }
@@ -2382,18 +2397,23 @@ const SUN_DEG = 3;
 function lodSun(n) {
   return n.seed || n.status || n.note || n.known || (selected && n.id === selected.id) || basket.has(n.id) || (n.deg | 0) >= SUN_DEG;
 }
-// Ab welchem Zoom ein Planet auftaucht: GRÖSSERE/populärere zuerst (kleinere Schwelle), plus
-// leichter deterministischer Jitter -> wirkt „random, aber größenpriorisiert". Beim Reinzoomen
-// kommen so nach und nach mehr Planeten (mit ihren Verbindungslinien) dazu.
-function lodRevealK(n) {
-  const t = Math.max(0, Math.min(1, (radiusTarget(n) - 6) / 10)); // 0 = klein, 1 = groß
-  return 0.9 + (1 - t) * 0.9 + (seededRnd(n.id, "lod") - 0.5) * 0.2;
+// Ab welchem Zoom ein Planet auftaucht. Die Schwelle je Planet wird EINMAL pro Rebuild
+// RANGweise vergeben (assignRevealK): die Planeten werden nach Größe sortiert und ihre
+// Schwellen gleichmäßig über den Zoombereich verteilt. So kommt beim Reinzoomen mit JEDEM
+// Zoom-Step sichtbar etwas dazu (bzw. beim Rauszoomen weg) — keine Klumpen, keine Leerläufe.
+const REVEAL_K0 = 0.8, REVEAL_K1 = 3.2;
+function assignRevealK() {
+  const planets = nodes.filter((x) => !x.venue && !x.seed && (x.deg | 0) < SUN_DEG);
+  // größte zuerst (früheste Schwelle); Gleichstand deterministisch aufbrechen
+  planets.sort((a, b) => radiusTarget(b) - radiusTarget(a) || (seededRnd(a.id, "lod") - seededRnd(b.id, "lod")));
+  const m = planets.length;
+  planets.forEach((x, i) => { x._revealK = m <= 1 ? REVEAL_K0 : REVEAL_K0 + (i / (m - 1)) * (REVEAL_K1 - REVEAL_K0); });
 }
 function lodHiddenNode(n) {
   if (!n || n.venue) return false;
   if (nodes.length <= 40) return false;   // kleine Graphen: alles zeigen
   if (lodSun(n)) return false;            // Sonnen immer sichtbar
-  return view.k < lodRevealK(n);          // Planeten gestaffelt (größenpriorisiert) einblenden
+  return view.k < (n._revealK ?? REVEAL_K1); // Planeten rangweise gestaffelt einblenden
 }
 // Genre-Filter (Topbar-Text ODER Panel-Pills): passt ein Knoten NICHT? (für weiches Ausblenden, B10)
 function genreFilterActive() { return !!filterGenre || activeGenres.size > 0; }
@@ -2845,6 +2865,9 @@ async function loadDetails(n) {
     }
     if (res.listeners != null) { n.listeners = res.listeners; if (graph.artists[n.id]) graph.artists[n.id].listeners = res.listeners; }
     if (res.location && !n.booking?.area) n.bcLocation = res.location;
+    // Hörer-Trend (aus der App-Historie) am Knoten merken — nur gesetzt, wenn GENUG Daten da
+    // sind (growthPerMonth liefert sonst null). Wird fürs Teilen genutzt.
+    n._growth = (res.growth != null) ? res.growth : null;
     if (res.genres?.length) computeGenreColors(); // nachgeladene Genres in die Cluster-Farben einbeziehen
     if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); }
     requestDraw();
@@ -2865,28 +2888,38 @@ document.getElementById("status").onchange = async (e) => {
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
 };
-// Teilen per E-Mail: dieselben Fakten wie im CSV-Export (Name, Genre, Region, Hörer, Notiz).
-// KEIN generischer Artist-Link (last.fm & Co. sagen dem Empfänger nichts) — wenn ein Link, dann
-// eine konkrete Klangprobe (genau EIN Track) als „diskreter" Hör-Link.
+// Teilen per E-Mail: Fakten wie im CSV-Export (Name, Genre, Region, Hörer, Notiz) + Links:
+// Last.fm-Profil, YouTube-Suche nach dem konkreten Vorschau-Track und die Klangprobe selbst.
 document.getElementById("shareBtn").onclick = async () => {
   if (!selected || selected.venue) return;
   const n = selected, b = n.booking || {};
   const region = [b.area, b.country].filter(Boolean).join(", ") || n.bcLocation || "";
+  // Trend NUR anhängen, wenn genug App-Historie gesammelt wurde (n._growth != null).
+  const trend = (typeof n._growth === "number")
+    ? (n._growth >= 5 ? " (steigend)" : n._growth <= -5 ? " (fallend)" : " (konstant)")
+    : "";
   const info = [
     n.name,
     (n.genres && n.genres.length) ? `Genre: ${n.genres.slice(0, 4).join(", ")}` : "",
     region ? `Region: ${region}` : "",
-    (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}` : "",
+    (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}${trend}` : "",
     n.note ? `Notiz: ${n.note}` : "",
   ].filter(Boolean);
-  let listen = "";
+  const links = [];
   if (!STATIC) {
     try {
-      const res = await API.preview(n.name, n.listeners);
-      if (res && res.ok && res.url) listen = `Hörprobe${res.track ? ` „${res.track}"` : ""}: ${res.url}`;
+      const res = await API.preview(n.name, n.listeners); // liefert den ausgewählten Vorschau-Track
+      if (res && res.ok) {
+        if (res.track) {
+          const q = encodeURIComponent(`${res.artist || n.name} ${res.track}`);
+          links.push(`YouTube (Vorschau „${res.track}"): https://www.youtube.com/results?search_query=${q}`);
+        }
+        if (res.url) links.push(`Klangprobe: ${res.url}`);
+      }
     } catch {}
   }
-  const body = [...info, ...(listen ? ["", listen] : [])].join("\n");
+  if (n.url) links.push(`Last.fm: ${n.url}`);
+  const body = [...info, ...(links.length ? ["", ...links] : [])].join("\n");
   location.href = `mailto:?subject=${encodeURIComponent(`Musik-Tipp: ${n.name}`)}&body=${encodeURIComponent(body)}`;
 };
 document.getElementById("saveNote").onclick = async () => {
@@ -3096,6 +3129,7 @@ async function finishBridge(target) {
   toast(`Suche Brücke: „${a.name}" ↔ „${target.name}" …`);
   try {
     const res = await API.bridge(a.name, target.name);
+    if (!bridge) return; // zwischenzeitlich abgebrochen (Progress-Abbrechen)
     if (res.error) { toast("Fehler: " + res.error); clearBridge(); return; }
     // Nur Kandidaten rausfiltern, deren VOLLE Kette (A—via…—B) als Kanten SCHON existiert — dann
     // ist die Verbindung wirklich da. Ist ein Zwischen-Eintrag zwar auf der Karte, aber (noch)
@@ -3197,13 +3231,14 @@ function updateModebar() {
   if (focusId && nodeById.has(focusId)) parts.push(`Fokus: ${nodeById.get(focusId).name} <a id="mFocus">✕</a>`);
   if (compareSet.size >= 2) parts.push(`Vergleich: ${compareSet.size} ${CFG.item.plur} → ${commonNeighbors(compareSet).size} gemeinsame <a id="mCmp">✕</a>`);
   else if (compareSet.size === 1) parts.push(`Vergleich: 1 ${CFG.item.sing} (Shift-Klick für mehr) <a id="mCmp">✕</a>`);
+  if (bridge && bridge.loading) parts.push(`<span class="mspin"></span> Brücke „${bridge.a.name}" ↔ „${bridge.b.name}" wird gesucht … <a id="mBridgeCancel">abbrechen</a>`);
   if (bridgeFrom) parts.push(`Brücke von „${bridgeFrom.name}": Ziel anklicken <a id="mBridge">✕</a>`);
   if (secretMode) parts.push(`Geheimtipps hervorgehoben <a id="mSec">✕</a>`);
   if (bridgeSet.size) parts.push(`Brückenbauer: ${bridgeSet.size} markiert <a id="mBridges">✕</a>`);
   if (!parts.length) { m.classList.remove("show"); m.innerHTML = ""; return; }
   m.innerHTML = parts.join("  ·  "); m.classList.add("show");
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-  bind("mFocus", clearFocus); bind("mCmp", clearCompare); bind("mBridge", clearBridge); bind("mBridges", clearBridges);
+  bind("mFocus", clearFocus); bind("mCmp", clearCompare); bind("mBridge", clearBridge); bind("mBridgeCancel", clearBridge); bind("mBridges", clearBridges);
   bind("mSec", () => { secretMode = false; document.getElementById("secret").checked = false; updateModebar(); });
 }
 

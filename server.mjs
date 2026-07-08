@@ -563,7 +563,11 @@ const server = createServer(async (req, res) => {
     }
     const GRAPH = dataFile(dataRoot, pack.id, "graph.json");
     const DIGEST = dataFile(dataRoot, pack.id, "digest.json");
-    const STATS = dataFile(dataRoot, pack.id, "stats.json");
+    // Hörer-Historie GLOBAL (nicht pro Namensraum): Hörerzahlen sind öffentliche Fakten und die
+    // Act-IDs sind überall identisch (Namens-Slug). So tragen die Aktualisierungen ALLER Nutzer
+    // zur gemeinsamen Zeitreihe bei -> der Trend wird viel schneller belastbar. (Die eigenen
+    // Karten/Graphen bleiben natürlich pro Namensraum privat.)
+    const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
     // Graph speichern UND den Radar-Cache dieses Packs verwerfen (nie veraltete Vorschläge).
     const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
 
