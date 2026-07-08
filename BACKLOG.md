@@ -10,11 +10,11 @@
 - [ ] **E1 — Landing-Footer / „PR#" (RÜCKFRAGE).** Footer zeigt „v2.4.0 · alle Domänen in einer App ·
   Impressum · Datenschutz". Unklar, was „überall den PR# einfügen" meint — mit dir klären.
 
-- [ ] **E2 — Spawn-Stagger kontinuierlich.** Der zeitversetzte Fade-in klappt noch nicht: aktuell
+- [x] **E2 — Spawn-Stagger kontinuierlich.** Der zeitversetzte Fade-in klappt noch nicht: aktuell
   sind zwei sofort da und der Rest fadet als Klumpen rein. Es soll ein KONTINUIERLICHES, nach-
   einander „Mehr-Erscheinen" sein (Kaskade), nicht Batch.
 
-- [ ] **E3 — Neuer Such-Artist landet teils sehr weit weg.** Suche zentriert zwar schön, aber der
+- [x] **E3 — Neuer Such-Artist landet teils sehr weit weg.** Suche zentriert zwar schön, aber der
   neu eingefügte Artist liegt manchmal weit draußen. Platzierung prüfen & korrigieren (Seed +
   seine neuen Nachbarn sinnvoll um die Mitte gruppieren).
 
@@ -26,7 +26,7 @@
   andere Genres große Lücken bei „zusammen aufgetreten". Woher sonst? (Setlist.fm/Songkick/
   Bandsintown prüfen — was ohne Key/kostenlos geht.)
 
-- [ ] **E6 — „Netz sortieren" in die Titelleiste.** Aktuell im Entdecken-Menü (schwer zu finden,
+- [x] **E6 — „Netz sortieren" in die Titelleiste.** Aktuell im Entdecken-Menü (schwer zu finden,
   wirkt „hinter den Venues"). Als eigener Knopf oben in die Topbar (zu ?/⋯ usw.).
 
 ---
