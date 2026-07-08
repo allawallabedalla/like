@@ -21,6 +21,12 @@
   Acts**, die dort gespielt haben (Position = „mitten unter seinen Acts"), und ist als **Ort** klar
   von Artists unterscheidbar (Form/Größe), ohne die Artists umherzuschieben.
 
+- [x] **D4 (Folgefrage) — Abstand zur Sonne: kombinierte Bindung.** Abstand kommt aus der
+  Kantenstärke (Ruhelänge), nicht nur aus Ähnlichkeit. Neu (Option A): beide Kantenarten pro Paar
+  zu EINER Bindungsstärke verrechnet (prob. ODER: `bond = 1 − ∏(1−strength)`), Feder-Ruhelänge nutzt
+  `bond`. Zusätzlich sind Single-Nachbar-Satelliten auch mit zwei Kantenarten jetzt Monde. Ergebnis:
+  „ähnlich UND zusammen" = am nächsten. Verifiziert: Space both 70 (< 71), Flat both 135 (< 169).
+
 ---
 
 ## Arbeitsweise

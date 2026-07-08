@@ -1496,6 +1496,14 @@ function rebuild(prev, reheatAmt = 1) {
     const a = nodeById.get(ve.from), b = nodeById.get(ve.to);
     if (a && b) links.push({ a, b, type: "venue", weight: ve.weight, shows: [], strength: Math.min(1, 0.4 + 0.15 * ve.weight) });
   }
+  // Kombinierte BINDUNGSSTÄRKE pro Paar aus ALLEN Kantenarten (ähnlich + zusammen), probabilistisches
+  // ODER: bond = 1 − ∏(1 − strength_i). Ein Act, der ähnlich UND zusammen aufgetreten ist, bindet
+  // dadurch stärker als über nur eine Kante -> kürzere Feder-Ruhelänge -> sitzt näher an der Sonne.
+  // (Space & Flat gleich; Venue-Kanten bleiben außen vor.) Beide Kanten des Paars tragen dasselbe l.bond.
+  const bondByPair = new Map();
+  const pairKey = (l) => l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
+  for (const l of links) { if (l.type === "venue") continue; const k = pairKey(l); bondByPair.set(k, 1 - (1 - (bondByPair.get(k) ?? 0)) * (1 - (l.strength ?? 0.5))); }
+  for (const l of links) { l.bond = l.type === "venue" ? l.strength : (bondByPair.get(pairKey(l)) ?? l.strength); }
   // Adjazenz für Schnittmengen / Pfade
   adj.clear();
   for (const l of links) {
@@ -1656,7 +1664,7 @@ function tick() {
   }
   for (const l of links) {
     if (l.type === "venue") continue; // D3: Venue-Kanten ziehen nicht — Venues folgen ihren Acts, nicht umgekehrt
-    let rest = 85 + (1 - l.strength) * 90;
+    let rest = 85 + (1 - (l.bond ?? l.strength)) * 90; // kombinierte Bindung (ähnlich+zusammen => näher)
     // Planeten-Modus: zwei benachbarte Planeten (beide mit Mond-Halo) brauchen Platz für ihre
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
     // Halo-Radien + Puffer anheben, damit sich die Planeten sauber auseinanderschieben.
@@ -1718,8 +1726,8 @@ function orbitMoons() {
   for (const n of nodes) {
     // gezogene (gepinnte) Monde aus der Umlaufbahn befreien -> bleiben liegen, wo man sie ablegt
     // (Rechtsklick löst die Fixierung, dann kreisen sie wieder).
-    if (n.venue || n === dragNode || n.pinned || (n.deg | 0) !== 1) continue;
-    const nb = adj.get(n.id); if (!nb || nb.size !== 1) continue;
+    if (n.venue || n === dragNode || n.pinned) continue;
+    const nb = adj.get(n.id); if (!nb || nb.size !== 1) continue; // genau EIN Nachbar (egal ob 1 oder 2 Kantenarten -> „beides"-Satelliten zählen auch, A)
     const parent = nodeById.get([...nb][0]);
     if (!parent || parent.venue || (parent.deg | 0) < 2) continue; // nur um echte Hubs kreisen
     let arr = byParent.get(parent.id); if (!arr) byParent.set(parent.id, arr = []);
@@ -1744,7 +1752,7 @@ function orbitMoons() {
         m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + Math.random() * 0.12;
         // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> leichte Radius-Nuance
         let tie = 0.5;
-        for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.strength != null ? l.strength : 0.5; break; } }
+        for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.bond != null ? l.bond : (l.strength ?? 0.5); break; } }
         m._moonTie = Math.max(0.05, Math.min(1, tie));
       }
       // Extrem subtil und PRO MOND randomisiert (Tempo + Richtung) -> natürliches, nicht
