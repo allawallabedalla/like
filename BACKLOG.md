@@ -35,7 +35,7 @@ Leitmotiv weiter: fließend/organisch, klares Feedback, sinnvolle Defaults.
   breitere Pille), aber die Scrub-Leiste selbst soll IMMER gleich groß sein (feste Breite), nicht
   mit dem Titel mitwachsen.
 
-- [ ] **C8 — Radar nur im sichtbaren Bild.** Das Radar soll neue Artists nur im aktuell sichtbaren
+- [x] **C8 — Radar nur im sichtbaren Bild.** Das Radar soll neue Artists nur im aktuell sichtbaren
   Ausschnitt auftun/platzieren, nicht irgendwo außerhalb.
 
 - [x] **C9 — Entdecken als Dropdown.** Das „Entdecken"-Modul öffnet aktuell am rechten

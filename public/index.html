@@ -1195,7 +1195,7 @@ const API = {
   restore: (body) => POST("/api/restore", body),
   genres: (id) => POST("/api/genres", { id }),
   enrich: (id) => POST("/api/enrich", { id }),
-  radar: (extraLikes, force) => POST("/api/radar", { extraLikes, force }),
+  radar: (extraLikes, force, visible) => POST("/api/radar", { extraLikes, force, visible }),
   snapshot: () => POST("/api/snapshot", {}),
   popfill: () => POST("/api/popfill", {}),
   genrefill: () => POST("/api/genrefill", {}),
@@ -3162,6 +3162,16 @@ function agoText(t) {
   if (s < 86400) return `vor ${Math.round(s / 3600)} Std`;
   return `vor ${Math.round(s / 86400)} Tg`;
 }
+// C8: ids der gerade sichtbaren Acts (im Viewport, keine Venues) — Basis fürs Radar.
+function visibleActIds() {
+  const ids = [];
+  for (const n of nodes) {
+    if (n.venue || !nodeById.has(n.id)) continue;
+    const sx = n.x * view.k + view.x, sy = n.y * view.k + view.y;
+    if (sx >= 0 && sx <= W && sy >= 52 && sy <= H) ids.push(n.id);
+  }
+  return ids;
+}
 async function runRadar(force) {
   if (radarBusy) return;
   radarBusy = true;
@@ -3171,12 +3181,12 @@ async function runRadar(force) {
     ? "Radar wird neu berechnet …"
     : "Radar wird berechnet … (erste Berechnung dauert etwas)";
   try {
-    const res = await API.radar([...basket], force);
+    const res = await API.radar([...basket], force, visibleActIds()); // C8: aus dem sichtbaren Ausschnitt
     if (res.error) { radarBody.textContent = res.error; return; }
     if (!res.radar.length) { radarBody.textContent = `Nichts gefunden — erkunde erst ein paar ${CFG.item.plur}, dann hat das Radar Futter.`; return; }
     if (res.computedAt) {
       radarStamp.style.display = "block";
-      radarStamp.textContent = `${res.likes} Likes als Basis · Stand: ${agoText(res.computedAt)}${res.cached ? " (gecacht)" : ""}`;
+      radarStamp.textContent = `${res.likes} ${res.fromVisible ? "sichtbare Acts" : "Likes"} als Basis · Stand: ${agoText(res.computedAt)}${res.cached ? " (gecacht)" : ""}`;
     }
     radarBody.className = "";
     radarBody.innerHTML = res.radar.map((r, i) => {
