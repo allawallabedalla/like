@@ -277,15 +277,16 @@
   /* Mittelteil hält EQ+Titel UND die Scrub-Leiste im selben Kasten übereinander: bei Maus-
      Näherung wird der Titel weich gegen die Spulleiste getauscht — die PILLENBREITE bleibt
      gleich (Scrub liegt absolut über dem Titel). Maus weg -> wieder EQ+Titel. Touch: .expanded. */
-  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; min-width: 155px; }
+  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; }
   .nowplaying .npidle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; transition: opacity .18s ease; }
   .nowplaying .npscrub { position: absolute; inset: 0; display: inline-flex; align-items: center; gap: 9px;
     opacity: 0; pointer-events: none; transition: opacity .18s ease; }
-  .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { opacity: 0; }
-  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { opacity: 1; pointer-events: auto; }
-  /* Scrub-Leiste IMMER gleich breit (fixe 70px) — egal wie lang der Artist-Titel ist. Die Pille
-     selbst wächst mit dem Titel (Idle-Zustand), die Spulleiste bleibt konstant. */
-  .nowplaying #npBar { flex: none; position: relative; width: 70px; height: 6px; border-radius: 3px;
+  /* Bei Näherung/Touch: Titel RAUS aus dem Fluss (absolut), Scrub REIN (relativ) — dadurch nimmt
+     die Pille die Breite der Scrub-Leiste an (statt Titelbreite mit Leerraum). Idle: Titelbreite. */
+  .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+  .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { position: relative; inset: auto; opacity: 1; pointer-events: auto; }
+  /* Scrub-Leiste responsiv (~100px am Desktop, schmaler am Handy) — je Screenbreite passend. */
+  .nowplaying #npBar { flex: none; position: relative; width: clamp(64px, 22vw, 108px); height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
   .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
@@ -1943,9 +1944,10 @@ function draw() {
   // Nur der Fokus-Modus (Vergleich/Pfad, fs) versteckt hart. LOD (n._lodA) und Genre-Filter
   // (n._genA) werden weich über eased Alphas geblendet — kein Ploppen (B2/B10). vis() liefert
   // die kombinierte Sichtbarkeit 0..1 je Knoten.
-  // Kanten weich mit dem Zoom ausblenden: bei LEAF_ZOOM voll da, bei starkem Rauszoomen
-  // (k ≤ 0.4) komplett weg — weit draußen zählt nur noch die Sternenform, keine Linien.
-  const linkFade = Math.max(0, Math.min(1, (view.k - 0.4) / (LEAF_ZOOM - 0.4)));
+  // Kanten weich mit dem Zoom ein-/ausblenden. Ganz weit draußen (Max-Zoom) NUR die Sonnen,
+  // keine Linien; sobald man etwas reinzoomt, erscheinen als Erstes die Verbindungen (noch VOR
+  // den Planeten, die erst ab ~0.8 auftauchen). Ramp 0.35 → 0.7.
+  const linkFade = Math.max(0, Math.min(1, (view.k - 0.35) / (0.7 - 0.35)));
   const hidden = (id) => (fs && !fs.has(id) && !(selected && id === selected.id));
   const vis = (n) => (n._lodA ?? 1) * (n._genA ?? 1);
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
@@ -2404,8 +2406,9 @@ function lodSun(n) {
 const REVEAL_K0 = 0.8, REVEAL_K1 = 3.2;
 function assignRevealK() {
   const planets = nodes.filter((x) => !x.venue && !x.seed && (x.deg | 0) < SUN_DEG);
-  // größte zuerst (früheste Schwelle); Gleichstand deterministisch aufbrechen
-  planets.sort((a, b) => radiusTarget(b) - radiusTarget(a) || (seededRnd(a.id, "lod") - seededRnd(b.id, "lod")));
+  // REIN zufällige (aber deterministische) Reihenfolge — NICHT nach Größe, sonst erscheinen
+  // kleine Artists systematisch zuletzt. So kommt bunt gemischt beim Reinzoomen Nachschub.
+  planets.sort((a, b) => seededRnd(a.id, "lodrank") - seededRnd(b.id, "lodrank"));
   const m = planets.length;
   planets.forEach((x, i) => { x._revealK = m <= 1 ? REVEAL_K0 : REVEAL_K0 + (i / (m - 1)) * (REVEAL_K1 - REVEAL_K0); });
 }
@@ -2511,7 +2514,10 @@ cv.addEventListener("mousedown", (e) => {
   const p = canvasXY(e);
   const n = pick(p.x, p.y);
   dragging = true; moved = false;
-  if (n) { dragNode = n; }
+  // Monde NICHT greifbar machen: sie folgen ihrer Umlaufbahn (orbitMoons). Würde man sie
+  // beim Klick minimal verschieben, schnappt orbitMoons sie sofort zurück -> kurzes Zappeln
+  // (und sie würden fälschlich „fixiert"). Play/＋/ⓘ am Mond laufen über hover, nicht dragNode.
+  if (n && !n._moon) { dragNode = n; }
   stopFollow(); // eigene Interaktion beendet das automatische Mittig-Halten
   cv.classList.add("grabbing");
   dragStart = { x: p.x, y: p.y, vx: view.x, vy: view.y };
@@ -2905,20 +2911,23 @@ document.getElementById("shareBtn").onclick = async () => {
     (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}${trend}` : "",
     n.note ? `Notiz: ${n.note}` : "",
   ].filter(Boolean);
+  // Links: Label in eine Zeile, die nackte URL in die NÄCHSTE — so verlinken E-Mail-Programme
+  // sie zuverlässig automatisch (mailto ist Plain-Text; echte HTML-Hyperlinks sind darin nicht
+  // möglich). Saubere URLs (YouTube-Suche mit + statt %20).
   const links = [];
   if (!STATIC) {
     try {
       const res = await API.preview(n.name, n.listeners); // liefert den ausgewählten Vorschau-Track
       if (res && res.ok) {
         if (res.track) {
-          const q = encodeURIComponent(`${res.artist || n.name} ${res.track}`);
-          links.push(`YouTube (Vorschau „${res.track}"): https://www.youtube.com/results?search_query=${q}`);
+          const q = encodeURIComponent(`${res.artist || n.name} ${res.track}`).replace(/%20/g, "+");
+          links.push(`YouTube – Vorschau „${res.track}":`, `https://www.youtube.com/results?search_query=${q}`);
         }
-        if (res.url) links.push(`Klangprobe: ${res.url}`);
+        if (res.url) links.push("Klangprobe (30 s):", res.url);
       }
     } catch {}
   }
-  if (n.url) links.push(`Last.fm: ${n.url}`);
+  if (n.url) links.push("Last.fm:", n.url);
   const body = [...info, ...(links.length ? ["", ...links] : [])].join("\n");
   location.href = `mailto:?subject=${encodeURIComponent(`Musik-Tipp: ${n.name}`)}&body=${encodeURIComponent(body)}`;
 };
