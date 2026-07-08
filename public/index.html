@@ -1447,11 +1447,26 @@ function toastUndo(msg, fn) {
   t._t = setTimeout(() => t.classList.remove("show"), 6000);
 }
 
+// Deterministischer 0..1-Wert aus einem String (FNV-1a + Avalanche): gleiche ID -> gleicher
+// Wert. So sehen Layout und Einblenden bei JEDEM Neuladen identisch aus — kein Würfeln pro
+// Reload. `salt` liefert mehrere unabhängige Werte pro Knoten (Winkel, x-/y-Jitter …).
+function seededUnit(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h += h << 13; h >>>= 0; h ^= h >>> 7; h += h << 3; h >>>= 0; h ^= h >>> 17; h += h << 5;
+  return ((h >>> 0) % 1000000) / 1000000;
+}
+const seededRnd = (id, salt = "") => seededUnit(id + "|" + salt);
+
 function rebuild(prev, reheatAmt = 1) {
   const arts = Object.values(graph.artists);
   const deg = {};
   for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
   const isNew = new Set();
+  // Erster Aufbau (Seiten-Load/Reload): kein zufälliges Nacheinander-Einblenden — alles ist
+  // sofort da, damit auf jeder Zoom-Ebene wirklich ALLES Sichtbare sichtbar ist. Die Kaskade
+  // gilt nur für Knoten, die WÄHREND der Sitzung dazukommen (Suchen/Erkunden/Radar).
+  const firstBuild = !prev || prev.size === 0;
   let _spawnSeq = 0; // E2: fortlaufender Zähler für neue Knoten -> echte Kaskade statt Klumpen
   nodes = arts.map(a => {
     const old = prev?.get(a.id);
@@ -1465,12 +1480,13 @@ function rebuild(prev, reheatAmt = 1) {
       x: old?.x ?? null, y: old?.y ?? null, // neue Knoten werden unten platziert
       vx: old?.vx ?? 0, vy: old?.vy ?? 0,
       pinned: old?.pinned ?? false,
-      // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar
-      appear: old?.appear ?? (old ? 1 : 0),
+      // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar.
+      // Beim Initial-Load ist alles sofort voll sichtbar (appear 1), keine Kaskade.
+      appear: old?.appear ?? (firstBuild ? 1 : 0),
       // E2/C1: frische Knoten blenden als KASKADE ein — jeder deutlich später als der vorige.
       // Der feste Abstand (·6) muss GRÖSSER als der Jitter (·2) sein, sonst überlappen die
-      // Startzeiten und es klumpt. So erscheint einer nach dem anderen (kontinuierlich).
-      _appearDelay: old ? 0 : (_spawnSeq++ * 6 + Math.random() * 2),
+      // Startzeiten und es klumpt. Jitter deterministisch (aus der ID), damit kein Reload-Würfeln.
+      _appearDelay: old || firstBuild ? 0 : (_spawnSeq++ * 6 + seededRnd(a.id, "delay") * 2),
       likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
     };
   });
@@ -1549,16 +1565,16 @@ function rebuild(prev, reheatAmt = 1) {
   for (const [anchorId, kids] of childrenOf) {
     const a = nodeById.get(anchorId);
     const R = 95 + kids.length * 7;                 // Radius wächst mit der Anzahl -> genug Luft
-    const start = Math.random() * Math.PI * 2;
+    const start = seededRnd(anchorId, "start") * Math.PI * 2; // deterministisch je Anker
     kids.forEach((n, i) => {
       const ang = start + (i / kids.length) * Math.PI * 2;
-      n.x = a.x + Math.cos(ang) * R + (Math.random() - .5) * 24;
-      n.y = a.y + Math.sin(ang) * R + (Math.random() - .5) * 24;
+      n.x = a.x + Math.cos(ang) * R + (seededRnd(n.id, "jx") - .5) * 24;
+      n.y = a.y + Math.sin(ang) * R + (seededRnd(n.id, "jy") - .5) * 24;
     });
   }
   for (const n of orphans) {                         // ohne Anker: eng um die Mitte, NICHT weit weg
-    n.x = W / 2 + (Math.random() - .5) * 180;
-    n.y = H / 2 + (Math.random() - .5) * 180;
+    n.x = W / 2 + (seededRnd(n.id, "ox") - .5) * 180;
+    n.y = H / 2 + (seededRnd(n.id, "oy") - .5) * 180;
   }
 
   document.getElementById("counts").textContent = `${nodes.length} ${CFG.item.plur} · ${links.length} Kanten`;
@@ -1776,7 +1792,7 @@ function orbitMoons() {
       const ringSize = Math.min(PER_RING, moons.length - ringIdx * PER_RING);
       if (m._moonAng == null) {
         // gleichmäßig INNERHALB des Rings; Ringe leicht versetzt, damit Speichen nicht fluchten
-        m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + Math.random() * 0.12;
+        m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + seededRnd(m.id, "mang") * 0.12;
         // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> leichte Radius-Nuance
         let tie = 0.5;
         for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.bond != null ? l.bond : (l.strength ?? 0.5); break; } }
@@ -1784,7 +1800,7 @@ function orbitMoons() {
       }
       // Extrem subtil und PRO MOND randomisiert (Tempo + Richtung) -> natürliches, nicht
       // gleichförmiges Kreisen. Einmal gewürfelt und gecacht, bleibt also stabil.
-      if (m._moonSpeed == null) m._moonSpeed = (0.55 + Math.random() * 0.9) * (Math.random() < 0.5 ? 1 : -1);
+      if (m._moonSpeed == null) m._moonSpeed = (0.55 + seededRnd(m.id, "mspd") * 0.9) * (seededRnd(m.id, "mdir") < 0.5 ? 1 : -1);
       // Näherungs-Stopp PRO MOND: kommt die Maus diesem Mond nahe, hält er an (besseres Zielen).
       // Bildschirm-konstant über /view.k; Position aus dem letzten Frame (m.x/m.y).
       let slow = 1;
