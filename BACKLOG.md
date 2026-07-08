@@ -22,7 +22,7 @@
   klappt nicht: Meldung „sind schon auf der Karte", aber kein verbindendes Netz sichtbar. Zudem
   findet der Brückenbauer wenig — nachschärfen.
 
-- [ ] **E5 — Co-Auftritt-Quellen für nicht-elektronische Acts.** RA ist elektronik-lastig; für
+- [x] **E5 — Co-Auftritt-Quellen für nicht-elektronische Acts.** RA ist elektronik-lastig; für
   andere Genres große Lücken bei „zusammen aufgetreten". Woher sonst? (Setlist.fm/Songkick/
   Bandsintown prüfen — was ohne Key/kostenlos geht.)
 
