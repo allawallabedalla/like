@@ -925,11 +925,11 @@ const server = createServer(async (req, res) => {
 
     // Vorschau/Klangprobe — nur, wenn das Pack eine liefert.
     if (req.method === "POST" && url.pathname === "/api/preview") {
-      const { name } = await readBody(req);
+      const { name, listeners } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
       if (!pack.preview) return send(res, 200, { ok: false });
       let p = null;
-      try { p = await pack.preview(name); } catch {}
+      try { p = await pack.preview(name, { listeners: typeof listeners === "number" ? listeners : null }); } catch {}
       if (!p?.url) return send(res, 200, { ok: false });
       return send(res, 200, { ok: true, url: p.url, track: p.track, artist: p.artist });
     }

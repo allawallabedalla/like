@@ -16,18 +16,18 @@ Leitmotiv weiter: fließend/organisch, klares Feedback, sinnvolle Defaults.
   den neu erzeugten „Sonne"-Act (den ausgebauten Artist im Zentrum) zentrieren/folgen — nur ohne
   das Info-Panel zu öffnen (das war C-alt B7). Also center=true, select=false.
 
-- [ ] **C3 — Kein Intro-Modal im Private-Tab.** Im privaten Fenster erscheint beim Start kein
+- [x] **C3 — Kein Intro-Modal im Private-Tab.** Im privaten Fenster erscheint beim Start kein
   Onboarding-Intro. Prüfen, ob das am Browser (localStorage/Storage-Partitionierung) liegt oder an
   einer App-Bedingung — und ggf. so lösen, dass es im Private-Tab trotzdem beim Erststart kommt.
 
-- [ ] **C4 — Intro erklärt Linien + Größe/Abstand.** Im Intro-Modal erklären, was die beiden
+- [x] **C4 — Intro erklärt Linien + Größe/Abstand.** Im Intro-Modal erklären, was die beiden
   Linienfarben bedeuten (blau = ähnlicher Stil, orange = zusammen aufgetreten) UND was
   Planetengröße (Popularität/Hörer) und Abstand (Ähnlichkeit) aussagen.
 
 - [x] **C5 — Vorschau-Indikator am Mond.** Der Knoten, dessen Klangprobe gerade läuft, soll wieder
   einen kleinen Indikator (Ring/Puls) bekommen (gab es früher schon mal).
 
-- [ ] **C6 — Preview-Plausi-Check gegen Genres.** In der Artist-Match/Preview kam wieder eine
+- [x] **C6 — Preview-Plausi-Check gegen Genres.** In der Artist-Match/Preview kam wieder eine
   Klangprobe, die nicht zu den angezeigten Genres passt. Plausibilitätsprüfung einbauen (Track/
   Artist der Vorschau gegen den Act/seine Genres abgleichen, sonst keine bzw. bessere Vorschau).
 

@@ -801,7 +801,9 @@
           <h3 id="tourT1">Willkommen bei like<span style="color:var(--edge-together)">.</span></h3>
           <p id="tourP1">like zeigt Künstler:innen als klickbare <b>Karte</b>. Zwei Verbindungsarten:
           <span style="color:var(--edge-similar)">— blau</span> = ähnlicher Stil,
-          <span style="color:var(--edge-together)">— orange</span> = zusammen aufgetreten.</p>
+          <span style="color:var(--edge-together)">— orange</span> = zusammen aufgetreten.
+          Die <b>Größe</b> eines Punkts zeigt die Popularität (Hörerzahl), die <b>Nähe</b> die
+          Ähnlichkeit — je näher zwei Punkte, desto verwandter.</p>
         </div>
         <!-- Slide 2: Suchen & Hangeln -->
         <div class="slide" data-s="1">
@@ -1200,7 +1202,7 @@ const API = {
   digest: () => POST("/api/digest", {}),
   diag: () => POST("/api/diag", {}),
   import: (graph) => POST("/api/import", { graph }),
-  preview: (name) => POST("/api/preview", { name }),
+  preview: (name, listeners) => POST("/api/preview", { name, listeners }),
   context: (id) => POST("/api/context", { id }),
   bridge: (from, to) => POST("/api/bridge", { from, to }),
   bridgeAdd: (from, to, via, fromId, toId) => POST("/api/bridge/add", { from, to, via, fromId, toId }),
@@ -1310,7 +1312,9 @@ async function togglePreview(name) {
   previewName = name;
   refreshPreviewButtons(name); // "…" am gewählten Button
   try {
-    const res = await API.preview(name);
+    // Hörerzahl des Acts mitgeben -> Server kann berühmte Namensvetter erkennen (C6-Plausi-Check)
+    const node = nodes.find(n => n.name === name);
+    const res = await API.preview(name, node && typeof node.listeners === "number" ? node.listeners : null);
     if (!res.ok || !res.url) { toast(`Keine Klangprobe für „${name}" gefunden`); previewName = null; refreshPreviewButtons(); return; }
     previewLabel = `${res.artist || name}${res.track ? " — " + res.track : ""}`;
     audio.src = res.url; audio.currentTime = 0;
@@ -3846,6 +3850,8 @@ function maybeShowIntro() {
 // ---- Start ----
 (async () => {
   applyCfg(); // Pack-Begriffe/Legende/Feature-Gates anwenden, bevor irgendwas rendert
+  maybeShowIntro(); // C3: Intro sofort zeigen (unabhängig vom Graph-Load) -> erscheint auch dann
+                    // zuverlässig, wenn der Erst-Graph in einem restriktiven/Private-Tab langsam lädt.
   if (STATIC) {
     document.body.classList.add("is-static");
     const b = document.createElement("div");
@@ -3866,7 +3872,6 @@ function maybeShowIntro() {
   // Immer alles einpassen und zentrieren: so weit rauszoomen, dass der ganze Graph sichtbar ist.
   fitAll();
   loop();
-  maybeShowIntro();
   checkKey();
   startupTasks();
   // Cross-Pack-Brücke: mit ?q=<Name> gelandet -> Eintrag direkt erkunden (einmalig,
