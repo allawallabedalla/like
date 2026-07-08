@@ -23,7 +23,10 @@ module.exports = defineConfig({
   fullyParallel: false,
   workers: 1, // ein gemeinsamer Server + gemeinsames Datenverzeichnis -> deterministisch sequenziell
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // Flaky-Schutz nur auf CI: E2E über eine Canvas-rAF-Seite mit echten Taps kann auf lahmen
+  // Runnern vereinzelt in Timeouts laufen. 2 Wiederholungen fangen solche Ausrutscher ab; ein
+  // ECHTER Fehler fällt auch nach 3 Versuchen. Lokal weiter 0 (Flakes sollen hier auffallen).
+  retries: process.env.CI ? 2 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
   timeout: 45_000,
   expect: {
