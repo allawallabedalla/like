@@ -12,7 +12,7 @@
   — Grad = feste Formel (gedeckelt), Popularität = feste log-Skala (~1k–10M Hörer). Ein Act ist
   überall gleich groß. (Popularität liest sich zusätzlich über den Glow.)
 
-- [ ] **D2 — „Netz sortieren"-Funktion.** Ein Knopf, der das Layout aufräumt, sodass sich möglichst
+- [x] **D2 — „Netz sortieren"-Funktion.** Ein Knopf, der das Layout aufräumt, sodass sich möglichst
   wenige Linien kreuzen. Ansatz: Communities/Szenen in getrennte Sektoren um die Mitte legen +
   innerhalb gleichmäßig streuen, dann sanft settlen (Kollision/Abstände, kein Zappeln).
 

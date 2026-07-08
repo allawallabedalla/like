@@ -779,6 +779,10 @@
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><path d="M1.8 11h12.4"/><path d="M2.6 11C2.6 6.6 5 4.5 8 4.5s5.4 2.1 5.4 6.5"/><path d="M5.4 11V8.1M10.6 11V8.1"/></svg></span>
       <span><b>Brückenbauer</b><small>Welche Einträge halten deine Szenen zusammen?</small></span>
     </div>
+    <div class="ditem" id="discTidy">
+      <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><circle cx="4.5" cy="4.5" r="2"/><circle cx="11.5" cy="4.5" r="2"/><circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/></svg></span>
+      <span><b>Netz sortieren</b><small>Ordnet die Karte neu — Szenen gruppiert, möglichst wenige gekreuzte Linien.</small></span>
+    </div>
   </div>
 
   <div class="modal-back" id="intro">
@@ -3463,6 +3467,34 @@ document.getElementById("discoverBtn").onclick = toggleDiscover;
 document.getElementById("discScenes").onclick = () => { scenesMode = !scenesMode; syncScenesSwitch(); requestDraw(); };
 document.getElementById("discSurprise").onclick = () => { closeDiscover(); surpriseMe(); };
 document.getElementById("discBridges").onclick = () => { closeDiscover(); showBridges(); };
+// D2: „Netz sortieren" — Communities/Szenen in getrennte Sektoren legen und innerhalb per
+// Goldwinkel-Spirale gleichmäßig streuen, dann sanft settlen. Ergebnis: zusammengehörige Acts
+// liegen beieinander -> deutlich weniger gekreuzte Linien, saubere Abstände, kein hartes Zappeln.
+function sortLayout() {
+  const real = nodes.filter((n) => !n.venue);
+  if (real.length < 3) return;
+  const comm = computeCommunities();
+  const groups = new Map();
+  for (const n of real) { const c = comm.get(n.id) ?? ("_" + n.id); (groups.get(c) || groups.set(c, []).get(c)).push(n); }
+  const order = [...groups.values()].sort((a, b) => b.length - a.length);
+  const cx = W / 2, cy = (H + 52) / 2, SP = 40; // SP > Kollisionsabstand -> Physik muss kaum nachschieben
+  const maxGR = Math.max(1, ...order.map((m) => 20 + Math.sqrt(m.length) * SP));
+  const G = order.length, ringR = G > 1 ? Math.max(maxGR * 1.5, 240) : 0;
+  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  order.forEach((members, gi) => {
+    const ga = (gi / G) * Math.PI * 2, ccx = cx + Math.cos(ga) * ringR, ccy = cy + Math.sin(ga) * ringR;
+    members.sort((a, b) => (b.deg | 0) - (a.deg | 0)); // Hubs nach innen
+    members.forEach((n, i) => {
+      if (n.pinned) return; // manuell platzierte Knoten in Ruhe lassen
+      const r = Math.sqrt(i) * SP, a = i * GOLDEN;
+      n.x = ccx + Math.cos(a) * r; n.y = ccy + Math.sin(a) * r; n.vx = 0; n.vy = 0; n._moonAng = null;
+    });
+  });
+  stopFollow();
+  fitAll();     // die sortierte Anordnung gleich einpassen
+  reheat(0.5);  // sanft feinjustieren (Kollision/Feder), kein hartes Zappeln
+}
+document.getElementById("discTidy").onclick = () => { closeDiscover(); sortLayout(); toast("Netz sortiert"); };
 document.addEventListener("mousedown", (e) => {
   if (discoverEl.classList.contains("show") && !discoverEl.contains(e.target) && e.target.id !== "discoverBtn" && !document.getElementById("discoverBtn").contains(e.target))
     closeDiscover();
