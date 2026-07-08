@@ -283,8 +283,10 @@
     opacity: 0; pointer-events: none; transition: opacity .18s ease; }
   .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { opacity: 0; }
   .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { opacity: 1; pointer-events: auto; }
-  /* Scrub-Leiste konstante Breite (C7): die Pille wächst mit dem Titel, die Spulleiste bleibt gleich. */
-  .nowplaying #npBar { flex: none; position: relative; width: 96px; height: 6px; border-radius: 3px;
+  /* Scrub-Leiste füllt die Pille: sie dehnt sich auf die Breite des Mittelteils (= Titelbreite),
+     sodass der Spulstrich beim Nähern „vollfüllend" erscheint statt als schmaler Fixbalken. */
+  .nowplaying .npscrub { width: 100%; }
+  .nowplaying #npBar { flex: 1 1 auto; position: relative; min-width: 60px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
   .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
@@ -650,7 +652,7 @@
     <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
     <button id="discoverBtn" title="Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
     <button id="tasteBtn" class="iconbtn hideStatic" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
-    <button id="tidyBtn" class="iconbtn" title="Aufräumen — Netz sortieren: Szenen gruppieren, möglichst wenige gekreuzte Linien"><svg class="ic" viewBox="0 0 16 16"><path d="M13.3 2.7 7.6 8.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M7.9 8.1 9.9 10.1 6.1 13.4 3.3 11.7Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><path d="M4.3 12.3 5.5 13.05M5.7 11.3 6.8 12.05M7.1 10.3 8.1 11.05" fill="none" stroke="currentColor" stroke-width="0.85" stroke-linecap="round"/></svg></button>
+    <button id="tidyBtn" class="iconbtn" title="Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="8" cy="2.4" r="1.35" fill="currentColor"/><circle cx="12.85" cy="10.8" r="1.35" fill="currentColor"/><circle cx="3.15" cy="10.8" r="1.35" fill="currentColor"/></svg></button>
     <button id="feedbackBtn" class="iconbtn hideStatic" style="display:none" title="Feedback / Fehler melden">✉</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
     <div class="grow"></div>
@@ -1447,11 +1449,26 @@ function toastUndo(msg, fn) {
   t._t = setTimeout(() => t.classList.remove("show"), 6000);
 }
 
+// Deterministischer 0..1-Wert aus einem String (FNV-1a + Avalanche): gleiche ID -> gleicher
+// Wert. So sehen Layout und Einblenden bei JEDEM Neuladen identisch aus — kein Würfeln pro
+// Reload. `salt` liefert mehrere unabhängige Werte pro Knoten (Winkel, x-/y-Jitter …).
+function seededUnit(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h += h << 13; h >>>= 0; h ^= h >>> 7; h += h << 3; h >>>= 0; h ^= h >>> 17; h += h << 5;
+  return ((h >>> 0) % 1000000) / 1000000;
+}
+const seededRnd = (id, salt = "") => seededUnit(id + "|" + salt);
+
 function rebuild(prev, reheatAmt = 1) {
   const arts = Object.values(graph.artists);
   const deg = {};
   for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
   const isNew = new Set();
+  // Erster Aufbau (Seiten-Load/Reload): kein zufälliges Nacheinander-Einblenden — alles ist
+  // sofort da, damit auf jeder Zoom-Ebene wirklich ALLES Sichtbare sichtbar ist. Die Kaskade
+  // gilt nur für Knoten, die WÄHREND der Sitzung dazukommen (Suchen/Erkunden/Radar).
+  const firstBuild = !prev || prev.size === 0;
   let _spawnSeq = 0; // E2: fortlaufender Zähler für neue Knoten -> echte Kaskade statt Klumpen
   nodes = arts.map(a => {
     const old = prev?.get(a.id);
@@ -1465,12 +1482,13 @@ function rebuild(prev, reheatAmt = 1) {
       x: old?.x ?? null, y: old?.y ?? null, // neue Knoten werden unten platziert
       vx: old?.vx ?? 0, vy: old?.vy ?? 0,
       pinned: old?.pinned ?? false,
-      // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar
-      appear: old?.appear ?? (old ? 1 : 0),
+      // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar.
+      // Beim Initial-Load ist alles sofort voll sichtbar (appear 1), keine Kaskade.
+      appear: old?.appear ?? (firstBuild ? 1 : 0),
       // E2/C1: frische Knoten blenden als KASKADE ein — jeder deutlich später als der vorige.
       // Der feste Abstand (·6) muss GRÖSSER als der Jitter (·2) sein, sonst überlappen die
-      // Startzeiten und es klumpt. So erscheint einer nach dem anderen (kontinuierlich).
-      _appearDelay: old ? 0 : (_spawnSeq++ * 6 + Math.random() * 2),
+      // Startzeiten und es klumpt. Jitter deterministisch (aus der ID), damit kein Reload-Würfeln.
+      _appearDelay: old || firstBuild ? 0 : (_spawnSeq++ * 6 + seededRnd(a.id, "delay") * 2),
       likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
     };
   });
@@ -1549,16 +1567,16 @@ function rebuild(prev, reheatAmt = 1) {
   for (const [anchorId, kids] of childrenOf) {
     const a = nodeById.get(anchorId);
     const R = 95 + kids.length * 7;                 // Radius wächst mit der Anzahl -> genug Luft
-    const start = Math.random() * Math.PI * 2;
+    const start = seededRnd(anchorId, "start") * Math.PI * 2; // deterministisch je Anker
     kids.forEach((n, i) => {
       const ang = start + (i / kids.length) * Math.PI * 2;
-      n.x = a.x + Math.cos(ang) * R + (Math.random() - .5) * 24;
-      n.y = a.y + Math.sin(ang) * R + (Math.random() - .5) * 24;
+      n.x = a.x + Math.cos(ang) * R + (seededRnd(n.id, "jx") - .5) * 24;
+      n.y = a.y + Math.sin(ang) * R + (seededRnd(n.id, "jy") - .5) * 24;
     });
   }
   for (const n of orphans) {                         // ohne Anker: eng um die Mitte, NICHT weit weg
-    n.x = W / 2 + (Math.random() - .5) * 180;
-    n.y = H / 2 + (Math.random() - .5) * 180;
+    n.x = W / 2 + (seededRnd(n.id, "ox") - .5) * 180;
+    n.y = H / 2 + (seededRnd(n.id, "oy") - .5) * 180;
   }
 
   document.getElementById("counts").textContent = `${nodes.length} ${CFG.item.plur} · ${links.length} Kanten`;
@@ -1629,6 +1647,7 @@ function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
 // Bildbreite. So bleibt der Überblicks-Fokus ruhig, ohne harte Kante am Rand der Freeze-Zone.
 function centerSpeed(a) {
   const sx = a.x * view.k + view.x, sy = a.y * view.k + view.y;
+  if (!isFinite(sx) || !isFinite(sy)) return 1; // noch nicht platziert -> normales Tempo
   const dist = Math.hypot(sx - W / 2, sy - (H + 52) / 2);
   const full = W * 0.40 || 1;                 // ab ~40% der Bildbreite volles Tempo
   const t = Math.min(1, dist / full);
@@ -1776,7 +1795,7 @@ function orbitMoons() {
       const ringSize = Math.min(PER_RING, moons.length - ringIdx * PER_RING);
       if (m._moonAng == null) {
         // gleichmäßig INNERHALB des Rings; Ringe leicht versetzt, damit Speichen nicht fluchten
-        m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + Math.random() * 0.12;
+        m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + seededRnd(m.id, "mang") * 0.12;
         // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> leichte Radius-Nuance
         let tie = 0.5;
         for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.bond != null ? l.bond : (l.strength ?? 0.5); break; } }
@@ -1784,7 +1803,7 @@ function orbitMoons() {
       }
       // Extrem subtil und PRO MOND randomisiert (Tempo + Richtung) -> natürliches, nicht
       // gleichförmiges Kreisen. Einmal gewürfelt und gecacht, bleibt also stabil.
-      if (m._moonSpeed == null) m._moonSpeed = (0.55 + Math.random() * 0.9) * (Math.random() < 0.5 ? 1 : -1);
+      if (m._moonSpeed == null) m._moonSpeed = (0.55 + seededRnd(m.id, "mspd") * 0.9) * (seededRnd(m.id, "mdir") < 0.5 ? 1 : -1);
       // Näherungs-Stopp PRO MOND: kommt die Maus diesem Mond nahe, hält er an (besseres Zielen).
       // Bildschirm-konstant über /view.k; Position aus dem letzten Frame (m.x/m.y).
       let slow = 1;
@@ -1797,8 +1816,10 @@ function orbitMoons() {
       const orbitR = pr + haloExt + radius(m) + 22 + ringIdx * RING_GAP + (1 - tie) * 12;
       // Winkelgeschwindigkeit ~ 1/Radius: sonst „rasen" weit außen liegende Monde sichtbar
       // schneller (Bahngeschwindigkeit v = ω·r). Referenz ~110 px; nur bremsen, nie beschleunigen.
-      // B9: je näher der Planet an der Bildmitte, desto langsamer sein Mond-Orbit (in der Mitte 0).
-      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.00052 * slow * Math.min(1, 110 / orbitR) * centerSpeed(parent);
+      // B9: gilt für JEDES Element am Screen — der Mond bremst nach SEINER eigenen Bildschirm-
+      // position (in der Mitte 0), nicht nach der des Planeten. So steht auch ein zentrierter
+      // Mond still, selbst wenn sein Planet am Rand liegt.
+      if (!REDUCE_MOTION) m._moonAng += m._moonSpeed * 0.00052 * slow * Math.min(1, 110 / orbitR) * centerSpeed(m.x == null ? parent : m);
       if (orbitR > maxR) maxR = orbitR;
       m.x = parent.x + Math.cos(m._moonAng) * orbitR;
       m.y = parent.y + Math.sin(m._moonAng) * orbitR;
@@ -1918,9 +1939,21 @@ function draw() {
   const hidden = (id) => (fs && !fs.has(id) && !(selected && id === selected.id));
   const vis = (n) => (n._lodA ?? 1) * (n._genA ?? 1);
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
+  // Brücke-bauen: alles außer den Kandidaten (Endpunkte + auf der Karte liegende Zwischenstationen)
+  // abdunkeln — maximaler Fokus auf die vorgeschlagene Brücke.
+  const bridgeActive = !!(bridge && bridge.cands && bridge.cands.length);
+  const bridgeKeep = new Set();
+  if (bridgeActive) {
+    bridgeKeep.add(bridge.a.id); bridgeKeep.add(bridge.b.id);
+    for (const c of bridge.cands) for (const v of (c.via || [])) {
+      const k = slugify(v.name), nn = nodeById.get(k) || nodes.find((x) => slugify(x.name) === k);
+      if (nn) bridgeKeep.add(nn.id);
+    }
+  }
   const dimNode = (n) => {
     if (selected && n.id === selected.id) return false;
     if (compareSet.has(n.id)) return false;
+    if (bridgeActive) return !bridgeKeep.has(n.id); // im Brücke-Modus zählt nur die Brücke
     if (dim && n.status) return true;
     if (dimBig && n.listeners != null && n.listeners >= (CFG.popularity?.big ?? Infinity)) return true;
     if (hi && !hi.has(n.id)) return true;
@@ -1945,7 +1978,7 @@ function draw() {
     if (l.type === "venue") { base = 1; aBase = 0.5; }
     else if (isSim) { base = 0.35 + w * w * 4.4; aBase = 0.2 + w * 0.65; }        // 0.35–4.75px · 0.2–0.85
     else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
-    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe) ? 0.06 : aBase)) * ea * linkFade;
+    ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe || bridgeActive) ? 0.06 : aBase)) * ea * linkFade;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
   }
@@ -2080,15 +2113,24 @@ function draw() {
     ctx.strokeText(n.name, job.x, job.y);
     ctx.globalAlpha = (job.faded ? 0.3 : 0.92) * va; ctx.fillStyle = getCss("--text");
     ctx.fillText(n.name, job.x, job.y);
-    // Genre-Zeile nur ganz nah oder bei Hover/Auswahl — direkt unter dem Namen.
-    const genreOk = job.hov || job.sel || view.k > GENRE_ZOOM;
-    if (n.genres && n.genres.length && genreOk) {
+    // Genre-Zeile unter dem Namen: bei Sonnen (weit draußen ist genug Platz) und ganz nah —
+    // aber NUR wenn sie kollisionsfrei passt. So steht bei den Sonnen Genre drunter, im
+    // Gedränge beim Reinzoomen erst dann, wenn wirklich Raum dafür ist.
+    const genreText = (n.genres && n.genres.length) ? n.genres.slice(0, 2).join(" · ") : "";
+    const genreWant = genreText && (job.hov || job.sel || view.k > GENRE_ZOOM || lodSun(n));
+    if (genreWant) {
       const gY = job.y + 12 / view.k;
       ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`;
-      ctx.globalAlpha = (job.faded ? 0.25 : 0.9) * va; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
-      ctx.strokeText(n.genres.slice(0, 2).join(" · "), n.x, gY);
-      ctx.globalAlpha = (job.faded ? 0.25 : 0.6) * va; ctx.fillStyle = getCss("--muted");
-      ctx.fillText(n.genres.slice(0, 2).join(" · "), n.x, gY);
+      const gw = ctx.measureText(genreText).width, gh = 9.5 / view.k;
+      const gbox = { x1: n.x - gw / 2 - pad, y1: gY - gh - pad, x2: n.x + gw / 2 + pad, y2: gY + gh * 0.35 + pad };
+      const genreFits = job.hov || job.sel || !placedLabels.some(p => p !== box && gbox.x1 < p.x2 && gbox.x2 > p.x1 && gbox.y1 < p.y2 && gbox.y2 > p.y1);
+      if (genreFits) {
+        placedLabels.push(gbox);
+        ctx.globalAlpha = (job.faded ? 0.25 : 0.9) * va; ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--bg");
+        ctx.strokeText(genreText, n.x, gY);
+        ctx.globalAlpha = (job.faded ? 0.25 : 0.6) * va; ctx.fillStyle = getCss("--muted");
+        ctx.fillText(genreText, n.x, gY);
+      }
     }
   }
   ctx.globalAlpha = 1;
@@ -2334,10 +2376,24 @@ mmEl.addEventListener("mousedown", (e) => { mmJump(e); const mv = (ev) => mmJump
 // LOD-Sichtbarkeit: dieselbe Regel wie in draw() — weit rausgezoomt sind auf dichten Karten
 // die Grad-≤1-Blätter ausgeblendet. Zentral, damit sie auch NICHT pickbar/hoverbar sind und
 // keine Aktionen (＋/ⓘ/×/▶) tragen, solange man sie nicht durch Reinzoomen sichtbar macht (B1).
+// Sonnen = immer sichtbar: gesuchte/kuratierte Acts und gut vernetzte Hubs. Weit rausgezoomt
+// bleiben NUR sie stehen; alles andere sind „Planeten", die erst beim Heranzoomen erscheinen.
+const SUN_DEG = 3;
+function lodSun(n) {
+  return n.seed || n.status || n.note || n.known || (selected && n.id === selected.id) || basket.has(n.id) || (n.deg | 0) >= SUN_DEG;
+}
+// Ab welchem Zoom ein Planet auftaucht: GRÖSSERE/populärere zuerst (kleinere Schwelle), plus
+// leichter deterministischer Jitter -> wirkt „random, aber größenpriorisiert". Beim Reinzoomen
+// kommen so nach und nach mehr Planeten (mit ihren Verbindungslinien) dazu.
+function lodRevealK(n) {
+  const t = Math.max(0, Math.min(1, (radiusTarget(n) - 6) / 10)); // 0 = klein, 1 = groß
+  return 0.9 + (1 - t) * 0.9 + (seededRnd(n.id, "lod") - 0.5) * 0.2;
+}
 function lodHiddenNode(n) {
-  if (!n || nodes.length <= 40 || view.k >= LEAF_ZOOM) return false;
-  if (n.seed || n.status || n.note || n.known || (selected && n.id === selected.id) || basket.has(n.id)) return false;
-  return (n.deg | 0) <= 1;
+  if (!n || n.venue) return false;
+  if (nodes.length <= 40) return false;   // kleine Graphen: alles zeigen
+  if (lodSun(n)) return false;            // Sonnen immer sichtbar
+  return view.k < lodRevealK(n);          // Planeten gestaffelt (größenpriorisiert) einblenden
 }
 // Genre-Filter (Topbar-Text ODER Panel-Pills): passt ein Knoten NICHT? (für weiches Ausblenden, B10)
 function genreFilterActive() { return !!filterGenre || activeGenres.size > 0; }
@@ -2809,20 +2865,29 @@ document.getElementById("status").onchange = async (e) => {
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
 };
-// Teilen per E-Mail: öffnet das Mail-Programm mit Act-Name, Link und App-Verweis.
-document.getElementById("shareBtn").onclick = () => {
+// Teilen per E-Mail: dieselben Fakten wie im CSV-Export (Name, Genre, Region, Hörer, Notiz).
+// KEIN generischer Artist-Link (last.fm & Co. sagen dem Empfänger nichts) — wenn ein Link, dann
+// eine konkrete Klangprobe (genau EIN Track) als „diskreter" Hör-Link.
+document.getElementById("shareBtn").onclick = async () => {
   if (!selected || selected.venue) return;
-  const name = selected.name;
-  const genres = (selected.genres || []).slice(0, 3).join(", ");
-  const subject = `Musik-Tipp: ${name}`;
-  const body = [
-    `Schau dir ${name} an.`,
-    genres ? `Genre: ${genres}` : "",
-    selected.url || "",
-    "",
-    `Gefunden mit „like" — ${location.origin}${location.pathname}`,
-  ].filter(Boolean).join("\n");
-  location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const n = selected, b = n.booking || {};
+  const region = [b.area, b.country].filter(Boolean).join(", ") || n.bcLocation || "";
+  const info = [
+    n.name,
+    (n.genres && n.genres.length) ? `Genre: ${n.genres.slice(0, 4).join(", ")}` : "",
+    region ? `Region: ${region}` : "",
+    (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}` : "",
+    n.note ? `Notiz: ${n.note}` : "",
+  ].filter(Boolean);
+  let listen = "";
+  if (!STATIC) {
+    try {
+      const res = await API.preview(n.name, n.listeners);
+      if (res && res.ok && res.url) listen = `Hörprobe${res.track ? ` „${res.track}"` : ""}: ${res.url}`;
+    } catch {}
+  }
+  const body = [...info, ...(listen ? ["", listen] : [])].join("\n");
+  location.href = `mailto:?subject=${encodeURIComponent(`Musik-Tipp: ${n.name}`)}&body=${encodeURIComponent(body)}`;
 };
 document.getElementById("saveNote").onclick = async () => {
   if (!selected || selected.venue) return;
@@ -3566,9 +3631,9 @@ function sortLayout() {
   const groups = new Map();
   for (const n of real) { const c = comm.get(n.id) ?? ("_" + n.id); (groups.get(c) || groups.set(c, []).get(c)).push(n); }
   const order = [...groups.values()].sort((a, b) => b.length - a.length);
-  const cx = W / 2, cy = (H + 52) / 2, SP = 40; // SP > Kollisionsabstand -> Physik muss kaum nachschieben
+  const cx = W / 2, cy = (H + 52) / 2, SP = 46; // SP > Kollisionsabstand -> Physik muss kaum nachschieben
   const maxGR = Math.max(1, ...order.map((m) => 20 + Math.sqrt(m.length) * SP));
-  const G = order.length, ringR = G > 1 ? Math.max(maxGR * 1.5, 240) : 0;
+  const G = order.length, ringR = G > 1 ? Math.max(maxGR * 1.7, 300) : 0; // Szenen klar getrennt
   const GOLDEN = Math.PI * (3 - Math.sqrt(5));
   order.forEach((members, gi) => {
     const ga = (gi / G) * Math.PI * 2, ccx = cx + Math.cos(ga) * ringR, ccy = cy + Math.sin(ga) * ringR;
@@ -3581,7 +3646,10 @@ function sortLayout() {
   });
   stopFollow();
   fitAll();     // die sortierte Anordnung gleich einpassen
-  reheat(0.5);  // sanft feinjustieren (Kollision/Feder), kein hartes Zappeln
+  // Nur GANZ sanft nachfedern: bei starkem reheat zieht die Physik alles sofort wieder zum
+  // alten Knäuel zusammen -> der Sortier-Effekt wäre unsichtbar. Niedriges alpha lässt die
+  // aufgeräumte Anordnung stehen (Kollisionen lösen sich, Struktur bleibt).
+  reheat(0.12);
 }
 document.getElementById("tidyBtn").onclick = () => { sortLayout(); toast("Netz sortiert"); };
 document.addEventListener("mousedown", (e) => {
