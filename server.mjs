@@ -281,10 +281,13 @@ async function notifyVisitMaybe(req, pack) {
   if (!OWNER_SECRET || isOwnerReq(req)) return;   // Feature aus / oder du selbst
   if (!(await hasPushover())) return;
   const ip = clientIp(req), now = Date.now();
-  if (now - (visitNotified.get(ip) || 0) < 6 * 3600e3) return; // pro IP höchstens alle 6 h
-  visitNotified.set(ip, now);
-  if (visitNotified.size > 800) for (const [k, t] of visitNotified) if (now - t > 24 * 3600e3) visitNotified.delete(k);
   const ua = String(req.headers["user-agent"] || "").slice(0, 140);
+  // Dedupe pro GERÄT (IP + Browser), nicht nur pro IP — zwei Rechner im selben Netz (gleiche
+  // öffentliche IP) melden so getrennt. Fenster 2 h, damit Reloads nicht spammen.
+  const key = ip + "|" + ua;
+  if (now - (visitNotified.get(key) || 0) < 2 * 3600e3) return;
+  visitNotified.set(key, now);
+  if (visitNotified.size > 800) for (const [k, t] of visitNotified) if (now - t > 24 * 3600e3) visitNotified.delete(k);
   const ref = String(req.headers["referer"] || "").slice(0, 140);
   const where = pack.id !== "music" ? ` (${pack.id})` : "";
   const msg = `Jemand hat „like"${where} geöffnet.\nRegion: ${maskIp(ip)}${ua ? `\n${ua}` : ""}${ref ? `\nvon: ${ref}` : ""}`;
@@ -677,6 +680,15 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/graph") {
       const g = await loadGraph(GRAPH);
       return send(res, 200, materialize(g));
+    }
+
+    // Vorwärmen: die (langsamen) Ähnlich-/Zusammen-Fetches eines Namens schon mal in den Cache
+    // holen, OHNE den Graphen zu ändern. Wird beim Hovern ausgelöst -> der spätere Ausbau ist
+    // dann ein Cache-Hit und fühlt sich flott an. Nebenläufig, Antwort kommt sofort.
+    if (req.method === "POST" && url.pathname === "/api/prefetch") {
+      const { name } = await readBody(req);
+      if (name) pack.explore?.(name, { home: reqHome(req) }).catch(() => {});
+      return send(res, 200, { ok: true });
     }
 
     // Haupt-Flow: einen Eintrag erkunden -> ähnlich + zusammen + Genres (via Pack).

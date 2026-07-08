@@ -1210,6 +1210,7 @@ const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({
 const API = {
   graph: () => STATIC ? Promise.resolve(window.LIKE_GRAPH) : GET("/api/graph"),
   explore: (name) => POST("/api/explore", { name }),
+  prefetch: (name) => POST("/api/prefetch", { name }), // Cache vorwärmen (Hover) -> flotter Ausbau
   reset: (scope) => POST("/api/reset", { scope }),
   remove: (id) => POST("/api/delete", { id }),
   restore: (body) => POST("/api/restore", body),
@@ -2509,15 +2510,27 @@ function canvasXY(e) {
   const r = cv.getBoundingClientRect();
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
-let dragStart = null;
+// Hover-Vorladen: bleibt die Maus kurz auf einem Knoten, wärmen wir seine Ähnlich-/Zusammen-
+// Fetches server-seitig vor -> ein späterer Ausbau (＋/Doppelklick) fühlt sich flott an.
+// Einmal pro Knoten, verzögert (kein Feuerwerk beim Drüberwischen).
+const prefetched = new Set(); let prefetchTimer = null;
+function schedulePrefetch(n) {
+  if (prefetchTimer) { clearTimeout(prefetchTimer); prefetchTimer = null; }
+  if (STATIC || !n || n.venue || n.explored || prefetched.has(n.id)) return;
+  prefetchTimer = setTimeout(() => { prefetched.add(n.id); API.prefetch(n.name).catch(() => {}); }, 350);
+}
+let dragStart = null, downCtrl = false;
 cv.addEventListener("mousedown", (e) => {
   const p = canvasXY(e);
   const n = pick(p.x, p.y);
   dragging = true; moved = false;
-  // Monde NICHT greifbar machen: sie folgen ihrer Umlaufbahn (orbitMoons). Würde man sie
-  // beim Klick minimal verschieben, schnappt orbitMoons sie sofort zurück -> kurzes Zappeln
-  // (und sie würden fälschlich „fixiert"). Play/＋/ⓘ am Mond laufen über hover, nicht dragNode.
-  if (n && !n._moon) { dragNode = n; }
+  // Presse auf einem Bedien-Element (Play/＋/ⓘ/×)? Dann NICHT draggen/pannen — nur der Klick auf
+  // mouseup zählt. Das war das „Zuckeln": ein leicht wackliger Klick auf ▶ verschob (bei einem
+  // fassbaren Knoten) diesen bzw. pannte (sonst) die ganze Ansicht ein Stück.
+  downCtrl = !!(onPlayBtn(p.x, p.y) || (hover && (onMoonBadge(hover, p.x, p.y) || onDeleteBadge(hover, p.x, p.y) || onSeedInfo(hover, p.x, p.y))));
+  // Knoten sind greifbar — auch Monde (werden beim Ziehen fixiert und verlassen dann ihre Bahn),
+  // damit sich WIRKLICH jeder Planet verschieben lässt. Nur bei einer Control-Presse nicht.
+  if (n && !downCtrl) { dragNode = n; }
   stopFollow(); // eigene Interaktion beendet das automatische Mittig-Halten
   cv.classList.add("grabbing");
   dragStart = { x: p.x, y: p.y, vx: view.x, vy: view.y };
@@ -2540,12 +2553,13 @@ addEventListener("mousemove", (e) => {
       const wm = world(p), holdR = radius(hover) + 34 / view.k;
       if ((hover.x - wm.x) ** 2 + (hover.y - wm.y) ** 2 < holdR * holdR) n = hover;
     }
-    if (n !== hover) { hover = n; requestDraw(); }
+    if (n !== hover) { hover = n; schedulePrefetch(n); requestDraw(); }
     else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen (beide Modi)
     cv.style.cursor = (onX || onMoonB || onSeedI) ? "pointer" : (n ? "pointer" : "grab");
     updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
     return;
   }
+  if (downCtrl) return; // Presse auf einem Bedien-Element: nicht draggen/pannen (nur Klick zählt)
   const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
   if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
   if (dragNode) {
@@ -2601,7 +2615,7 @@ addEventListener("mouseup", (e) => {
     }
   }
   if (dragNode && moved) { dragNode.pinned = true; renderLegend(); }  // gezogen = fixiert (Rechtsklick löst); Legende „fixiert" (B12)
-  dragging = false; dragNode = null; cv.classList.remove("grabbing");
+  dragging = false; dragNode = null; downCtrl = false; cv.classList.remove("grabbing");
 });
 cv.addEventListener("dblclick", (e) => {
   const p = canvasXY(e);
@@ -2913,21 +2927,18 @@ document.getElementById("shareBtn").onclick = async () => {
   ].filter(Boolean);
   // Links: Label in eine Zeile, die nackte URL in die NÄCHSTE — so verlinken E-Mail-Programme
   // sie zuverlässig automatisch (mailto ist Plain-Text; echte HTML-Hyperlinks sind darin nicht
-  // möglich). Saubere URLs (YouTube-Suche mit + statt %20).
+  // möglich). Saubere URLs (YouTube-Suche mit + statt %20). KEINE 30s-Klangprobe mehr.
   const links = [];
   if (!STATIC) {
     try {
       const res = await API.preview(n.name, n.listeners); // liefert den ausgewählten Vorschau-Track
-      if (res && res.ok) {
-        if (res.track) {
-          const q = encodeURIComponent(`${res.artist || n.name} ${res.track}`).replace(/%20/g, "+");
-          links.push(`YouTube – Vorschau „${res.track}":`, `https://www.youtube.com/results?search_query=${q}`);
-        }
-        if (res.url) links.push("Klangprobe (30 s):", res.url);
+      if (res && res.ok && res.track) {
+        const q = encodeURIComponent(`${res.artist || n.name} ${res.track}`).replace(/%20/g, "+");
+        links.push(`▶ Auf YouTube anhören — „${res.track}"`, `https://www.youtube.com/results?search_query=${q}`);
       }
     } catch {}
   }
-  if (n.url) links.push("Last.fm:", n.url);
+  if (n.url) links.push("Mehr auf Last.fm", n.url);
   const body = [...info, ...(links.length ? ["", ...links] : [])].join("\n");
   location.href = `mailto:?subject=${encodeURIComponent(`Musik-Tipp: ${n.name}`)}&body=${encodeURIComponent(body)}`;
 };
