@@ -269,13 +269,14 @@
   /* Mittelteil hält EQ+Titel UND die Scrub-Leiste im selben Kasten übereinander: bei Maus-
      Näherung wird der Titel weich gegen die Spulleiste getauscht — die PILLENBREITE bleibt
      gleich (Scrub liegt absolut über dem Titel). Maus weg -> wieder EQ+Titel. Touch: .expanded. */
-  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; min-width: 130px; }
+  .nowplaying .npmid { position: relative; display: inline-flex; align-items: center; min-width: 155px; }
   .nowplaying .npidle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; transition: opacity .18s ease; }
   .nowplaying .npscrub { position: absolute; inset: 0; display: inline-flex; align-items: center; gap: 9px;
     opacity: 0; pointer-events: none; transition: opacity .18s ease; }
   .nowplaying:hover .npidle, .nowplaying:focus-within .npidle, .nowplaying.expanded .npidle { opacity: 0; }
   .nowplaying:hover .npscrub, .nowplaying:focus-within .npscrub, .nowplaying.expanded .npscrub { opacity: 1; pointer-events: auto; }
-  .nowplaying #npBar { flex: 1 1 auto; position: relative; min-width: 40px; height: 6px; border-radius: 3px;
+  /* Scrub-Leiste konstante Breite (C7): die Pille wächst mit dem Titel, die Spulleiste bleibt gleich. */
+  .nowplaying #npBar { flex: none; position: relative; width: 96px; height: 6px; border-radius: 3px;
     background: var(--line-soft); cursor: pointer; touch-action: none; }
   .nowplaying #npBar .npfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); pointer-events: none; }
   .nowplaying #npBar .npknob { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; border-radius: 50%;
@@ -1446,6 +1447,9 @@ function rebuild(prev, reheatAmt = 1) {
       pinned: old?.pinned ?? false,
       // appear 0→1: frische Knoten wachsen ein (Spawn-Animation); bekannte bleiben sichtbar
       appear: old?.appear ?? (old ? 1 : 0),
+      // C1: frische Knoten starten leicht zeitversetzt (0..~22 Frames), damit sie nicht alle
+      // gleichzeitig einblenden, sondern organisch nacheinander.
+      _appearDelay: old ? 0 : Math.random() * 22,
       likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
     };
   });
@@ -1833,6 +1837,7 @@ function draw() {
   const fs = focusSet();
   const hi = compareSet.size >= 2 ? commonNeighbors(compareSet) : (secretMode ? secretIds() : null);
   const pe = null;
+  const previewingName = (previewName && audio.src && !audio.paused && !audio.ended) ? previewName : null; // C5: laufende Klangprobe
   // Nur der Fokus-Modus (Vergleich/Pfad, fs) versteckt hart. LOD (n._lodA) und Genre-Filter
   // (n._genA) werden weich über eased Alphas geblendet — kein Ploppen (B2/B10). vis() liefert
   // die kombinierte Sichtbarkeit 0..1 je Knoten.
@@ -1937,6 +1942,12 @@ function draw() {
     if (n.likePulse > 0) {
       ctx.globalAlpha = n.likePulse * 0.7; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
       ctx.beginPath(); ctx.arc(n.x, n.y, r + (1 - n.likePulse) * 20 / view.k, 0, 7); ctx.stroke();
+    }
+    // C5: Vorschau-Indikator — sanft pulsierender Ring am Act, dessen Klangprobe gerade läuft.
+    if (previewingName && n.name === previewingName) {
+      const pl = 0.5 + 0.5 * Math.sin(Date.now() / 260);
+      ctx.globalAlpha = (0.55 + 0.4 * pl) * baseA; ctx.lineWidth = 2.2 / view.k; ctx.strokeStyle = getCss("--edge-together");
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + (5 + pl * 4) / view.k, 0, 7); ctx.stroke();
     }
     if (n.active) {
       ctx.globalAlpha = baseA;
@@ -2152,7 +2163,10 @@ let idleTick = 0;
 function stepNodeAnims() {
   let live = false;
   for (const a of nodes) {
-    if (a.appear < 1) { a.appear = Math.min(1, a.appear + 0.055); live = true; }
+    if (a.appear < 1) {
+      if (a._appearDelay > 0) { a._appearDelay -= 1; live = true; } // C1: erst kurz warten (gestaffelt)
+      else { a.appear = Math.min(1, a.appear + 0.06); live = true; }
+    }
     if (a.likePulse > 0) { a.likePulse = Math.max(0, a.likePulse - 0.028); live = true; }
     // LOD: Blätter weich ein-/ausblenden statt schlagartig ploppen (B2). Ziel 1 = sichtbar, 0 = aus.
     const lodT = lodHiddenNode(a) ? 0 : 1;
@@ -2194,7 +2208,8 @@ function loop() {
     else { centerOn(followNode); if (alpha < ALPHA_MIN) followNode = null; }
   }
   const anims = stepNodeAnims();
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive || sizing;
+  const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive || sizing || npPlaying;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -2404,7 +2419,7 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { exploreByName(m.name, { select: false, center: false, reheatAmt: 0.5 }); } // ＋ = nur ausbauen, KEINE Info, kein Recenter (B7), sanftes Reheat (B4)
+      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.5 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), sanftes Reheat (B4)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
       else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;

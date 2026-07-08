@@ -9,10 +9,10 @@ Leitmotiv weiter: fließend/organisch, klares Feedback, sinnvolle Defaults.
 
 ## Offene Punkte
 
-- [ ] **C1 — Fade-in gestaffelt/random.** Der Planeten-Fade-in ist gut, aber alle blenden
+- [x] **C1 — Fade-in gestaffelt/random.** Der Planeten-Fade-in ist gut, aber alle blenden
   gleichzeitig ein. Stattdessen zeitlich minimal versetzt (leicht randomisiert) nacheinander.
 
-- [ ] **C2 — ＋ fokussiert das neue Sternensystem.** Klick auf ＋ an einem Mond soll den View auf
+- [x] **C2 — ＋ fokussiert das neue Sternensystem.** Klick auf ＋ an einem Mond soll den View auf
   den neu erzeugten „Sonne"-Act (den ausgebauten Artist im Zentrum) zentrieren/folgen — nur ohne
   das Info-Panel zu öffnen (das war C-alt B7). Also center=true, select=false.
 
@@ -24,14 +24,14 @@ Leitmotiv weiter: fließend/organisch, klares Feedback, sinnvolle Defaults.
   Linienfarben bedeuten (blau = ähnlicher Stil, orange = zusammen aufgetreten) UND was
   Planetengröße (Popularität/Hörer) und Abstand (Ähnlichkeit) aussagen.
 
-- [ ] **C5 — Vorschau-Indikator am Mond.** Der Knoten, dessen Klangprobe gerade läuft, soll wieder
+- [x] **C5 — Vorschau-Indikator am Mond.** Der Knoten, dessen Klangprobe gerade läuft, soll wieder
   einen kleinen Indikator (Ring/Puls) bekommen (gab es früher schon mal).
 
 - [ ] **C6 — Preview-Plausi-Check gegen Genres.** In der Artist-Match/Preview kam wieder eine
   Klangprobe, die nicht zu den angezeigten Genres passt. Plausibilitätsprüfung einbauen (Track/
   Artist der Vorschau gegen den Act/seine Genres abgleichen, sonst keine bzw. bessere Vorschau).
 
-- [ ] **C7 — Scrub-Line konstante Größe.** Die Pille passt sich weiter dem Titel an (langer Name =
+- [x] **C7 — Scrub-Line konstante Größe.** Die Pille passt sich weiter dem Titel an (langer Name =
   breitere Pille), aber die Scrub-Leiste selbst soll IMMER gleich groß sein (feste Breite), nicht
   mit dem Titel mitwachsen.
 
