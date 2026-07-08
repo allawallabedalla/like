@@ -96,16 +96,17 @@ test.describe("Persistenz (localStorage überlebt Reload)", () => {
   test("Ansicht/Theme-Wahl bleibt nach Reload erhalten", async ({ page }) => {
     await page.goto(`/?pack=${PUBLIC_PACK}`, { waitUntil: "networkidle" });
     await dismissIntro(page);
-    // Standard = Space/Dark. Auf Flat schalten (persistiert like_theme=light, gekoppelt).
-    await page.locator("#segFlat").click();
-    await expect(page.locator("#segFlat")).toHaveClass(/on/);
+    // Standard = Flat/Light. Auf Space schalten (den Nicht-Default -> testet Persistenz echt;
+    // persistiert like_theme=dark, gekoppelt).
+    await page.locator("#segSpace").click();
+    await expect(page.locator("#segSpace")).toHaveClass(/on/);
     const stored = await page.evaluate(() => localStorage.getItem("like_theme"));
-    expect(stored).toBe("light");
+    expect(stored).toBe("dark");
     // Reload -> Wahl bleibt
     await page.reload({ waitUntil: "networkidle" });
     await dismissIntro(page);
-    await expect(page.locator("#segFlat")).toHaveClass(/on/);
-    expect(await page.evaluate(() => localStorage.getItem("like_theme"))).toBe("light");
+    await expect(page.locator("#segSpace")).toHaveClass(/on/);
+    expect(await page.evaluate(() => localStorage.getItem("like_theme"))).toBe("dark");
   });
 
   test("manuell gesetzter localStorage-Wert überlebt Reload", async ({ page }) => {
