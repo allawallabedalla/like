@@ -1205,8 +1205,18 @@ function reqHeaders(extra) {
   }
   return extra ? { ...h, ...extra } : h;
 }
-const GET = (path) => fetch(path, { headers: reqHeaders() }).then(r => r.json());
-const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(r => r.json());
+// Antwort robust auswerten: Server-Fehler liefern JSON ({error:…}), aber der Proxy davor
+// (z. B. eine noch hochfahrende Render-Preview) schickt manchmal Klartext „Not Found". Dann NICHT
+// blind r.json() aufrufen (sonst „Unexpected token 'N'…"), sondern eine lesbare Fehlermeldung werfen.
+async function parseRes(r) {
+  const txt = await r.text();
+  let data = null;
+  if (txt) { try { data = JSON.parse(txt); } catch { /* kein JSON (z. B. „Not Found") */ } }
+  if (!r.ok) throw new Error((data && (data.error || data.message)) || (txt || "").trim() || (r.status + " " + r.statusText));
+  return data;
+}
+const GET = (path) => fetch(path, { headers: reqHeaders() }).then(parseRes);
+const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(parseRes);
 const API = {
   graph: () => STATIC ? Promise.resolve(window.LIKE_GRAPH) : GET("/api/graph"),
   explore: (name) => POST("/api/explore", { name }),
@@ -2982,15 +2992,9 @@ document.getElementById("shareBtn").onclick = async () => {
       }
     } catch {}
   }
-  const primaryUrl = ytUrl || n.url || "";
   const title = `Musik-Tipp: ${n.name}`;
-  const text = [n.name, ...facts].join("\n");
-  // 1) Nativer Teilen-Dialog
-  if (navigator.share) {
-    try { await navigator.share({ title, text, url: primaryUrl || undefined }); return; }
-    catch (err) { if (err && err.name === "AbortError") return; } // abgebrochen -> nichts; sonst Fallback
-  }
-  // 2) Fallback mailto
+  // Direkt ins Mail-Programm — bewusst KEIN navigator.share, das auf Desktop nur das OS-Teilen-
+  // Fenster zeigt. mailto öffnet den Standard-Mail-Client mit vorausgefülltem Betreff + Text.
   const links = [];
   if (ytUrl) links.push(`▶ Auf YouTube anhören — „${trackName}"`, ytUrl);
   if (n.url) links.push("Mehr auf Last.fm", n.url);
