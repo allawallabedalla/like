@@ -1658,6 +1658,10 @@ function tick() {
   const REP = 8800, SPRING = 0.012, DAMP = 0.86, CUT = 460, CUT2 = CUT * CUT; // etwas mehr Abstoßung -> luftigeres Netz
   const COLLIDE_PAD = 30; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
   const n = nodes.length;
+  // Dichte-Ausgleich: bei vielen Knoten das ganze Gerüst luftiger auseinanderziehen (Feder-
+  // Ruhelängen länger, Zentrums-Sog schwächer) — sonst klumpen die Sonnen mit ihren Halos zu
+  // einem wilden Knäuel. ~sqrt(n), damit die Fläche ungefähr mit der Knotenzahl mitwächst.
+  const spread = Math.min(2.8, Math.max(1, Math.sqrt(n / 45)));
   // Radien einmal pro Frame vorberechnen (radius() liest Grad/Popularität) — für die Kollision
   const rad = new Array(n);
   for (let i = 0; i < n; i++) rad[i] = radius(nodes[i]);
@@ -1706,7 +1710,7 @@ function tick() {
   }
   for (const l of links) {
     if (l.type === "venue") continue; // D3: Venue-Kanten ziehen nicht — Venues folgen ihren Acts, nicht umgekehrt
-    let rest = 85 + (1 - (l.bond ?? l.strength)) * 90; // kombinierte Bindung (ähnlich+zusammen => näher)
+    let rest = (85 + (1 - (l.bond ?? l.strength)) * 90) * spread; // kombinierte Bindung (ähnlich+zusammen => näher), bei dichtem Netz luftiger
     // Planeten-Modus: zwei benachbarte Planeten (beide mit Mond-Halo) brauchen Platz für ihre
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
     // Halo-Radien + Puffer anheben, damit sich die Planeten sauber auseinanderschieben.
@@ -1723,8 +1727,9 @@ function tick() {
   }
   for (const a of nodes) {
     if (a.venue) continue; // D3: Venues werden separat über positionVenues() am Schwerpunkt ihrer Acts platziert
-    a.vx += (W / 2 - a.x) * 0.00024 * alpha;
-    a.vy += (H / 2 - a.y) * 0.00024 * alpha;
+    const centerK = 0.00024 / spread; // dichtes Netz: schwächerer Sog, damit es sich entzerren kann
+    a.vx += (W / 2 - a.x) * centerK * alpha;
+    a.vy += (H / 2 - a.y) * centerK * alpha;
     // fixierte Knoten (nach manuellem Ziehen) bleiben stehen, stoßen aber weiter ab —
     // so lässt sich das Netz von Hand sortieren, ohne dass die Physik es zurückzieht
     if (a === dragNode || a.pinned || a._moon) { a.vx = 0; a.vy = 0; continue; } // Monde folgen ihrer Umlaufbahn
