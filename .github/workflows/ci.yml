@@ -1,0 +1,50 @@
+# CI — läuft bei jedem Push auf main UND bei jeder Pull Request.
+# Prüft: Syntax aller Server-/Lib-Module, Server-Boot je Pack (Smoke) und die funktionalen
+# E2E-Regressionstests (inkl. Drag/Zoom/Pill/LOD). So kann kein kaputter Stand nach main.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Electron-Binary NICHT herunterladen — wir bauen hier keine Desktop-App, das spart Zeit.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Syntax-Check (alle .mjs)
+        run: |
+          find server.mjs lib packs scripts -name '*.mjs' -print0 \
+            | xargs -0 -n1 node --check
+
+      - name: Smoke (Config valide + Server-Boot je Pack)
+        run: npm run check
+
+      - name: Playwright-Browser (Chromium) installieren
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E-Regressionstests
+        run: npm run test:ci
+
+      - name: Playwright-Report als Artefakt (bei Fehlern)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
