@@ -3562,11 +3562,12 @@ function applyTheme(dark) {
 }
 // Der frühere Sonne/Mond-Knopf ist entfernt: Hell/Dunkel wird über den Space/Flat-Toggle
 // gesteuert (Dark=Space, White=Flat sind gekoppelt) — ein Schalter statt zwei fürs Gleiche.
-// Standard = DARK (→ Space); gespeicherte Wahl gewinnt. Ansicht ans Theme gekoppelt.
+// Standard = LIGHT (→ Flat, das klassische Netz); nur wer mag, schaltet auf Space. Eine
+// gespeicherte Wahl gewinnt. Ansicht ans Theme gekoppelt.
 (() => {
   let pref = null;
   try { pref = localStorage.getItem("like_theme"); } catch {}
-  const dark = pref ? pref === "dark" : true;
+  const dark = pref ? pref === "dark" : false;
   planetMode = dark;           // Dark=Space, White=Flat (syncViewSeg() unten spiegelt es in den Toggle)
   applyTheme(dark);
 })();
