@@ -1590,6 +1590,7 @@ function rebuild(prev, reheatAmt = 1) {
   computeGenreColors(); // Cluster-Farben an den neuen Bestand anpassen
   assignRevealK();      // LOD-Reveal-Schwellen rangweise neu verteilen (gleichmäßig pro Zoom-Step)
   communities = null;   // Szenen/Brücken neu berechnen lassen (Graph hat sich geändert)
+  assignHalos();        // Halo nur für die 3 größten je Szene (füllt communities-Cache neu)
   renderBasket();
   renderLegend();       // dynamische Legende an den neuen Bestand anpassen (B12)
   reheat(reheatAmt); // neues Layout durchrechnen lassen (beim ＋-Ausbauen bewusst sanfter -> weniger Zappeln, B4)
@@ -1658,7 +1659,12 @@ function centerSpeed(a) {
   const dist = Math.hypot(sx - W / 2, sy - (H + 52) / 2);
   const full = W * 0.40 || 1;                 // ab ~40% der Bildbreite volles Tempo
   const t = Math.min(1, dist / full);
-  return t * t * (3 - 2 * t);                 // Smoothstep: 0 in der Mitte, weich auf 1
+  const base = t * t * (3 - 2 * t);           // Smoothstep: 0 in der Mitte, weich auf 1
+  // Während ein Layout AKTIV rechnet (hohes alpha, z.B. direkt nach dem +-Ausbau), NICHT
+  // einfrieren — sonst stehen zentrumsnahe neue Knoten trotz Federkraft still und zappeln, wenn
+  // sie rausdriften. Erst wenn sich das Netz beruhigt (alpha klein), greift die Mitte-Ruhe.
+  const settle = Math.max(0, Math.min(1, (alpha - ALPHA_MIN) / 0.25)); // 0 = beruhigt .. 1 = aktiv
+  return base + (1 - base) * settle;
 }
 function tick() {
   if (alpha < ALPHA_MIN && !dragNode) return; // beruhigt -> CPU schonen
@@ -2004,20 +2010,20 @@ function draw() {
       if (hidden(n.id) || n.venue) continue;
       const ap = (n.appear ?? 1) * vis(n); if (ap < 0.05) continue; // Hof faded mit LOD/Genre (B2/B10)
       if (dimNode(n) && !(selected && n.id === selected.id)) continue; // gedimmte Knoten ohne Hof
+      // Hof NUR für die 3 größten je Szene (assignHalos) — sonst diffuser Nebel. Selektion/Hover
+      // dürfen zusätzlich leuchten, damit die Interaktion sichtbar bleibt.
+      if (!n._haloOn && !(selected && n.id === selected.id) && n !== hover) continue;
       const r = radius(n);
-      // Glow ~ Popularität (Helligkeit ist das Hauptsignal), Grad nur als kleiner Struktur-Anteil.
       const gf = glowFactor(n);
-      // Ein Hof macht nur da Sinn, wo er etwas AUSSAGT: bei populären Acts (Glow) und bei den
-      // Sonnen/Hubs (Reichweite). Kleine, unpopuläre Blätter/Monde bekommen KEINEN Hof — sonst
-      // überlagern sich lauter bedeutungslose Nebelscheiben zu einem diffusen Grau.
-      if (gf < 0.12 && !lodSun(n)) continue;
-      const degExt = Math.min(16, Math.sqrt(Math.max(0, n.deg || 0)) * 3);
-      const hR = r + 6 + degExt + gf * 46; // Ausdehnung: wenig durch Grad, viel durch Popularität
+      // Ausdehnung skaliert mit der KNOTENGRÖSSE (je größer, desto mehr Hof) + Popularitäts-Bonus,
+      // und der Rang in der Szene (0 = größter) verstärkt zusätzlich — in sinnvollen Grenzen.
+      const rankBoost = [1, 0.72, 0.5][n._haloRank] ?? 0.5;
+      const hR = r + 8 + (r * 0.9 + gf * 34) * rankBoost;
       if (!isFinite(r) || !isFinite(hR) || !isFinite(n.x) || !isFinite(n.y)) continue;
       const rgb = parseRGB(nodeColor(n));
       const g = ctx.createRadialGradient(n.x, n.y, r * 0.55, n.x, n.y, hR);
       g.addColorStop(0, rgbStr(rgb, 0));
-      g.addColorStop(0.5, rgbStr(rgb, (0.08 + gf * 0.5) * ap)); // dim für unbekannt/klein, hell für Stars
+      g.addColorStop(0.5, rgbStr(rgb, (0.1 + gf * 0.45) * rankBoost * ap)); // heller bei größeren/populären
       g.addColorStop(1, rgbStr(rgb, 0));
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, hR, 0, 7); ctx.fill();
     }
@@ -2169,10 +2175,7 @@ function draw() {
     ctx.beginPath(); ctx.arc(ib.x, ib.y, ib.r, 0, 7);
     ctx.fillStyle = getCss("--bg"); ctx.fill();
     ctx.lineWidth = 1.4 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke();
-    ctx.fillStyle = getCss("--text"); ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.font = `italic 700 ${ib.r * 1.5}px ${CANVAS_FONT}`;
-    ctx.fillText("i", ib.x, ib.y + 0.4 / view.k);
-    ctx.textBaseline = "alphabetic";
+    drawInfoI(ib.x, ib.y, ib.r);
   }
 
   // Play/Pause-Button (Space UND Flat gleich): blendet schon vor dem Hover ein — je näher die
@@ -2220,10 +2223,7 @@ function draw() {
     ctx.beginPath(); ctx.arc(b.info.x, b.info.y, b.info.r, 0, 7);
     ctx.fillStyle = getCss("--bg"); ctx.fill();
     ctx.lineWidth = 1.4 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke();
-    ctx.fillStyle = getCss("--text"); ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.font = `italic 700 ${b.info.r * 1.5}px ${CANVAS_FONT}`;
-    ctx.fillText("i", b.info.x, b.info.y + 0.4 / view.k);
-    ctx.textBaseline = "alphabetic";
+    drawInfoI(b.info.x, b.info.y, b.info.r);
     // × unten rechts — Mond von der Karte nehmen (mit Undo, wie das Lösch-× der Seeds)
     ctx.beginPath(); ctx.arc(b.del.x, b.del.y, b.del.r, 0, 7);
     ctx.fillStyle = getCss("--bg"); ctx.fill();
@@ -2413,8 +2413,25 @@ function assignRevealK() {
   const m = planets.length;
   planets.forEach((x, i) => { x._revealK = m <= 1 ? REVEAL_K0 : REVEAL_K0 + (i / (m - 1)) * (REVEAL_K1 - REVEAL_K0); });
 }
+// Halo/Aura NUR für die 3 größten je Szene (Community): sonst wird die Karte ein diffuser
+// Nebel. _haloRank 0..2 (0 = größter) steuert zusätzlich die Intensität (je größer, desto mehr).
+function assignHalos() {
+  for (const n of nodes) { n._haloOn = false; n._haloRank = 3; }
+  const comm = computeCommunities();
+  const byC = new Map();
+  for (const n of nodes) {
+    if (n.venue) continue;
+    const c = comm.get(n.id) ?? ("_" + n.id);
+    (byC.get(c) || byC.set(c, []).get(c)).push(n);
+  }
+  for (const arr of byC.values()) {
+    arr.sort((a, b) => radiusTarget(b) - radiusTarget(a));
+    for (let i = 0; i < Math.min(3, arr.length); i++) { arr[i]._haloOn = true; arr[i]._haloRank = i; }
+  }
+}
 function lodHiddenNode(n) {
   if (!n || n.venue) return false;
+  if (previewName && n.name === previewName) return false; // laufende Klangprobe: Planet bleibt immer sichtbar
   if (nodes.length <= 40) return false;   // kleine Graphen: alles zeigen
   if (lodSun(n)) return false;            // Sonnen immer sichtbar
   return view.k < (n._revealK ?? REVEAL_K1); // Planeten rangweise gestaffelt einblenden
@@ -2484,6 +2501,14 @@ function onMoonBadge(n, px, py) {
 }
 // ⓘ-Info-Badge auch an gesuchten Acts (Seed): oben links — Gegenstück zum Lösch-× oben rechts.
 function seedInfoBadge(n) { const d = (radius(n) + 16 / view.k) / Math.SQRT2; return { x: n.x - d, y: n.y - d, r: 9.5 / view.k }; }
+// Sauberes Info-Glyph (Punkt + runder Stamm) statt eines schief sitzenden kursiven „i".
+function drawInfoI(x, y, r) {
+  ctx.fillStyle = getCss("--text");
+  ctx.beginPath(); ctx.arc(x, y - r * 0.44, r * 0.18, 0, 7); ctx.fill();               // Punkt oben
+  ctx.strokeStyle = getCss("--text"); ctx.lineWidth = r * 0.34; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x, y - r * 0.06); ctx.lineTo(x, y + r * 0.5); ctx.stroke(); // Stamm
+  ctx.lineCap = "butt";
+}
 function onSeedInfo(n, px, py) {
   if (!n || n.venue || !n.seed || (n.appear ?? 1) < 1) return false;
   const w = world({ x: px, y: py }), b = seedInfoBadge(n);
@@ -2519,18 +2544,16 @@ function schedulePrefetch(n) {
   if (STATIC || !n || n.venue || n.explored || prefetched.has(n.id)) return;
   prefetchTimer = setTimeout(() => { prefetched.add(n.id); API.prefetch(n.name).catch(() => {}); }, 350);
 }
-let dragStart = null, downCtrl = false;
+let dragStart = null;
 cv.addEventListener("mousedown", (e) => {
   const p = canvasXY(e);
   const n = pick(p.x, p.y);
   dragging = true; moved = false;
-  // Presse auf einem Bedien-Element (Play/＋/ⓘ/×)? Dann NICHT draggen/pannen — nur der Klick auf
-  // mouseup zählt. Das war das „Zuckeln": ein leicht wackliger Klick auf ▶ verschob (bei einem
-  // fassbaren Knoten) diesen bzw. pannte (sonst) die ganze Ansicht ein Stück.
-  downCtrl = !!(onPlayBtn(p.x, p.y) || (hover && (onMoonBadge(hover, p.x, p.y) || onDeleteBadge(hover, p.x, p.y) || onSeedInfo(hover, p.x, p.y))));
-  // Knoten sind greifbar — auch Monde (werden beim Ziehen fixiert und verlassen dann ihre Bahn),
-  // damit sich WIRKLICH jeder Planet verschieben lässt. Nur bei einer Control-Presse nicht.
-  if (n && !downCtrl) { dragNode = n; }
+  // Jeder Knoten ist greifbar — auch Monde (werden beim Ziehen fixiert und verlassen dann ihre
+  // Bahn). Ein RUHIGER Klick (unter der Bewegungsschwelle) bewegt nichts und wird auf mouseup als
+  // Play/＋/ⓘ/×/Auswahl ausgewertet; erst echtes Ziehen (> Schwelle) verschiebt. So geht Ziehen
+  // UND ein wackliger Play-Klick zappelt nicht (kein Pan, weil dragNode gesetzt ist).
+  if (n) { dragNode = n; }
   stopFollow(); // eigene Interaktion beendet das automatische Mittig-Halten
   cv.classList.add("grabbing");
   dragStart = { x: p.x, y: p.y, vx: view.x, vy: view.y };
@@ -2559,9 +2582,8 @@ addEventListener("mousemove", (e) => {
     updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
     return;
   }
-  if (downCtrl) return; // Presse auf einem Bedien-Element: nicht draggen/pannen (nur Klick zählt)
   const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
-  if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+  if (Math.abs(dx) + Math.abs(dy) > 6) moved = true; // etwas größere Schwelle -> wacklige Klicks lösen keinen Drag aus
   if (dragNode) {
     if (!moved) return; // reines Klicken darf den Knoten nicht schon verschieben/aufheizen
     const w = world(p);
@@ -2589,7 +2611,7 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.5 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), sanftes Reheat (B4)
+      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.35 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), sanftes Reheat (B4)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
       else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;
@@ -2615,7 +2637,7 @@ addEventListener("mouseup", (e) => {
     }
   }
   if (dragNode && moved) { dragNode.pinned = true; renderLegend(); }  // gezogen = fixiert (Rechtsklick löst); Legende „fixiert" (B12)
-  dragging = false; dragNode = null; downCtrl = false; cv.classList.remove("grabbing");
+  dragging = false; dragNode = null; cv.classList.remove("grabbing");
 });
 cv.addEventListener("dblclick", (e) => {
   const p = canvasXY(e);
@@ -2908,39 +2930,47 @@ document.getElementById("status").onchange = async (e) => {
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
 };
-// Teilen per E-Mail: Fakten wie im CSV-Export (Name, Genre, Region, Hörer, Notiz) + Links:
-// Last.fm-Profil, YouTube-Suche nach dem konkreten Vorschau-Track und die Klangprobe selbst.
+// Teilen: bevorzugt der native Teilen-Dialog (Web Share API) — echter, in jede App teilbarer
+// Link + Text (E-Mail, Nachrichten, WhatsApp …). Nur wenn das der Browser nicht kann, Fallback
+// auf mailto (Plain-Text). So ist es kein bloßer Link-Textblock mehr.
 document.getElementById("shareBtn").onclick = async () => {
   if (!selected || selected.venue) return;
   const n = selected, b = n.booking || {};
   const region = [b.area, b.country].filter(Boolean).join(", ") || n.bcLocation || "";
-  // Trend NUR anhängen, wenn genug App-Historie gesammelt wurde (n._growth != null).
   const trend = (typeof n._growth === "number")
     ? (n._growth >= 5 ? " (steigend)" : n._growth <= -5 ? " (fallend)" : " (konstant)")
     : "";
-  const info = [
-    n.name,
+  const facts = [
     (n.genres && n.genres.length) ? `Genre: ${n.genres.slice(0, 4).join(", ")}` : "",
     region ? `Region: ${region}` : "",
     (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}${trend}` : "",
     n.note ? `Notiz: ${n.note}` : "",
   ].filter(Boolean);
-  // Links: Label in eine Zeile, die nackte URL in die NÄCHSTE — so verlinken E-Mail-Programme
-  // sie zuverlässig automatisch (mailto ist Plain-Text; echte HTML-Hyperlinks sind darin nicht
-  // möglich). Saubere URLs (YouTube-Suche mit + statt %20). KEINE 30s-Klangprobe mehr.
-  const links = [];
+  // Konkreten Vorschau-Track (für den „anhören"-Link) holen — der beste teilbare Link.
+  let ytUrl = "", trackName = "";
   if (!STATIC) {
     try {
-      const res = await API.preview(n.name, n.listeners); // liefert den ausgewählten Vorschau-Track
+      const res = await API.preview(n.name, n.listeners);
       if (res && res.ok && res.track) {
-        const q = encodeURIComponent(`${res.artist || n.name} ${res.track}`).replace(/%20/g, "+");
-        links.push(`▶ Auf YouTube anhören — „${res.track}"`, `https://www.youtube.com/results?search_query=${q}`);
+        trackName = res.track;
+        ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${res.artist || n.name} ${res.track}`).replace(/%20/g, "+")}`;
       }
     } catch {}
   }
+  const primaryUrl = ytUrl || n.url || "";
+  const title = `Musik-Tipp: ${n.name}`;
+  const text = [n.name, ...facts].join("\n");
+  // 1) Nativer Teilen-Dialog
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url: primaryUrl || undefined }); return; }
+    catch (err) { if (err && err.name === "AbortError") return; } // abgebrochen -> nichts; sonst Fallback
+  }
+  // 2) Fallback mailto
+  const links = [];
+  if (ytUrl) links.push(`▶ Auf YouTube anhören — „${trackName}"`, ytUrl);
   if (n.url) links.push("Mehr auf Last.fm", n.url);
-  const body = [...info, ...(links.length ? ["", ...links] : [])].join("\n");
-  location.href = `mailto:?subject=${encodeURIComponent(`Musik-Tipp: ${n.name}`)}&body=${encodeURIComponent(body)}`;
+  const body = [n.name, ...facts, ...(links.length ? ["", ...links] : [])].join("\n");
+  location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 };
 document.getElementById("saveNote").onclick = async () => {
   if (!selected || selected.venue) return;
