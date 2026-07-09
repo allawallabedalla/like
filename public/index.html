@@ -1861,6 +1861,12 @@ let selected = null, hover = null, dragNode = null, dragging = false, moved = fa
 let followNode = null;
 function stopFollow() { followNode = null; }
 let busyId = null, filterGenre = "";
+// ＋-Ausbau-Warteschlange: mehrere schnelle ＋-Klicks werden nicht mehr verworfen, sondern
+// gesammelt — alle wartenden Knoten pulsieren (Blink-Ring, expandPulse) und bauen NACHEINANDER
+// aus. Die Info-Karte öffnet nur der zuletzt ausgebaute Act (siehe drainExpandQueue).
+const expandQueue = [];          // wartende Ausbauten [{name, id}]
+const expandPulse = new Set();   // ids der wartenden/ladenden Knoten -> Blink-Ring
+let expandRunning = false;
 const activeGenres = new Set(); // gewählte Genre-Filter (lowercase, ODER-verknüpft) — Panel-Chips + Legende
 let compareSet = new Set();      // Schnittmengen-Vergleich (Shift-Klick)
 let focusId = null;              // Fokus-Modus: nur Nachbarschaft dieses Knotens
@@ -2594,7 +2600,7 @@ function draw() {
       ctx.font = `${12 / view.k}px ${CANVAS_FONT}`; ctx.textAlign = "center";
       ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
     }
-    if (busyId === n.id) {
+    if (busyId === n.id || expandPulse.has(n.id)) {
       const pulse = 0.4 + 0.4 * Math.sin(Date.now() / 150);
       ctx.globalAlpha = pulse; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
       ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / view.k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
@@ -2847,7 +2853,7 @@ function loop() {
   }
   const anims = stepNodeAnims();
   const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive || sizing || npPlaying;
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || anims || moonsLive || sizing || npPlaying;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -3120,7 +3126,7 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.2 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), SEHR sanftes Reheat -> kaum Zappeln (B4)
+      if (mb === "plus") { queueExpand(m); } // ＋ = ausbauen (Warteschlange): Blink-Ring, nacheinander, Info nur beim letzten einer Mehrfach-Aktion; zentriert (C2), sehr sanftes Reheat (B4)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
       else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;
@@ -3572,6 +3578,33 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
   } catch (e) {
     toast("Fehler: " + e.message);
   } finally { busy = false; busyId = null; }
+}
+
+// ＋ auf einem Mond: in die Warteschlange stellen. Sofort pulsiert der Knoten (Blink-Ring),
+// mehrere schnelle Klicks sammeln sich und bauen nacheinander aus. Die Info-Karte öffnet nur
+// der zuletzt ausgebaute Act EINER Mehrfach-Aktion — ein einzelner ＋-Klick bleibt info-frei
+// (B7), erst ab dem zweiten Knoten landet man am Ende sichtbar beim letzten.
+function queueExpand(node) {
+  if (STATIC) { exploreByName(node.name, { select: false, center: true, reheatAmt: 0.2 }); return; }
+  expandQueue.push({ name: node.name, id: node.id });
+  expandPulse.add(node.id);
+  requestDraw();
+  drainExpandQueue();
+}
+async function drainExpandQueue() {
+  if (expandRunning) return;
+  expandRunning = true;
+  let processed = 0;
+  try {
+    while (expandQueue.length) {
+      const item = expandQueue.shift();
+      processed++;
+      const selectNow = expandQueue.length === 0 && processed > 1; // Info nur beim letzten, nur bei Mehrfach
+      await exploreByName(item.name, { select: selectNow, center: true, reheatAmt: 0.2 });
+      expandPulse.delete(item.id);
+      requestDraw();
+    }
+  } finally { expandRunning = false; expandPulse.clear(); requestDraw(); }
 }
 
 document.getElementById("resetAll").onclick = async () => {
