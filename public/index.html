@@ -1020,6 +1020,7 @@
       </div>
       <p class="snote">Als Richtwert: schon 1–4 € helfen sehr. Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.</p>
       <p class="snote" id="supportFeedback" style="display:none">Auch ohne Geld hilfst du: <a id="supportFeedbackLink" style="cursor:pointer;text-decoration:underline;color:inherit">Schreib mir kurz, was besser werden soll</a> ✉</p>
+      <p class="snote" id="supportLogin" style="display:none">Schon gespendet? <a id="supportLoginLink" style="cursor:pointer;text-decoration:underline;color:inherit">Melde dich an</a> — dann gilt deine Spende auf allen Geräten.</p>
       <div class="row">
         <a id="supportDonate" href="#" target="_blank" rel="noreferrer"><button class="primary">♥ Spenden (PayPal)</button></a>
         <button id="supportLater">Habe schon</button>
@@ -1349,6 +1350,9 @@ const T = LANG !== "en" ? null : {
   "Als Richtwert: schon 1–4 € helfen sehr. Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.": "As a guideline: even €1–4 helps a lot. Every donation goes 1:1 into running costs — none of it sticks with me. And whatever you decide: like stays fully usable for you.",
   "♥ Spenden (PayPal)": "♥ Donate (PayPal)", "Habe schon": "Already donated",
   "Auch ohne Geld hilfst du:": "You can also help without money:",
+  "Schon gespendet?": "Already donated?",
+  "Melde dich an": "Sign in",
+  "— dann gilt deine Spende auf allen Geräten.": "— then your donation counts on all your devices.",
   "Schreib mir kurz, was besser werden soll": "Tell me briefly what should get better",
   "✦ Suche …": "✦ Searching …", "Streifzug: {P}": "Stroll: {P}",
   "Radar öffnen": "Open radar",
@@ -4490,6 +4494,7 @@ async function doAuthSubmit() {
   authModal.classList.remove("show");
   renderAcct();
   refreshLoginHint();
+  dispatchEvent(new Event("like:login")); // z. B. Spenden-Popup: Konto-Status nachladen
   toast(authMode === "register" ? "Konto erstellt — deine Karte ist jetzt gespeichert ✓" : "Angemeldet — deine Karte ist jetzt geräteübergreifend gespeichert ✓");
 }
 document.getElementById("authSubmit").onclick = doAuthSubmit;
@@ -4808,6 +4813,11 @@ function maybeShowIntro() {
   let S = { used: 0, lastNag: 0, quietUntil: 0 };
   try { S = { ...S, ...JSON.parse(localStorage.getItem("like_support") || "{}") }; } catch {}
   const save = () => { try { localStorage.setItem("like_support", JSON.stringify(S)); } catch {} };
+  // Konto-Kopplung: eingeloggt injiziert der Server den Spendenstatus (window.LIKE_SUPPORT) —
+  // die 72-h-Ruhe gilt damit auf allen Geräten, nicht nur in diesem Browser.
+  if (window.LIKE_SUPPORT && (window.LIKE_SUPPORT.quietUntil || 0) > (S.quietUntil || 0)) {
+    S.quietUntil = window.LIKE_SUPPORT.quietUntil; save();
+  }
   const modal = document.getElementById("supportModal");
   const donate = document.getElementById("supportDonate");
   donate.href = D.url;
@@ -4816,12 +4826,23 @@ function maybeShowIntro() {
   // (gleiches Gate wie der ✉-Knopf, wird beim Start aus /api/health gesetzt).
   const fbRow = document.getElementById("supportFeedback");
   document.getElementById("supportFeedbackLink").onclick = () => { hide(); openFeedback(); };
+  // Login-Weg für zahlende Nutzer: auf anderem Gerät gespendet -> anmelden statt wegdrücken.
+  const loginRow = document.getElementById("supportLogin");
+  document.getElementById("supportLoginLink").onclick = () => { hide(); openAuth("login"); };
+  addEventListener("like:login", async () => {  // nach Login den Konto-Status holen (ohne Reload)
+    try { const r = await GET("/api/support"); if (r && (r.quietUntil || 0) > (S.quietUntil || 0)) { S.quietUntil = r.quietUntil; save(); } } catch {}
+  });
   const show = () => {
     fbRow.style.display = document.getElementById("feedbackBtn").style.display === "" ? "" : "none";
+    loginRow.style.display = (!STATIC && !window.LIKE_USER) ? "" : "none";
     modal.classList.add("show");
   };
   // Wer spendet (bzw. es zumindest anklickt), hat 72 Stunden Ruhe. Danke! ♥
-  donate.addEventListener("click", () => { S.quietUntil = Date.now() + QUIET_FOR; save(); hide(); });
+  // Eingeloggt zusätzlich am Konto vermerken -> gilt auch auf den anderen Geräten.
+  donate.addEventListener("click", () => {
+    S.quietUntil = Date.now() + QUIET_FOR; save(); hide();
+    if (!STATIC && window.LIKE_USER) POST("/api/support/donated", {}).catch(() => {});
+  });
   document.getElementById("supportClose").onclick = hide;
   document.getElementById("supportLater").onclick = hide;
   modal.addEventListener("mousedown", (e) => { if (e.target === modal) hide(); });

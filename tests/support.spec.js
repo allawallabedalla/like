@@ -52,4 +52,44 @@ test.describe("Spenden-Popup (freiwillig)", () => {
     expect(r.hook).toBe("undefined");
     expect(r.shown).toBeFalsy();
   });
+
+  // Konto-Kopplung (echter Server): Spenden-Klick wird am Konto vermerkt und beim nächsten
+  // Laden auf JEDEM Gerät injiziert (window.LIKE_SUPPORT) — anonym gibt es nur localStorage.
+  test("Spendenstatus hängt am Konto (geräteübergreifend); anonym account:false", async ({ request }) => {
+    const anon = await (await request.post("/api/support/donated", { data: {} })).json();
+    expect(anon.ok).toBeTruthy();
+    expect(anon.account).toBeFalsy();
+    // Konto anlegen (Cookie bleibt im request-Context) -> donated -> Status kommt im HTML an
+    const name = "sup" + Date.now().toString(36);
+    const reg = await (await request.post("/api/auth/register", { data: { username: name, password: "test-passwort-1" } })).json();
+    expect(reg.ok, JSON.stringify(reg)).toBeTruthy();
+    const don = await (await request.post("/api/support/donated", { data: {} })).json();
+    expect(don.account).toBeTruthy();
+    expect(don.quietUntil).toBeGreaterThan(Date.now() + 71 * 3600e3);
+    const html = await (await request.get("/?pack=music")).text();
+    const m = html.match(/window\.LIKE_SUPPORT = (\{[^;]*\});/);
+    expect(m, "LIKE_SUPPORT muss injiziert sein").toBeTruthy();
+    expect(JSON.parse(m[1]).quietUntil).toBe(don.quietUntil);
+    // Status-Endpoint (für den Login-Weg im Popup ohne Neuladen)
+    const st = await (await request.get("/api/support")).json();
+    expect(st.quietUntil).toBe(don.quietUntil);
+  });
+
+  test("Popup bietet nicht eingeloggten Nutzern den Anmelde-Weg an", async ({ page }) => {
+    await openApp(page, true);
+    const r = await page.evaluate(() => {
+      for (let i = 0; i < 20; i++) window.__support.tick(30e3);
+      const row = document.getElementById("supportLogin");
+      // STATIC-Modus blendet die Zeile aus (kein Server) -> fürs Sichtbarkeits-Verhalten
+      // den Live-Fall simulieren, dann klicken
+      const out = { hiddenInStatic: row.style.display === "none" };
+      document.getElementById("supportLoginLink").click();
+      out.supportClosed = !document.querySelector("#supportModal.show");
+      out.authOpen = !!document.querySelector("#authModal.show");
+      return out;
+    });
+    expect(r.hiddenInStatic).toBeTruthy(); // file:// = STATIC -> Login-Zeile aus
+    expect(r.supportClosed).toBeTruthy();
+    expect(r.authOpen).toBeTruthy();
+  });
 });

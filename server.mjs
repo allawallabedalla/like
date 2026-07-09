@@ -18,7 +18,7 @@ import { createServer } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 // Konstantzeit-Vergleich (gegen Timing-Angriffe aufs Unlock-Passwort); längenverschieden -> false.
 const timingEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && timingSafeEqual(A, B); };
-import { readFile, writeFile, access, rename } from "node:fs/promises";
+import { readFile, writeFile, access, rename, mkdir } from "node:fs/promises";
 // JSON atomar schreiben (tmp+rename) — kein zerhacktes digest.json bei Absturz/voller Platte.
 const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
@@ -424,7 +424,11 @@ async function indexHtml(pack, unlocked, user) {
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
   const u = JSON.stringify(user || null).replace(/</g, "\\u003c");
   const d = JSON.stringify(DONATE).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};\nwindow.LIKE_DONATE = ${d};</script>\n<script>`);
+  // Eingeloggt: Spendenstatus (72-h-Popup-Ruhe) vom Konto mitgeben -> gilt auf allen Geräten.
+  let support = null;
+  if (user) { try { support = JSON.parse(await readFile(join(DATA_DIR, "users", sanitizeId(user), "support.json"), "utf8")); } catch {} }
+  const sup = JSON.stringify(support).replace(/</g, "\\u003c");
+  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};\nwindow.LIKE_DONATE = ${d};\nwindow.LIKE_SUPPORT = ${sup};</script>\n<script>`);
 }
 
 async function hasApiKey(pack) {
@@ -634,6 +638,24 @@ const server = createServer(async (req, res) => {
     }
 
     // Testuser-Feedback -> Pushover an den Betreiber. Nur wenn Credentials hinterlegt sind.
+    // Spendenstatus des Kontos abfragen (z. B. direkt nach dem Login, ohne Neuladen).
+    if (req.method === "GET" && url.pathname === "/api/support") {
+      let quietUntil = 0;
+      if (authUser) { try { quietUntil = JSON.parse(await readFile(join(DATA_DIR, "users", sanitizeId(authUser), "support.json"), "utf8")).quietUntil || 0; } catch {} }
+      return send(res, 200, { ok: true, quietUntil });
+    }
+
+    // Spenden-Klick am Konto vermerken: 72 Std Popup-Ruhe geräteübergreifend. Anonyme
+    // Nutzer haben kein Konto -> Client nutzt dann nur localStorage (account: false).
+    if (req.method === "POST" && url.pathname === "/api/support/donated") {
+      if (!authUser) return send(res, 200, { ok: true, account: false });
+      const dir = join(DATA_DIR, "users", sanitizeId(authUser));
+      const quietUntil = Date.now() + 72 * 3600e3;
+      try { await mkdir(dir, { recursive: true }); await writeJsonAtomic(join(dir, "support.json"), { quietUntil, donatedAt: Date.now() }); }
+      catch { return send(res, 500, { error: "Konnte nicht speichern" }); }
+      return send(res, 200, { ok: true, account: true, quietUntil });
+    }
+
     if (req.method === "POST" && url.pathname === "/api/feedback") {
       if (!FEEDBACK_ON) return send(res, 400, { error: "Feedback ist auf diesem Build nicht eingerichtet." });
       const { message } = await readBody(req);
