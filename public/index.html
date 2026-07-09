@@ -69,7 +69,10 @@
 
   .bar { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center;
     gap: 12px; padding: 0 14px; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 10; }
-  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; cursor: pointer; user-select: none; }
+  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; cursor: pointer; user-select: none; white-space: nowrap; }
+  /* Deploy-Ref (Commit-Link in Previews) nur auf breiten Screens — sonst frisst er der Leiste
+     den Platz weg und die Suche quetscht sich auf den Space/Flat-Toggle. */
+  @media (max-width: 1080px) { .brand .bref { display: none; } }
   .brand:hover .bdot { transform: scale(1.4); display: inline-block; }
   .brand .bdot { transition: transform .15s; }
   .brand .bdot { color: var(--edge-together); }
@@ -305,7 +308,10 @@
   .badge.seed { background: #fff; color: #000; }
 
   /* Autocomplete */
-  .searchwrap { position: relative; }
+  /* flex+min-width:0: der Suchwrap (und damit das Eingabefeld via max-width) schrumpft MIT,
+     wenn die Leiste eng wird — statt per z-index über den Space/Flat-Toggle zu malen. */
+  .searchwrap { position: relative; flex: 1 1 auto; min-width: 0; }
+  .search input { max-width: 100%; }
   .suggest { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg); border: 1px solid var(--line);
     border-top: none; z-index: 30; display: none; max-height: 240px; overflow-y: auto; }
   .suggest.open { display: block; }
@@ -1013,7 +1019,7 @@
           <option value="confirmed">bestätigt</option>
           <option value="declined">abgesagt</option>
         </select>
-        <button id="shareBtn" class="iconbtn shareicon" title="Diesen Act per E-Mail teilen (öffnet dein Mail-Programm)"><svg class="ic" viewBox="0 0 16 16"><rect x="1.8" y="3.6" width="12.4" height="8.8" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M2.3 4.3 8 8.6 13.7 4.3" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg></button>
+        <button id="shareBtn" class="iconbtn shareicon" title="Diesen Act teilen — Teilen-Dialog oder E-Mail"><svg class="ic" viewBox="0 0 16 16"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
       </div>
     </div>
     <div class="field">
@@ -1029,7 +1035,7 @@
       <div class="row"><button id="labelBtn">Label-Kolleg:innen laden</button></div>
       <div id="pLabels" class="labels-list"></div>
     </div>
-    <div class="field" id="fieldCross">
+    <div class="field workonly" id="fieldCross">
       <label>Andere Welten <small style="text-transform:none;letter-spacing:0">(Adaptionen &amp; Namensvettern)</small></label>
       <div class="row"><button id="crossBtn" title="Gibt es diesen Eintrag auch als Buch, Film, Spiel …? Sucht in deinen anderen Domänen">Brücken in andere Welten</button></div>
       <div id="pCross" class="labels-list"></div>
@@ -1500,7 +1506,12 @@ const STATUS_LABEL = { "": "—", ...Object.fromEntries(CFG.statuses.map((s) => 
 let venueMode = false; // Venue-Ebene (Musik): Spielorte als abgeleitete Knoten einblenden
 try { venueMode = localStorage.getItem(LSK("like_venues")) === "1"; } catch {}
 let clusterMode = false; // Cluster-Färbung: Knoten nach Haupt-Genre einfärben
-try { clusterMode = localStorage.getItem(LSK("like_cluster")) === "1"; } catch {}
+// Standard: im Flat-Modus AN (Farben geben dem klassischen Netz Orientierung), im Space-Modus
+// aus (dort tragen die Planeten die Optik). Eine gespeicherte Wahl gewinnt immer.
+try {
+  const saved = localStorage.getItem(LSK("like_cluster"));
+  clusterMode = saved != null ? saved === "1" : localStorage.getItem("like_theme") !== "dark";
+} catch {}
 let showEdges = true;    // Kanten-SICHTBARKEIT: nur die Optik — die Physik (Anziehung verbundener Knoten) läuft weiter
 try { showEdges = localStorage.getItem(LSK("like_edges")) !== "0"; } catch {}
 let planetMode = true;  // an das Theme gekoppelt: Dark = Space (Planeten), White = Flat. Final in der Theme-Init gesetzt.
@@ -1988,11 +1999,17 @@ function radius(n) {
   if (n._rDraw == null) n._rDraw = t; // erster Frame: direkt auf Zielgröße (kein Einwachsen beim Start)
   return n._rDraw;
 }
+function genreColor(n) {
+  const g = (n.genres || []).find((x) => genreColorMap.has(x.toLowerCase()));
+  return g ? genreColorMap.get(g.toLowerCase()) : null;
+}
 function nodeColor(n) {
   if (n.venue) return getCss("--venue");      // eingeblendeter Spielort
-  if (clusterMode) {                          // Cluster-Modus: Haupt-Genre färbt den Knoten
-    const g = (n.genres || []).find((x) => genreColorMap.has(x.toLowerCase()));
-    if (g) return genreColorMap.get(g.toLowerCase());
+  // Cluster-Modus: Haupt-Genre färbt den Knoten — AUSSER die gesuchten „Sonnen": die bleiben
+  // in der Akzentfarbe (Zentrum sofort erkennbar) und tragen ihr Genre als kräftigen Ring.
+  if (clusterMode && !n.seed) {
+    const c = genreColor(n);
+    if (c) return c;
   }
   if (n.seed) return getCss("--accent");      // gesucht: schwarz
   return getCss("--discovered");              // sonst grau (Status = farbiger Ring)
@@ -2161,7 +2178,7 @@ function draw() {
     else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
     else if (glow) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--edge-together"); ctx.stroke(); }
     else if (sCol) { ctx.lineWidth = 2.5 / view.k; ctx.strokeStyle = sCol; ctx.stroke(); }
-    else if (clusterMode && n.seed && !n.venue) { ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--text"); ctx.stroke(); } // gesucht bleibt im Cluster-Modus erkennbar
+    else if (clusterMode && n.seed && !n.venue) { const gc = genreColor(n); ctx.lineWidth = 3.5 / view.k; ctx.strokeStyle = gc || getCss("--text"); ctx.stroke(); } // „Sonne" im Cluster-Modus: Akzent-Kern + Genre-Farbring
     else if (hover && n.id === hover.id) { ctx.lineWidth = 1.5 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke(); }
     // Brückenbauer: doppelter Ring in Akzentfarbe — verbindet mehrere Szenen
     if (bridgeSet.has(n.id)) {
@@ -4209,8 +4226,10 @@ async function checkKey() {
     const verEl = document.getElementById("ver");
     if (h.version || h.build) {
       const vtxt = h.version ? "v" + esc(h.version) : "";
-      const btxt = h.build ? `<a href="${esc(h.build.href)}" target="_blank" rel="noreferrer" style="color:inherit;text-decoration:underline" title="Aktueller Deploy-Stand auf GitHub">${esc(h.build.label)}</a>` : "";
-      verEl.innerHTML = [vtxt, btxt].filter(Boolean).join(" · ");
+      // Deploy-Ref in einen .bref-Span — auf schmalen Screens per CSS ausgeblendet, damit die
+      // Marke nicht umbricht und die Leiste nicht gequetscht wird.
+      const btxt = h.build ? `<span class="bref">${vtxt ? " · " : ""}<a href="${esc(h.build.href)}" target="_blank" rel="noreferrer" style="color:inherit;text-decoration:underline" title="Aktueller Deploy-Stand auf GitHub">${esc(h.build.label)}</a></span>` : "";
+      verEl.innerHTML = vtxt + btxt;
       if (h.build) verEl.title = "installierte Version · Deploy-Stand (GitHub)";
     }
     // Feedback-Knopf nur zeigen, wenn der Build Pushover-Credentials hat
