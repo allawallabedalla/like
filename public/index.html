@@ -515,6 +515,18 @@
   .modal textarea::placeholder { color: var(--muted); }
   .modal .row { display: flex; gap: 8px; margin-top: 14px; }
   .modal .row button { flex: 1; border-left: 1px solid var(--line-soft); }
+  /* Spenden/Support-Popup + Nutzungspause (aktiv nur mit gesetzter LIKE_DONATE_URL) */
+  .supportcard { position: relative; }
+  .supportcard .sclose { position: absolute; top: 8px; right: 12px; background: none; border: none;
+    font-size: 22px; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px; }
+  .supportcard .sclose:hover { color: var(--text); }
+  .supportcard p { margin: 0 0 10px; font-size: 14px; line-height: 1.55; }
+  .supportcard .scosts { border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; margin: 12px 0; }
+  .supportcard .scosts .sctitle { font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+  .supportcard .scosts div:not(.sctitle) { font-size: 13px; margin: 5px 0; line-height: 1.45; }
+  .supportcard .snote { color: var(--muted); font-size: 12.5px; }
+  .supportcard .row a { flex: 1; display: flex; }
+  .supportcard .row a button { width: 100%; }
 
   /* Radar-Panel (Geheimtipp-Score: kleine Acts nah an deinen Likes) */
   .radarbox { position: fixed; top: 60px; left: 14px; z-index: 34; background: var(--bg); border: 1px solid var(--line);
@@ -995,6 +1007,27 @@
     </div>
   </div>
 
+  <div class="modal-back" id="supportModal">
+    <div class="modal supportcard">
+      <button class="sclose" id="supportClose" title="Schließen" aria-label="Schließen">×</button>
+      <h3 id="supportTitle">Magst du like?</h3>
+      <p id="supportText">like ist ein privates Ein-Personen-Projekt — ohne Werbung, ohne Tracking, ohne Gewinnabsicht. Damit das Projekt weiterleben kann, freue ich mich über eine kleine Spende. ♥</p>
+      <div class="scosts">
+        <div class="sctitle">Wofür das Geld gebraucht wird</div>
+        <div>Server, der die Karte Tag und Nacht für alle bereithält</div>
+        <div>Internet-Adresse likelife.info</div>
+        <div>Musikdaten &amp; Hörproben: zum Glück kostenlos — nur Server und Adresse kosten wirklich</div>
+      </div>
+      <p class="snote">Als Richtwert: schon 1–4 € helfen sehr. Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.</p>
+      <p class="snote" id="supportFeedback" style="display:none">Auch ohne Geld hilfst du: <a id="supportFeedbackLink" style="cursor:pointer;text-decoration:underline;color:inherit">Schreib mir kurz, was besser werden soll</a> ✉</p>
+      <p class="snote" id="supportLogin" style="display:none">Schon gespendet? <a id="supportLoginLink" style="cursor:pointer;text-decoration:underline;color:inherit">Melde dich an</a> — dann gilt deine Spende auf allen Geräten.</p>
+      <div class="row">
+        <a id="supportDonate" href="#" target="_blank" rel="noreferrer"><button class="primary">♥ Spenden (PayPal)</button></a>
+        <button id="supportLater">Habe schon</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-back" id="keyModal">
     <div class="modal">
       <h3 id="keyTitle">Last.fm-Key einrichten</h3>
@@ -1307,6 +1340,20 @@ const T = LANG !== "en" ? null : {
   "Fehler:": "Error:", "Danke fürs Feedback! ✉": "Thanks for the feedback! ✉",
   "konnte nicht senden": "couldn't send", "Senden fehlgeschlagen": "Sending failed",
   "Bitte etwas mehr Text": "Please write a bit more", "Senden…": "Sending…",
+  // Spenden-Popup (freiwillig)
+  "Magst du like?": "Enjoying like?",
+  "like ist ein privates Ein-Personen-Projekt — ohne Werbung, ohne Tracking, ohne Gewinnabsicht. Damit das Projekt weiterleben kann, freue ich mich über eine kleine Spende. ♥": "like is a private one-person project — no ads, no tracking, no profit motive. To keep the project alive, I'd be happy about a small donation. ♥",
+  "Wofür das Geld gebraucht wird": "What the money is needed for",
+  "Server, der die Karte Tag und Nacht für alle bereithält": "The server that keeps the map running day and night for everyone",
+  "Internet-Adresse likelife.info": "The web address likelife.info",
+  "Musikdaten & Hörproben: zum Glück kostenlos — nur Server und Adresse kosten wirklich": "Music data & previews: thankfully free — only the server and the address really cost money",
+  "Als Richtwert: schon 1–4 € helfen sehr. Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.": "As a guideline: even €1–4 helps a lot. Every donation goes 1:1 into running costs — none of it sticks with me. And whatever you decide: like stays fully usable for you.",
+  "♥ Spenden (PayPal)": "♥ Donate (PayPal)", "Habe schon": "Already donated",
+  "Auch ohne Geld hilfst du:": "You can also help without money:",
+  "Schon gespendet?": "Already donated?",
+  "Melde dich an": "Sign in",
+  "— dann gilt deine Spende auf allen Geräten.": "— then your donation counts on all your devices.",
+  "Schreib mir kurz, was besser werden soll": "Tell me briefly what should get better",
   "✦ Suche …": "✦ Searching …", "Streifzug: {P}": "Stroll: {P}",
   "Radar öffnen": "Open radar",
   "und {N} weitere im Aufwind": "and {N} more on the rise",
@@ -1814,6 +1861,12 @@ let selected = null, hover = null, dragNode = null, dragging = false, moved = fa
 let followNode = null;
 function stopFollow() { followNode = null; }
 let busyId = null, filterGenre = "";
+// ＋-Ausbau-Warteschlange: mehrere schnelle ＋-Klicks werden nicht mehr verworfen, sondern
+// gesammelt — alle wartenden Knoten pulsieren (Blink-Ring, expandPulse) und bauen NACHEINANDER
+// aus. Die Info-Karte öffnet nur der zuletzt ausgebaute Act (siehe drainExpandQueue).
+const expandQueue = [];          // wartende Ausbauten [{name, id}]
+const expandPulse = new Set();   // ids der wartenden/ladenden Knoten -> Blink-Ring
+let expandRunning = false;
 const activeGenres = new Set(); // gewählte Genre-Filter (lowercase, ODER-verknüpft) — Panel-Chips + Legende
 let compareSet = new Set();      // Schnittmengen-Vergleich (Shift-Klick)
 let focusId = null;              // Fokus-Modus: nur Nachbarschaft dieses Knotens
@@ -2547,7 +2600,7 @@ function draw() {
       ctx.font = `${12 / view.k}px ${CANVAS_FONT}`; ctx.textAlign = "center";
       ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
     }
-    if (busyId === n.id) {
+    if (busyId === n.id || expandPulse.has(n.id)) {
       const pulse = 0.4 + 0.4 * Math.sin(Date.now() / 150);
       ctx.globalAlpha = pulse; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
       ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / view.k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
@@ -2800,7 +2853,7 @@ function loop() {
   }
   const anims = stepNodeAnims();
   const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || anims || moonsLive || sizing || npPlaying;
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || anims || moonsLive || sizing || npPlaying;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -3073,7 +3126,7 @@ addEventListener("mouseup", (e) => {
     const mb = hover && onMoonBadge(hover, p.x, p.y);
     if (mb) {
       const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
-      if (mb === "plus") { exploreByName(m.name, { select: false, center: true, reheatAmt: 0.2 }); } // ＋ = ausbauen + auf die neue „Sonne" zentrieren (C2), aber KEINE Info (B7), SEHR sanftes Reheat -> kaum Zappeln (B4)
+      if (mb === "plus") { queueExpand(m); } // ＋ = ausbauen (Warteschlange): Blink-Ring, nacheinander, Info nur beim letzten einer Mehrfach-Aktion; zentriert (C2), sehr sanftes Reheat (B4)
       else if (mb === "del") { removeNode(m); requestDraw(); }     // Mond wegklicken (mit Undo)
       else { selectNode(m); }                                      // ⓘ = nur Info-Karte
       return;
@@ -3525,6 +3578,33 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
   } catch (e) {
     toast("Fehler: " + e.message);
   } finally { busy = false; busyId = null; }
+}
+
+// ＋ auf einem Mond: in die Warteschlange stellen. Sofort pulsiert der Knoten (Blink-Ring),
+// mehrere schnelle Klicks sammeln sich und bauen nacheinander aus. Die Info-Karte öffnet nur
+// der zuletzt ausgebaute Act EINER Mehrfach-Aktion — ein einzelner ＋-Klick bleibt info-frei
+// (B7), erst ab dem zweiten Knoten landet man am Ende sichtbar beim letzten.
+function queueExpand(node) {
+  if (STATIC) { exploreByName(node.name, { select: false, center: true, reheatAmt: 0.2 }); return; }
+  expandQueue.push({ name: node.name, id: node.id });
+  expandPulse.add(node.id);
+  requestDraw();
+  drainExpandQueue();
+}
+async function drainExpandQueue() {
+  if (expandRunning) return;
+  expandRunning = true;
+  let processed = 0;
+  try {
+    while (expandQueue.length) {
+      const item = expandQueue.shift();
+      processed++;
+      const selectNow = expandQueue.length === 0 && processed > 1; // Info nur beim letzten, nur bei Mehrfach
+      await exploreByName(item.name, { select: selectNow, center: true, reheatAmt: 0.2 });
+      expandPulse.delete(item.id);
+      requestDraw();
+    }
+  } finally { expandRunning = false; expandPulse.clear(); requestDraw(); }
 }
 
 document.getElementById("resetAll").onclick = async () => {
@@ -4447,6 +4527,7 @@ async function doAuthSubmit() {
   authModal.classList.remove("show");
   renderAcct();
   refreshLoginHint();
+  dispatchEvent(new Event("like:login")); // z. B. Spenden-Popup: Konto-Status nachladen
   toast(authMode === "register" ? "Konto erstellt — deine Karte ist jetzt gespeichert ✓" : "Angemeldet — deine Karte ist jetzt geräteübergreifend gespeichert ✓");
 }
 document.getElementById("authSubmit").onclick = doAuthSubmit;
@@ -4748,6 +4829,68 @@ function maybeShowIntro() {
       location.replace("/?pack=" + encodeURIComponent(saved));
     }
   } catch {}
+})();
+
+// ---- Spenden-Popup (freiwillig) ----
+// Aktiv NUR, wenn der Server eine Spenden-URL injiziert (window.LIKE_DONATE aus
+// LIKE_DONATE_URL, z. B. ein PayPal.me-Link) — lokal/Desktop/Static bleibt alles aus.
+// Ganz niedrigschwellig und freiwillig: nach jeweils 10 Minuten AKTIVER Nutzung erscheint
+// ein wegdrückbares Spenden-Popup mit transparenter Kostenliste. „Spenden"-Klick = 72
+// Stunden Ruhe; „Später"/✕ = in 10 Nutzungs-Minuten wieder. KEINE Sperre, nichts
+// Verpflichtendes — like bleibt immer voll nutzbar. „Aktiv" = Tab sichtbar und Eingabe in
+// den letzten 90 s. Zustand in localStorage („like_support").
+(function () {
+  const D = window.LIKE_DONATE;
+  if (!D || !D.url) return;
+  const NAG_EVERY = 10 * 60e3, QUIET_FOR = 72 * 3600e3, TICK = 30e3;
+  let S = { used: 0, lastNag: 0, quietUntil: 0 };
+  try { S = { ...S, ...JSON.parse(localStorage.getItem("like_support") || "{}") }; } catch {}
+  const save = () => { try { localStorage.setItem("like_support", JSON.stringify(S)); } catch {} };
+  // Konto-Kopplung: eingeloggt injiziert der Server den Spendenstatus (window.LIKE_SUPPORT) —
+  // die 72-h-Ruhe gilt damit auf allen Geräten, nicht nur in diesem Browser.
+  if (window.LIKE_SUPPORT && (window.LIKE_SUPPORT.quietUntil || 0) > (S.quietUntil || 0)) {
+    S.quietUntil = window.LIKE_SUPPORT.quietUntil; save();
+  }
+  const modal = document.getElementById("supportModal");
+  const donate = document.getElementById("supportDonate");
+  donate.href = D.url;
+  const hide = () => modal.classList.remove("show");
+  // Feedback als Geld-Alternative: nur zeigen, wenn der Server Pushover-Feedback kann
+  // (gleiches Gate wie der ✉-Knopf, wird beim Start aus /api/health gesetzt).
+  const fbRow = document.getElementById("supportFeedback");
+  document.getElementById("supportFeedbackLink").onclick = () => { hide(); openFeedback(); };
+  // Login-Weg für zahlende Nutzer: auf anderem Gerät gespendet -> anmelden statt wegdrücken.
+  const loginRow = document.getElementById("supportLogin");
+  document.getElementById("supportLoginLink").onclick = () => { hide(); openAuth("login"); };
+  addEventListener("like:login", async () => {  // nach Login den Konto-Status holen (ohne Reload)
+    try { const r = await GET("/api/support"); if (r && (r.quietUntil || 0) > (S.quietUntil || 0)) { S.quietUntil = r.quietUntil; save(); } } catch {}
+  });
+  const show = () => {
+    fbRow.style.display = document.getElementById("feedbackBtn").style.display === "" ? "" : "none";
+    loginRow.style.display = (!STATIC && !window.LIKE_USER) ? "" : "none";
+    modal.classList.add("show");
+  };
+  // Wer spendet (bzw. es zumindest anklickt), hat 72 Stunden Ruhe. Danke! ♥
+  // Eingeloggt zusätzlich am Konto vermerken -> gilt auch auf den anderen Geräten.
+  donate.addEventListener("click", () => {
+    S.quietUntil = Date.now() + QUIET_FOR; save(); hide();
+    if (!STATIC && window.LIKE_USER) POST("/api/support/donated", {}).catch(() => {});
+  });
+  document.getElementById("supportClose").onclick = hide;
+  document.getElementById("supportLater").onclick = hide;
+  modal.addEventListener("mousedown", (e) => { if (e.target === modal) hide(); });
+  let lastAct = Date.now();
+  ["pointerdown", "keydown", "wheel", "touchstart"].forEach((ev) => addEventListener(ev, () => { lastAct = Date.now(); }, { passive: true }));
+  function tick(ms) {
+    if (S.quietUntil > Date.now()) return;                        // gespendet -> Ruhe
+    if (document.hidden || Date.now() - lastAct > 90e3) return;   // inaktiv zählt nicht
+    if (document.getElementById("intro").classList.contains("show")) return; // Erst-Tour nicht stören
+    S.used += ms;
+    if (S.used - S.lastNag >= NAG_EVERY) { S.lastNag = S.used; show(); }
+    save();
+  }
+  setInterval(() => tick(TICK), TICK);
+  if (new URLSearchParams(location.search).get("e2e") === "1") window.__support = { tick, state: () => S, set: (v) => { S = { ...S, ...v }; save(); } };
 })();
 
 // ---- Start ----
