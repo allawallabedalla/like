@@ -515,6 +515,18 @@
   .modal textarea::placeholder { color: var(--muted); }
   .modal .row { display: flex; gap: 8px; margin-top: 14px; }
   .modal .row button { flex: 1; border-left: 1px solid var(--line-soft); }
+  /* Spenden/Support-Popup + Nutzungspause (aktiv nur mit gesetzter LIKE_DONATE_URL) */
+  .supportcard { position: relative; }
+  .supportcard .sclose { position: absolute; top: 8px; right: 12px; background: none; border: none;
+    font-size: 22px; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px; }
+  .supportcard .sclose:hover { color: var(--text); }
+  .supportcard p { margin: 0 0 10px; font-size: 14px; line-height: 1.55; }
+  .supportcard .scosts { border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; margin: 12px 0; }
+  .supportcard .scosts .sctitle { font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+  .supportcard .scosts div:not(.sctitle) { font-size: 13px; margin: 5px 0; line-height: 1.45; }
+  .supportcard .snote { color: var(--muted); font-size: 12.5px; }
+  .supportcard .row a { flex: 1; display: flex; }
+  .supportcard .row a button { width: 100%; }
 
   /* Radar-Panel (Geheimtipp-Score: kleine Acts nah an deinen Likes) */
   .radarbox { position: fixed; top: 60px; left: 14px; z-index: 34; background: var(--bg); border: 1px solid var(--line);
@@ -995,6 +1007,25 @@
     </div>
   </div>
 
+  <div class="modal-back" id="supportModal">
+    <div class="modal supportcard">
+      <button class="sclose" id="supportClose" title="Schließen" aria-label="Schließen">×</button>
+      <h3 id="supportTitle">Magst du like?</h3>
+      <p id="supportText">like ist ein privates Ein-Personen-Projekt — ohne Werbung, ohne Tracking, ohne Gewinnabsicht. Damit das Projekt weiterleben kann, freue ich mich über eine kleine Spende. ♥</p>
+      <div class="scosts">
+        <div class="sctitle">Wofür das Geld gebraucht wird</div>
+        <div>Server, der die Karte Tag und Nacht für alle bereithält — ca. 7 € im Monat</div>
+        <div>Internet-Adresse likelife.info — ca. 20 € im Jahr</div>
+        <div>Musikdaten &amp; Hörproben: zum Glück kostenlos — nur Server und Adresse kosten wirklich</div>
+      </div>
+      <p class="snote">Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.</p>
+      <div class="row">
+        <a id="supportDonate" href="#" target="_blank" rel="noreferrer"><button class="primary">♥ Spenden (PayPal)</button></a>
+        <button id="supportLater">Später</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-back" id="keyModal">
     <div class="modal">
       <h3 id="keyTitle">Last.fm-Key einrichten</h3>
@@ -1307,6 +1338,15 @@ const T = LANG !== "en" ? null : {
   "Fehler:": "Error:", "Danke fürs Feedback! ✉": "Thanks for the feedback! ✉",
   "konnte nicht senden": "couldn't send", "Senden fehlgeschlagen": "Sending failed",
   "Bitte etwas mehr Text": "Please write a bit more", "Senden…": "Sending…",
+  // Spenden-Popup (freiwillig)
+  "Magst du like?": "Enjoying like?",
+  "like ist ein privates Ein-Personen-Projekt — ohne Werbung, ohne Tracking, ohne Gewinnabsicht. Damit das Projekt weiterleben kann, freue ich mich über eine kleine Spende. ♥": "like is a private one-person project — no ads, no tracking, no profit motive. To keep the project alive, I'd be happy about a small donation. ♥",
+  "Wofür das Geld gebraucht wird": "What the money is needed for",
+  "Server, der die Karte Tag und Nacht für alle bereithält — ca. 7 € im Monat": "The server that keeps the map running day and night for everyone — about €7 a month",
+  "Internet-Adresse likelife.info — ca. 20 € im Jahr": "The web address likelife.info — about €20 a year",
+  "Musikdaten & Hörproben: zum Glück kostenlos — nur Server und Adresse kosten wirklich": "Music data & previews: thankfully free — only the server and the address really cost money",
+  "Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.": "Every donation goes 1:1 into running costs — none of it sticks with me. And whatever you decide: like stays fully usable for you.",
+  "♥ Spenden (PayPal)": "♥ Donate (PayPal)",
   "✦ Suche …": "✦ Searching …", "Streifzug: {P}": "Stroll: {P}",
   "Radar öffnen": "Open radar",
   "und {N} weitere im Aufwind": "and {N} more on the rise",
@@ -4748,6 +4788,44 @@ function maybeShowIntro() {
       location.replace("/?pack=" + encodeURIComponent(saved));
     }
   } catch {}
+})();
+
+// ---- Spenden-Popup (freiwillig) ----
+// Aktiv NUR, wenn der Server eine Spenden-URL injiziert (window.LIKE_DONATE aus
+// LIKE_DONATE_URL, z. B. ein PayPal.me-Link) — lokal/Desktop/Static bleibt alles aus.
+// Ganz niedrigschwellig und freiwillig: nach jeweils 10 Minuten AKTIVER Nutzung erscheint
+// ein wegdrückbares Spenden-Popup mit transparenter Kostenliste. „Spenden"-Klick = 72
+// Stunden Ruhe; „Später"/✕ = in 10 Nutzungs-Minuten wieder. KEINE Sperre, nichts
+// Verpflichtendes — like bleibt immer voll nutzbar. „Aktiv" = Tab sichtbar und Eingabe in
+// den letzten 90 s. Zustand in localStorage („like_support").
+(function () {
+  const D = window.LIKE_DONATE;
+  if (!D || !D.url) return;
+  const NAG_EVERY = 10 * 60e3, QUIET_FOR = 72 * 3600e3, TICK = 30e3;
+  let S = { used: 0, lastNag: 0, quietUntil: 0 };
+  try { S = { ...S, ...JSON.parse(localStorage.getItem("like_support") || "{}") }; } catch {}
+  const save = () => { try { localStorage.setItem("like_support", JSON.stringify(S)); } catch {} };
+  const modal = document.getElementById("supportModal");
+  const donate = document.getElementById("supportDonate");
+  donate.href = D.url;
+  const hide = () => modal.classList.remove("show");
+  // Wer spendet (bzw. es zumindest anklickt), hat 72 Stunden Ruhe. Danke! ♥
+  donate.addEventListener("click", () => { S.quietUntil = Date.now() + QUIET_FOR; save(); hide(); });
+  document.getElementById("supportClose").onclick = hide;
+  document.getElementById("supportLater").onclick = hide;
+  modal.addEventListener("mousedown", (e) => { if (e.target === modal) hide(); });
+  let lastAct = Date.now();
+  ["pointerdown", "keydown", "wheel", "touchstart"].forEach((ev) => addEventListener(ev, () => { lastAct = Date.now(); }, { passive: true }));
+  function tick(ms) {
+    if (S.quietUntil > Date.now()) return;                        // gespendet -> Ruhe
+    if (document.hidden || Date.now() - lastAct > 90e3) return;   // inaktiv zählt nicht
+    if (document.getElementById("intro").classList.contains("show")) return; // Erst-Tour nicht stören
+    S.used += ms;
+    if (S.used - S.lastNag >= NAG_EVERY) { S.lastNag = S.used; modal.classList.add("show"); }
+    save();
+  }
+  setInterval(() => tick(TICK), TICK);
+  if (new URLSearchParams(location.search).get("e2e") === "1") window.__support = { tick, state: () => S, set: (v) => { S = { ...S, ...v }; save(); } };
 })();
 
 // ---- Start ----

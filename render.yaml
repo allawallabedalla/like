@@ -31,6 +31,11 @@ services:
       # Optionale Heimat für „Like Travel" (Standard: Berlin, Deutschland)
       - key: LIKE_TRAVEL_HOME
         sync: false
+      # Spenden (freiwillig): PayPal.me-Link setzen -> alle 10 Nutzungs-Minuten ein
+      # wegdrückbares Spenden-Popup; nach Klick auf „Spenden" 72 Std Ruhe.
+      # Ungesetzt = aus (lokal/Desktop/Tests unverändert).
+      - key: LIKE_DONATE_URL
+        sync: false
       # Keys für die Key-Packs — im Render-Dashboard eintragen (nicht ins Repo!).
       # Die key-losen Packs (Reisen, Wikipedia-Universal, Pflanzen, Bücher, Paper,
       # Brettspiele, Podcasts, Indie-Games) laufen auch ganz ohne.

@@ -412,13 +412,19 @@ function reqHome(req) {
   return (isFinite(la) && isFinite(lo)) ? { lat: la, lon: lo } : null;
 }
 
+// Spenden-Konfiguration aus der ENV: NUR wenn LIKE_DONATE_URL gesetzt ist (z. B. ein
+// PayPal.me-Link), zeigt das Frontend das freiwillige Spenden-Popup. Ungesetzt = aus
+// (lokal/Desktop/Tests bleiben komplett unberührt).
+const DONATE = process.env.LIKE_DONATE_URL ? { url: process.env.LIKE_DONATE_URL } : null;
+
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
 async function indexHtml(pack, unlocked, user) {
   const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
   const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
   const u = JSON.stringify(user || null).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};</script>\n<script>`);
+  const d = JSON.stringify(DONATE).replace(/</g, "\\u003c");
+  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};\nwindow.LIKE_DONATE = ${d};</script>\n<script>`);
 }
 
 async function hasApiKey(pack) {
