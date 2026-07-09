@@ -206,6 +206,13 @@
     gap: 10px; align-items: flex-start; max-height: calc(100vh - 80px); }
   .legend { background: var(--bg); border: 1px solid var(--line-soft); padding: 10px 12px; font-size: 12px; }
   .legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--muted); }
+  /* Die Sammel-Container (Genres/Szenen) sind selbst divs -> ohne das hier würden ihre
+     Einträge als Flex-KINDER nebeneinander in einer endlosen Zeile liegen statt untereinander. */
+  .legend #legendGenres, .legend #legendScenes { display: block; }
+  /* Genre-Einträge sind gleichzeitig Filter: Klick zeigt nur diese Genres (mehrere kombinierbar). */
+  .legend .lgenre { cursor: pointer; border-radius: 6px; padding: 2px 5px; margin: 1px -5px; }
+  .legend .lgenre:hover { background: var(--line-soft); color: var(--text); }
+  .legend .lgenre.on { color: var(--text); font-weight: 600; }
   .dot { width: 10px; height: 10px; border-radius: 50%; }
   .dot.ring { background: #fff !important; border: 2px solid #000; }
   .ln { width: 16px; height: 0; }
@@ -1490,7 +1497,7 @@ let selected = null, hover = null, dragNode = null, dragging = false, moved = fa
 let followNode = null;
 function stopFollow() { followNode = null; }
 let busyId = null, filterGenre = "";
-const activeGenres = new Set(); // per Pill-Klick ausgewählte Genres (ODER-verknüpft), filtert die Karte
+const activeGenres = new Set(); // gewählte Genre-Filter (lowercase, ODER-verknüpft) — Panel-Chips + Legende
 let compareSet = new Set();      // Schnittmengen-Vergleich (Shift-Klick)
 let focusId = null;              // Fokus-Modus: nur Nachbarschaft dieses Knotens
 let secretMode = false;          // Geheimtipp-Hervorhebung
@@ -1538,13 +1545,24 @@ function computeGenreColors() {
   genreTop = top.map((e, i) => ({ name: e.name, color: CLUSTER_PALETTE[i] }));
   updateGenreLegend();
 }
+// Genre als Karten-Filter an-/abwählen (ODER-verknüpft, Mehrfachauswahl). Zentral, damit
+// Panel-Chips und Legende denselben Zustand schalten und sich gegenseitig aktuell halten.
+// Schlüssel sind lowercase — so matchen „Techno" und „techno" verlässlich.
+function toggleGenreFilter(g) {
+  const k = String(g).toLowerCase();
+  if (activeGenres.has(k)) activeGenres.delete(k); else activeGenres.add(k);
+  document.querySelectorAll("#pGenres span").forEach((s) => s.classList.toggle("active", activeGenres.has((s.dataset.g || "").toLowerCase())));
+  updateGenreLegend();
+  requestDraw();
+}
 function updateGenreLegend() {
   const el = document.getElementById("legendGenres");
   if (!el) return;
   el.innerHTML = (clusterMode && genreTop.length)
-    ? '<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px"></div>' +
-      genreTop.map((g) => `<div><span class="dot" style="background:${g.color}"></span> ${esc(g.name)}</div>`).join("")
+    ? '<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px">Genres <small style="opacity:.7">· Klick filtert</small></div>' +
+      genreTop.map((g) => `<div class="lgenre${activeGenres.has(g.name.toLowerCase()) ? " on" : ""}" data-g="${esc(g.name)}" title="Nur dieses Genre zeigen — mehrere kombinierbar, nochmal klicken hebt auf"><span class="dot" style="background:${g.color}"></span> ${esc(g.name)}</div>`).join("")
     : "";
+  el.querySelectorAll(".lgenre").forEach((d) => d.onclick = () => toggleGenreFilter(d.dataset.g));
 }
 
 function toast(msg) {
@@ -2563,7 +2581,7 @@ function genreFilterActive() { return !!filterGenre || activeGenres.size > 0; }
 function genreMissNode(n) {
   const fg = filterGenre.toLowerCase();
   if (fg && !(n.genres || []).some((x) => x.toLowerCase().includes(fg))) return true;
-  if (activeGenres.size && !(n.genres || []).some((x) => activeGenres.has(x))) return true;
+  if (activeGenres.size && !(n.genres || []).some((x) => activeGenres.has(x.toLowerCase()))) return true;
   return false;
 }
 function pick(px, py) {
@@ -2869,14 +2887,10 @@ cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null
 function renderGenrePills(genres) {
   const el = document.getElementById("pGenres");
   el.innerHTML = (genres || []).slice(0, 6).map(x =>
-    `<span class="${activeGenres.has(x) ? "active" : ""}" data-g="${esc(x)}" title="Klick: Karte auf dieses Genre filtern (nochmal = aus)">${esc(x)}</span>`
+    `<span class="${activeGenres.has(x.toLowerCase()) ? "active" : ""}" data-g="${esc(x)}" title="Klick: Karte auf dieses Genre filtern (nochmal = aus)">${esc(x)}</span>`
   ).join("");
   el.querySelectorAll("span").forEach(s => {
-    s.onclick = () => {
-      const g = s.dataset.g;
-      if (activeGenres.has(g)) activeGenres.delete(g); else activeGenres.add(g);
-      s.classList.toggle("active"); requestDraw();
-    };
+    s.onclick = () => toggleGenreFilter(s.dataset.g); // zentral — hält auch die Legende aktuell
   });
 }
 // Venue-Knoten: schlankes Ansicht-Panel (kein Status/Notiz/Erkunden — abgeleitete Daten)
