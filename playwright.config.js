@@ -35,6 +35,10 @@ module.exports = defineConfig({
   },
   use: {
     baseURL: BASE_URL,
+    // Deutsch ist die Quellsprache der Oberfläche; ohne Pin liefe Chromium mit en-US und die
+    // App startete auf Englisch (Browser-Sprache bestimmt den Default) — Text-Assertions und
+    // Visual-Baselines prüfen aber das deutsche Original. EN deckt i18n.spec.js explizit ab.
+    locale: "de-DE",
     actionTimeout: 10_000,
     navigationTimeout: 20_000,
     ignoreHTTPSErrors: true,
