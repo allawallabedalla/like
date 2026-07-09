@@ -88,22 +88,22 @@ test.describe("Hilfe-Popover schließbar", () => {
 });
 
 test.describe("App-Topbar responsiv", () => {
-  test("Space/Flat-Toggle sichtbar; Topbar ohne Überlauf; Suche kontextgerecht", async ({ page, isMobile }) => {
+  test("Space/Flat-Toggle im ⋯-Menü; Topbar ohne Überlauf; Suche kontextgerecht", async ({ page, isMobile }) => {
     await page.goto(`/?pack=${PUBLIC_PACK}`, { waitUntil: "networkidle" });
     await dismissIntro(page);
-    // Toggle immer sichtbar
-    await expect(page.locator("#segSpace")).toBeVisible();
-    await expect(page.locator("#segFlat")).toBeVisible();
     // Topbar läuft nicht über
     const overflow = await page.evaluate(() => {
       const bar = document.querySelector(".bar");
       return bar.scrollWidth > bar.clientWidth + 1;
     });
     expect(overflow, "Topbar darf nicht horizontal überlaufen").toBeFalsy();
+    // Space/Flat lebt im ⋯-Menü (Abschnitt „Ansicht") und ist dort in beiden Breiten bedienbar
+    if (isMobile) await page.locator("#moreBtn").tap(); else await page.locator("#moreBtn").click();
+    await expect(page.locator("#segSpace")).toBeVisible();
+    await expect(page.locator("#segFlat")).toBeVisible();
     if (isMobile) {
       // Suche wandert ins ⋯-Menü -> Topbar-Suche ausgeblendet
       await expect(page.locator(".search")).toBeHidden();
-      await page.locator("#moreBtn").tap();
       await expect(page.locator("#mSearch")).toBeVisible();
     } else {
       // Desktop: Topbar-Suche sichtbar

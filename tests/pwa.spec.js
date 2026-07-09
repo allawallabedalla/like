@@ -97,7 +97,8 @@ test.describe("Persistenz (localStorage überlebt Reload)", () => {
     await page.goto(`/?pack=${PUBLIC_PACK}`, { waitUntil: "networkidle" });
     await dismissIntro(page);
     // Standard = Flat/Light. Auf Space schalten (den Nicht-Default -> testet Persistenz echt;
-    // persistiert like_theme=dark, gekoppelt).
+    // persistiert like_theme=dark, gekoppelt). Der Toggle lebt im ⋯-Menü.
+    await page.locator("#moreBtn").click();
     await page.locator("#segSpace").click();
     await expect(page.locator("#segSpace")).toHaveClass(/on/);
     const stored = await page.evaluate(() => localStorage.getItem("like_theme"));
@@ -105,6 +106,10 @@ test.describe("Persistenz (localStorage überlebt Reload)", () => {
     // Reload -> Wahl bleibt
     await page.reload({ waitUntil: "networkidle" });
     await dismissIntro(page);
+    // Ohne Intro zeigt der Testserver (kein Last.fm-Key) den Key-Dialog — wegklicken,
+    // sonst blockiert er den Klick aufs ⋯-Menü.
+    if (await page.locator("#keyModal.show").count()) await page.locator("#keyLater").click();
+    await page.locator("#moreBtn").click();
     await expect(page.locator("#segSpace")).toHaveClass(/on/);
     expect(await page.evaluate(() => localStorage.getItem("like_theme"))).toBe("dark");
   });

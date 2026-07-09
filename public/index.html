@@ -69,7 +69,10 @@
 
   .bar { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center;
     gap: 12px; padding: 0 14px; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 10; }
-  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; cursor: pointer; user-select: none; }
+  .brand { font-weight: 700; letter-spacing: 1px; font-size: 16px; text-transform: lowercase; cursor: pointer; user-select: none; white-space: nowrap; }
+  /* Deploy-Ref (Commit-Link in Previews) nur auf breiten Screens — sonst frisst er der Leiste
+     den Platz weg und die Suche quetscht sich auf den Space/Flat-Toggle. */
+  @media (max-width: 1080px) { .brand .bref { display: none; } }
   .brand:hover .bdot { transform: scale(1.4); display: inline-block; }
   .brand .bdot { transition: transform .15s; }
   .brand .bdot { color: var(--edge-together); }
@@ -128,16 +131,14 @@
     padding: 0; border-radius: 50%; font-size: 17px; font-weight: 600; flex: none; display: inline-flex;
     align-items: center; justify-content: center; transition: border-color .15s, color .15s; }
   .iconbtn:hover { border-color: var(--edge-together); color: var(--edge-together); background: var(--bg); }
-  /* Immer sichtbarer Ansicht-Umschalter Space | Flat (segmentierter Toggle) */
-  .viewseg { display: inline-flex; flex: none; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden;
-    background: var(--bg); height: 38px; }
-  .viewseg button { flex: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px;
-    font-weight: 600; padding: 0 15px; height: 38px; line-height: 38px; cursor: pointer; letter-spacing: .01em; white-space: nowrap; }
-  .viewseg button.on { background: var(--text); color: var(--bg); }
-  .viewseg button:not(.on):hover { color: var(--text); }
-  @media (max-width: 640px) { .viewseg button { padding: 0 9px; font-size: 12px; } }
-  @media (max-width: 400px) { .viewseg button { padding: 0 7px; font-size: 11.5px; }
-    .packswitch { max-width: 96px; } }
+  /* (Der Space/Flat-Umschalter lebt jetzt als .modeseg im ⋯-Menü unter „Ansicht".) */
+  @media (max-width: 400px) { .packswitch { max-width: 96px; } }
+  /* Sprach-Umschalter DE|EN — immer in der Titelleiste sichtbar, kompakt */
+  .langseg { display: inline-flex; flex: none; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden; background: var(--bg); height: 38px; }
+  .langseg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; padding: 0 10px; cursor: pointer; letter-spacing: .02em; }
+  .langseg button.on { background: var(--text); color: var(--bg); }
+  .langseg button:not(.on):hover { color: var(--text); }
+  @media (max-width: 400px) { .langseg button { padding: 0 7px; font-size: 11.5px; } }
   /* alle Topbar-Controls gleich hoch und sauber in der 52px-Leiste zentriert
      (sonst kreuzt z.B. der Radar-Button beim Umbruch den unteren Rahmen) */
   .bar > button, .bar > select, .search input, .search button { height: 38px; }
@@ -151,6 +152,10 @@
   /* Handy: Werkzeug-Buttons + Genre-Filter aus der Leiste ins ⋯-Menü verlagern, damit
      die Topbar nicht überläuft. Sichtbar bleiben Marke, Pack, Suche, Theme und ⋯. */
   .mobileonly { display: none; }
+  /* .morebox .mrow (display:flex) ist spezifischer als .mobileonly und zeigte die Werkzeug-
+     Zeilen auch auf dem Desktop doppelt — hier explizit übertrumpfen (die ≤1180px-Regel
+     unten gewinnt per ID weiterhin). */
+  .morebox .mrow.mobileonly { display: none; }
   /* Zwei Stufen, damit die Leiste nie überläuft oder überlappt:
      (1) ≤1180px: die sekundären Werkzeuge (Radar/Entdecken/Profil/Hilfe) wandern ins ⋯-Menü —
          die volle Inline-Leiste braucht sonst ~1180px und quetscht sich sichtbar. Suche,
@@ -199,6 +204,13 @@
     gap: 10px; align-items: flex-start; max-height: calc(100vh - 80px); }
   .legend { background: var(--bg); border: 1px solid var(--line-soft); padding: 10px 12px; font-size: 12px; }
   .legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--muted); }
+  /* Die Sammel-Container (Genres/Szenen) sind selbst divs -> ohne das hier würden ihre
+     Einträge als Flex-KINDER nebeneinander in einer endlosen Zeile liegen statt untereinander. */
+  .legend #legendGenres, .legend #legendScenes { display: block; }
+  /* Genre-Einträge sind gleichzeitig Filter: Klick zeigt nur diese Genres (mehrere kombinierbar). */
+  .legend .lgenre { cursor: pointer; border-radius: 6px; padding: 2px 5px; margin: 1px -5px; }
+  .legend .lgenre:hover { background: var(--line-soft); color: var(--text); }
+  .legend .lgenre.on { color: var(--text); font-weight: 600; }
   .dot { width: 10px; height: 10px; border-radius: 50%; }
   .dot.ring { background: #fff !important; border: 2px solid #000; }
   .ln { width: 16px; height: 0; }
@@ -301,7 +313,10 @@
   .badge.seed { background: #fff; color: #000; }
 
   /* Autocomplete */
-  .searchwrap { position: relative; }
+  /* flex+min-width:0: der Suchwrap (und damit das Eingabefeld via max-width) schrumpft MIT,
+     wenn die Leiste eng wird — statt per z-index über den Space/Flat-Toggle zu malen. */
+  .searchwrap { position: relative; flex: 1 1 auto; min-width: 0; }
+  .search input { max-width: 100%; }
   .suggest { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg); border: 1px solid var(--line);
     border-top: none; z-index: 30; display: none; max-height: 240px; overflow-y: auto; }
   .suggest.open { display: block; }
@@ -638,6 +653,29 @@
      ohne Überlauf passen (nach den 760px-Regeln, damit dieser Wert gewinnt) */
   @media (max-width: 400px) { .bar { gap: 6px !important; padding: 0 7px !important; } }
   @media (max-width: 360px) { .packswitch { max-width: 72px !important; } }
+  /* ---- Fun/Work-Modus („Stöbern" | „Booking") ----
+     Stöbern (Standard): nur Suchen, Erkunden, Anhören, Merken — alles mit .workonly ist
+     versteckt und die Schrift eine Stufe größer. Booking: voller Funktionsumfang.
+     Der Schalter sitzt im ⋯-Menü; die Wahl liegt in localStorage („like_mode"). */
+  .modeseg { display: flex; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
+  .modeseg button { flex: 1; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 7px 0; cursor: pointer; }
+  .modeseg button.on { background: var(--text); color: var(--bg); }
+  .modeseg button:not(.on):hover { color: var(--text); }
+  body.funmode .workonly { display: none !important; }
+  /* Booking-Notiz raus, aber „Act entfernen" (gleiches Feld) bleibt erreichbar */
+  body.funmode #lblNote, body.funmode #note, body.funmode #saveNote { display: none !important; }
+  body.funmode #bExport { display: none !important; }  /* CSV im Merk-Korb ist Booking-Sache */
+  /* Größere Grundschrift + Mindestgrößen für die kleinsten Meta-Texte */
+  body.funmode { font-size: 15px; }
+  body.funmode .counts, body.funmode .legend, body.funmode .panel .sub, body.funmode .field label { font-size: 13px; }
+  /* Icon-Knöpfe bekommen eine Beschriftung — kryptische Glyphen allein reichen nicht */
+  body.funmode #helpBtn, body.funmode #moreBtn, body.funmode #tidyBtn { width: auto; padding: 0 13px; gap: 6px; border-radius: 19px; }
+  body.funmode #helpBtn::after { content: "Hilfe"; font-size: 13px; }
+  body.funmode #moreBtn::after { content: "Menü"; font-size: 13px; }
+  body.funmode #tidyBtn::after { content: "Aufräumen"; font-size: 13px; }
+  html[lang="en"] body.funmode #helpBtn::after { content: "Help"; }
+  html[lang="en"] body.funmode #moreBtn::after { content: "Menu"; }
+  html[lang="en"] body.funmode #tidyBtn::after { content: "Tidy up"; }
 </style>
 </head>
 <body>
@@ -654,23 +692,33 @@
       </div>
       <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
-    <div class="viewseg" id="viewSeg" title="Ansicht umschalten — Space: Planeten mit kreisenden Monden · Flat: klassisches Netz">
-      <button type="button" id="segSpace" data-on="1">Space</button>
-      <button type="button" id="segFlat" data-on="0">Flat</button>
-    </div>
-    <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
+    <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
     <button id="discoverBtn" title="Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
-    <button id="tasteBtn" class="iconbtn hideStatic" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
+    <button id="tasteBtn" class="iconbtn hideStatic workonly" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
     <button id="tidyBtn" class="iconbtn" title="Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="8" cy="2.4" r="1.35" fill="currentColor"/><circle cx="12.85" cy="10.8" r="1.35" fill="currentColor"/><circle cx="3.15" cy="10.8" r="1.35" fill="currentColor"/></svg></button>
     <button id="feedbackBtn" class="iconbtn hideStatic" style="display:none" title="Feedback / Fehler melden">✉</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
+    <div class="langseg" id="langSeg" title="Sprache / Language">
+      <button type="button" id="langDe">DE</button>
+      <button type="button" id="langEn">EN</button>
+    </div>
     <div class="grow"></div>
-    <input id="genreFilter" class="gfilter" placeholder="Genre filtern…" autocomplete="off" title="Karte nach Genre filtern (Textsuche). Zusätzlich lassen sich im Panel Genre-Chips anklicken — alle aktiven Genres werden ODER-verknüpft." />
+    <input id="genreFilter" class="gfilter workonly" placeholder="Genre filtern…" autocomplete="off" title="Karte nach Genre filtern (Textsuche). Zusätzlich lassen sich im Panel Genre-Chips anklicken — alle aktiven Genres werden ODER-verknüpft." />
     <button id="moreBtn" class="iconbtn" title="Ansicht & Export">⋯</button>
   </div>
 
   <!-- „Ansicht & Export"-Menü: hält die Anzeige-Optionen + Export, damit die Topbar nie überläuft -->
   <div class="morebox" id="morebox">
+    <div class="mtitle">Modus</div>
+    <div class="modeseg" id="modeSeg" title="Stöbern: aufgeräumte Ansicht — suchen, erkunden, anhören, merken. Booking: alle Profi-Werkzeuge (Status, Notizen, Vergleich, Szenen, Export …)">
+      <button type="button" id="modeFun">Stöbern</button>
+      <button type="button" id="modeWork">Booking</button>
+    </div>
+    <div class="mtitle">Ansicht</div>
+    <div class="modeseg" id="viewSeg" title="Space: Planeten mit kreisenden Monden (dunkel) · Flat: klassisches Netz (hell)">
+      <button type="button" id="segSpace">Space</button>
+      <button type="button" id="segFlat">Flat</button>
+    </div>
     <div class="mtitle hideStatic">Konto</div>
     <div id="acctBox" class="hideStatic" style="margin-bottom:10px; font-size:12.5px"></div>
     <div class="mtitle mobileonly hideStatic" id="searchTitle">Suche</div>
@@ -681,25 +729,26 @@
       <button id="mRadar" class="hideStatic" title="Geheimtipp-Radar">◎ Radar</button>
     </div>
     <div class="mrow mobileonly" id="toolsRow2">
-      <button id="mTaste" class="hideStatic" title="Geschmacks-Fingerabdruck">◈ Profil</button>
+      <button id="mTaste" class="hideStatic workonly" title="Geschmacks-Fingerabdruck">◈ Profil</button>
       <button id="mTidy" title="Netz sortieren">⌗ Sortieren</button>
       <button id="mHelp" title="Bedienung & Shortcuts">? Hilfe</button>
     </div>
-    <input id="mGenre" class="gfilter mobileonly" placeholder="Genre filtern…" autocomplete="off" style="width:100%;margin-top:2px" />
+    <input id="mGenre" class="gfilter mobileonly workonly" placeholder="Genre filtern…" autocomplete="off" style="width:100%;margin-top:2px" />
     <div class="mtitle hideStatic" id="homeTitle" style="display:none">Heimatort</div>
     <button id="homeBtn" class="hideStatic" style="display:none;width:100%;margin-bottom:8px" title="Heimatort für die Distanz-Anzeige setzen — Standort verwenden oder Ort eintippen">📍 <span id="homeLabel">Heimatort setzen</span></button>
-    <div class="mtitle">Ansicht</div>
+    <div class="mtitle">Karte</div>
     <label class="toggle" id="clusterWrap" title="Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln"><input type="checkbox" id="clusterToggle" /> Farben</label>
-    <label class="toggle" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
-    <label class="toggle" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
-    <label class="toggle" id="dimBigWrap" title="Acts mit ≥20k Last.fm-Hörern abdunkeln (sobald die Hörerzahl geladen ist) — nur die Kleinen leuchten"><input type="checkbox" id="dimBig" /> <span id="dimBigLabel">Große dämpfen</span></label>
+    <label class="toggle" title="Die Linien zwischen den Knoten ein-/ausblenden, falls das Netz zu voll wirkt. Die Anordnung bleibt gleich — verbundene Knoten ziehen sich weiter an."><input type="checkbox" id="edgesToggle" checked /> Verbindungen</label>
+    <label class="toggle workonly" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
+    <label class="toggle workonly" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
+    <label class="toggle workonly" id="dimBigWrap" title="Acts mit ≥20k Last.fm-Hörern abdunkeln (sobald die Hörerzahl geladen ist) — nur die Kleinen leuchten"><input type="checkbox" id="dimBig" /> <span id="dimBigLabel">Große dämpfen</span></label>
     <label class="toggle" id="venueWrap" style="display:none" title="Spielorte aus den gemeinsamen Auftritten als eigene Punkte einblenden — zeigt, welche Venues deine Acts verbinden"><input type="checkbox" id="venueToggle" /> Venues</label>
-    <div class="mtitle hideStatic">Aufräumen</div>
-    <button id="pruneOrphans" class="hideStatic" style="width:100%" title="Acts ohne jede Verbindung von der Karte nehmen — z. B. Monde, die nach dem Löschen ihrer Sonne allein übrig bleiben. Gesuchte, gebuchte/notierte Acts bleiben.">Unverknüpfte aufräumen</button>
-    <button id="resetAll" class="hideStatic" style="width:100%" title="Die ganze Karte leeren — Acts, Verbindungen, Notizen und Markierungen. Mit Sicherheitsabfrage.">Alles löschen</button>
+    <div class="mtitle hideStatic workonly">Aufräumen</div>
+    <button id="pruneOrphans" class="hideStatic workonly" style="width:100%" title="Acts ohne jede Verbindung von der Karte nehmen — z. B. Monde, die nach dem Löschen ihrer Sonne allein übrig bleiben. Gesuchte, gebuchte/notierte Acts bleiben.">Unverknüpfte aufräumen</button>
+    <button id="resetAll" class="hideStatic workonly" style="width:100%" title="Die ganze Karte leeren — Acts, Verbindungen, Notizen und Markierungen. Mit Sicherheitsabfrage.">Alles löschen</button>
     <div class="mtitle">Export</div>
     <div class="mrow">
-      <button id="export" title="Markierte Acts als CSV"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>CSV</button>
+      <button id="export" class="workonly" title="Markierte Acts als CSV"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>CSV</button>
       <button id="exportPng" title="Karte als Bild (PNG)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>PNG</button>
     </div>
     <div class="counts" id="counts" title="Größe der Karte: Acts und Verbindungen">–</div>
@@ -760,8 +809,8 @@
     <h4>Karte</h4>
     <div><span>Klick auf Punkt</span><span>Details öffnen</span></div>
     <div><span>Doppelklick</span><span>Nachbarn laden (weiter hangeln)</span></div>
-    <div><span>Shift-Klick</span><span>Acts vergleichen (Schnittmenge)</span></div>
-    <div><span>Rechtsklick</span><span>Menü (Fokus, Brücke, Lineup …)</span></div>
+    <div class="workonly"><span>Shift-Klick</span><span>Acts vergleichen (Schnittmenge)</span></div>
+    <div><span>Rechtsklick</span><span id="helpCtx">Menü (Fokus, Brücke, Lineup …)</span></div>
     <div><span>Punkt ziehen</span><span>Position fixieren</span></div>
     <div><span>Fläche ziehen / Mausrad</span><span>verschieben / zoomen</span></div>
     <h4>Tastatur</h4>
@@ -772,15 +821,15 @@
     <div><span><kbd>Entf</kbd></span><span id="helpDel">Act entfernen (mit Undo)</span></div>
     <div><span><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></span><span>zoomen · alles zeigen</span></div>
     <div><span><kbd>Esc</kbd></span><span>Modus/Panel schließen</span></div>
-    <h4>Daten (Backup)</h4>
-    <div class="hbtns">
+    <h4 class="workonly">Daten (Backup)</h4>
+    <div class="hbtns workonly">
       <button id="exportGraph" title="Deinen ganzen Bestand als JSON sichern">⭳ Graph exportieren</button>
       <button id="importGraph" title="Ein Backup einspielen (überschreibt, sichert vorher)">⭱ Graph importieren</button>
     </div>
     <input type="file" id="importFile" accept="application/json,.json" style="display:none" />
-    <h4>Quellen-Diagnose</h4>
-    <div class="hbtns"><button id="diagBtn" title="Alle Datenquellen live anpingen">Quellen testen</button></div>
-    <div id="diagResult" class="diag"></div>
+    <h4 class="workonly">Quellen-Diagnose</h4>
+    <div class="hbtns workonly"><button id="diagBtn" title="Alle Datenquellen live anpingen">Quellen testen</button></div>
+    <div id="diagResult" class="diag workonly"></div>
     <h4>Einführung</h4>
     <div class="hbtns"><button id="tourBtn" title="Die Kurz-Tour noch einmal ansehen">▸ Kurz-Tour ansehen</button></div>
   </div>
@@ -791,12 +840,12 @@
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 3.8 9.5 8 8 12.2 6.5 8Z"/></svg></span>
       <span><b>Überrasch mich</b><small>Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.</small></span>
     </div>
-    <div class="ditem" id="discScenes">
+    <div class="ditem workonly" id="discScenes">
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"><circle cx="6.1" cy="8" r="3.4"/><circle cx="9.9" cy="8" r="3.4"/></svg></span>
       <span><b>Szenen zeigen</b><small>Hebt zusammengehörige Gruppen als sanfte Farbflächen hervor.</small></span>
       <span class="sw" id="discScenesSw">aus</span>
     </div>
-    <div class="ditem" id="discBridges">
+    <div class="ditem workonly" id="discBridges">
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><path d="M1.8 11h12.4"/><path d="M2.6 11C2.6 6.6 5 4.5 8 4.5s5.4 2.1 5.4 6.5"/><path d="M5.4 11V8.1M10.6 11V8.1"/></svg></span>
       <span><b>Brückenbauer</b><small>Welche Einträge halten deine Szenen zusammen?</small></span>
     </div>
@@ -972,9 +1021,9 @@
     </div>
     <div class="row" style="margin-top:8px">
       <button id="basketBtn" title="In dein Lineup aufnehmen (Taste b)">like!</button>
-      <button id="bridgeBtn" title="Welcher Eintrag verbindet diesen mit einem anderen? Hier klicken, dann Ziel wählen">Brücke bauen…</button>
+      <button id="bridgeBtn" class="workonly" title="Welcher Eintrag verbindet diesen mit einem anderen? Hier klicken, dann Ziel wählen">Brücke bauen…</button>
     </div>
-    <div class="field">
+    <div class="field workonly">
       <label>Status</label>
       <div class="statusrow">
         <select id="status" title="Kurations-Stand: färbt den Ring des Eintrags auf der Karte">
@@ -984,7 +1033,7 @@
           <option value="confirmed">bestätigt</option>
           <option value="declined">abgesagt</option>
         </select>
-        <button id="shareBtn" class="iconbtn shareicon" title="Diesen Act per E-Mail teilen (öffnet dein Mail-Programm)"><svg class="ic" viewBox="0 0 16 16"><rect x="1.8" y="3.6" width="12.4" height="8.8" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M2.3 4.3 8 8.6 13.7 4.3" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg></button>
+        <button id="shareBtn" class="iconbtn shareicon" title="Diesen Act teilen — Teilen-Dialog oder E-Mail"><svg class="ic" viewBox="0 0 16 16"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
       </div>
     </div>
     <div class="field">
@@ -995,12 +1044,12 @@
         <button id="removeAct" title="Von der Karte nehmen — mit Rückgängig (Taste Entf)">Act entfernen</button>
       </div>
     </div>
-    <div class="field" id="fieldContext">
+    <div class="field workonly" id="fieldContext">
       <label id="lblContext">Label-Umfeld <small id="ctxHint" style="text-transform:none;letter-spacing:0">(MusicBrainz)</small></label>
       <div class="row"><button id="labelBtn">Label-Kolleg:innen laden</button></div>
       <div id="pLabels" class="labels-list"></div>
     </div>
-    <div class="field" id="fieldCross">
+    <div class="field workonly" id="fieldCross">
       <label>Andere Welten <small style="text-transform:none;letter-spacing:0">(Adaptionen &amp; Namensvettern)</small></label>
       <div class="row"><button id="crossBtn" title="Gibt es diesen Eintrag auch als Buch, Film, Spiel …? Sucht in deinen anderen Domänen">Brücken in andere Welten</button></div>
       <div id="pCross" class="labels-list"></div>
@@ -1025,6 +1074,296 @@
 // Statischer Modus (GitHub Pages): graph wird eingebettet, Live-/Schreib-Aktionen sind aus.
 const STATIC = !!window.LIKE_GRAPH;
 
+// ---- Sprache (DE/EN) ----
+// Deutsch ist die Quellsprache im Markup/Code; T bildet exakte deutsche Strings auf Englisch ab.
+// LANG: gespeicherte Wahl gewinnt, sonst Browser-Sprache (de -> Deutsch, alles andere -> Englisch).
+// t() übersetzt Literale, tf() Vorlagen mit {Platzhaltern}; translateDom() läuft einmal beim
+// Start über statisches Markup (Textknoten + title/placeholder/aria-label).
+const LANG = (() => {
+  try { const s = localStorage.getItem("like_lang"); if (s === "de" || s === "en") return s; } catch {}
+  return (navigator.language || "en").toLowerCase().startsWith("de") ? "de" : "en";
+})();
+document.documentElement.lang = LANG;
+const T = LANG !== "en" ? null : {
+  // Topbar & ⋯-Menü
+  "Suchen": "Search", "Entdecken": "Discover", "Hilfe": "Help", "Act suchen…": "Search acts…",
+  "Zur Übersicht": "Back to overview", "installierte Version": "installed version",
+  "Domäne wechseln — jede hat ihre eigene Sammlung": "Switch domain — each has its own collection",
+  "Ansicht & Export": "View & export", "Genre filtern…": "Filter by genre…",
+  "Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien": "Tidy up — arrange the network neatly: group scenes, as few crossing lines as possible",
+  "Dein Geschmacks-Fingerabdruck über alle Domänen": "Your taste fingerprint across all domains",
+  "Bedienung & Tastatur-Shortcuts": "Controls & keyboard shortcuts",
+  "Feedback / Fehler melden": "Feedback / report a bug",
+  "Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung": "Hidden-gem radar: small acts in the visible part of the map, close to your likes — with reasoning",
+  "Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer": "Discovery tools: random find, scenes, bridge builder",
+  "Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem": "A random stroll through your network — lands somewhere new",
+  "Modus": "Mode", "Stöbern": "Browse", "Ansicht": "View", "Karte": "Map", "Konto": "Account",
+  "Suche": "Search", "Werkzeuge": "Tools", "Aufräumen": "Clean up", "Heimatort": "Home location",
+  "Stöbern: aufgeräumte Ansicht — suchen, erkunden, anhören, merken. Booking: alle Profi-Werkzeuge (Status, Notizen, Vergleich, Szenen, Export …)": "Browse: a clean, simple view — search, explore, listen, save. Booking: all pro tools (status, notes, compare, scenes, export …)",
+  "Space: Planeten mit kreisenden Monden (dunkel) · Flat: klassisches Netz (hell)": "Space: planets with orbiting moons (dark) · Flat: classic network (light)",
+  "✦ Entdecken": "✦ Discover", "◈ Profil": "◈ Profile", "⌗ Sortieren": "⌗ Tidy up", "? Hilfe": "? Help",
+  "✦ Überrasch mich": "✦ Surprise me", "◎ Radar": "◎ Radar",
+  "Geschmacks-Fingerabdruck": "Taste fingerprint", "Netz sortieren": "Tidy the network",
+  "Bedienung & Shortcuts": "Controls & shortcuts", "Geheimtipp-Radar": "Hidden-gem radar", "Entdeck-Werkzeuge": "Discovery tools",
+  "Farben": "Colors", "Verbindungen": "Connections", "Geheimtipps": "Hidden gems", "Große dämpfen": "Dim big ones",
+  "Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln": "Color nodes by their main genre — scenes and themes appear as color islands",
+  "Die Linien zwischen den Knoten ein-/ausblenden, falls das Netz zu voll wirkt. Die Anordnung bleibt gleich — verbundene Knoten ziehen sich weiter an.": "Show or hide the lines between nodes if the network feels too busy. The layout stays the same — connected nodes still attract each other.",
+  "Gut vernetzte, aber kleine Acts hervorheben": "Highlight well-connected but small acts",
+  "Acts mit Status abdunkeln — reine Entdeckung": "Dim acts that have a status — pure discovery",
+  "Acts mit ≥20k Last.fm-Hörern abdunkeln (sobald die Hörerzahl geladen ist) — nur die Kleinen leuchten": "Dim acts with ≥20k Last.fm listeners (once listener counts are loaded) — only the small ones shine",
+  "Spielorte aus den gemeinsamen Auftritten als eigene Punkte einblenden — zeigt, welche Venues deine Acts verbinden": "Show venues from shared gigs as their own dots — reveals which venues connect your acts",
+  "Unverknüpfte aufräumen": "Remove unconnected", "Alles löschen": "Delete everything",
+  "Acts ohne jede Verbindung von der Karte nehmen — z. B. Monde, die nach dem Löschen ihrer Sonne allein übrig bleiben. Gesuchte, gebuchte/notierte Acts bleiben.": "Remove acts without any connection from the map — e.g. moons left behind after their sun was deleted. Searched, booked or annotated acts stay.",
+  "Die ganze Karte leeren — Acts, Verbindungen, Notizen und Markierungen. Mit Sicherheitsabfrage.": "Clear the whole map — acts, connections, notes and marks. Asks for confirmation.",
+  "Markierte Acts als CSV": "Marked acts as CSV", "Karte als Bild (PNG)": "Map as image (PNG)",
+  "Größe der Karte: Acts und Verbindungen": "Size of the map: acts and connections",
+  "Impressum": "Imprint", "Datenschutz": "Privacy",
+  "Heimatort für die Distanz-Anzeige setzen — Standort verwenden oder Ort eintippen": "Set your home location for distances — use device location or type a place",
+  "Heimatort setzen": "Set home location",
+  // Suche / Empty State
+  "Act bei Last.fm suchen — lädt ähnliche Acts + gemeinsame Auftritte (Taste /)": "Search an act on Last.fm — loads similar acts + shared gigs (key /)",
+  "Act laden: ähnlicher Stil + zusammen aufgetreten + Genres": "Load an act: similar style + performed together + genres",
+  "Zeig mir einen zufälligen, eher unbekannten Act": "Show me a random, rather unknown act",
+  "Anonym lebt deine Karte nur in diesem Tab und geht beim Schließen verloren. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.": "Anonymously, your map lives only in this tab and is lost when you close it. With an account, your map, likes and notes are stored permanently — the same on all your devices.",
+  "Anmelden — deine Karte dauerhaft & auf allen Geräten sichern": "Sign in — keep your map permanently & on all devices",
+  // Panel
+  "Panel schließen (Esc)": "Close panel (Esc)",
+  "Weiter erkunden": "Keep exploring", "Fokus": "Focus", "Brücke bauen…": "Build a bridge…",
+  "Nachbarn dieses Acts laden: ähnlicher Stil + gemeinsame Auftritte (Taste e)": "Load this act's neighbors: similar style + shared gigs (key e)",
+  "Nur diesen Act + direkte Nachbarn zeigen (Taste f)": "Show only this act + direct neighbors (key f)",
+  "In dein Lineup aufnehmen (Taste b)": "Add to your lineup (key b)",
+  "Welcher Eintrag verbindet diesen mit einem anderen? Hier klicken, dann Ziel wählen": "Which entry connects this one to another? Click here, then pick a target",
+  "Status": "Status", "Kurations-Stand: färbt den Ring des Eintrags auf der Karte": "Curation status: colors the entry's ring on the map",
+  "Diesen Act teilen — Teilen-Dialog oder E-Mail": "Share this act — share dialog or email",
+  "Teilen": "Share", "Notiz speichern": "Save note",
+  "Notiz in graph.json sichern (bleibt dauerhaft)": "Save the note to graph.json (kept permanently)",
+  "Von der Karte nehmen — mit Rückgängig (Taste Entf)": "Remove from the map — with undo (Del key)",
+  "Andere Welten": "Other worlds", "(Adaptionen &amp; Namensvettern)": "(adaptations &amp; namesakes)",
+  "Gibt es diesen Eintrag auch als Buch, Film, Spiel …? Sucht in deinen anderen Domänen": "Does this entry also exist as a book, movie, game …? Searches your other domains",
+  "Brücken in andere Welten": "Bridges to other worlds",
+  "gesucht": "searched", "noch nicht geöffnet": "not opened yet",
+  // Legende & Karte
+  "Genres": "Genres", "· Klick filtert": "· click to filter",
+  "Nur dieses Genre zeigen — mehrere kombinierbar, nochmal klicken hebt auf": "Show only this genre — combine several, click again to undo",
+  "Klick: Karte auf dieses Genre filtern (nochmal = aus)": "Click: filter the map to this genre (again = off)",
+  "Status-Ring": "status ring", "fixiert (gezogen · Rechtsklick löst)": "pinned (dragged · right-click releases)",
+  "Venue (eingeblendet)": "venue (shown)", "Szenen (Farbflächen)": "Scenes (color areas)", "Szene": "Scene",
+  "Karte nach Genre filtern (Textsuche). Zusätzlich lassen sich im Panel Genre-Chips anklicken — alle aktiven Genres werden ODER-verknüpft.": "Filter the map by genre (text search). You can also click genre chips in the panel — all active genres are OR-combined.",
+  // Kontextmenü
+  "Details öffnen": "Open details", "Fokus aus": "Focus off", "Fokus auf Nachbarschaft": "Focus on neighborhood",
+  "Zum Vergleich": "Add to compare", "Aus Vergleich": "Remove from compare",
+  "Position fixieren": "Pin position", "Fixierung lösen": "Unpin", "Entfernen": "Remove",
+  // Zoom & Minimap
+  "Hineinzoomen (+)": "Zoom in (+)", "Herauszoomen (−)": "Zoom out (−)", "Alles zeigen (0)": "Show everything (0)",
+  "Übersicht — Klick springt dorthin": "Overview — click to jump there",
+  // Radar
+  "Radar wird berechnet … (erste Berechnung dauert etwas)": "Computing radar … (the first run takes a moment)",
+  "Radar wird neu berechnet …": "Recomputing radar …",
+  "Neu berechnen (aktuelle Hörerzahlen laden)": "Recompute (load current listener counts)",
+  "Nichts gefunden — das Radar sucht im sichtbaren Ausschnitt. Zoome heraus oder verschiebe die Karte, dann nochmal ↻.": "Nothing found — the radar searches the visible part of the map. Zoom out or pan, then hit ↻ again.",
+  "Likes als Basis": "likes as the base", "Suche im sichtbaren Ausschnitt": "searching the visible area",
+  "Stand:": "as of:", "(gecacht)": "(cached)",
+  "Laden und auf der Karte zeigen": "Load and show on the map", "Erkunden": "Explore", "Profil öffnen": "Open profile",
+  // Entdecken
+  "Überrasch mich": "Surprise me",
+  "Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.": "A random stroll through your network — lands somewhere new.",
+  "Szenen zeigen": "Show scenes",
+  "Hebt zusammengehörige Gruppen als sanfte Farbflächen hervor.": "Highlights groups that belong together as soft color areas.",
+  "Brückenbauer": "Bridge builders", "Welche Einträge halten deine Szenen zusammen?": "Which entries hold your scenes together?",
+  "an": "on", "aus": "off",
+  // Brücke
+  "Brücke": "Bridge", "naheliegend": "obvious", "spannend": "adventurous", "Abbrechen": "Cancel",
+  "Reihenfolge der Brücken-Kandidaten": "Order of bridge candidates",
+  "Klick einen der hellen Kandidaten, um ihn einzufügen.": "Click one of the bright candidates to insert it.",
+  // Hilfe-Box
+  "Klick auf Punkt": "Click a dot", "Doppelklick": "Double-click", "Nachbarn laden (weiter hangeln)": "Load neighbors (keep hopping)",
+  "Shift-Klick": "Shift-click", "Acts vergleichen (Schnittmenge)": "Compare acts (intersection)",
+  "Rechtsklick": "Right-click", "Menü (Fokus, Brücke, Lineup …)": "Menu (focus, bridge, lineup …)",
+  "Menü (Erkunden, Merken …)": "Menu (explore, save …)",
+  "Punkt ziehen": "Drag a dot", "Fläche ziehen / Mausrad": "Drag canvas / mouse wheel", "verschieben / zoomen": "pan / zoom",
+  "Tastatur": "Keyboard", "Suche fokussieren": "Focus the search", "zoomen · alles zeigen": "zoom · show everything",
+  "Modus/Panel schließen": "Close mode/panel",
+  "Daten (Backup)": "Data (backup)", "⭳ Graph exportieren": "⭳ Export graph", "⭱ Graph importieren": "⭱ Import graph",
+  "Deinen ganzen Bestand als JSON sichern": "Back up your entire collection as JSON",
+  "Ein Backup einspielen (überschreibt, sichert vorher)": "Restore a backup (overwrites, saves a copy first)",
+  "Quellen-Diagnose": "Source diagnostics", "Quellen testen": "Test sources", "Alle Datenquellen live anpingen": "Ping all data sources live",
+  "Einführung": "Introduction", "▸ Kurz-Tour ansehen": "▸ Watch the quick tour", "Die Kurz-Tour noch einmal ansehen": "Watch the quick tour again",
+  "Hilfe schließen": "Close help", "Schließen": "Close",
+  // Intro / Tour (Navigation; Slide-Inhalte werden per innerHTML gesetzt)
+  "Zurück": "Back", "Weiter": "Next", "Los geht's": "Let's go", "Überspringen": "Skip",
+  // Auth / Feedback / Key
+  "Anmelden": "Sign in", "Melde dich an, damit deine Karte auf allen Geräten gleich ist.": "Sign in so your map is the same on all devices.",
+  "Nutzername": "Username", "Passwort": "Password",
+  "Feedback ans Team": "Feedback to the team",
+  "Was ist dir aufgefallen? Idee, Fehler, Wunsch — alles hilft. Geht direkt als\n      Nachricht ans Team (mit Angabe der aktuellen Domäne &amp; Version).": "What did you notice? Idea, bug, wish — everything helps. Goes straight to the team (with the current domain & version).",
+  "Deine Nachricht…": "Your message…", "Senden": "Send",
+  "Hier in 1 Minute erstellen ↗": "Create one in a minute ↗",
+  "— dann den Key unten einfügen. Er wird lokal gespeichert, einmalig.": "— then paste the key below. It is stored locally, once.",
+  "API-Key einfügen…": "Paste API key…", "Speichern": "Save", "Später": "Later",
+  // Player
+  "Klangprobe stoppen": "Stop preview", "Klicken oder ziehen zum Spulen": "Click or drag to seek",
+  "30-Sekunden-Klangprobe abspielen": "Play a 30-second preview",
+  // Dynamische JS-Texte (Toasts, Meldungen, Vorlagen mit {x}-Platzhaltern)
+  "Falsches Passwort": "Wrong password", "Freischalten fehlgeschlagen": "Unlock failed",
+  "Diese Domäne ist noch in Arbeit.\nPasswort eingeben, um sie freizuschalten:": "This domain is still in the works.\nEnter the password to unlock it:",
+  "Netz sortiert": "Network tidied", "Nur im lokalen Tool": "Only in the local tool",
+  "Nur im lokalen Tool änderbar": "Can only be changed in the local tool",
+  "Live-Suche nur im lokalen Tool": "Live search only in the local tool",
+  "Brücke-Suche nur im lokalen Tool": "Bridge search only in the local tool",
+  "Server nicht erreichbar — leer gestartet. Später neu laden.": "Server unreachable — started empty. Reload later.",
+  "Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)": "Preview can't play (the browser blocked playback)",
+  "Gerade keine Überraschung zur Hand": "No surprise at hand right now",
+  "Überraschung fehlgeschlagen": "Surprise failed",
+  "Erst ein paar Einträge laden — dann gibt's was zu entdecken.": "Load a few entries first — then there's something to discover.",
+  "Zu wenig auf der Karte — erkunde erst ein paar Einträge.": "Not enough on the map — explore a few entries first.",
+  "Kein Weg gefunden — lade erst ein paar Nachbarn (Doppelklick).": "No path found — load a few neighbors first (double-click).",
+  "Kein verbindender Eintrag gefunden (auch nicht über mehrere Schichten).": "No connecting entry found (not even across several layers).",
+  "Noch keine Brücken — dein Netz ist (noch) eine einzige Szene.": "No bridges yet — your network is (still) a single scene.",
+  "Keine unverknüpften Acts — alles hängt zusammen.": "No unconnected acts — everything is linked.",
+  "Noch keine Venues bekannt — sie sammeln sich beim Erkunden (aus den gemeinsamen Auftritten).": "No venues known yet — they accumulate as you explore (from shared gigs).",
+  "Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)": "Really delete EVERYTHING? (acts, connections, notes, marks)",
+  "Datei ist kein gültiger Graph-Export": "File is not a valid graph export",
+  "Bitte Key einfügen": "Please paste a key", "Key konnte nicht gespeichert werden": "Key could not be saved",
+  "Ort nicht gefunden": "Place not found",
+  "Heimatort eingeben (z. B. „Wien, Österreich“):": "Enter your home location (e.g. \"Vienna, Austria\"):",
+  "Wachstum pro Monat (aus deinen eigenen Verlaufsdaten)": "Growth per month (from your own history data)",
+  "Ähnlichkeit laut Last.fm": "Similarity according to Last.fm",
+  "Anzahl gemeinsamer Events — Klick zeigt wo/wann": "Number of shared events — click shows where/when",
+  "Zuletzt erkundet — Klick springt hin": "Recently explored — click jumps there",
+  "Klick: erkunden": "Click: explore", "Klick: hinspringen": "Click: jump there",
+  "Klick: hinspringen und Details öffnen": "Click: jump there and open details",
+  "Auf {S} suchen": "Search on {S}",
+  "Verbindung": "connection", "Verbindungen_pl": "connections",
+  "Rückgängig": "Undo",
+  "Kein Umfeld gefunden.": "No context found.",
+  "Umfeld konnte nicht geladen werden.": "Context could not be loaded.",
+  "Suche in deinen anderen Domänen …": "Searching your other domains …",
+  "Keine Brücke gefunden — dieser Eintrag scheint nur hier zu existieren.": "No bridge found — this entry seems to exist only here.",
+  "Zu {P} wechseln und dort erkunden": "Switch to {P} and explore there",
+  "Vorschlag, noch nicht gesetzt": "suggestion, not placed yet",
+  "gewählten {S} weiter erkunden": "keep exploring the selected {S}",
+  "{S} entfernen (mit Undo)": "remove {S} (with undo)",
+  "{S} entfernen": "Remove {S}",
+  "{K} einrichten": "Set up {K}",
+  "Noch keine markierten {P}": "No marked {P} yet",
+  "Nichts gefunden — erkunde erst ein paar {P}, dann hat das Radar Futter.": "Nothing found — explore a few {P} first to give the radar something to work with.",
+  "Dein {B}-Korb — mit {L} oder Taste b füllen": "Your {B} basket — fill it with {L} or key b",
+  "{B} als CSV exportieren": "Export {B} as CSV", "{B}-Korb leeren": "Empty the {B} basket", "Leeren": "Clear",
+  "Aus dem {B} nehmen": "Remove from {B}",
+  "Aus „{B}“ entfernen": "Remove from „{B}“",
+  "Im {B} — klick zum Entfernen": "In your {B} — click to remove",
+  "{L} — in dein {B}": "{L} — into your {B}",
+  "Willkommen bei": "Welcome to",
+  // Nachträge: dynamische Vorlagen & seltenere Meldungen
+  "Profi": "Pro", "z.B.": "e.g.", "Status entfernt": "Status removed",
+  "„{N}\" entfernt": "\"{N}\" removed",
+  "Keine Klangprobe für „{N}\" gefunden": "No preview found for \"{N}\"",
+  "noch nichts geladen": "nothing loaded yet",
+  "Lade …": "Loading …", "Konnte nicht laden.": "Couldn't load.",
+  "Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.": "No likes yet — explore and mark a few entries, then your cross-domain profile appears here.",
+  "Themen, die deine Welten <b>verbinden</b>:": "Themes that <b>connect</b> your worlds:",
+  "1 unverknüpfter Act aufgeräumt": "Removed 1 unconnected act",
+  "{N} unverknüpfte Acts aufgeräumt": "Removed {N} unconnected acts",
+  "Brücke von „{N}\": jetzt ein zweites {S} anklicken": "Bridge from \"{N}\": now click a second {S}",
+  "Suche Brücke: „{A}\" ↔ „{B}\" …": "Searching for a bridge: \"{A}\" ↔ \"{B}\" …",
+  "„{A}\" und „{B}\" sind über die vorhandenen Einträge schon verbunden.": "\"{A}\" and \"{B}\" are already connected through existing entries.",
+  "Setze Brücke: {V} …": "Placing bridge: {V} …",
+  "Brücke: {A} → {B}": "Bridge: {A} → {B}",
+  "Fokus: {N}": "Focus: {N}",
+  "Vergleich: {N} {P} → {M} gemeinsame": "Compare: {N} {P} → {M} shared",
+  "Vergleich: 1 {S} (Shift-Klick für mehr)": "Compare: 1 {S} (shift-click for more)",
+  "Brücke „{A}\" ↔ „{B}\" wird gesucht …": "Searching bridge \"{A}\" ↔ \"{B}\" …",
+  "abbrechen": "cancel",
+  "Brücke von „{N}\": Ziel anklicken": "Bridge from \"{N}\": click a target",
+  "Geheimtipps hervorgehoben": "Hidden gems highlighted",
+  "Brückenbauer: {N} markiert": "Bridge builders: {N} marked",
+  "Brückenbauer:": "Bridge builders:",
+  "Wieder aus dem {B} nehmen (Taste b)": "Remove from your {B} again (key b)",
+  "In dein {B} aufnehmen (Taste b)": "Add to your {B} (key b)",
+  "gerade eben": "just now", "vor {N} Min": "{N} min ago", "vor {N} Std": "{N} h ago", "vor {N} Tg": "{N} d ago",
+  "Lade „{N}\" …": "Loading \"{N}\" …",
+  "Lade „{N}\" fürs {B} …": "Loading \"{N}\" for your {B} …",
+  "Mein Standort": "My location",
+  "Angemeldet als": "Signed in as", "abmelden": "sign out",
+  "Anmelden / Registrieren": "Sign in / register",
+  "Ohne Login: eigener, temporärer View (nur in diesem Tab). Angemeldet: deine Karte auf allen Geräten.": "Without login: your own temporary view (this tab only). Signed in: your map on all your devices.",
+  "Neues Passwort": "New password",
+  "Melde dich an — deine Karte ist dann auf allen Geräten gleich.": "Sign in — your map will then be the same on all devices.",
+  "Neu hier? Konto erstellen": "New here? Create an account",
+  "Passwort vergessen?": "Forgot your password?",
+  "Konto erstellen": "Create account",
+  "Nutzername + Passwort wählen. Danach bekommst du einen Recovery-Code — bitte sicher aufbewahren!": "Choose a username + password. You'll get a recovery code — keep it safe!",
+  "Schon ein Konto? Anmelden": "Already have an account? Sign in",
+  "Passwort zurücksetzen": "Reset password",
+  "Nutzername, Recovery-Code und neues Passwort eingeben.": "Enter username, recovery code and a new password.",
+  "Zurücksetzen": "Reset", "Zurück zum Anmelden": "Back to sign-in",
+  "Bitte Nutzername und Passwort ausfüllen.": "Please fill in username and password.",
+  "Bitte den Recovery-Code eingeben.": "Please enter the recovery code.",
+  "Netzwerkfehler.": "Network error.", "Fehlgeschlagen.": "Failed.",
+  "Dein Recovery-Code — JETZT sicher aufbewahren!\nNur damit kannst du dein Passwort zurücksetzen:\n\n": "Your recovery code — store it safely NOW!\nIt's the only way to reset your password:\n\n",
+  "Diagnose fehlgeschlagen": "Diagnostics failed", "Export fehlgeschlagen": "Export failed",
+  "Backup einspielen? Dein aktueller Bestand wird ersetzt (vorher automatisch als graph.bak.json gesichert).": "Restore this backup? Your current collection will be replaced (a copy is saved as graph.bak.json first).",
+  "Key gespeichert — Suche ist startklar!": "Key saved — search is ready!",
+  "Fehler:": "Error:", "Danke fürs Feedback! ✉": "Thanks for the feedback! ✉",
+  "konnte nicht senden": "couldn't send", "Senden fehlgeschlagen": "Sending failed",
+  "Bitte etwas mehr Text": "Please write a bit more", "Senden…": "Sending…",
+  "✦ Suche …": "✦ Searching …", "Streifzug: {P}": "Stroll: {P}",
+  "Radar öffnen": "Open radar",
+  "und {N} weitere im Aufwind": "and {N} more on the rise",
+  "Monat": "month",
+  "Verlauf wird aufgebaut — Momentum zeigt sich nach ~2 Wochen Nutzung.": "History is building up — momentum shows after ~2 weeks of use.",
+  "Musik-Tipp: {N}": "Music tip: {N}",
+  " (steigend)": " (rising)", " (fallend)": " (falling)", " (konstant)": " (steady)",
+  "Notiz:": "Note:", "▶ Auf YouTube anhören — „{T}\"": "▶ Listen on YouTube — \"{T}\"",
+  "Mehr auf Last.fm": "More on Last.fm",
+  "Region": "Region", "Aktiv": "Active", "Notiz": "Note", "ja": "yes", "Booking/Kontakt": "Booking/contact",
+  "Kanten": "edges", "{P} an diesem Ort": "{P} at this venue",
+  "{T} zeigt {P} als klickbare <b>Karte</b>. Zwei Verbindungsarten: {S1} = {L1}, {S2} = {L2}.": "{T} shows {P} as a clickable <b>map</b>. Two kinds of connections: {S1} = {L1}, {S2} = {L2}.",
+  "— blau": "— blue", "— orange": "— orange",
+  "Such oben z.B. „{X}\". <b>Doppelklick</b> auf einen Punkt lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.": "Try searching for \"{X}\" above. A <b>double-click</b> on a dot loads its neighbors — that's how you hop through the network step by step.",
+  "Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> {P} nahe deinem Geschmack vor — mit Klartext-Begründung und „{L}\" in einem Klick.": "The <b>radar</b> suggests <b>small, still undiscovered</b> {P} close to your taste — with plain-language reasoning and \"{L}\" in one click.",
+  "Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?\". Viel Spaß!": "With <b>{L}</b>, favorites go to your <b>{B}</b> — exportable as CSV. Dark mode, backup &amp; more live under \"?\". Have fun!",
+  "Willkommen bei {T}": "Welcome to {T}",
+  "Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b>-Liste (links unten). Viel Spaß!": "With <b>{L}</b>, favorites go to your <b>{B}</b> list (bottom left). Have fun!",
+};
+const t = (s) => (T && s != null && T[s] != null) ? T[s] : s;
+const tf = (s, vars) => { let out = t(s); for (const k in (vars || {})) out = out.split("{" + k + "}").join(vars[k]); return out; };
+// Statisches Markup einmalig übersetzen: ganze Textknoten + gängige Text-Attribute.
+function translateDom() {
+  if (!T) return;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const texts = []; let node;
+  while ((node = walker.nextNode())) { const pt = node.parentNode && node.parentNode.tagName; if (pt !== "SCRIPT" && pt !== "STYLE") texts.push(node); }
+  for (const tn of texts) {
+    const s = tn.nodeValue.trim();
+    if (s && T[s] != null) tn.nodeValue = tn.nodeValue.replace(s, T[s]);
+  }
+  for (const el of document.querySelectorAll("[title],[placeholder],[aria-label]")) {
+    for (const a of ["title", "placeholder", "aria-label"]) {
+      const v = el.getAttribute(a);
+      if (v && T[v] != null) el.setAttribute(a, T[v]);
+    }
+  }
+  // zusammengesetzte Labels (mehrere Textknoten -> Wortstellung dreht sich im Englischen)
+  const dk = document.getElementById("dimKnown")?.closest("label");
+  if (dk) { const sp = dk.querySelector(".tlong"); if (sp) sp.textContent = "Dim "; dk.lastChild.textContent = "marked"; }
+  // Tour-Slides: enthalten Markup -> komplette EN-Fassungen per innerHTML (die Musik-Texte;
+  // andere Packs überschreiben P1–P4 in applyCfg ohnehin mit übersetzten Config-Texten).
+  const tour = {
+    tourT1: 'Welcome to like<span style="color:var(--edge-together)">.</span>',
+    tourP1: 'like shows artists as a clickable <b>map</b>. Two kinds of connections: <span style="color:var(--edge-similar)">— blue</span> = similar style, <span style="color:var(--edge-together)">— orange</span> = performed together. A dot\'s <b>size</b> shows its popularity (listeners), its <b>closeness</b> shows similarity — the closer two dots, the more related.',
+    tourT2: 'Search &amp; click through',
+    tourP2: 'Search above for an act you like. A <b>click</b> on a dot opens its info, a <b>double-click</b> loads its neighbors — that\'s how you hop through the scene. The <b>▶</b> on a sphere plays a 30-second preview (and deliberately opens no panel).',
+    tourT3: 'Finding small acts: the radar',
+    tourP3: 'The <b>radar</b> suggests <b>small, up-and-coming</b> acts close to your taste — with plain-language reasoning, a 30-second preview and "like!" in one click.',
+    tourT4: 'Collect &amp; export',
+    tourP4: 'With <b>like!</b>, favorites go to your <b>lineup</b> — exportable as CSV for booking. Dark mode, backup &amp; more live under "?". Have fun!',
+    tourT5: 'Discover, listen &amp; tidy up',
+    tourP5: '<b>Discover</b> highlights related <b>scenes</b> as color areas (their names in the legend, bottom left) and shows <b>bridges</b> between them. Anything that doesn\'t fit, remove with <b>×</b> on its dot; "<b>Remove unconnected</b>" under "⋯" cleans up acts left on their own.',
+  };
+  for (const id in tour) { const el = document.getElementById(id); if (el) el.innerHTML = tour[id]; }
+}
+
 // ---- „Coming soon"-Gate ----
 // Der Server markiert nicht-öffentliche Packs mit locked=true und injiziert window.LIKE_UNLOCKED.
 // Ohne gesetztes Server-Passwort ist nichts locked -> lokal/Desktop bleibt alles offen.
@@ -1036,7 +1375,7 @@ function packLocked(id) {
 // Passwort abfragen -> freischalten -> Callback (z. B. Pack-Wechsel). Bei Erfolg gilt die
 // Freischaltung ab dem nächsten Reload (Cookie); wir wechseln direkt dorthin.
 async function unlockThen(id, go) {
-  const pw = window.prompt("Diese Domäne ist noch in Arbeit.\nPasswort eingeben, um sie freizuschalten:");
+  const pw = window.prompt(t("Diese Domäne ist noch in Arbeit.\nPasswort eingeben, um sie freizuschalten:"));
   if (pw == null) return;
   try {
     const r = await fetch("/api/unlock", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: pw }) });
@@ -1081,7 +1420,37 @@ const CFG = window.LIKE_CFG || {
   features: { preview: true, radar: true, context: true, active: true, booking: true, tour: true, venues: true },
   key: { name: "Last.fm-Key", createUrl: "https://www.last.fm/api/account/create", hint: "Für die Live-Suche braucht like einen kostenlosen Last.fm-API-Key." },
 };
-const FEAT = CFG.features || {};
+// Sprach-Overlay auf die Pack-Config anwenden: erst das per-Pack-Overlay CFG.en (exakte
+// deutsche Config-Strings -> Englisch, aus packs/<id>/pack.mjs), dann das globale Wörterbuch T.
+// Muss VOR applyCfg laufen — alles Weitere liest dann schon übersetzte CFG-Werte.
+if (T) {
+  (function tr(o) {
+    for (const k in o) {
+      if (k === "en") continue;
+      const v = o[k];
+      if (typeof v === "string") { const e = (CFG.en && CFG.en[v]) ?? T[v]; if (e != null) o[k] = e; }
+      else if (v && typeof v === "object") tr(v);
+    }
+  })(CFG);
+  translateDom();
+}
+
+// ---- Fun/Work-Modus („Stöbern" | „Booking") ----
+// Stöbern (Standard): booking/venues/active aus + alles mit .workonly versteckt — übrig bleibt
+// Suchen, Erkunden, Anhören, Merken. Booking: die Pack-Flags gelten unverändert. Der Schalter
+// sitzt im ⋯-Menü; Umschalten lädt neu, weil die Feature-Gates beim Start greifen — das ist
+// robuster als ein Live-Umbau der halben Oberfläche.
+const MODE = (() => { try { return localStorage.getItem("like_mode") || "fun"; } catch { return "fun"; } })();
+const FEAT = MODE === "fun"
+  ? { ...(CFG.features || {}), booking: false, venues: false, active: false }
+  : (CFG.features || {});
+if (MODE === "fun") {
+  document.body.classList.add("funmode");
+  if (CFG.id === "music") CFG.basketLabel = LANG === "en" ? "Favorites" : "Favoriten"; // „Lineup" ist Booking-Sprache
+  // Tour: der Profi-Slide (Szenen/Brückenbauer) entfällt — diese Werkzeuge sind ja versteckt
+  const s = document.querySelector('#intro .slide[data-s="4"]');
+  if (s) s.remove();
+}
 // localStorage pro Pack trennen (Musik behält die alten Schlüssel — kein Datenverlust):
 // sonst tauchte z.B. die Bücher-Merkliste im Filme-Pack wieder auf.
 const LSK = (k) => CFG.id === "music" ? k : `${k}:${CFG.id}`;
@@ -1096,14 +1465,14 @@ function renderLegend() {
   const strip = (s) => escT(String(s ?? "").replace(/\s*\([^)]*\)\s*$/, "")); // Quellenhinweis am Ende weg (B11)
   const real = nodes.filter((n) => !n.venue);
   const leg = [];
-  if (links.some((l) => l.type === "similar")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${strip(CFG.edges.similar.label)}</div>`);
-  if (links.some((l) => l.type !== "similar" && l.type !== "venue")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${strip(CFG.edges.together.label)}</div>`);
-  if (real.some((n) => n.seed)) leg.push(`<div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>`);
-  if (real.some((n) => !n.seed)) leg.push(`<div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>`);
-  if (real.some((n) => n.status)) leg.push(`<div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (${strip((CFG.statuses[1] || CFG.statuses[0]).label)}/…)</div>`);
+  if (showEdges && links.some((l) => l.type === "similar")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${strip(CFG.edges.similar.label)}</div>`);
+  if (showEdges && links.some((l) => l.type !== "similar" && l.type !== "venue")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${strip(CFG.edges.together.label)}</div>`);
+  if (real.some((n) => n.seed)) leg.push(`<div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> ${t("gesucht")}</div>`);
+  if (real.some((n) => !n.seed)) leg.push(`<div><span class="dot" style="background:var(--discovered)"></span> ${t("noch nicht geöffnet")}</div>`);
+  if (real.some((n) => n.status)) leg.push(`<div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> ${t("Status-Ring")} (${strip((CFG.statuses[1] || CFG.statuses[0]).label)}/…)</div>`);
   if (FEAT.active && CFG.activeLabel && real.some((n) => n.active)) leg.push(`<div><span class="dot" style="background:#1a9e54"></span> ${strip(CFG.activeLabel)}</div>`);
-  if (nodes.some((n) => n.venue)) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> Venue (eingeblendet)</div>`);
-  if (nodes.some((n) => n.pinned)) leg.push(`<div><span class="dot" style="background:#666"></span> fixiert (gezogen · Rechtsklick löst)</div>`);
+  if (nodes.some((n) => n.venue)) leg.push(`<div><span class="dot" style="background:var(--venue)"></span> ${t("Venue (eingeblendet)")}</div>`);
+  if (nodes.some((n) => n.pinned)) leg.push(`<div><span class="dot" style="background:#666"></span> ${t("fixiert (gezogen · Rechtsklick löst)")}</div>`);
   leg.push(`<div id="legendScenes"></div>`); // Szenen-Farben (wenn „Szenen zeigen" an)
   leg.push(`<div id="legendGenres"></div>`); // Genre-Farben im Cluster-Modus
   el.innerHTML = leg.join("");
@@ -1149,13 +1518,13 @@ function applyCfg() {
   if (!FEAT.radar) $("radarBtn").style.display = "none";
   $("radarTitle").textContent = CFG.radarTitle || "Radar";
   // leerer Zustand: nur die zentrale Suchleiste (Platzhalter aus der Pack-Config)
-  $("q2").placeholder = (CFG.searchPlaceholder || "Suchen…").replace(/\s*\(\s*\/\s*\)\s*$/, "") + (CFG.exampleSeed ? `   z.B. ${CFG.exampleSeed}` : "");
+  $("q2").placeholder = (CFG.searchPlaceholder || "Suchen…").replace(/\s*\(\s*\/\s*\)\s*$/, "") + (CFG.exampleSeed ? `   ${t("z.B.")} ${CFG.exampleSeed}` : "");
   // Status-Auswahl
   $("status").innerHTML = '<option value="">—</option>' + CFG.statuses.map((s) => `<option value="${esc(s.value)}">${esc(s.label)}</option>`).join("");
   // Panel-Texte
   $("lblNote").textContent = CFG.noteLabel || "Notiz";
   $("note").placeholder = CFG.notePlaceholder || "";
-  $("removeAct").textContent = `${CFG.item.sing} entfernen`;
+  $("removeAct").textContent = tf("{S} entfernen", { S: CFG.item.sing });
   $("lblSimilar").textContent = CFG.similarLabel || CFG.edges.similar.label;
   $("lblTogether").textContent = CFG.togetherLabel || CFG.edges.together.label;
   if (FEAT.context) {
@@ -1165,31 +1534,54 @@ function applyCfg() {
   $("basketBtn").textContent = CFG.likeLabel || "like!";
   // Key-Dialog
   if (CFG.key) {
-    $("keyTitle").textContent = `${CFG.key.name} einrichten`;
+    $("keyTitle").textContent = tf("{K} einrichten", { K: CFG.key.name });
     $("keyHint").textContent = CFG.key.hint || "";
     $("keyCreate").href = CFG.key.createUrl || "#";
   }
   // Hilfe-Texte mit Item-Wort
-  $("helpE").textContent = `gewählten ${CFG.item.sing} weiter erkunden`;
-  $("helpB").textContent = `${CFG.likeLabel || "like!"} (ins ${CFG.basketLabel || "Lineup"})`;
-  $("helpDel").textContent = `${CFG.item.sing} entfernen (mit Undo)`;
+  $("helpE").textContent = tf("gewählten {S} weiter erkunden", { S: CFG.item.sing });
+  $("helpB").textContent = `${CFG.likeLabel || "like!"} → ${CFG.basketLabel || "Lineup"}`;
+  $("helpDel").textContent = tf("{S} entfernen (mit Undo)", { S: CFG.item.sing });
   // Kurz-Tour: Musik behält die handgetexteten Slides; alle anderen Packs bekommen
   // generische Texte aus der Config (Kantenlabels, Beispiel, Merklisten-Begriff).
   if (!FEAT.tour) { const tb = document.getElementById("tourBtn"); if (tb) tb.parentElement.style.display = "none"; }
   else if (CFG.id !== "music") {
     const ll = esc(CFG.likeLabel || "merken!"), bl = esc(CFG.basketLabel || "Merkliste");
-    $("tourT1").innerHTML = `Willkommen bei ${esc(CFG.title)}<span style="color:var(--edge-together)">.</span>`;
-    $("tourP1").innerHTML = `${esc(CFG.title)} zeigt ${esc(CFG.item.plur)} als klickbare <b>Karte</b>. Zwei Verbindungsarten: ` +
-      `<span style="color:var(--edge-similar)">— blau</span> = ${esc(CFG.edges.similar.label)}, ` +
-      `<span style="color:var(--edge-together)">— orange</span> = ${esc(CFG.edges.together.label)}.`;
-    $("tourP2").innerHTML = `Such oben z.B. „${esc(CFG.exampleSeed)}". <b>Doppelklick</b> auf einen Punkt lädt seine ` +
-      `Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.`;
-    $("tourT3").textContent = CFG.radarTitle || "Das Radar";
-    $("tourP3").innerHTML = `Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> ${esc(CFG.item.plur)} nahe ` +
-      `deinem Geschmack vor — mit Klartext-Begründung und „${ll}" in einem Klick.`;
-    $("tourP4").innerHTML = `Mit <b>${ll}</b> wandern Favoriten in deine <b>${bl}</b> — als CSV exportierbar. ` +
-      `Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!`;
+    $("tourT1").innerHTML = tf("Willkommen bei {T}", { T: esc(CFG.title) }) + '<span style="color:var(--edge-together)">.</span>';
+    $("tourP1").innerHTML = tf("{T} zeigt {P} als klickbare <b>Karte</b>. Zwei Verbindungsarten: {S1} = {L1}, {S2} = {L2}.", {
+      T: esc(CFG.title), P: esc(CFG.item.plur),
+      S1: `<span style="color:var(--edge-similar)">${t("— blau")}</span>`, L1: esc(CFG.edges.similar.label),
+      S2: `<span style="color:var(--edge-together)">${t("— orange")}</span>`, L2: esc(CFG.edges.together.label) });
+    $("tourP2").innerHTML = tf(`Such oben z.B. „{X}". <b>Doppelklick</b> auf einen Punkt lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.`, { X: esc(CFG.exampleSeed) });
+    $("tourT3").textContent = CFG.radarTitle || t("Das Radar");
+    $("tourP3").innerHTML = tf(`Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> {P} nahe deinem Geschmack vor — mit Klartext-Begründung und „{L}" in einem Klick.`, { P: esc(CFG.item.plur), L: ll });
+    $("tourP4").innerHTML = tf(`Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!`, { L: ll, B: bl });
     $("tourPill").textContent = CFG.likeLabel || "merken!";
+  }
+  // Fun/Work-Umschalter: aktiven Modus markieren; außerhalb von Musik heißt Work „Profi"
+  $("modeFun").classList.toggle("on", MODE === "fun");
+  $("modeWork").classList.toggle("on", MODE !== "fun");
+  if (CFG.id !== "music") $("modeWork").textContent = t("Profi");
+  if (MODE === "fun") {
+    // „Weiter erkunden" ist im Stöbern-Modus DIE Kern-Aktion — als Primär-Knopf hervorheben,
+    // damit der Weg auch ohne Doppelklick-Wissen sichtbar ist.
+    $("expand").classList.add("primary");
+    // Teilen statt Fokus: der Share-Knopf zieht aus dem (versteckten) Status-Feld in die
+    // Aktions-Zeile und bekommt eine Beschriftung; Fokus ist Profi-Werkzeug (bleibt Taste f).
+    const share = $("shareBtn");
+    $("focusBtn").replaceWith(share);
+    share.classList.remove("iconbtn", "shareicon");
+    share.appendChild(document.createTextNode(" Teilen"));
+    // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst
+    // „Überrasch mich" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile).
+    const db = $("discoverBtn");
+    db.lastChild.textContent = t("Überrasch mich");
+    db.title = t("Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem");
+    db.onclick = () => surpriseMe();
+    $("mDiscover").textContent = t("✦ Überrasch mich");
+    $("helpCtx").textContent = t("Menü (Erkunden, Merken …)");
+    if (FEAT.tour) $("tourP4").innerHTML = tf("Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b>-Liste (links unten). Viel Spaß!",
+      { L: esc(CFG.likeLabel || "like!"), B: esc(CFG.basketLabel || "Favoriten") });
   }
 }
 // Jeder API-Call trägt das aktive Pack als Header — so bedient EIN Server alle Domänen.
@@ -1197,7 +1589,7 @@ const PACK_HEADERS = CFG.id ? { "x-like-pack": CFG.id } : {};
 // Header pro Request bauen — inkl. optionalem Heimatort (Like Travel), damit die
 // Heimat-Distanz geräteübergreifend aus der Nutzer-Wahl statt aus der Server-ENV kommt.
 function reqHeaders(extra) {
-  const h = { ...PACK_HEADERS };
+  const h = { ...PACK_HEADERS, "x-like-lang": LANG }; // Server übersetzt seine Meldungen/Radar-Begründungen
   // Anonym: eigener, temporärer View pro Tab (Anon-ID im sessionStorage -> beim Schließen weg).
   // Eingeloggt: Server nutzt den Account-Namensraum, keine Anon-ID nötig.
   if (!window.LIKE_USER) {
@@ -1366,7 +1758,7 @@ async function togglePreview(name) {
     // Hörerzahl des Acts mitgeben -> Server kann berühmte Namensvetter erkennen (C6-Plausi-Check)
     const node = nodes.find(n => n.name === name);
     const res = await API.preview(name, node && typeof node.listeners === "number" ? node.listeners : null);
-    if (!res.ok || !res.url) { toast(`Keine Klangprobe für „${name}" gefunden`); previewName = null; refreshPreviewButtons(); return; }
+    if (!res.ok || !res.url) { toast(tf(`Keine Klangprobe für „{N}" gefunden`, { N: name })); previewName = null; refreshPreviewButtons(); return; }
     previewLabel = `${res.artist || name}${res.track ? " — " + res.track : ""}`;
     audio.src = res.url; audio.currentTime = 0;
     await audio.play();
@@ -1422,7 +1814,7 @@ let selected = null, hover = null, dragNode = null, dragging = false, moved = fa
 let followNode = null;
 function stopFollow() { followNode = null; }
 let busyId = null, filterGenre = "";
-const activeGenres = new Set(); // per Pill-Klick ausgewählte Genres (ODER-verknüpft), filtert die Karte
+const activeGenres = new Set(); // gewählte Genre-Filter (lowercase, ODER-verknüpft) — Panel-Chips + Legende
 let compareSet = new Set();      // Schnittmengen-Vergleich (Shift-Klick)
 let focusId = null;              // Fokus-Modus: nur Nachbarschaft dieses Knotens
 let secretMode = false;          // Geheimtipp-Hervorhebung
@@ -1438,7 +1830,14 @@ const STATUS_LABEL = { "": "—", ...Object.fromEntries(CFG.statuses.map((s) => 
 let venueMode = false; // Venue-Ebene (Musik): Spielorte als abgeleitete Knoten einblenden
 try { venueMode = localStorage.getItem(LSK("like_venues")) === "1"; } catch {}
 let clusterMode = false; // Cluster-Färbung: Knoten nach Haupt-Genre einfärben
-try { clusterMode = localStorage.getItem(LSK("like_cluster")) === "1"; } catch {}
+// Standard: im Flat-Modus AN (Farben geben dem klassischen Netz Orientierung), im Space-Modus
+// aus (dort tragen die Planeten die Optik). Eine gespeicherte Wahl gewinnt immer.
+try {
+  const saved = localStorage.getItem(LSK("like_cluster"));
+  clusterMode = saved != null ? saved === "1" : localStorage.getItem("like_theme") !== "dark";
+} catch {}
+let showEdges = true;    // Kanten-SICHTBARKEIT: nur die Optik — die Physik (Anziehung verbundener Knoten) läuft weiter
+try { showEdges = localStorage.getItem(LSK("like_edges")) !== "0"; } catch {}
 let planetMode = true;  // an das Theme gekoppelt: Dark = Space (Planeten), White = Flat. Final in der Theme-Init gesetzt.
 // Entdeck-Modi (früh deklariert: draw() liest scenesMode/bridgeSet schon beim ersten Frame)
 let communities = null;      // Map id -> Community-Label (Label-Propagation, gecacht bis rebuild)
@@ -1463,26 +1862,37 @@ function computeGenreColors() {
   genreTop = top.map((e, i) => ({ name: e.name, color: CLUSTER_PALETTE[i] }));
   updateGenreLegend();
 }
+// Genre als Karten-Filter an-/abwählen (ODER-verknüpft, Mehrfachauswahl). Zentral, damit
+// Panel-Chips und Legende denselben Zustand schalten und sich gegenseitig aktuell halten.
+// Schlüssel sind lowercase — so matchen „Techno" und „techno" verlässlich.
+function toggleGenreFilter(g) {
+  const k = String(g).toLowerCase();
+  if (activeGenres.has(k)) activeGenres.delete(k); else activeGenres.add(k);
+  document.querySelectorAll("#pGenres span").forEach((s) => s.classList.toggle("active", activeGenres.has((s.dataset.g || "").toLowerCase())));
+  updateGenreLegend();
+  requestDraw();
+}
 function updateGenreLegend() {
   const el = document.getElementById("legendGenres");
   if (!el) return;
   el.innerHTML = (clusterMode && genreTop.length)
-    ? '<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px"></div>' +
-      genreTop.map((g) => `<div><span class="dot" style="background:${g.color}"></span> ${esc(g.name)}</div>`).join("")
+    ? `<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px">${t("Genres")} <small style="opacity:.7">${t("· Klick filtert")}</small></div>` +
+      genreTop.map((g) => `<div class="lgenre${activeGenres.has(g.name.toLowerCase()) ? " on" : ""}" data-g="${esc(g.name)}" title="${t("Nur dieses Genre zeigen — mehrere kombinierbar, nochmal klicken hebt auf")}"><span class="dot" style="background:${g.color}"></span> ${esc(g.name)}</div>`).join("")
     : "";
+  el.querySelectorAll(".lgenre").forEach((d) => d.onclick = () => toggleGenreFilter(d.dataset.g));
 }
 
 function toast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.classList.add("show");
-  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 1800);
+  const el = document.getElementById("toast");
+  el.textContent = t(msg); el.classList.add("show"); // t(): Literal-Meldungen laufen durchs Wörterbuch
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 1800);
 }
 function toastUndo(msg, fn) {
-  const t = document.getElementById("toast");
-  t.innerHTML = msg + ' · <a href="#" id="undoLink" style="color:var(--on-accent);text-decoration:underline">Rückgängig</a>';
-  t.classList.add("show"); clearTimeout(t._t);
-  document.getElementById("undoLink").onclick = (e) => { e.preventDefault(); t.classList.remove("show"); fn(); };
-  t._t = setTimeout(() => t.classList.remove("show"), 6000);
+  const el = document.getElementById("toast");
+  el.innerHTML = msg + ' · <a href="#" id="undoLink" style="color:var(--on-accent);text-decoration:underline">' + t("Rückgängig") + '</a>';
+  el.classList.add("show"); clearTimeout(el._t);
+  document.getElementById("undoLink").onclick = (e) => { e.preventDefault(); el.classList.remove("show"); fn(); };
+  el._t = setTimeout(() => el.classList.remove("show"), 6000);
 }
 
 // Deterministischer 0..1-Wert aus einem String (FNV-1a + Avalanche): gleiche ID -> gleicher
@@ -1616,7 +2026,7 @@ function rebuild(prev, reheatAmt = 1) {
     n.y = H / 2 + (seededRnd(n.id, "oy") - .5) * 180;
   }
 
-  document.getElementById("counts").textContent = `${nodes.length} ${CFG.item.plur} · ${links.length} Kanten`;
+  document.getElementById("counts").textContent = `${nodes.length} ${CFG.item.plur} · ${links.length} ${t("Kanten")}`;
   document.getElementById("empty").classList.toggle("show", nodes.length === 0);
   computeGenreColors(); // Cluster-Farben an den neuen Bestand anpassen
   assignRevealK();      // LOD-Reveal-Schwellen rangweise neu verteilen (gleichmäßig pro Zoom-Step)
@@ -1924,11 +2334,17 @@ function radius(n) {
   if (n._rDraw == null) n._rDraw = t; // erster Frame: direkt auf Zielgröße (kein Einwachsen beim Start)
   return n._rDraw;
 }
+function genreColor(n) {
+  const g = (n.genres || []).find((x) => genreColorMap.has(x.toLowerCase()));
+  return g ? genreColorMap.get(g.toLowerCase()) : null;
+}
 function nodeColor(n) {
   if (n.venue) return getCss("--venue");      // eingeblendeter Spielort
-  if (clusterMode) {                          // Cluster-Modus: Haupt-Genre färbt den Knoten
-    const g = (n.genres || []).find((x) => genreColorMap.has(x.toLowerCase()));
-    if (g) return genreColorMap.get(g.toLowerCase());
+  // Cluster-Modus: Haupt-Genre färbt den Knoten — AUSSER die gesuchten „Sonnen": die bleiben
+  // in der Akzentfarbe (Zentrum sofort erkennbar) und tragen ihr Genre als kräftigen Ring.
+  if (clusterMode && !n.seed) {
+    const c = genreColor(n);
+    if (c) return c;
   }
   if (n.seed) return getCss("--accent");      // gesucht: schwarz
   return getCss("--discovered");              // sonst grau (Status = farbiger Ring)
@@ -2016,9 +2432,10 @@ function draw() {
     return false;
   };
 
-  // Kanten
+  // Kanten — nur zeichnen, wenn „Verbindungen" an ist (der Toggle schaltet ausschließlich
+  // die Optik; die Link-Kräfte in tick() wirken unverändert weiter).
   const cSim = getCss("--edge-similar"), cTog = getCss("--edge-together"), cVen = getCss("--venue");
-  for (const l of links) {
+  if (showEdges) for (const l of links) {
     if (hidden(l.a.id) || hidden(l.b.id)) continue;
     const key = l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
     const onPath = pe && pe.has(key);
@@ -2096,7 +2513,7 @@ function draw() {
     else if (compareSet.has(n.id)) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = "#2f6df6"; ctx.stroke(); }
     else if (glow) { ctx.lineWidth = 3 / view.k; ctx.strokeStyle = getCss("--edge-together"); ctx.stroke(); }
     else if (sCol) { ctx.lineWidth = 2.5 / view.k; ctx.strokeStyle = sCol; ctx.stroke(); }
-    else if (clusterMode && n.seed && !n.venue) { ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--text"); ctx.stroke(); } // gesucht bleibt im Cluster-Modus erkennbar
+    else if (clusterMode && n.seed && !n.venue) { const gc = genreColor(n); ctx.lineWidth = 3.5 / view.k; ctx.strokeStyle = gc || getCss("--text"); ctx.stroke(); } // „Sonne" im Cluster-Modus: Akzent-Kern + Genre-Farbring
     else if (hover && n.id === hover.id) { ctx.lineWidth = 1.5 / view.k; ctx.strokeStyle = getCss("--muted"); ctx.stroke(); }
     // Brückenbauer: doppelter Ring in Akzentfarbe — verbindet mehrere Szenen
     if (bridgeSet.has(n.id)) {
@@ -2434,11 +2851,14 @@ mmEl.addEventListener("mousedown", (e) => { mmJump(e); const mv = (ev) => mmJump
 // LOD-Sichtbarkeit: dieselbe Regel wie in draw() — weit rausgezoomt sind auf dichten Karten
 // die Grad-≤1-Blätter ausgeblendet. Zentral, damit sie auch NICHT pickbar/hoverbar sind und
 // keine Aktionen (＋/ⓘ/×/▶) tragen, solange man sie nicht durch Reinzoomen sichtbar macht (B1).
-// Sonnen = immer sichtbar: gesuchte/kuratierte Acts und gut vernetzte Hubs. Weit rausgezoomt
-// bleiben NUR sie stehen; alles andere sind „Planeten", die erst beim Heranzoomen erscheinen.
+// Sonnen = immer sichtbar: NUR die gesuchten Acts (die „Sonnen" der Space-Ansicht) und die
+// aktuelle Auswahl. Weit rausgezoomt bleiben ausschließlich sie stehen; alles andere sind
+// „Planeten" — kuratierte (Status/Notiz/Korb) und gut vernetzte tauchen beim Reinzoomen zuerst
+// auf, der Rest gestaffelt danach. (Vorher galten auch Grad-≥3-Knoten als Sonnen — auf dichten
+// Karten blieb dadurch beim Maximal-Rauszoom die halbe Karte stehen.)
 const SUN_DEG = 3;
 function lodSun(n) {
-  return n.seed || n.status || n.note || n.known || (selected && n.id === selected.id) || basket.has(n.id) || (n.deg | 0) >= SUN_DEG;
+  return n.seed || (selected && n.id === selected.id);
 }
 // Ab welchem Zoom ein Planet auftaucht. Die Schwelle je Planet wird EINMAL pro Rebuild
 // RANGweise vergeben (assignRevealK): die Planeten werden nach Größe sortiert und ihre
@@ -2446,10 +2866,12 @@ function lodSun(n) {
 // Zoom-Step sichtbar etwas dazu (bzw. beim Rauszoomen weg) — keine Klumpen, keine Leerläufe.
 const REVEAL_K0 = 0.8, REVEAL_K1 = 3.2;
 function assignRevealK() {
-  const planets = nodes.filter((x) => !x.venue && !x.seed && (x.deg | 0) < SUN_DEG);
-  // REIN zufällige (aber deterministische) Reihenfolge — NICHT nach Größe, sonst erscheinen
-  // kleine Artists systematisch zuletzt. So kommt bunt gemischt beim Reinzoomen Nachschub.
-  planets.sort((a, b) => seededRnd(a.id, "lodrank") - seededRnd(b.id, "lodrank"));
+  const planets = nodes.filter((x) => !x.venue && !x.seed);
+  // Kuratierte (Status/Notiz/Korb/bekannt) zuerst, dann gut vernetzte Hubs, dann der Rest —
+  // innerhalb jeder Stufe REIN zufällig (aber deterministisch), NICHT nach Größe, sonst
+  // erscheinen kleine Artists systematisch zuletzt.
+  const prio = (x) => (x.status || x.note || x.known || basket.has(x.id) ? 2 : 0) + ((x.deg | 0) >= SUN_DEG ? 1 : 0);
+  planets.sort((a, b) => prio(b) - prio(a) || seededRnd(a.id, "lodrank") - seededRnd(b.id, "lodrank"));
   const m = planets.length;
   planets.forEach((x, i) => { x._revealK = m <= 1 ? REVEAL_K0 : REVEAL_K0 + (i / (m - 1)) * (REVEAL_K1 - REVEAL_K0); });
 }
@@ -2481,7 +2903,7 @@ function genreFilterActive() { return !!filterGenre || activeGenres.size > 0; }
 function genreMissNode(n) {
   const fg = filterGenre.toLowerCase();
   if (fg && !(n.genres || []).some((x) => x.toLowerCase().includes(fg))) return true;
-  if (activeGenres.size && !(n.genres || []).some((x) => activeGenres.has(x))) return true;
+  if (activeGenres.size && !(n.genres || []).some((x) => activeGenres.has(x.toLowerCase()))) return true;
   return false;
 }
 function pick(px, py) {
@@ -2671,7 +3093,7 @@ addEventListener("mouseup", (e) => {
       const n = pick(p.x, p.y);
       if (n) {
         if (bridgeFrom) finishBridge(n);          // Brücken-Ziel wählen
-        else if (e.shiftKey) toggleCompare(n);    // Shift = vergleichen
+        else if (e.shiftKey && MODE !== "fun") toggleCompare(n); // Shift = vergleichen (nur Booking-Modus)
         else { selectNode(n); }                   // Klick auf die Kugel = NUR Info (kein Auto-Play)
       } else if (!bridge) { closePanel(); }       // Leerklick: Panel zu (nicht während Brücke)
     }
@@ -2787,14 +3209,10 @@ cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null
 function renderGenrePills(genres) {
   const el = document.getElementById("pGenres");
   el.innerHTML = (genres || []).slice(0, 6).map(x =>
-    `<span class="${activeGenres.has(x) ? "active" : ""}" data-g="${esc(x)}" title="Klick: Karte auf dieses Genre filtern (nochmal = aus)">${esc(x)}</span>`
+    `<span class="${activeGenres.has(x.toLowerCase()) ? "active" : ""}" data-g="${esc(x)}" title="${t("Klick: Karte auf dieses Genre filtern (nochmal = aus)")}">${esc(x)}</span>`
   ).join("");
   el.querySelectorAll("span").forEach(s => {
-    s.onclick = () => {
-      const g = s.dataset.g;
-      if (activeGenres.has(g)) activeGenres.delete(g); else activeGenres.add(g);
-      s.classList.toggle("active"); requestDraw();
-    };
+    s.onclick = () => toggleGenreFilter(s.dataset.g); // zentral — hält auch die Legende aktuell
   });
 }
 // Venue-Knoten: schlankes Ansicht-Panel (kein Status/Notiz/Erkunden — abgeleitete Daten)
@@ -2803,7 +3221,7 @@ function selectVenue(n) {
   const panel = document.getElementById("panel");
   panel.classList.add("open", "venuemode");
   document.getElementById("nbTogether").parentElement.classList.add("vshow");
-  document.getElementById("lblTogether").textContent = `${CFG.item.plur} an diesem Ort`;
+  document.getElementById("lblTogether").textContent = tf("{P} an diesem Ort", { P: CFG.item.plur });
   document.body.classList.add("panel-open");
   requestDraw();
   document.getElementById("pName").innerHTML = esc(n.name) + ' <span class="badge seed" style="background:var(--venue)">Venue</span>';
@@ -2847,8 +3265,8 @@ function fillNeighbors(id, rows, tag) {
   const el = document.getElementById(id);
   const seen = new Set();
   el.innerHTML = rows.filter(r => !seen.has(r.other.id) && seen.add(r.other.id))
-    .map(r => `<div class="nb" data-id="${esc(r.other.id)}" title="Klick: hinspringen und Details öffnen"><span>${esc(r.other.name)}</span><small title="Ähnlichkeit laut Last.fm">${tag(r)}</small></div>`).join("")
-    || '<small style="color:var(--muted)">noch nichts geladen</small>';
+    .map(r => `<div class="nb" data-id="${esc(r.other.id)}" title="${t("Klick: hinspringen und Details öffnen")}"><span>${esc(r.other.name)}</span><small title="${t("Ähnlichkeit laut Last.fm")}">${tag(r)}</small></div>`).join("")
+    || `<small style="color:var(--muted)">${t("noch nichts geladen")}</small>`;
   el.querySelectorAll(".nb").forEach(d => d.onclick = () => {
     const t = nodeById.get(d.dataset.id);
     if (t) { centerOn(t); selectNode(t); }
@@ -2865,9 +3283,9 @@ function fillTogether(rows) {
       return `<div>${parts.join(" · ") || "(Ort unbekannt)"}</div>`;
     }).join("");
     const wo = r.shows && r.shows.length ? `${r.w}× ▾` : `${r.w}×`;
-    return `<div class="nbrow"><div class="nb" data-id="${esc(r.other.id)}" title="Klick: hinspringen und Details öffnen"><span>${esc(r.other.name)}</span><small class="wo" title="Anzahl gemeinsamer Events — Klick zeigt wo/wann">${wo}</small></div>` +
+    return `<div class="nbrow"><div class="nb" data-id="${esc(r.other.id)}" title="${t("Klick: hinspringen und Details öffnen")}"><span>${esc(r.other.name)}</span><small class="wo" title="${t("Anzahl gemeinsamer Events — Klick zeigt wo/wann")}">${wo}</small></div>` +
       (shows ? `<div class="shows">${shows}</div>` : "") + `</div>`;
-  }).join("") || '<small style="color:var(--muted)">noch nichts geladen</small>';
+  }).join("") || `<small style="color:var(--muted)">${t("noch nichts geladen")}</small>`;
   el.querySelectorAll(".nbrow").forEach(row => {
     const nb = row.querySelector(".nb");
     nb.onclick = () => { const t = nodeById.get(nb.dataset.id); if (t) { centerOn(t); selectNode(t); } };
@@ -2913,10 +3331,10 @@ function bookingHtml(n) {
 // Sub-Zeile im Panel: Verbindungen · Hörerzahl (▲ Momentum) · Ort · Links
 const fmtListeners = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1000 ? Math.round(n / 1000) + "k" : String(n);
 function renderSub(n, growth) {
-  const bits = [`${n.deg} ${n.deg === 1 ? "Verbindung" : "Verbindungen"}`];
+  const bits = [n.deg === 1 ? tf("{N} Verbindung", { N: n.deg }) : tf("{N} Verbindungen", { N: n.deg })];
   if (n.listeners != null && CFG.popularity) {
     let l = `<span class="listeners">${fmtListeners(n.listeners)} ${esc(CFG.popularity.label)}`;
-    if (growth != null && growth >= 10) l += ` <span class="up" title="Wachstum pro Monat (aus deinen eigenen Verlaufsdaten)">▲ +${growth}%</span>`;
+    if (growth != null && growth >= 10) l += ` <span class="up" title="${t("Wachstum pro Monat (aus deinen eigenen Verlaufsdaten)")}">▲ +${growth}%</span>`;
     bits.push(l + "</span>");
   }
   const loc = n.booking?.area || n.bcLocation;
@@ -2978,13 +3396,13 @@ document.getElementById("shareBtn").onclick = async () => {
   const n = selected, b = n.booking || {};
   const region = [b.area, b.country].filter(Boolean).join(", ") || n.bcLocation || "";
   const trend = (typeof n._growth === "number")
-    ? (n._growth >= 5 ? " (steigend)" : n._growth <= -5 ? " (fallend)" : " (konstant)")
+    ? t(n._growth >= 5 ? " (steigend)" : n._growth <= -5 ? " (fallend)" : " (konstant)")
     : "";
   const facts = [
     (n.genres && n.genres.length) ? `Genre: ${n.genres.slice(0, 4).join(", ")}` : "",
     region ? `Region: ${region}` : "",
-    (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString("de-DE")}${trend}` : "",
-    n.note ? `Notiz: ${n.note}` : "",
+    (n.listeners != null) ? `${CFG.popularity?.label || "Hörer"}: ${Number(n.listeners).toLocaleString(LANG === "en" ? "en-US" : "de-DE")}${trend}` : "",
+    n.note ? `${t("Notiz:")} ${n.note}` : "",
   ].filter(Boolean);
   // Konkreten Vorschau-Track (für den „anhören"-Link) holen — der beste teilbare Link.
   let ytUrl = "", trackName = "";
@@ -2997,12 +3415,12 @@ document.getElementById("shareBtn").onclick = async () => {
       }
     } catch {}
   }
-  const title = `Musik-Tipp: ${n.name}`;
+  const title = tf("Musik-Tipp: {N}", { N: n.name });
   // Direkt ins Mail-Programm — bewusst KEIN navigator.share, das auf Desktop nur das OS-Teilen-
   // Fenster zeigt. mailto öffnet den Standard-Mail-Client mit vorausgefülltem Betreff + Text.
   const links = [];
-  if (ytUrl) links.push(`▶ Auf YouTube anhören — „${trackName}"`, ytUrl);
-  if (n.url) links.push("Mehr auf Last.fm", n.url);
+  if (ytUrl) links.push(tf(`▶ Auf YouTube anhören — „{T}"`, { T: trackName }), ytUrl);
+  if (n.url) links.push(t("Mehr auf Last.fm"), n.url);
   const body = [n.name, ...facts, ...(links.length ? ["", ...links] : [])].join("\n");
   location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 };
@@ -3024,7 +3442,7 @@ document.getElementById("removeAct").onclick = async () => {
   if (res.error) { toast("Fehler: " + res.error); return; }
   closePanel();
   graph = res.graph; rebuild(new Map(nodes.map(n => [n.id, n])));
-  toastUndo(`„${esc(removed.artist.name)}" entfernt`, async () => {
+  toastUndo(tf(`„{N}" entfernt`, { N: esc(removed.artist.name) }), async () => {
     const r = await API.restore(removed);
     if (r.graph) { graph = r.graph; rebuild(new Map(nodes.map(n => [n.id, n]))); toast("Wiederhergestellt"); }
   });
@@ -3036,13 +3454,13 @@ document.getElementById("export").onclick = () => {
   // alle kuratierten Einträge (Status/Notiz) als CSV — clientseitig, funktioniert auch statisch
   const rows = [FEAT.booking
     ? ["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz", "RA", "Soundcloud", "Instagram", "Website"]
-    : ["Name", "Status", CFG.genreLabel || "Genres", "Notiz", "URL"]];
+    : ["Name", "Status", CFG.genreLabel || "Genres", t("Notiz"), "URL"]];
   for (const a of Object.values(graph.artists)) {
     if (!a.status && !a.known && !a.note) continue;
     const b = a.booking || {};
     rows.push(FEAT.booking
       ? [a.name, a.status || (a.known ? "shortlist" : ""), (a.genres || []).join("; "),
-         [b.area, b.country].filter(Boolean).join(", "), a.active ? "ja" : "", b.details || "", a.note || "",
+         [b.area, b.country].filter(Boolean).join(", "), a.active ? t("ja") : "", b.details || "", a.note || "",
          b.ra || "", b.soundcloud || "", b.instagram || "", b.website || ""]
       : [a.name, a.status || (a.known ? "shortlist" : ""), (a.genres || []).join("; "), a.note || "", a.url || ""]);
   }
@@ -3090,7 +3508,7 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
   const k = slugify(name);
   const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
   busyId = node ? node.id : null; // pulsierender Lade-Ring am Knoten
-  toast(`Lade „${name}" …`);
+  toast(tf(`Lade „{N}" …`, { N: name }));
   try {
     const res = await API.explore(name);
     if (res.error) {
@@ -3112,7 +3530,7 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
 document.getElementById("resetAll").onclick = async () => {
   if (STATIC) { toast("Nur im lokalen Tool"); return; }
   closeMore();
-  if (!confirm("Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)")) return;
+  if (!confirm(t("Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)"))) return;
   const res = await API.reset("all");
   if (res.error) { toast("Fehler: " + res.error); return; }
   closePanel();
@@ -3135,7 +3553,7 @@ document.getElementById("pruneOrphans").onclick = async () => {
   const res = await API.reset("discovered");
   if (res.error) { toast("Fehler: " + res.error); return; }
   graph = res.graph; rebuild(new Map(nodes.map(x => [x.id, x])));
-  toast(`${n} unverknüpfte${n === 1 ? "r Act" : " Acts"} aufgeräumt`);
+  toast(n === 1 ? t("1 unverknüpfter Act aufgeräumt") : tf("{N} unverknüpfte Acts aufgeräumt", { N: n }));
 };
 
 function doSearch() {
@@ -3167,23 +3585,31 @@ const ctxEl = document.getElementById("ctxmenu");
 function hideCtx() { ctxEl.classList.remove("show"); }
 function showCtx(n, x, y) {
   const bl = CFG.basketLabel || "Lineup";
+  const likeItem = [basket.has(n.id) ? tf(`Aus „{B}" entfernen`, { B: bl }) : `${CFG.likeLabel || "like!"} → ${bl}`, () => toggleBasket(n)];
   const items = n.venue ? [
     ["Details öffnen", () => selectNode(n)],
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
     ["Brücke bauen…", () => startBridge(n)],
     [n.pinned ? "Fixierung lösen" : "Position fixieren", () => { n.pinned = !n.pinned; if (!n.pinned) reheat(0.3); }],
+  ] : MODE === "fun" ? [
+    // Stöbern-Modus: nur die vier Kern-Aktionen — Profi-Werkzeuge (Fokus, Vergleich, Brücke,
+    // Fixieren) bleiben dem Booking-Modus vorbehalten.
+    ["Weiter erkunden", () => exploreByName(n.name)],
+    ["Details öffnen", () => selectNode(n)],
+    likeItem,
+    ["Entfernen", () => removeNode(n)],
   ] : [
     ["Weiter erkunden", () => exploreByName(n.name)],
     ["Details öffnen", () => selectNode(n)],
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
-    [basket.has(n.id) ? `Aus dem ${bl}` : `${CFG.likeLabel || "like!"} (ins ${bl})`, () => toggleBasket(n)],
+    likeItem,
     [compareSet.has(n.id) ? "Aus Vergleich" : "Zum Vergleich", () => toggleCompare(n)],
     ["Brücke bauen…", () => startBridge(n)],
     [n.pinned ? "Fixierung lösen" : "Position fixieren", () => { n.pinned = !n.pinned; if (!n.pinned) reheat(0.3); }],
     ["Entfernen", () => removeNode(n)],
   ];
   ctxEl.innerHTML = "";
-  for (const [label, fn] of items) { const d = document.createElement("div"); d.textContent = label; d.onclick = () => { hideCtx(); fn(); }; ctxEl.appendChild(d); }
+  for (const [label, fn] of items) { const d = document.createElement("div"); d.textContent = t(label); d.onclick = () => { hideCtx(); fn(); }; ctxEl.appendChild(d); }
   ctxEl.classList.add("show");
   // nach dem Rendern messen und ans Fenster clampen (statt geschätzter Fixwerte)
   ctxEl.style.left = Math.min(x, innerWidth - ctxEl.offsetWidth - 8) + "px";
@@ -3201,7 +3627,7 @@ function startBridge(n) {
   bridgeFrom = n;
   closePanel();  // Panel zu, damit die ganze Karte frei ist, um das Ziel anzuklicken
   updateModebar();
-  toast(`Brücke von „${n.name}": jetzt ein zweites ${CFG.item?.sing || "Element"} anklicken`);
+  toast(tf(`Brücke von „{N}": jetzt ein zweites {S} anklicken`, { N: n.name, S: CFG.item?.sing || "Element" }));
 }
 async function finishBridge(target) {
   const a = bridgeFrom; bridgeFrom = null;
@@ -3210,7 +3636,7 @@ async function finishBridge(target) {
   bridge = { a, b: target, cands: [], sort: 0.5, loading: true };
   updateModebar(); requestDraw();
   busyId = target.id;
-  toast(`Suche Brücke: „${a.name}" ↔ „${target.name}" …`);
+  toast(tf(`Suche Brücke: „{A}" ↔ „{B}" …`, { A: a.name, B: target.name }));
   try {
     const res = await API.bridge(a.name, target.name);
     if (!bridge) return; // zwischenzeitlich abgebrochen (Progress-Abbrechen)
@@ -3229,7 +3655,7 @@ async function finishBridge(target) {
     };
     const cands = (res.candidates || []).filter((c) => !chainExists(c));
     if (!cands.length) {
-      toast(res.candidates?.length ? `„${a.name}" und „${target.name}" sind über die vorhandenen Einträge schon verbunden.` : "Kein verbindender Eintrag gefunden (auch nicht über mehrere Schichten).");
+      toast(res.candidates?.length ? tf(`„{A}" und „{B}" sind über die vorhandenen Einträge schon verbunden.`, { A: a.name, B: target.name }) : "Kein verbindender Eintrag gefunden (auch nicht über mehrere Schichten).");
       clearBridge(); return;
     }
     bridge.cands = cands; bridge.loading = false; bridge.mode = res.mode;
@@ -3280,7 +3706,7 @@ async function addBridge(i) {
   const ranked = bridgeRanked(); const c = ranked[i]; if (!c) return;
   const a = bridge.a, b = bridge.b, via = c.via.map((v) => v.name);
   clearBridge();
-  toast(`Setze Brücke: ${via.join(" → ")} …`);
+  toast(tf(`Setze Brücke: {V} …`, { V: via.join(" → ") }));
   try {
     const res = await API.bridgeAdd(a.name, b.name, via, a.id, b.id);
     if (res.error) { toast("Fehler: " + res.error); return; }
@@ -3290,7 +3716,7 @@ async function addBridge(i) {
 }
 function showBridgeBar() {
   const bar = document.getElementById("bridgebar");
-  document.getElementById("bridgeTitle").textContent = `Brücke: ${bridge.a.name} → ${bridge.b.name}`;
+  document.getElementById("bridgeTitle").textContent = tf("Brücke: {A} → {B}", { A: bridge.a.name, B: bridge.b.name });
   // "spannend" heißt klein — beim Musik-Pack "Hörer", sonst der Popularitätsbegriff des Packs
   document.getElementById("bridgeSpicy").textContent = CFG.popularity ? "klein" : "spannend";
   const sl = document.getElementById("bridgeSlider"); sl.value = Math.round(bridge.sort * 100);
@@ -3312,13 +3738,13 @@ document.getElementById("secret").onchange = (e) => { secretMode = e.target.chec
 function updateModebar() {
   requestDraw();
   const m = document.getElementById("modebar"); const parts = [];
-  if (focusId && nodeById.has(focusId)) parts.push(`Fokus: ${nodeById.get(focusId).name} <a id="mFocus">✕</a>`);
-  if (compareSet.size >= 2) parts.push(`Vergleich: ${compareSet.size} ${CFG.item.plur} → ${commonNeighbors(compareSet).size} gemeinsame <a id="mCmp">✕</a>`);
-  else if (compareSet.size === 1) parts.push(`Vergleich: 1 ${CFG.item.sing} (Shift-Klick für mehr) <a id="mCmp">✕</a>`);
-  if (bridge && bridge.loading) parts.push(`<span class="mspin"></span> Brücke „${bridge.a.name}" ↔ „${bridge.b.name}" wird gesucht … <a id="mBridgeCancel">abbrechen</a>`);
-  if (bridgeFrom) parts.push(`Brücke von „${bridgeFrom.name}": Ziel anklicken <a id="mBridge">✕</a>`);
-  if (secretMode) parts.push(`Geheimtipps hervorgehoben <a id="mSec">✕</a>`);
-  if (bridgeSet.size) parts.push(`Brückenbauer: ${bridgeSet.size} markiert <a id="mBridges">✕</a>`);
+  if (focusId && nodeById.has(focusId)) parts.push(`${tf("Fokus: {N}", { N: nodeById.get(focusId).name })} <a id="mFocus">✕</a>`);
+  if (compareSet.size >= 2) parts.push(`${tf("Vergleich: {N} {P} → {M} gemeinsame", { N: compareSet.size, P: CFG.item.plur, M: commonNeighbors(compareSet).size })} <a id="mCmp">✕</a>`);
+  else if (compareSet.size === 1) parts.push(`${tf("Vergleich: 1 {S} (Shift-Klick für mehr)", { S: CFG.item.sing })} <a id="mCmp">✕</a>`);
+  if (bridge && bridge.loading) parts.push(`<span class="mspin"></span> ${tf(`Brücke „{A}" ↔ „{B}" wird gesucht …`, { A: bridge.a.name, B: bridge.b.name })} <a id="mBridgeCancel">${t("abbrechen")}</a>`);
+  if (bridgeFrom) parts.push(`${tf(`Brücke von „{N}": Ziel anklicken`, { N: bridgeFrom.name })} <a id="mBridge">✕</a>`);
+  if (secretMode) parts.push(`${t("Geheimtipps hervorgehoben")} <a id="mSec">✕</a>`);
+  if (bridgeSet.size) parts.push(`${tf("Brückenbauer: {N} markiert", { N: bridgeSet.size })} <a id="mBridges">✕</a>`);
   if (!parts.length) { m.classList.remove("show"); m.innerHTML = ""; return; }
   m.innerHTML = parts.join("  ·  "); m.classList.add("show");
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
@@ -3329,9 +3755,9 @@ function updateModebar() {
 // ---- Breadcrumb ----
 function addTrail(name) { trail = trail.filter(x => x !== name); trail.push(name); if (trail.length > 12) trail.shift(); renderTrail(); }
 function renderTrail() {
-  const t = document.getElementById("trail");
-  t.innerHTML = trail.map((n, i) => `<span class="${i === trail.length - 1 ? "cur" : ""}" data-n="${encodeURIComponent(n)}" title="Zuletzt erkundet — Klick springt hin">${esc(n)}</span>`).join("");
-  t.querySelectorAll("span").forEach(s => s.onclick = () => {
+  const el = document.getElementById("trail"); // nicht „t" — das ist die Übersetzungsfunktion
+  el.innerHTML = trail.map((n, i) => `<span class="${i === trail.length - 1 ? "cur" : ""}" data-n="${encodeURIComponent(n)}" title="${t("Zuletzt erkundet — Klick springt hin")}">${esc(n)}</span>`).join("");
+  el.querySelectorAll("span").forEach(s => s.onclick = () => {
     const nm = decodeURIComponent(s.dataset.n), k = slugify(nm);
     const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
     if (node) { centerOn(node); selectNode(node); }
@@ -3348,7 +3774,7 @@ function refreshLikeBtn() {
   const b = document.getElementById("basketBtn");
   const inL = basket.has(selected.id);
   b.textContent = inL ? `✓ im ${bl}` : (CFG.likeLabel || "like!");
-  b.title = inL ? `Wieder aus dem ${bl} nehmen (Taste b)` : `In dein ${bl} aufnehmen (Taste b)`;
+  b.title = inL ? tf("Wieder aus dem {B} nehmen (Taste b)", { B: bl }) : tf("In dein {B} aufnehmen (Taste b)", { B: bl });
   b.classList.toggle("inlineup", inL);
 }
 function renderBasket() {
@@ -3356,9 +3782,9 @@ function renderBasket() {
   const items = [...basket].map(id => graph.artists[id]).filter(Boolean);
   if (!items.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
   const bl = CFG.basketLabel || "Lineup";
-  el.innerHTML = `<h3 title="Dein ${bl}-Korb — mit ${CFG.likeLabel || "like!"} oder Taste b füllen">${bl} <span>${items.length}</span></h3><ul>` +
-    items.map(a => `<li data-id="${esc(a.id)}" title="Klick: hinspringen"><b>${esc(a.name)}</b><a data-rm="${esc(a.id)}" title="Aus dem ${bl} nehmen">✕</a></li>`).join("") +
-    `</ul><div class="actions"><button id="bExport" title="${bl} als CSV exportieren">CSV</button><button id="bClear" title="${bl}-Korb leeren">Leeren</button></div>`;
+  el.innerHTML = `<h3 title="${tf("Dein {B}-Korb — mit {L} oder Taste b füllen", { B: bl, L: CFG.likeLabel || "like!" })}">${bl} <span>${items.length}</span></h3><ul>` +
+    items.map(a => `<li data-id="${esc(a.id)}" title="${t("Klick: hinspringen")}"><b>${esc(a.name)}</b><a data-rm="${esc(a.id)}" title="${tf("Aus dem {B} nehmen", { B: bl })}">✕</a></li>`).join("") +
+    `</ul><div class="actions"><button id="bExport" title="${tf("{B} als CSV exportieren", { B: bl })}">CSV</button><button id="bClear" title="${tf("{B}-Korb leeren", { B: bl })}">${t("Leeren")}</button></div>`;
   el.classList.add("show");
   el.querySelectorAll("li").forEach(li => li.onclick = (e) => {
     if (e.target.dataset.rm) { basket.delete(e.target.dataset.rm); saveBasket(); renderBasket(); return; }
@@ -3369,11 +3795,11 @@ function renderBasket() {
 }
 function exportBasketCsv() {
   const rows = [FEAT.booking
-    ? ["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz"]
-    : ["Name", "Status", CFG.genreLabel || "Genres", "Notiz", "URL"]];
+    ? ["Name", "Status", "Genres", t("Region"), t("Aktiv"), t("Booking/Kontakt"), t("Notiz")]
+    : ["Name", "Status", CFG.genreLabel || "Genres", t("Notiz"), "URL"]];
   for (const id of basket) { const a = graph.artists[id]; if (!a) continue; const b = a.booking || {};
     rows.push(FEAT.booking
-      ? [a.name, a.status || "", (a.genres || []).join("; "), [b.area, b.country].filter(Boolean).join(", "), a.active ? "ja" : "", b.details || "", a.note || ""]
+      ? [a.name, a.status || "", (a.genres || []).join("; "), [b.area, b.country].filter(Boolean).join(", "), a.active ? t("ja") : "", b.details || "", a.note || ""]
       : [a.name, a.status || "", (a.genres || []).join("; "), a.note || "", a.url || ""]); }
   const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
   const blob = new Blob([csv], { type: "text/csv" }), u = URL.createObjectURL(blob);
@@ -3432,12 +3858,12 @@ document.addEventListener("mousedown", (e) => {
 });
 document.getElementById("radarRefresh").onclick = () => runRadar(true);
 
-function agoText(t) {
-  const s = Math.max(0, (Date.now() - t) / 1000);
-  if (s < 90) return "gerade eben";
-  if (s < 3600) return `vor ${Math.round(s / 60)} Min`;
-  if (s < 86400) return `vor ${Math.round(s / 3600)} Std`;
-  return `vor ${Math.round(s / 86400)} Tg`;
+function agoText(ts) { // Parameter NICHT „t" nennen — würde die Übersetzungsfunktion verdecken
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 90) return t("gerade eben");
+  if (s < 3600) return tf("vor {N} Min", { N: Math.round(s / 60) });
+  if (s < 86400) return tf("vor {N} Std", { N: Math.round(s / 3600) });
+  return tf("vor {N} Tg", { N: Math.round(s / 86400) });
 }
 // C8: ids der gerade sichtbaren Acts (im Viewport, keine Venues) — Basis fürs Radar.
 function visibleActIds() {
@@ -3454,16 +3880,21 @@ async function runRadar(force) {
   radarBusy = true;
   radarStamp.style.display = "none";
   radarBody.className = "rstate";
-  radarBody.textContent = force
+  radarBody.textContent = t(force
     ? "Radar wird neu berechnet …"
-    : "Radar wird berechnet … (erste Berechnung dauert etwas)";
+    : "Radar wird berechnet … (erste Berechnung dauert etwas)");
   try {
-    const res = await API.radar([...basket], force, visibleActIds()); // C8: aus dem sichtbaren Ausschnitt
+    const res = await API.radar([...basket], force, visibleActIds()); // C8: sichtbarer Ausschnitt = Suchraum
     if (res.error) { radarBody.textContent = res.error; return; }
-    if (!res.radar.length) { radarBody.textContent = `Nichts gefunden — erkunde erst ein paar ${CFG.item.plur}, dann hat das Radar Futter.`; return; }
+    if (!res.radar.length) {
+      radarBody.textContent = res.fromVisible
+        ? t("Nichts gefunden — das Radar sucht im sichtbaren Ausschnitt. Zoome heraus oder verschiebe die Karte, dann nochmal ↻.")
+        : tf("Nichts gefunden — erkunde erst ein paar {P}, dann hat das Radar Futter.", { P: CFG.item.plur });
+      return;
+    }
     if (res.computedAt) {
       radarStamp.style.display = "block";
-      radarStamp.textContent = `${res.likes} ${res.fromVisible ? "sichtbare Acts" : "Likes"} als Basis · Stand: ${agoText(res.computedAt)}${res.cached ? " (gecacht)" : ""}`;
+      radarStamp.textContent = `${res.likes} ${t("Likes als Basis")}${res.fromVisible ? " · " + t("Suche im sichtbaren Ausschnitt") : ""} · ${t("Stand:")} ${agoText(res.computedAt)}${res.cached ? " " + t("(gecacht)") : ""}`;
     }
     radarBody.className = "";
     radarBody.innerHTML = res.radar.map((r, i) => {
@@ -3471,10 +3902,10 @@ async function runRadar(force) {
       const liked = r.inGraph && basket.has(r.id);
       const bl = CFG.basketLabel || "Lineup", ll = CFG.likeLabel || "like!";
       const acts = [
-        `<button class="${liked ? "liked" : ""}" data-like="${encodeURIComponent(r.name)}" data-id="${esc(r.id || "")}" title="${liked ? `Im ${bl} — klick zum Entfernen` : `${ll} — in dein ${bl}`}">${liked ? `✓ ${bl}` : ll}</button>`,
-        `<button data-explore="${encodeURIComponent(r.name)}" title="Laden und auf der Karte zeigen">Erkunden</button>`,
+        `<button class="${liked ? "liked" : ""}" data-like="${encodeURIComponent(r.name)}" data-id="${esc(r.id || "")}" title="${liked ? tf("Im {B} — klick zum Entfernen", { B: bl }) : tf("{L} — in dein {B}", { L: ll, B: bl })}">${liked ? `✓ ${bl}` : ll}</button>`,
+        `<button data-explore="${encodeURIComponent(r.name)}" title="${t("Laden und auf der Karte zeigen")}">${t("Erkunden")}</button>`,
         FEAT.preview ? `<button data-preview="${encodeURIComponent(r.name)}" title="${esc(PREVIEW_TITLE)}">${SVG_PLAY}</button>` : "",
-        r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer"><button title="Profil öffnen">↗</button></a>` : "",
+        r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer"><button title="${t("Profil öffnen")}">↗</button></a>` : "",
       ].join("");
       return `<div class="rentry"><b>${i + 1}. ${esc(r.name)}</b><div class="rmeta">${meta}</div><div class="racts">${acts}</div></div>`;
     }).join("");
@@ -3490,10 +3921,10 @@ async function runRadar(force) {
         toggleBasket(n);
         const on = basket.has(n.id);
         b.classList.toggle("liked", on); b.textContent = on ? "✓ Lineup" : "like!";
-        b.title = on ? "Im Lineup — klick zum Entfernen" : "like! — in dein Lineup";
+        b.title = on ? tf("Im {B} — klick zum Entfernen", { B: CFG.basketLabel || "Lineup" }) : tf("{L} — in dein {B}", { L: CFG.likeLabel || "like!", B: CFG.basketLabel || "Lineup" });
       } else {
         // noch nicht auf der Karte: erst laden, dann liken (Graph ändert sich ohnehin)
-        toast(`Lade „${name}" fürs ${CFG.basketLabel || "Lineup"} …`);
+        toast(tf(`Lade „{N}" fürs {B} …`, { N: name, B: CFG.basketLabel || "Lineup" }));
         await exploreByName(name);
         const k = slugify(name); const n = nodeById.get(k) || nodes.find((x) => slugify(x.name) === k);
         if (n) { if (!basket.has(n.id)) toggleBasket(n); b.classList.add("liked"); b.textContent = `✓ ${CFG.basketLabel || "Lineup"}`; toast(`„${n.name}" ist im ${CFG.basketLabel || "Lineup"}`); }
@@ -3513,13 +3944,13 @@ document.getElementById("labelBtn").onclick = async () => {
   el.innerHTML = `<small style="color:var(--muted)">${esc(CFG.contextWait || "Lade Umfeld …")}</small>`;
   let res;
   try { res = await API.context(forId); }
-  catch { el.innerHTML = '<small style="color:var(--muted)">Umfeld konnte nicht geladen werden.</small>'; return; }
+  catch { el.innerHTML = `<small style="color:var(--muted)">${t("Umfeld konnte nicht geladen werden.")}</small>`; return; }
   if (!selected || selected.id !== forId) return; // Nutzer hat inzwischen etwas anderes gewählt
   if (!res || res.error) { el.innerHTML = `<small style="color:var(--muted)">Fehler: ${esc((res && res.error) || "unbekannt")}</small>`; return; }
   const items = (res.groups || []).flatMap((g) => g.items || []);
-  if (!items.length) { el.innerHTML = '<small style="color:var(--muted)">Kein Umfeld gefunden.</small>'; return; }
+  if (!items.length) { el.innerHTML = `<small style="color:var(--muted)">${t("Kein Umfeld gefunden.")}</small>`; return; }
   el.innerHTML = (res.note ? `<small style="color:var(--muted)">${esc(res.note)}</small>` : "") +
-    items.map((m) => `<div data-n="${encodeURIComponent(m.name)}" title="Klick: erkunden"><span>${esc(m.name)}</span><small>${esc(m.sub || "")}</small></div>`).join("");
+    items.map((m) => `<div data-n="${encodeURIComponent(m.name)}" title="${t("Klick: erkunden")}"><span>${esc(m.name)}</span><small>${esc(m.sub || "")}</small></div>`).join("");
   el.querySelectorAll("[data-n]").forEach((d) => d.onclick = () => exploreByName(decodeURIComponent(d.dataset.n)));
 };
 document.getElementById("dimBig").onchange = requestDraw;
@@ -3536,7 +3967,7 @@ function renderIntro() {
   introSlides.forEach((s, i) => s.classList.toggle("active", i === introIdx));
   [...introDots.children].forEach((d, i) => d.classList.toggle("on", i === introIdx));
   introBackBtn.style.visibility = introIdx === 0 ? "hidden" : "visible";
-  introNextBtn.textContent = introIdx === introSlides.length - 1 ? "Los geht's" : "Weiter";
+  introNextBtn.textContent = t(introIdx === introSlides.length - 1 ? "Los geht's" : "Weiter");
 }
 function openIntro() { introIdx = 0; renderIntro(); introEl.classList.add("show"); }
 function closeIntro() { introEl.classList.remove("show"); try { localStorage.setItem(LSK("like_intro_seen"), "1"); } catch {} }
@@ -3656,12 +4087,12 @@ function updateSceneLegend() {
     entries.push({ col, size: members.length, name: topg ? topg.name : null });
   }
   entries.sort((a, b) => b.size - a.size);
-  entries.forEach((e, i) => { if (!e.name) e.name = "Szene " + (i + 1); });
+  entries.forEach((e, i) => { if (!e.name) e.name = t("Szene") + " " + (i + 1); });
   const sig = entries.map((e) => e.col + e.name + e.size).join("|");
   if (sig === _sceneLegendSig) return; // nichts geändert -> DOM in Ruhe lassen
   _sceneLegendSig = sig;
   el.innerHTML = entries.length
-    ? '<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px;color:var(--text)">Szenen (Farbflächen)</div>' +
+    ? `<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px;color:var(--text)">${t("Szenen (Farbflächen)")}</div>` +
       entries.map((e) => `<div><span class="dot" style="background:${e.col}"></span> ${esc(e.name)} <small style="opacity:.6">· ${e.size}</small></div>`).join("")
     : "";
 }
@@ -3735,7 +4166,7 @@ function toggleDiscover() {
 function syncScenesSwitch() {
   const it = document.getElementById("discScenes");
   it.classList.toggle("on", scenesMode);
-  document.getElementById("discScenesSw").textContent = scenesMode ? "an" : "aus";
+  document.getElementById("discScenesSw").textContent = t(scenesMode ? "an" : "aus");
 }
 document.getElementById("discoverBtn").onclick = toggleDiscover;
 document.getElementById("discScenes").onclick = () => { scenesMode = !scenesMode; syncScenesSwitch(); requestDraw(); };
@@ -3744,25 +4175,141 @@ document.getElementById("discBridges").onclick = () => { closeDiscover(); showBr
 // D2: „Netz sortieren" — Communities/Szenen in getrennte Sektoren legen und innerhalb per
 // Goldwinkel-Spirale gleichmäßig streuen, dann sanft settlen. Ergebnis: zusammengehörige Acts
 // liegen beieinander -> deutlich weniger gekreuzte Linien, saubere Abstände, kein hartes Zappeln.
+// Optimierungsziele: (1) möglichst wenige Kreuzungen, (2) kurze Kanten, (3) große Winkel an
+// Durchgangs-Knoten — wer A über B mit C verbindet, soll bei B gestreckt weiterlaufen statt
+// spitz zu knicken. Dafür pro Szene ein SPANNBAUM (stärkste Bindung wird Baumkante) radial in
+// Winkel-Keilen: jeder Teilbaum bekommt einen Keil proportional zu seiner Blattzahl, Kinder
+// zeigen vom Elternknoten nach AUSSEN (Fortsetzung der Einwärts-Richtung). Baumkanten kreuzen
+// sich damit nie, sind gleichmäßig kurz (fester Ring-Abstand), und die 2-Hop-Winkel bleiben
+// groß. Querverbindungen außerhalb des Baums bleiben sichtbar, sind aber wenige — die
+// wichtigste Beziehung jedes Knotens liegt ja im Baum.
 function sortLayout() {
   const real = nodes.filter((n) => !n.venue);
   if (real.length < 3) return;
   const comm = computeCommunities();
   const groups = new Map();
   for (const n of real) { const c = comm.get(n.id) ?? ("_" + n.id); (groups.get(c) || groups.set(c, []).get(c)).push(n); }
-  const order = [...groups.values()].sort((a, b) => b.length - a.length);
-  const cx = W / 2, cy = (H + 52) / 2, SP = 46; // SP > Kollisionsabstand -> Physik muss kaum nachschieben
-  const maxGR = Math.max(1, ...order.map((m) => 20 + Math.sqrt(m.length) * SP));
-  const G = order.length, ringR = G > 1 ? Math.max(maxGR * 1.7, 300) : 0; // Szenen klar getrennt
-  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-  order.forEach((members, gi) => {
+  // Adjazenz nur über echte Knoten; stärkste Bindung zuerst -> sie wird die Baumkante
+  const adj = new Map(real.map((n) => [n.id, []]));
+  for (const l of links) {
+    if (l.type === "venue" || l.a.venue || l.b.venue) continue;
+    const w = l.bond ?? l.strength ?? 0.5;
+    adj.get(l.a.id)?.push({ n: l.b, w });
+    adj.get(l.b.id)?.push({ n: l.a, w });
+  }
+  for (const arr of adj.values()) arr.sort((x, y) => y.w - x.w);
+  // Mini-Szenen (<5 Knoten), die per Kante an einer größeren Szene hängen, dorthin mergen:
+  // die Community-Erkennung spaltet Ketten gern als eigene Gruppe ab — als Teilbaum der
+  // großen Szene bleiben ihre Verbindungen dagegen kurz und gleich lang (Mehr-Hop-Ziel).
+  {
+    const cidOf = new Map();
+    for (const [cid, ms] of groups) for (const n of ms) cidOf.set(n.id, cid);
+    let merged = true;
+    while (merged) {
+      merged = false;
+      for (const [cid, ms] of [...groups]) {
+        if (ms.length >= 5) continue;
+        let best = null, bestW = 0;
+        for (const l of links) {
+          if (l.type === "venue" || l.a.venue || l.b.venue) continue;
+          const ca = cidOf.get(l.a.id), cb = cidOf.get(l.b.id);
+          const other = ca === cid && cb !== cid ? cb : (cb === cid && ca !== cid ? ca : null);
+          if (other == null) continue;
+          const w = l.bond ?? l.strength ?? 0.5;
+          if ((groups.get(other)?.length || 0) > ms.length && w > bestW) { bestW = w; best = other; }
+        }
+        if (best != null) {
+          for (const n of ms) cidOf.set(n.id, best);
+          groups.get(best).push(...ms);
+          groups.delete(cid);
+          merged = true;
+        }
+      }
+    }
+  }
+  // Szenen-Reihenfolge auf dem Ring: stark querverbundene Szenen nebeneinander legen —
+  // so bleiben auch die Szene-zu-Szene-Kanten kurz und kreuzen sich seltener (Ziel 1+2).
+  const commOf = new Map();
+  for (const [cid, members] of groups) for (const n of members) commOf.set(n.id, cid);
+  const w2 = new Map(); // "cidA|cidB" -> Summe Kantengewichte zwischen den Szenen
+  for (const l of links) {
+    if (l.type === "venue" || l.a.venue || l.b.venue) continue;
+    const ca = commOf.get(l.a.id), cb = commOf.get(l.b.id);
+    if (ca == null || cb == null || ca === cb) continue;
+    const k = ca < cb ? ca + "|" + cb : cb + "|" + ca;
+    w2.set(k, (w2.get(k) || 0) + (l.bond ?? l.strength ?? 0.5));
+  }
+  const between = (a, b) => w2.get(a < b ? a + "|" + b : b + "|" + a) || 0;
+  const bySize = [...groups.keys()].sort((a, b) => groups.get(b).length - groups.get(a).length);
+  const chain = bySize.length ? [bySize.shift()] : [];
+  while (bySize.length) { // greedy: die am stärksten ans Ketten-Ende gebundene Szene anhängen
+    const tail = chain[chain.length - 1];
+    bySize.sort((a, b) => between(b, tail) - between(a, tail));
+    chain.push(bySize.shift());
+  }
+  const order = chain.map((cid) => groups.get(cid));
+  const GAP = 95; // Abstand pro Baum-Ebene = Ziel-Kantenlänge
+  const layouts = order.map((members) => {
+    const inG = new Set(members.map((n) => n.id));
+    // Wurzel: bevorzugt ein gesuchter Act, sonst der bestvernetzte
+    const root = [...members].sort((a, b) => ((b.seed ? 1e6 : 0) + (b.deg | 0)) - ((a.seed ? 1e6 : 0) + (a.deg | 0)))[0];
+    // BFS-Spannbaum entlang der stärksten Kanten
+    const kids = new Map(members.map((n) => [n.id, []]));
+    const seen = new Set([root.id]); const queue = [root];
+    for (let qi = 0; qi < queue.length; qi++) {
+      const p = queue[qi];
+      for (const { n } of adj.get(p.id) || []) {
+        if (!inG.has(n.id) || seen.has(n.id)) continue;
+        seen.add(n.id); kids.get(p.id).push(n); queue.push(n);
+      }
+    }
+    // unverbundene Szene-Reste als direkte Wurzel-Kinder anhängen (kommt bei Rest-Gruppen vor)
+    for (const n of members) if (!seen.has(n.id)) { seen.add(n.id); kids.get(root.id).push(n); queue.push(n); }
+    // Blattzahl je Teilbaum bestimmt die Keilbreite; Tiefe bestimmt den Platzbedarf der Szene
+    const leaves = new Map();
+    const countLeaves = (n) => { const c = kids.get(n.id); const v = c.length ? c.reduce((s, k) => s + countLeaves(k), 0) : 1; leaves.set(n.id, v); return v; };
+    countLeaves(root);
+    let depthMax = 0; const depth = new Map([[root.id, 0]]);
+    for (const p of queue) for (const k of kids.get(p.id)) { depth.set(k.id, (depth.get(p.id) || 0) + 1); depthMax = Math.max(depthMax, depth.get(k.id)); }
+    return { root, kids, leaves, R: Math.max(GAP, depthMax * GAP) };
+  });
+  // Szenen auf einem Ring um die Mitte — weit genug, dass sich die Bäume nicht berühren
+  const cx = W / 2, cy = (H + 52) / 2, G = layouts.length;
+  const byR = layouts.map((L) => L.R).sort((a, b) => b - a);
+  const need = (byR[0] || 0) + (byR[1] || 0) + 140; // die zwei größten Nachbarn müssen Platz haben
+  const ringR = G > 1 ? Math.max(340, need / (2 * Math.sin(Math.PI / G))) : 0;
+  layouts.forEach((L, gi) => {
     const ga = (gi / G) * Math.PI * 2, ccx = cx + Math.cos(ga) * ringR, ccy = cy + Math.sin(ga) * ringR;
-    members.sort((a, b) => (b.deg | 0) - (a.deg | 0)); // Hubs nach innen
-    members.forEach((n, i) => {
-      if (n.pinned) return; // manuell platzierte Knoten in Ruhe lassen
-      const r = Math.sqrt(i) * SP, a = i * GOLDEN;
-      n.x = ccx + Math.cos(a) * r; n.y = ccy + Math.sin(a) * r; n.vx = 0; n.vy = 0; n._moonAng = null;
-    });
+    const place = (n, a0, a1, d, pr, pa) => {
+      const am = (a0 + a1) / 2;
+      // Radius so wählen, dass die Kante zum Elternknoten möglichst EXAKT GAP lang wird
+      // (Kosinussatz): Mehr-Hop-Ketten (A—B—C) bekommen so zwei gleich lange Verbindungen,
+      // statt dass Keil-Abweichungen einzelne Kanten strecken. Ist der Keil dafür zu breit,
+      // bleibt der Knoten knapp außerhalb des Eltern-Radius (nie nach innen springen).
+      let r = 0;
+      if (d > 0) {
+        const dAng = Math.abs(((am - pa + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
+        const s = pr * Math.sin(dAng);
+        r = s < GAP
+          ? Math.max(pr * Math.cos(dAng) + Math.sqrt(GAP * GAP - s * s), pr + GAP * 0.35)
+          : pr + GAP * 0.35;
+      }
+      if (!n.pinned) { // manuell platzierte Knoten in Ruhe lassen
+        n.x = ccx + Math.cos(am) * r;
+        n.y = ccy + Math.sin(am) * r;
+        n.vx = 0; n.vy = 0; n._moonAng = null;
+      }
+      const c = L.kids.get(n.id);
+      if (!c || !c.length) return;
+      const total = c.reduce((s2, k) => s2 + L.leaves.get(k.id), 0);
+      let a = a0;
+      for (const k of c) {
+        const w = (a1 - a0) * (L.leaves.get(k.id) / total);
+        place(k, a, a + w, d + 1, r, am);
+        a += w;
+      }
+    };
+    place(L.root, ga - Math.PI, ga + Math.PI, 0, 0, ga); // Wurzel mittig, Teilbäume rundum in Keilen
   });
   stopFollow();
   fitAll();     // die sortierte Anordnung gleich einpassen
@@ -3780,6 +4327,24 @@ document.addEventListener("mousedown", (e) => {
 // ---- „Ansicht & Export"-Menü ----
 const moreEl = document.getElementById("morebox");
 document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("show"); closeDiscover(); };
+// Fun/Work-Schalter: Wahl merken und neu laden — die Feature-Gates greifen beim Start.
+function setMode(m) {
+  if (m === MODE) return;
+  try { localStorage.setItem("like_mode", m); } catch {}
+  location.reload();
+}
+document.getElementById("modeFun").onclick = () => setMode("fun");
+document.getElementById("modeWork").onclick = () => setMode("work");
+// Sprach-Umschalter (Titelleiste): Wahl merken und neu laden — Übersetzung greift beim Start.
+document.getElementById("langDe").classList.toggle("on", LANG === "de");
+document.getElementById("langEn").classList.toggle("on", LANG === "en");
+function setLang(l) {
+  if (l === LANG) return;
+  try { localStorage.setItem("like_lang", l); } catch {}
+  location.reload();
+}
+document.getElementById("langDe").onclick = () => setLang("de");
+document.getElementById("langEn").onclick = () => setLang("en");
 document.addEventListener("mousedown", (e) => {
   if (moreEl.classList.contains("show") && !moreEl.contains(e.target) && e.target.id !== "moreBtn")
     moreEl.classList.remove("show");
@@ -3805,7 +4370,7 @@ document.getElementById("mSearch").addEventListener("keydown", (e) => {
 function currentHome() { try { return JSON.parse(localStorage.getItem("like_travel_home") || "null"); } catch { return null; } }
 function refreshHomeLabel() { const el = document.getElementById("homeLabel"); if (!el) return; const h = currentHome(); el.textContent = h && h.name ? h.name : "Heimatort setzen"; }
 async function promptTypedHome() {
-  const q = prompt("Heimatort eingeben (z. B. „Wien, Österreich“):"); if (!q) return;
+  const q = prompt(t("Heimatort eingeben (z. B. „Wien, Österreich“):")); if (!q) return;
   let r = null; try { r = await GET("/api/geocode?q=" + encodeURIComponent(q)); } catch {}
   if (r && r.ok) { localStorage.setItem("like_travel_home", JSON.stringify({ name: r.name, lat: r.lat, lon: r.lon })); toast("Heimatort: " + r.name + " — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); }
   else toast("Ort nicht gefunden");
@@ -3813,7 +4378,7 @@ async function promptTypedHome() {
 function setTravelHome() {
   if (navigator.geolocation && confirm("Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)")) {
     navigator.geolocation.getCurrentPosition(
-      (pos) => { localStorage.setItem("like_travel_home", JSON.stringify({ name: "Mein Standort", lat: pos.coords.latitude, lon: pos.coords.longitude })); toast("Heimatort: dein Standort — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); },
+      (pos) => { localStorage.setItem("like_travel_home", JSON.stringify({ name: t("Mein Standort"), lat: pos.coords.latitude, lon: pos.coords.longitude })); toast("Heimatort: dein Standort — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); },
       () => promptTypedHome());
   } else promptTypedHome();
 }
@@ -3828,10 +4393,10 @@ let authMode = "login";
 function renderAcct() {
   const box = document.getElementById("acctBox"); if (!box) return;
   if (window.LIKE_USER) {
-    box.innerHTML = `Angemeldet als <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">abmelden</a>`;
+    box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>`;
     box.querySelector("#acctLogout").onclick = doLogout;
   } else {
-    box.innerHTML = `<button id="acctLogin" style="width:100%">Anmelden / Registrieren</button><div style="color:var(--muted);margin-top:6px;line-height:1.4">Ohne Login: eigener, temporärer View (nur in diesem Tab). Angemeldet: deine Karte auf allen Geräten.</div>`;
+    box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button><div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigener, temporärer View (nur in diesem Tab). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
     box.querySelector("#acctLogin").onclick = () => { closeMore(); openAuth("login"); };
   }
 }
@@ -3853,13 +4418,13 @@ function openAuth(mode) {
     sub = document.getElementById("authSubmit"), sw = document.getElementById("authSwitch");
   setAuthMsg(""); document.getElementById("authUser").value = ""; pw.value = ""; rec.value = "";
   rec.style.display = mode === "reset" ? "" : "none";
-  pw.placeholder = mode === "reset" ? "Neues Passwort" : "Passwort";
-  if (mode === "login") { T.textContent = "Anmelden"; intro.textContent = "Melde dich an — deine Karte ist dann auf allen Geräten gleich."; sub.textContent = "Anmelden";
-    sw.innerHTML = `<a data-m="register" style="cursor:pointer;text-decoration:underline">Neu hier? Konto erstellen</a><a data-m="reset" style="cursor:pointer;text-decoration:underline">Passwort vergessen?</a>`; }
-  else if (mode === "register") { T.textContent = "Konto erstellen"; intro.textContent = "Nutzername + Passwort wählen. Danach bekommst du einen Recovery-Code — bitte sicher aufbewahren!"; sub.textContent = "Konto erstellen";
-    sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">Schon ein Konto? Anmelden</a>`; }
-  else { T.textContent = "Passwort zurücksetzen"; intro.textContent = "Nutzername, Recovery-Code und neues Passwort eingeben."; sub.textContent = "Zurücksetzen";
-    sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">Zurück zum Anmelden</a>`; }
+  pw.placeholder = t(mode === "reset" ? "Neues Passwort" : "Passwort");
+  if (mode === "login") { T.textContent = t("Anmelden"); intro.textContent = t("Melde dich an — deine Karte ist dann auf allen Geräten gleich."); sub.textContent = t("Anmelden");
+    sw.innerHTML = `<a data-m="register" style="cursor:pointer;text-decoration:underline">${t("Neu hier? Konto erstellen")}</a><a data-m="reset" style="cursor:pointer;text-decoration:underline">${t("Passwort vergessen?")}</a>`; }
+  else if (mode === "register") { T.textContent = t("Konto erstellen"); intro.textContent = t("Nutzername + Passwort wählen. Danach bekommst du einen Recovery-Code — bitte sicher aufbewahren!"); sub.textContent = t("Konto erstellen");
+    sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">${t("Schon ein Konto? Anmelden")}</a>`; }
+  else { T.textContent = t("Passwort zurücksetzen"); intro.textContent = t("Nutzername, Recovery-Code und neues Passwort eingeben."); sub.textContent = t("Zurücksetzen");
+    sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">${t("Zurück zum Anmelden")}</a>`; }
   sw.querySelectorAll("[data-m]").forEach((a) => a.onclick = () => openAuth(a.dataset.m));
 }
 document.getElementById("authCancel").onclick = () => authModal.classList.remove("show");
@@ -3868,13 +4433,13 @@ async function doAuthSubmit() {
   const username = document.getElementById("authUser").value.trim();
   const password = document.getElementById("authPw").value;
   const recovery = document.getElementById("authRec").value.trim();
-  if (!username || !password) { setAuthMsg("Bitte Nutzername und Passwort ausfüllen."); return; }
-  if (authMode === "reset" && !recovery) { setAuthMsg("Bitte den Recovery-Code eingeben."); return; }
+  if (!username || !password) { setAuthMsg(t("Bitte Nutzername und Passwort ausfüllen.")); return; }
+  if (authMode === "reset" && !recovery) { setAuthMsg(t("Bitte den Recovery-Code eingeben.")); return; }
   const path = authMode === "register" ? "/api/auth/register" : authMode === "reset" ? "/api/auth/reset" : "/api/auth/login";
   setAuthMsg("…", true);
-  let r; try { r = await POST(path, { username, password, recovery }); } catch { setAuthMsg("Netzwerkfehler."); return; }
-  if (!r || !r.ok) { setAuthMsg((r && r.error) || "Fehlgeschlagen."); return; }
-  if (r.recovery) alert("Dein Recovery-Code — JETZT sicher aufbewahren!\nNur damit kannst du dein Passwort zurücksetzen:\n\n" + r.recovery);
+  let r; try { r = await POST(path, { username, password, recovery }); } catch { setAuthMsg(t("Netzwerkfehler.")); return; }
+  if (!r || !r.ok) { setAuthMsg((r && r.error) || t("Fehlgeschlagen.")); return; }
+  if (r.recovery) alert(t("Dein Recovery-Code — JETZT sicher aufbewahren!\nNur damit kannst du dein Passwort zurücksetzen:\n\n") + r.recovery);
   // Der Server hat die aktuelle (anonyme) Karte bereits in den Account übernommen.
   // Kein Reload: der aktuelle Screen bleibt erhalten, künftige Änderungen landen im Konto.
   try { sessionStorage.removeItem("like_anon"); } catch {}
@@ -3909,7 +4474,7 @@ function surpriseMe() {
   if (!end || path.length < 2) { toast("Kein Weg gefunden — lade erst ein paar Nachbarn (Doppelklick)."); return; }
   path.forEach((id, i) => setTimeout(() => { const n = nodeById.get(id); if (n) { n.likePulse = 1; requestDraw(); } }, i * 150));
   centerOn(end); selectNode(end);
-  toast("Streifzug: " + path.map((id) => nodeById.get(id)?.name).filter(Boolean).join(" → "));
+  toast(tf("Streifzug: {P}", { P: path.map((id) => nodeById.get(id)?.name).filter(Boolean).join(" → ") }));
 }
 
 // Brückenbauer hervorheben + auflisten
@@ -3919,7 +4484,7 @@ function showBridges() {
   if (!top.length) { toast("Noch keine Brücken — dein Netz ist (noch) eine einzige Szene."); bridgeSet = new Set(); requestDraw(); return; }
   bridgeSet = new Set(top.map((b) => b.id));
   updateModebar(); requestDraw();
-  toast("Brückenbauer: " + top.slice(0, 4).map((b) => nodeById.get(b.id)?.name).filter(Boolean).join(" · "));
+  toast(t("Brückenbauer:") + " " + top.slice(0, 4).map((b) => nodeById.get(b.id)?.name).filter(Boolean).join(" · "));
 }
 function clearBridges() { bridgeSet = new Set(); updateModebar(); requestDraw(); }
 
@@ -3929,6 +4494,15 @@ clusterToggleEl.onchange = (e) => {
   clusterMode = e.target.checked;
   try { localStorage.setItem(LSK("like_cluster"), clusterMode ? "1" : "0"); } catch {}
   updateGenreLegend(); requestDraw();
+};
+// „Verbindungen": blendet NUR die Linien aus (falls das Netz zu voll wirkt) — die Link-Kräfte
+// in der Physik bleiben an, verbundene Knoten ordnen sich also weiterhin beieinander an.
+const edgesToggleEl = document.getElementById("edgesToggle");
+edgesToggleEl.checked = showEdges;
+edgesToggleEl.onchange = (e) => {
+  showEdges = e.target.checked;
+  try { localStorage.setItem(LSK("like_edges"), showEdges ? "1" : "0"); } catch {}
+  renderLegend(); requestDraw();
 };
 
 // Immer sichtbarer Ansicht-Umschalter Space | Flat (segmentierter Toggle in der Topbar)
@@ -3979,23 +4553,23 @@ tasteModal.addEventListener("mousedown", (e) => { if (e.target === tasteModal) t
 document.getElementById("tasteBtn").onclick = async () => {
   const body = document.getElementById("tasteBody");
   tasteModal.classList.add("show");
-  body.innerHTML = '<small style="color:var(--muted)">Lade …</small>';
+  body.innerHTML = `<small style="color:var(--muted)">${t("Lade …")}</small>`;
   try {
     const res = await API.taste();
-    if (!res.ok) { body.innerHTML = '<small style="color:var(--muted)">Konnte nicht laden.</small>'; return; }
+    if (!res.ok) { body.innerHTML = `<small style="color:var(--muted)">${t("Konnte nicht laden.")}</small>`; return; }
     const withLikes = res.packs.filter((p) => p.count > 0);
     if (!withLikes.length) {
-      body.innerHTML = '<small style="color:var(--muted)">Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.</small>';
+      body.innerHTML = `<small style="color:var(--muted)">${t("Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.")}</small>`;
       return;
     }
     const rows = withLikes.map((p) => `
       <div class="trow">
         <div class="thead"><b>${esc(p.title)}</b><small>${p.count} ${esc(p.item.plur)}</small></div>
         ${p.topGenres.length ? `<div class="tchips">${p.topGenres.map((g) => `<span>${esc(g.name)}${g.count > 1 ? " ×" + g.count : ""}</span>`).join("")}</div>` : ""}
-        ${p.topItems.length ? `<div style="font-size:11.5px;color:var(--muted);margin-top:5px">z.B. ${p.topItems.slice(0, 3).map(esc).join(" · ")}</div>` : ""}
+        ${p.topItems.length ? `<div style="font-size:11.5px;color:var(--muted);margin-top:5px">${t("z.B.")} ${p.topItems.slice(0, 3).map(esc).join(" · ")}</div>` : ""}
       </div>`).join("");
     const over = res.overlaps?.length
-      ? `<div class="tover">Themen, die deine Welten <b>verbinden</b>: ${res.overlaps.map((o) => `„${esc(o.name)}" (${o.packs.map(esc).join(" + ")})`).join(" · ")}</div>`
+      ? `<div class="tover">${t("Themen, die deine Welten <b>verbinden</b>:")} ${res.overlaps.map((o) => `„${esc(o.name)}" (${o.packs.map(esc).join(" + ")})`).join(" · ")}</div>`
       : "";
     body.innerHTML = rows + over;
   } catch { body.innerHTML = '<small style="color:var(--muted)">Fehler beim Laden.</small>'; }
@@ -4006,13 +4580,13 @@ document.getElementById("crossBtn").onclick = async () => {
   if (!selected || selected.venue) return;
   if (STATIC) { toast("Nur im lokalen Tool"); return; }
   const el = document.getElementById("pCross");
-  el.innerHTML = '<small style="color:var(--muted)">Suche in deinen anderen Domänen …</small>';
+  el.innerHTML = `<small style="color:var(--muted)">${t("Suche in deinen anderen Domänen …")}</small>`;
   try {
     const res = await API.crossbridge(selected.name);
     if (res.error) { el.innerHTML = `<small style="color:var(--muted)">Fehler: ${esc(res.error)}</small>`; return; }
-    if (!res.hits?.length) { el.innerHTML = '<small style="color:var(--muted)">Keine Brücke gefunden — dieser Eintrag scheint nur hier zu existieren.</small>'; return; }
+    if (!res.hits?.length) { el.innerHTML = `<small style="color:var(--muted)">${t("Keine Brücke gefunden — dieser Eintrag scheint nur hier zu existieren.")}</small>`; return; }
     el.innerHTML = res.hits.map((h) =>
-      `<div data-pack="${esc(h.pack)}" data-n="${encodeURIComponent(h.name)}" title="Zu ${esc(h.packTitle)} wechseln und dort erkunden"><span>${esc(h.name)}</span><small>${esc(h.packTitle)} ↗</small></div>`
+      `<div data-pack="${esc(h.pack)}" data-n="${encodeURIComponent(h.name)}" title="${tf("Zu {P} wechseln und dort erkunden", { P: esc(h.packTitle) })}"><span>${esc(h.name)}</span><small>${esc(h.packTitle)} ↗</small></div>`
     ).join("");
     el.querySelectorAll("[data-pack]").forEach((d) => d.onclick = () => {
       const id = d.dataset.pack, q = "&q=" + d.dataset.n;
@@ -4028,7 +4602,7 @@ document.getElementById("diagBtn").onclick = async () => {
   el.innerHTML = '<small>Teste Quellen … (macht echte Anfragen, dauert einen Moment)</small>';
   try {
     const res = await API.diag();
-    if (!res.ok) { el.innerHTML = '<small>Diagnose fehlgeschlagen</small>'; return; }
+    if (!res.ok) { el.innerHTML = `<small>${t("Diagnose fehlgeschlagen")}</small>`; return; }
     el.innerHTML = res.sources.map(s => {
       const cls = s.status === "ok" ? "ok" : s.status === "leer" ? "warn" : "err";
       const info = s.note || (s.status === "ok" ? s.ms + " ms" : s.status);
@@ -4052,7 +4626,7 @@ document.getElementById("importGraph").onclick = () => document.getElementById("
 document.getElementById("importFile").onchange = async (e) => {
   const file = e.target.files[0]; if (!file) return;
   e.target.value = "";
-  if (!confirm("Backup einspielen? Dein aktueller Bestand wird ersetzt (vorher automatisch als graph.bak.json gesichert).")) return;
+  if (!confirm(t("Backup einspielen? Dein aktueller Bestand wird ersetzt (vorher automatisch als graph.bak.json gesichert)."))) return;
   try {
     const data = JSON.parse(await file.text());
     const res = await API.import(data);
@@ -4108,7 +4682,7 @@ document.getElementById("keySave").onclick = async () => {
   if (!key) { toast("Bitte Key einfügen"); return; }
   const res = await POST("/api/key", { key });
   if (res.ok) { closeKeyModal(); toast("Key gespeichert — Suche ist startklar!"); }
-  else toast("Fehler: " + (res.error || "Key konnte nicht gespeichert werden"));
+  else toast(t("Fehler:") + " " + (res.error || t("Key konnte nicht gespeichert werden")));
 };
 // beim Start prüfen, ob ein Key da ist — wenn nicht, freundlich danach fragen
 async function checkKey() {
@@ -4119,8 +4693,10 @@ async function checkKey() {
     const verEl = document.getElementById("ver");
     if (h.version || h.build) {
       const vtxt = h.version ? "v" + esc(h.version) : "";
-      const btxt = h.build ? `<a href="${esc(h.build.href)}" target="_blank" rel="noreferrer" style="color:inherit;text-decoration:underline" title="Aktueller Deploy-Stand auf GitHub">${esc(h.build.label)}</a>` : "";
-      verEl.innerHTML = [vtxt, btxt].filter(Boolean).join(" · ");
+      // Deploy-Ref in einen .bref-Span — auf schmalen Screens per CSS ausgeblendet, damit die
+      // Marke nicht umbricht und die Leiste nicht gequetscht wird.
+      const btxt = h.build ? `<span class="bref">${vtxt ? " · " : ""}<a href="${esc(h.build.href)}" target="_blank" rel="noreferrer" style="color:inherit;text-decoration:underline" title="Aktueller Deploy-Stand auf GitHub">${esc(h.build.label)}</a></span>` : "";
+      verEl.innerHTML = vtxt + btxt;
       if (h.build) verEl.title = "installierte Version · Deploy-Stand (GitHub)";
     }
     // Feedback-Knopf nur zeigen, wenn der Build Pushover-Credentials hat
@@ -4142,16 +4718,16 @@ document.getElementById("feedbackText").addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); document.getElementById("feedbackSend").click(); }
 });
 document.getElementById("feedbackSend").onclick = async () => {
-  const t = document.getElementById("feedbackText").value.trim();
-  if (t.length < 2) { toast("Bitte etwas mehr Text"); return; }
+  const txt = document.getElementById("feedbackText").value.trim(); // nicht „t" — Übersetzungsfunktion!
+  if (txt.length < 2) { toast("Bitte etwas mehr Text"); return; }
   const btn = document.getElementById("feedbackSend");
-  btn.disabled = true; btn.textContent = "Senden…";
+  btn.disabled = true; btn.textContent = t("Senden…");
   try {
-    const res = await API.feedback(t);
+    const res = await API.feedback(txt);
     if (res.ok) { document.getElementById("feedbackText").value = ""; closeFeedback(); toast("Danke fürs Feedback! ✉"); }
-    else toast("Fehler: " + (res.error || "konnte nicht senden"));
+    else toast(t("Fehler:") + " " + (res.error || t("konnte nicht senden")));
   } catch { toast("Senden fehlgeschlagen"); }
-  finally { btn.disabled = false; btn.textContent = "Senden"; }
+  finally { btn.disabled = false; btn.textContent = t("Senden"); }
 };
 
 // Beim allerersten Start die Kurz-Tour zeigen (danach über „?" wieder aufrufbar).
@@ -4233,7 +4809,7 @@ document.getElementById("egBtn")?.addEventListener("click", () => exploreByName(
   if (sBtn) {
     if (STATIC || !FEAT.preview) sBtn.style.display = "none"; // nur wo Live-Suche sinnvoll ist
     sBtn.addEventListener("click", async () => {
-      sBtn.disabled = true; const label = sBtn.textContent; sBtn.textContent = "✦ Suche …";
+      sBtn.disabled = true; const label = sBtn.textContent; sBtn.textContent = t("✦ Suche …");
       try {
         const r = await GET("/api/surprise");
         if (r && r.ok && r.name) await exploreByName(r.name);
@@ -4339,13 +4915,13 @@ function renderDigest(d) {
   const parts = [];
   if (d.grown?.length) {
     const top = d.grown[0];
-    parts.push(`▲ <b>${esc(top.name)}</b> +${top.growth}%/Monat` + (d.grown.length > 1 ? ` und ${d.grown.length - 1} weitere im Aufwind` : ""));
+    parts.push(`▲ <b>${esc(top.name)}</b> +${top.growth}%/${t("Monat")}` + (d.grown.length > 1 ? " " + tf("und {N} weitere im Aufwind", { N: d.grown.length - 1 }) : ""));
   }
   if (!parts.length && d.marked > 0 && d.historyDays < 12) {
-    parts.push(`Verlauf wird aufgebaut — Momentum zeigt sich nach ~2 Wochen Nutzung.`);
+    parts.push(t("Verlauf wird aufgebaut — Momentum zeigt sich nach ~2 Wochen Nutzung."));
   }
   if (!parts.length) return; // nichts Spannendes -> kein Banner
-  el.innerHTML = parts.join(" · ") + ` <a id="digestRadar">Radar öffnen</a> <span class="dclose" id="digestClose">✕</span>`;
+  el.innerHTML = parts.join(" · ") + ` <a id="digestRadar">${t("Radar öffnen")}</a> <span class="dclose" id="digestClose">✕</span>`;
   el.classList.add("show");
   document.getElementById("digestClose").onclick = () => el.classList.remove("show");
   const dr = document.getElementById("digestRadar");

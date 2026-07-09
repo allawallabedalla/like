@@ -1020,20 +1020,27 @@ const server = createServer(async (req, res) => {
     // Radar: Geheimtipp-Score — kleine Einträge nah an deinen Likes, mit Begründung.
     if (req.method === "POST" && url.pathname === "/api/radar") {
       const { limit = 10, extraLikes = [], visible = null, force = false } = await readBody(req);
+      // Sprache des Clients (x-like-lang): Begründungen/Fehltexte auf Englisch, wenn gewünscht.
+      // Pack-eigene Labels laufen über das en-Overlay der Pack-Config (exakter String -> EN).
+      const lang = req.headers["x-like-lang"] === "en" ? "en" : "de";
+      const trPack = (s) => (lang === "en" && s && pack.config.en && pack.config.en[s]) ? pack.config.en[s] : s;
+      const M = lang === "en"
+        ? { empty: "Search or like a few entries first — then the radar has a taste to work from.", near: "close to", month: "/month", together: "directly connected" }
+        : { empty: "Erst ein paar Einträge suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann.", near: "nah an", month: "/Monat", together: "direkt verbunden" };
       const g = await loadGraph(GRAPH);
       const extra = new Set(extraLikes);
-      // C8: Sind sichtbare Acts mitgegeben, leitet das Radar seine Vorschläge NUR aus dem gerade
-      // sichtbaren Ausschnitt ab (plus explizite Likes). Sonst wie bisher aus allen gesuchten/
-      // gemerkten Acts.
-      const fromVisible = Array.isArray(visible) && visible.some((id) => g.artists[id]);
-      const likes = fromVisible
-        ? new Set([...visible.filter((id) => g.artists[id]), ...[...extra].filter((id) => g.artists[id])])
-        : new Set(Object.values(g.artists)
-            .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
-            .map((a) => a.id));
-      if (!likes.size) return send(res, 400, { error: "Erst ein paar Einträge suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann." });
+      // C8 (neu): Der sichtbare Ausschnitt ist der SUCHRAUM — Vorschläge kommen nur aus den
+      // gerade sichtbaren Acts. Die Geschmacksbasis bleiben die Likes (gesucht/gemerkt/Status);
+      // ohne solche dient der Ausschnitt selbst als Basis (frische Karte).
+      const visSet = Array.isArray(visible) ? new Set(visible.filter((id) => g.artists[id])) : null;
+      const fromVisible = !!(visSet && visSet.size);
+      const realLikes = new Set(Object.values(g.artists)
+        .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
+        .map((a) => a.id));
+      const likes = realLikes.size ? realLikes : (fromVisible ? visSet : realLikes);
+      if (!likes.size) return send(res, 400, { error: M.empty });
 
-      const cacheKey = [...likes].sort().join(",") + "|" + limit;
+      const cacheKey = [...likes].sort().join(",") + "|" + limit + "|" + lang + (fromVisible ? "|v:" + [...visSet].sort().join(",") : "");
       const cached = radarCache.get(pack.id);
       if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < RADAR_TTL) {
         return send(res, 200, { ...cached.payload, cached: true, computedAt: cached.at });
@@ -1042,7 +1049,7 @@ const server = createServer(async (req, res) => {
       const norm = (s) => String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const inGraph = new Set(Object.values(g.artists).map((a) => norm(a.name)));
       const likeName = (id) => g.artists[id]?.name || id;
-      const popLabel = pack.config.popularity?.label || "";
+      const popLabel = trPack(pack.config.popularity?.label || "");
 
       // (a) Graph-Nachbarn: Nähe = Summe der Kantengewichte zu Likes
       const cand = new Map();
@@ -1050,6 +1057,7 @@ const server = createServer(async (req, res) => {
         const [l, o] = likes.has(e.from) && !likes.has(e.to) ? [e.from, e.to]
                      : likes.has(e.to) && !likes.has(e.from) ? [e.to, e.from] : [null, null];
         if (!o || !g.artists[o]) continue;
+        if (fromVisible && !visSet.has(o)) continue; // Suchraum: nur Kandidaten im sichtbaren Ausschnitt
         const c = cand.get(o) ?? { id: o, closeness: 0, together: false, vias: new Set() };
         c.closeness += e.type === "similar" ? (e.weight || 0.5) : Math.min(1, 0.4 + 0.1 * (e.weight || 1));
         if (e.type !== "similar") c.together = true;
@@ -1084,9 +1092,10 @@ const server = createServer(async (req, res) => {
         if (ch) await persist(gCur);
       });
 
-      // (b) Pack-spezifische Zusatzkandidaten (Musik: Deezer-Related + Bandcamp-Releases)
+      // (b) Pack-spezifische Zusatzkandidaten (Musik: Deezer-Related + Bandcamp-Releases) —
+      // entfallen im Sichtbar-Modus: externe Vorschläge liegen nie im sichtbaren Ausschnitt.
       let extras = [];
-      if (pack.radarExtras) {
+      if (pack.radarExtras && !fromVisible) {
         const deg = {};
         for (const e of g.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
         const topLikeNames = [...likes].sort((a, b) => (deg[b] || 0) - (deg[a] || 0)).slice(0, 4).map(likeName);
@@ -1106,11 +1115,11 @@ const server = createServer(async (req, res) => {
         const growth = growthPerMonth(stats, c.id);
         const mom = growth == null ? 1 : growth >= 25 ? 1.25 : growth >= 10 ? 1.12 : growth < 0 ? 0.92 : 1;
         const score = Math.min(c.closeness, 3) / 3 * small(a.listeners) * mom * (c.together ? 1.15 : 1) * (a.active ? 1.1 : 1);
-        const reasons = [`nah an ${[...c.vias].slice(0, 2).join(" & ")}`];
+        const reasons = [`${M.near} ${[...c.vias].slice(0, 2).join(" & ")}`];
         if (a.listeners != null && popLabel) reasons.push(`${fmtNum(a.listeners)} ${popLabel}`);
-        if (growth != null && growth >= 10) reasons.push(`▲ +${growth}%/Monat`);
-        if (c.together) reasons.push(pack.config.radarTogetherReason || "direkt verbunden");
-        if (a.active && pack.config.activeLabel) reasons.push(pack.config.activeLabel);
+        if (growth != null && growth >= 10) reasons.push(`▲ +${growth}%${M.month}`);
+        if (c.together) reasons.push(trPack(pack.config.radarTogetherReason) || M.together);
+        if (a.active && pack.config.activeLabel) reasons.push(trPack(pack.config.activeLabel));
         out.push({ name: a.name, id: c.id, inGraph: true, listeners: a.listeners ?? null, growth, score, reasons, url: a.bcUrl || a.url || null });
       }
       for (const x of extras) {
