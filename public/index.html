@@ -718,6 +718,7 @@
     <button id="homeBtn" class="hideStatic" style="display:none;width:100%;margin-bottom:8px" title="Heimatort für die Distanz-Anzeige setzen — Standort verwenden oder Ort eintippen">📍 <span id="homeLabel">Heimatort setzen</span></button>
     <div class="mtitle">Ansicht</div>
     <label class="toggle" id="clusterWrap" title="Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln"><input type="checkbox" id="clusterToggle" /> Farben</label>
+    <label class="toggle" title="Die Linien zwischen den Knoten ein-/ausblenden, falls das Netz zu voll wirkt. Die Anordnung bleibt gleich — verbundene Knoten ziehen sich weiter an."><input type="checkbox" id="edgesToggle" checked /> Verbindungen</label>
     <label class="toggle workonly" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
     <label class="toggle workonly" title="Acts mit Status abdunkeln — reine Entdeckung"><input type="checkbox" id="dimKnown" /> <span class="tlong">Markierte </span>abdunkeln</label>
     <label class="toggle workonly" id="dimBigWrap" title="Acts mit ≥20k Last.fm-Hörern abdunkeln (sobald die Hörerzahl geladen ist) — nur die Kleinen leuchten"><input type="checkbox" id="dimBig" /> <span id="dimBigLabel">Große dämpfen</span></label>
@@ -1139,8 +1140,8 @@ function renderLegend() {
   const strip = (s) => escT(String(s ?? "").replace(/\s*\([^)]*\)\s*$/, "")); // Quellenhinweis am Ende weg (B11)
   const real = nodes.filter((n) => !n.venue);
   const leg = [];
-  if (links.some((l) => l.type === "similar")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${strip(CFG.edges.similar.label)}</div>`);
-  if (links.some((l) => l.type !== "similar" && l.type !== "venue")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${strip(CFG.edges.together.label)}</div>`);
+  if (showEdges && links.some((l) => l.type === "similar")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-similar)"></span> ${strip(CFG.edges.similar.label)}</div>`);
+  if (showEdges && links.some((l) => l.type !== "similar" && l.type !== "venue")) leg.push(`<div><span class="ln" style="border-top:2px solid var(--edge-together)"></span> ${strip(CFG.edges.together.label)}</div>`);
   if (real.some((n) => n.seed)) leg.push(`<div style="margin-top:6px"><span class="dot" style="background:var(--accent)"></span> gesucht</div>`);
   if (real.some((n) => !n.seed)) leg.push(`<div><span class="dot" style="background:var(--discovered)"></span> noch nicht geöffnet</div>`);
   if (real.some((n) => n.status)) leg.push(`<div><span class="dot" style="background:#fff;border:2px solid #ff6a00"></span> Status-Ring (${strip((CFG.statuses[1] || CFG.statuses[0]).label)}/…)</div>`);
@@ -1242,6 +1243,12 @@ function applyCfg() {
     // „Weiter erkunden" ist im Stöbern-Modus DIE Kern-Aktion — als Primär-Knopf hervorheben,
     // damit der Weg auch ohne Doppelklick-Wissen sichtbar ist.
     $("expand").classList.add("primary");
+    // Teilen statt Fokus: der Share-Knopf zieht aus dem (versteckten) Status-Feld in die
+    // Aktions-Zeile und bekommt eine Beschriftung; Fokus ist Profi-Werkzeug (bleibt Taste f).
+    const share = $("shareBtn");
+    $("focusBtn").replaceWith(share);
+    share.classList.remove("iconbtn", "shareicon");
+    share.appendChild(document.createTextNode(" Teilen"));
     $("helpCtx").textContent = "Menü (Erkunden, Merken …)";
     if (FEAT.tour) $("tourP4").innerHTML = `Mit <b>${esc(CFG.likeLabel || "like!")}</b> wandern Favoriten in deine ` +
       `<b>${esc(CFG.basketLabel || "Favoriten")}</b>-Liste (links unten). Viel Spaß!`;
@@ -1494,6 +1501,8 @@ let venueMode = false; // Venue-Ebene (Musik): Spielorte als abgeleitete Knoten 
 try { venueMode = localStorage.getItem(LSK("like_venues")) === "1"; } catch {}
 let clusterMode = false; // Cluster-Färbung: Knoten nach Haupt-Genre einfärben
 try { clusterMode = localStorage.getItem(LSK("like_cluster")) === "1"; } catch {}
+let showEdges = true;    // Kanten-SICHTBARKEIT: nur die Optik — die Physik (Anziehung verbundener Knoten) läuft weiter
+try { showEdges = localStorage.getItem(LSK("like_edges")) !== "0"; } catch {}
 let planetMode = true;  // an das Theme gekoppelt: Dark = Space (Planeten), White = Flat. Final in der Theme-Init gesetzt.
 // Entdeck-Modi (früh deklariert: draw() liest scenesMode/bridgeSet schon beim ersten Frame)
 let communities = null;      // Map id -> Community-Label (Label-Propagation, gecacht bis rebuild)
@@ -2071,9 +2080,10 @@ function draw() {
     return false;
   };
 
-  // Kanten
+  // Kanten — nur zeichnen, wenn „Verbindungen" an ist (der Toggle schaltet ausschließlich
+  // die Optik; die Link-Kräfte in tick() wirken unverändert weiter).
   const cSim = getCss("--edge-similar"), cTog = getCss("--edge-together"), cVen = getCss("--venue");
-  for (const l of links) {
+  if (showEdges) for (const l of links) {
     if (hidden(l.a.id) || hidden(l.b.id)) continue;
     const key = l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
     const onPath = pe && pe.has(key);
@@ -4000,6 +4010,15 @@ clusterToggleEl.onchange = (e) => {
   clusterMode = e.target.checked;
   try { localStorage.setItem(LSK("like_cluster"), clusterMode ? "1" : "0"); } catch {}
   updateGenreLegend(); requestDraw();
+};
+// „Verbindungen": blendet NUR die Linien aus (falls das Netz zu voll wirkt) — die Link-Kräfte
+// in der Physik bleiben an, verbundene Knoten ordnen sich also weiterhin beieinander an.
+const edgesToggleEl = document.getElementById("edgesToggle");
+edgesToggleEl.checked = showEdges;
+edgesToggleEl.onchange = (e) => {
+  showEdges = e.target.checked;
+  try { localStorage.setItem(LSK("like_edges"), showEdges ? "1" : "0"); } catch {}
+  renderLegend(); requestDraw();
 };
 
 // Immer sichtbarer Ansicht-Umschalter Space | Flat (segmentierter Toggle in der Topbar)
