@@ -1014,14 +1014,15 @@
       <p id="supportText">like ist ein privates Ein-Personen-Projekt — ohne Werbung, ohne Tracking, ohne Gewinnabsicht. Damit das Projekt weiterleben kann, freue ich mich über eine kleine Spende. ♥</p>
       <div class="scosts">
         <div class="sctitle">Wofür das Geld gebraucht wird</div>
-        <div>Server, der die Karte Tag und Nacht für alle bereithält — ca. 7 € im Monat</div>
-        <div>Internet-Adresse likelife.info — ca. 20 € im Jahr</div>
+        <div>Server, der die Karte Tag und Nacht für alle bereithält</div>
+        <div>Internet-Adresse likelife.info</div>
         <div>Musikdaten &amp; Hörproben: zum Glück kostenlos — nur Server und Adresse kosten wirklich</div>
       </div>
-      <p class="snote">Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.</p>
+      <p class="snote">Als Richtwert: schon 1–4 € helfen sehr. Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.</p>
+      <p class="snote" id="supportFeedback" style="display:none">Auch ohne Geld hilfst du: <a id="supportFeedbackLink" style="cursor:pointer;text-decoration:underline;color:inherit">Schreib mir kurz, was besser werden soll</a> ✉</p>
       <div class="row">
         <a id="supportDonate" href="#" target="_blank" rel="noreferrer"><button class="primary">♥ Spenden (PayPal)</button></a>
-        <button id="supportLater">Später</button>
+        <button id="supportLater">Habe schon</button>
       </div>
     </div>
   </div>
@@ -1342,11 +1343,13 @@ const T = LANG !== "en" ? null : {
   "Magst du like?": "Enjoying like?",
   "like ist ein privates Ein-Personen-Projekt — ohne Werbung, ohne Tracking, ohne Gewinnabsicht. Damit das Projekt weiterleben kann, freue ich mich über eine kleine Spende. ♥": "like is a private one-person project — no ads, no tracking, no profit motive. To keep the project alive, I'd be happy about a small donation. ♥",
   "Wofür das Geld gebraucht wird": "What the money is needed for",
-  "Server, der die Karte Tag und Nacht für alle bereithält — ca. 7 € im Monat": "The server that keeps the map running day and night for everyone — about €7 a month",
-  "Internet-Adresse likelife.info — ca. 20 € im Jahr": "The web address likelife.info — about €20 a year",
+  "Server, der die Karte Tag und Nacht für alle bereithält": "The server that keeps the map running day and night for everyone",
+  "Internet-Adresse likelife.info": "The web address likelife.info",
   "Musikdaten & Hörproben: zum Glück kostenlos — nur Server und Adresse kosten wirklich": "Music data & previews: thankfully free — only the server and the address really cost money",
-  "Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.": "Every donation goes 1:1 into running costs — none of it sticks with me. And whatever you decide: like stays fully usable for you.",
-  "♥ Spenden (PayPal)": "♥ Donate (PayPal)",
+  "Als Richtwert: schon 1–4 € helfen sehr. Jede Spende fließt 1:1 in den Betrieb — an mir bleibt nichts hängen. Und egal wie du dich entscheidest: like bleibt für dich voll nutzbar.": "As a guideline: even €1–4 helps a lot. Every donation goes 1:1 into running costs — none of it sticks with me. And whatever you decide: like stays fully usable for you.",
+  "♥ Spenden (PayPal)": "♥ Donate (PayPal)", "Habe schon": "Already donated",
+  "Auch ohne Geld hilfst du:": "You can also help without money:",
+  "Schreib mir kurz, was besser werden soll": "Tell me briefly what should get better",
   "✦ Suche …": "✦ Searching …", "Streifzug: {P}": "Stroll: {P}",
   "Radar öffnen": "Open radar",
   "und {N} weitere im Aufwind": "and {N} more on the rise",
@@ -4809,6 +4812,14 @@ function maybeShowIntro() {
   const donate = document.getElementById("supportDonate");
   donate.href = D.url;
   const hide = () => modal.classList.remove("show");
+  // Feedback als Geld-Alternative: nur zeigen, wenn der Server Pushover-Feedback kann
+  // (gleiches Gate wie der ✉-Knopf, wird beim Start aus /api/health gesetzt).
+  const fbRow = document.getElementById("supportFeedback");
+  document.getElementById("supportFeedbackLink").onclick = () => { hide(); openFeedback(); };
+  const show = () => {
+    fbRow.style.display = document.getElementById("feedbackBtn").style.display === "" ? "" : "none";
+    modal.classList.add("show");
+  };
   // Wer spendet (bzw. es zumindest anklickt), hat 72 Stunden Ruhe. Danke! ♥
   donate.addEventListener("click", () => { S.quietUntil = Date.now() + QUIET_FOR; save(); hide(); });
   document.getElementById("supportClose").onclick = hide;
@@ -4821,7 +4832,7 @@ function maybeShowIntro() {
     if (document.hidden || Date.now() - lastAct > 90e3) return;   // inaktiv zählt nicht
     if (document.getElementById("intro").classList.contains("show")) return; // Erst-Tour nicht stören
     S.used += ms;
-    if (S.used - S.lastNag >= NAG_EVERY) { S.lastNag = S.used; modal.classList.add("show"); }
+    if (S.used - S.lastNag >= NAG_EVERY) { S.lastNag = S.used; show(); }
     save();
   }
   setInterval(() => tick(TICK), TICK);
