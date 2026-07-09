@@ -131,16 +131,8 @@
     padding: 0; border-radius: 50%; font-size: 17px; font-weight: 600; flex: none; display: inline-flex;
     align-items: center; justify-content: center; transition: border-color .15s, color .15s; }
   .iconbtn:hover { border-color: var(--edge-together); color: var(--edge-together); background: var(--bg); }
-  /* Immer sichtbarer Ansicht-Umschalter Space | Flat (segmentierter Toggle) */
-  .viewseg { display: inline-flex; flex: none; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden;
-    background: var(--bg); height: 38px; }
-  .viewseg button { flex: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px;
-    font-weight: 600; padding: 0 15px; height: 38px; line-height: 38px; cursor: pointer; letter-spacing: .01em; white-space: nowrap; }
-  .viewseg button.on { background: var(--text); color: var(--bg); }
-  .viewseg button:not(.on):hover { color: var(--text); }
-  @media (max-width: 640px) { .viewseg button { padding: 0 9px; font-size: 12px; } }
-  @media (max-width: 400px) { .viewseg button { padding: 0 7px; font-size: 11.5px; }
-    .packswitch { max-width: 96px; } }
+  /* (Der Space/Flat-Umschalter lebt jetzt als .modeseg im ⋯-Menü unter „Ansicht".) */
+  @media (max-width: 400px) { .packswitch { max-width: 96px; } }
   /* alle Topbar-Controls gleich hoch und sauber in der 52px-Leiste zentriert
      (sonst kreuzt z.B. der Radar-Button beim Umbruch den unteren Rahmen) */
   .bar > button, .bar > select, .search input, .search button { height: 38px; }
@@ -690,11 +682,7 @@
       </div>
       <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
-    <div class="viewseg" id="viewSeg" title="Ansicht umschalten — Space: Planeten mit kreisenden Monden · Flat: klassisches Netz">
-      <button type="button" id="segSpace" data-on="1">Space</button>
-      <button type="button" id="segFlat" data-on="0">Flat</button>
-    </div>
-    <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
+    <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
     <button id="discoverBtn" title="Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
     <button id="tasteBtn" class="iconbtn hideStatic workonly" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
     <button id="tidyBtn" class="iconbtn workonly" title="Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="8" cy="2.4" r="1.35" fill="currentColor"/><circle cx="12.85" cy="10.8" r="1.35" fill="currentColor"/><circle cx="3.15" cy="10.8" r="1.35" fill="currentColor"/></svg></button>
@@ -711,6 +699,11 @@
     <div class="modeseg" id="modeSeg" title="Stöbern: aufgeräumte Ansicht — suchen, erkunden, anhören, merken. Booking: alle Profi-Werkzeuge (Status, Notizen, Vergleich, Szenen, Export …)">
       <button type="button" id="modeFun">Stöbern</button>
       <button type="button" id="modeWork">Booking</button>
+    </div>
+    <div class="mtitle">Ansicht</div>
+    <div class="modeseg" id="viewSeg" title="Space: Planeten mit kreisenden Monden (dunkel) · Flat: klassisches Netz (hell)">
+      <button type="button" id="segSpace">Space</button>
+      <button type="button" id="segFlat">Flat</button>
     </div>
     <div class="mtitle hideStatic">Konto</div>
     <div id="acctBox" class="hideStatic" style="margin-bottom:10px; font-size:12.5px"></div>
@@ -729,7 +722,7 @@
     <input id="mGenre" class="gfilter mobileonly workonly" placeholder="Genre filtern…" autocomplete="off" style="width:100%;margin-top:2px" />
     <div class="mtitle hideStatic" id="homeTitle" style="display:none">Heimatort</div>
     <button id="homeBtn" class="hideStatic" style="display:none;width:100%;margin-bottom:8px" title="Heimatort für die Distanz-Anzeige setzen — Standort verwenden oder Ort eintippen">📍 <span id="homeLabel">Heimatort setzen</span></button>
-    <div class="mtitle">Ansicht</div>
+    <div class="mtitle">Karte</div>
     <label class="toggle" id="clusterWrap" title="Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln"><input type="checkbox" id="clusterToggle" /> Farben</label>
     <label class="toggle" title="Die Linien zwischen den Knoten ein-/ausblenden, falls das Netz zu voll wirkt. Die Anordnung bleibt gleich — verbundene Knoten ziehen sich weiter an."><input type="checkbox" id="edgesToggle" checked /> Verbindungen</label>
     <label class="toggle workonly" title="Gut vernetzte, aber kleine Acts hervorheben"><input type="checkbox" id="secret" /> Geheimtipps</label>
@@ -1262,6 +1255,13 @@ function applyCfg() {
     $("focusBtn").replaceWith(share);
     share.classList.remove("iconbtn", "shareicon");
     share.appendChild(document.createTextNode(" Teilen"));
+    // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst
+    // „Überrasch mich" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile).
+    const db = $("discoverBtn");
+    db.lastChild.textContent = "Überrasch mich";
+    db.title = "Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem";
+    db.onclick = () => surpriseMe();
+    $("mDiscover").textContent = "✦ Überrasch mich";
     $("helpCtx").textContent = "Menü (Erkunden, Merken …)";
     if (FEAT.tour) $("tourP4").innerHTML = `Mit <b>${esc(CFG.likeLabel || "like!")}</b> wandern Favoriten in deine ` +
       `<b>${esc(CFG.basketLabel || "Favoriten")}</b>-Liste (links unten). Viel Spaß!`;
@@ -2534,11 +2534,14 @@ mmEl.addEventListener("mousedown", (e) => { mmJump(e); const mv = (ev) => mmJump
 // LOD-Sichtbarkeit: dieselbe Regel wie in draw() — weit rausgezoomt sind auf dichten Karten
 // die Grad-≤1-Blätter ausgeblendet. Zentral, damit sie auch NICHT pickbar/hoverbar sind und
 // keine Aktionen (＋/ⓘ/×/▶) tragen, solange man sie nicht durch Reinzoomen sichtbar macht (B1).
-// Sonnen = immer sichtbar: gesuchte/kuratierte Acts und gut vernetzte Hubs. Weit rausgezoomt
-// bleiben NUR sie stehen; alles andere sind „Planeten", die erst beim Heranzoomen erscheinen.
+// Sonnen = immer sichtbar: NUR die gesuchten Acts (die „Sonnen" der Space-Ansicht) und die
+// aktuelle Auswahl. Weit rausgezoomt bleiben ausschließlich sie stehen; alles andere sind
+// „Planeten" — kuratierte (Status/Notiz/Korb) und gut vernetzte tauchen beim Reinzoomen zuerst
+// auf, der Rest gestaffelt danach. (Vorher galten auch Grad-≥3-Knoten als Sonnen — auf dichten
+// Karten blieb dadurch beim Maximal-Rauszoom die halbe Karte stehen.)
 const SUN_DEG = 3;
 function lodSun(n) {
-  return n.seed || n.status || n.note || n.known || (selected && n.id === selected.id) || basket.has(n.id) || (n.deg | 0) >= SUN_DEG;
+  return n.seed || (selected && n.id === selected.id);
 }
 // Ab welchem Zoom ein Planet auftaucht. Die Schwelle je Planet wird EINMAL pro Rebuild
 // RANGweise vergeben (assignRevealK): die Planeten werden nach Größe sortiert und ihre
@@ -2546,10 +2549,12 @@ function lodSun(n) {
 // Zoom-Step sichtbar etwas dazu (bzw. beim Rauszoomen weg) — keine Klumpen, keine Leerläufe.
 const REVEAL_K0 = 0.8, REVEAL_K1 = 3.2;
 function assignRevealK() {
-  const planets = nodes.filter((x) => !x.venue && !x.seed && (x.deg | 0) < SUN_DEG);
-  // REIN zufällige (aber deterministische) Reihenfolge — NICHT nach Größe, sonst erscheinen
-  // kleine Artists systematisch zuletzt. So kommt bunt gemischt beim Reinzoomen Nachschub.
-  planets.sort((a, b) => seededRnd(a.id, "lodrank") - seededRnd(b.id, "lodrank"));
+  const planets = nodes.filter((x) => !x.venue && !x.seed);
+  // Kuratierte (Status/Notiz/Korb/bekannt) zuerst, dann gut vernetzte Hubs, dann der Rest —
+  // innerhalb jeder Stufe REIN zufällig (aber deterministisch), NICHT nach Größe, sonst
+  // erscheinen kleine Artists systematisch zuletzt.
+  const prio = (x) => (x.status || x.note || x.known || basket.has(x.id) ? 2 : 0) + ((x.deg | 0) >= SUN_DEG ? 1 : 0);
+  planets.sort((a, b) => prio(b) - prio(a) || seededRnd(a.id, "lodrank") - seededRnd(b.id, "lodrank"));
   const m = planets.length;
   planets.forEach((x, i) => { x._revealK = m <= 1 ? REVEAL_K0 : REVEAL_K0 + (i / (m - 1)) * (REVEAL_K1 - REVEAL_K0); });
 }
@@ -3562,12 +3567,17 @@ async function runRadar(force) {
     ? "Radar wird neu berechnet …"
     : "Radar wird berechnet … (erste Berechnung dauert etwas)";
   try {
-    const res = await API.radar([...basket], force, visibleActIds()); // C8: aus dem sichtbaren Ausschnitt
+    const res = await API.radar([...basket], force, visibleActIds()); // C8: sichtbarer Ausschnitt = Suchraum
     if (res.error) { radarBody.textContent = res.error; return; }
-    if (!res.radar.length) { radarBody.textContent = `Nichts gefunden — erkunde erst ein paar ${CFG.item.plur}, dann hat das Radar Futter.`; return; }
+    if (!res.radar.length) {
+      radarBody.textContent = res.fromVisible
+        ? `Nichts gefunden — das Radar sucht im sichtbaren Ausschnitt. Zoome heraus oder verschiebe die Karte, dann nochmal ↻.`
+        : `Nichts gefunden — erkunde erst ein paar ${CFG.item.plur}, dann hat das Radar Futter.`;
+      return;
+    }
     if (res.computedAt) {
       radarStamp.style.display = "block";
-      radarStamp.textContent = `${res.likes} ${res.fromVisible ? "sichtbare Acts" : "Likes"} als Basis · Stand: ${agoText(res.computedAt)}${res.cached ? " (gecacht)" : ""}`;
+      radarStamp.textContent = `${res.likes} Likes als Basis${res.fromVisible ? " · Suche im sichtbaren Ausschnitt" : ""} · Stand: ${agoText(res.computedAt)}${res.cached ? " (gecacht)" : ""}`;
     }
     radarBody.className = "";
     radarBody.innerHTML = res.radar.map((r, i) => {
@@ -3848,25 +3858,100 @@ document.getElementById("discBridges").onclick = () => { closeDiscover(); showBr
 // D2: „Netz sortieren" — Communities/Szenen in getrennte Sektoren legen und innerhalb per
 // Goldwinkel-Spirale gleichmäßig streuen, dann sanft settlen. Ergebnis: zusammengehörige Acts
 // liegen beieinander -> deutlich weniger gekreuzte Linien, saubere Abstände, kein hartes Zappeln.
+// Optimierungsziele: (1) möglichst wenige Kreuzungen, (2) kurze Kanten, (3) große Winkel an
+// Durchgangs-Knoten — wer A über B mit C verbindet, soll bei B gestreckt weiterlaufen statt
+// spitz zu knicken. Dafür pro Szene ein SPANNBAUM (stärkste Bindung wird Baumkante) radial in
+// Winkel-Keilen: jeder Teilbaum bekommt einen Keil proportional zu seiner Blattzahl, Kinder
+// zeigen vom Elternknoten nach AUSSEN (Fortsetzung der Einwärts-Richtung). Baumkanten kreuzen
+// sich damit nie, sind gleichmäßig kurz (fester Ring-Abstand), und die 2-Hop-Winkel bleiben
+// groß. Querverbindungen außerhalb des Baums bleiben sichtbar, sind aber wenige — die
+// wichtigste Beziehung jedes Knotens liegt ja im Baum.
 function sortLayout() {
   const real = nodes.filter((n) => !n.venue);
   if (real.length < 3) return;
   const comm = computeCommunities();
   const groups = new Map();
   for (const n of real) { const c = comm.get(n.id) ?? ("_" + n.id); (groups.get(c) || groups.set(c, []).get(c)).push(n); }
-  const order = [...groups.values()].sort((a, b) => b.length - a.length);
-  const cx = W / 2, cy = (H + 52) / 2, SP = 46; // SP > Kollisionsabstand -> Physik muss kaum nachschieben
-  const maxGR = Math.max(1, ...order.map((m) => 20 + Math.sqrt(m.length) * SP));
-  const G = order.length, ringR = G > 1 ? Math.max(maxGR * 1.7, 300) : 0; // Szenen klar getrennt
-  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-  order.forEach((members, gi) => {
+  // Adjazenz nur über echte Knoten; stärkste Bindung zuerst -> sie wird die Baumkante
+  const adj = new Map(real.map((n) => [n.id, []]));
+  for (const l of links) {
+    if (l.type === "venue" || l.a.venue || l.b.venue) continue;
+    const w = l.bond ?? l.strength ?? 0.5;
+    adj.get(l.a.id)?.push({ n: l.b, w });
+    adj.get(l.b.id)?.push({ n: l.a, w });
+  }
+  for (const arr of adj.values()) arr.sort((x, y) => y.w - x.w);
+  // Szenen-Reihenfolge auf dem Ring: stark querverbundene Szenen nebeneinander legen —
+  // so bleiben auch die Szene-zu-Szene-Kanten kurz und kreuzen sich seltener (Ziel 1+2).
+  const commOf = new Map();
+  for (const [cid, members] of groups) for (const n of members) commOf.set(n.id, cid);
+  const w2 = new Map(); // "cidA|cidB" -> Summe Kantengewichte zwischen den Szenen
+  for (const l of links) {
+    if (l.type === "venue" || l.a.venue || l.b.venue) continue;
+    const ca = commOf.get(l.a.id), cb = commOf.get(l.b.id);
+    if (ca == null || cb == null || ca === cb) continue;
+    const k = ca < cb ? ca + "|" + cb : cb + "|" + ca;
+    w2.set(k, (w2.get(k) || 0) + (l.bond ?? l.strength ?? 0.5));
+  }
+  const between = (a, b) => w2.get(a < b ? a + "|" + b : b + "|" + a) || 0;
+  const bySize = [...groups.keys()].sort((a, b) => groups.get(b).length - groups.get(a).length);
+  const chain = bySize.length ? [bySize.shift()] : [];
+  while (bySize.length) { // greedy: die am stärksten ans Ketten-Ende gebundene Szene anhängen
+    const tail = chain[chain.length - 1];
+    bySize.sort((a, b) => between(b, tail) - between(a, tail));
+    chain.push(bySize.shift());
+  }
+  const order = chain.map((cid) => groups.get(cid));
+  const GAP = 95; // Abstand pro Baum-Ebene = Ziel-Kantenlänge
+  const layouts = order.map((members) => {
+    const inG = new Set(members.map((n) => n.id));
+    // Wurzel: bevorzugt ein gesuchter Act, sonst der bestvernetzte
+    const root = [...members].sort((a, b) => ((b.seed ? 1e6 : 0) + (b.deg | 0)) - ((a.seed ? 1e6 : 0) + (a.deg | 0)))[0];
+    // BFS-Spannbaum entlang der stärksten Kanten
+    const kids = new Map(members.map((n) => [n.id, []]));
+    const seen = new Set([root.id]); const queue = [root];
+    for (let qi = 0; qi < queue.length; qi++) {
+      const p = queue[qi];
+      for (const { n } of adj.get(p.id) || []) {
+        if (!inG.has(n.id) || seen.has(n.id)) continue;
+        seen.add(n.id); kids.get(p.id).push(n); queue.push(n);
+      }
+    }
+    // unverbundene Szene-Reste als direkte Wurzel-Kinder anhängen (kommt bei Rest-Gruppen vor)
+    for (const n of members) if (!seen.has(n.id)) { seen.add(n.id); kids.get(root.id).push(n); queue.push(n); }
+    // Blattzahl je Teilbaum bestimmt die Keilbreite; Tiefe bestimmt den Platzbedarf der Szene
+    const leaves = new Map();
+    const countLeaves = (n) => { const c = kids.get(n.id); const v = c.length ? c.reduce((s, k) => s + countLeaves(k), 0) : 1; leaves.set(n.id, v); return v; };
+    countLeaves(root);
+    let depthMax = 0; const depth = new Map([[root.id, 0]]);
+    for (const p of queue) for (const k of kids.get(p.id)) { depth.set(k.id, (depth.get(p.id) || 0) + 1); depthMax = Math.max(depthMax, depth.get(k.id)); }
+    return { root, kids, leaves, R: Math.max(GAP, depthMax * GAP) };
+  });
+  // Szenen auf einem Ring um die Mitte — weit genug, dass sich die Bäume nicht berühren
+  const cx = W / 2, cy = (H + 52) / 2, G = layouts.length;
+  const byR = layouts.map((L) => L.R).sort((a, b) => b - a);
+  const need = (byR[0] || 0) + (byR[1] || 0) + 140; // die zwei größten Nachbarn müssen Platz haben
+  const ringR = G > 1 ? Math.max(340, need / (2 * Math.sin(Math.PI / G))) : 0;
+  layouts.forEach((L, gi) => {
     const ga = (gi / G) * Math.PI * 2, ccx = cx + Math.cos(ga) * ringR, ccy = cy + Math.sin(ga) * ringR;
-    members.sort((a, b) => (b.deg | 0) - (a.deg | 0)); // Hubs nach innen
-    members.forEach((n, i) => {
-      if (n.pinned) return; // manuell platzierte Knoten in Ruhe lassen
-      const r = Math.sqrt(i) * SP, a = i * GOLDEN;
-      n.x = ccx + Math.cos(a) * r; n.y = ccy + Math.sin(a) * r; n.vx = 0; n.vy = 0; n._moonAng = null;
-    });
+    const place = (n, a0, a1, d) => {
+      const am = (a0 + a1) / 2;
+      if (!n.pinned) { // manuell platzierte Knoten in Ruhe lassen
+        n.x = ccx + Math.cos(am) * d * GAP;
+        n.y = ccy + Math.sin(am) * d * GAP;
+        n.vx = 0; n.vy = 0; n._moonAng = null;
+      }
+      const c = L.kids.get(n.id);
+      if (!c || !c.length) return;
+      const total = c.reduce((s, k) => s + L.leaves.get(k.id), 0);
+      let a = a0;
+      for (const k of c) {
+        const w = (a1 - a0) * (L.leaves.get(k.id) / total);
+        place(k, a, a + w, d + 1);
+        a += w;
+      }
+    };
+    place(L.root, ga - Math.PI, ga + Math.PI, 0); // Wurzel mittig, Teilbäume rundum in Keilen
   });
   stopFollow();
   fitAll();     // die sortierte Anordnung gleich einpassen

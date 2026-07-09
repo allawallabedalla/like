@@ -32,8 +32,11 @@ test.describe("Seiten laden fehlerfrei", () => {
     await dismissIntro(page);
     // immer sichtbare Topbar-Elemente
     await expect(page.locator(".bar")).toBeVisible();
+    // Space/Flat lebt im ⋯-Menü (Abschnitt „Ansicht")
+    await page.locator("#moreBtn").click();
     await expect(page.locator("#segSpace")).toBeVisible();
     await expect(page.locator("#segFlat")).toBeVisible();
+    await page.keyboard.press("Escape");
     // Empty-State: zentrale Suchleiste
     await expect(page.locator(".emptysearch #q2")).toBeVisible();
     assertClean(sink);

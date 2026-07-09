@@ -1022,18 +1022,18 @@ const server = createServer(async (req, res) => {
       const { limit = 10, extraLikes = [], visible = null, force = false } = await readBody(req);
       const g = await loadGraph(GRAPH);
       const extra = new Set(extraLikes);
-      // C8: Sind sichtbare Acts mitgegeben, leitet das Radar seine Vorschläge NUR aus dem gerade
-      // sichtbaren Ausschnitt ab (plus explizite Likes). Sonst wie bisher aus allen gesuchten/
-      // gemerkten Acts.
-      const fromVisible = Array.isArray(visible) && visible.some((id) => g.artists[id]);
-      const likes = fromVisible
-        ? new Set([...visible.filter((id) => g.artists[id]), ...[...extra].filter((id) => g.artists[id])])
-        : new Set(Object.values(g.artists)
-            .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
-            .map((a) => a.id));
+      // C8 (neu): Der sichtbare Ausschnitt ist der SUCHRAUM — Vorschläge kommen nur aus den
+      // gerade sichtbaren Acts. Die Geschmacksbasis bleiben die Likes (gesucht/gemerkt/Status);
+      // ohne solche dient der Ausschnitt selbst als Basis (frische Karte).
+      const visSet = Array.isArray(visible) ? new Set(visible.filter((id) => g.artists[id])) : null;
+      const fromVisible = !!(visSet && visSet.size);
+      const realLikes = new Set(Object.values(g.artists)
+        .filter((a) => a.seed || a.known || (a.status && a.status !== "declined") || extra.has(a.id))
+        .map((a) => a.id));
+      const likes = realLikes.size ? realLikes : (fromVisible ? visSet : realLikes);
       if (!likes.size) return send(res, 400, { error: "Erst ein paar Einträge suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann." });
 
-      const cacheKey = [...likes].sort().join(",") + "|" + limit;
+      const cacheKey = [...likes].sort().join(",") + "|" + limit + (fromVisible ? "|v:" + [...visSet].sort().join(",") : "");
       const cached = radarCache.get(pack.id);
       if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < RADAR_TTL) {
         return send(res, 200, { ...cached.payload, cached: true, computedAt: cached.at });
@@ -1050,6 +1050,7 @@ const server = createServer(async (req, res) => {
         const [l, o] = likes.has(e.from) && !likes.has(e.to) ? [e.from, e.to]
                      : likes.has(e.to) && !likes.has(e.from) ? [e.to, e.from] : [null, null];
         if (!o || !g.artists[o]) continue;
+        if (fromVisible && !visSet.has(o)) continue; // Suchraum: nur Kandidaten im sichtbaren Ausschnitt
         const c = cand.get(o) ?? { id: o, closeness: 0, together: false, vias: new Set() };
         c.closeness += e.type === "similar" ? (e.weight || 0.5) : Math.min(1, 0.4 + 0.1 * (e.weight || 1));
         if (e.type !== "similar") c.together = true;
@@ -1084,9 +1085,10 @@ const server = createServer(async (req, res) => {
         if (ch) await persist(gCur);
       });
 
-      // (b) Pack-spezifische Zusatzkandidaten (Musik: Deezer-Related + Bandcamp-Releases)
+      // (b) Pack-spezifische Zusatzkandidaten (Musik: Deezer-Related + Bandcamp-Releases) —
+      // entfallen im Sichtbar-Modus: externe Vorschläge liegen nie im sichtbaren Ausschnitt.
       let extras = [];
-      if (pack.radarExtras) {
+      if (pack.radarExtras && !fromVisible) {
         const deg = {};
         for (const e of g.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
         const topLikeNames = [...likes].sort((a, b) => (deg[b] || 0) - (deg[a] || 0)).slice(0, 4).map(likeName);
