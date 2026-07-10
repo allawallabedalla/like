@@ -14,8 +14,19 @@ import {
   geocode, haversineKm, resolveTitle, suggestTitles, article, styleTags,
   styleSimilar, geoNearby, voyUrl,
 } from "../../lib/travel.mjs";
+import { surpriseFrom } from "../../lib/surprise.mjs";
 
 const HOME_NAME = (process.env.LIKE_TRAVEL_HOME || "Berlin, Deutschland").trim();
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool schöner, eher leiser Ziele (statt der
+// üblichen Hauptstädte). surprise() nimmt das mit den WENIGSTEN Seitenaufrufen.
+const SURPRISE_SEEDS = [
+  "Matera", "Kotor", "Ohrid", "Piran", "Ronda", "Sintra", "Gent", "Utrecht", "Aarhus",
+  "Bergen", "Tartu", "Vilnius", "Brno", "Ljubljana", "Triest", "Bologna", "Porto", "Faro",
+  "Valletta", "Plovdiv", "Sibiu", "Breslau", "Danzig", "Leipzig", "Erfurt", "Bamberg",
+  "Görlitz", "Bled", "Rovinj", "Zadar", "Mostar", "Thessaloniki", "Nafplio", "Kaunas",
+  "Riga", "Lübeck", "Quedlinburg",
+];
 const fmtKm = (km) => km.toLocaleString("de-DE");
 
 let homePromise = null;
@@ -90,7 +101,7 @@ export default {
     ],
     radarTitle: "Radar — Geheimtipps",
     radarTogetherReason: "liegt nah an deinem Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -134,6 +145,25 @@ export default {
   async suggest(q) {
     try { return await suggestTitles(q, { limit: 6 }); } catch { return []; }
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Stil-Nachbarn (blau),
+  // ohne Geo-Umkreis/Genres — schneller als explore().
+  async similar(name, { limit = 14 } = {}) {
+    const hit = await resolveTitle(name);
+    if (!hit) return { canonical: name, similar: [] };
+    const art = await article(hit.lang, hit.title);
+    const { tags } = styleTags(art.wikitext);
+    const peers = await styleSimilar(hit.lang, tags, hit.title, { limit: Math.min(limit, 14) });
+    const seen = new Set();
+    return {
+      canonical: hit.title,
+      similar: peers.filter((p) => !seen.has(p.title.toLowerCase()) && seen.add(p.title.toLowerCase()))
+        .map((p, i) => ({ name: p.title, url: voyUrl(p.lang, p.title), match: Math.max(0.35, 0.75 - i * 0.03) })),
+    };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name, ctx) {
     const hit = await resolveTitle(name);

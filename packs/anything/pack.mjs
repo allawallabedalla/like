@@ -8,6 +8,18 @@ import {
   resolve, suggest as wikiSuggest, morelike, mutualLinks,
   pageInfo, categoryMembers, wikiUrl,
 } from "../../lib/wiki.mjs";
+import { surpriseFrom } from "../../lib/surprise.mjs";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool eher nischiger, aber ergiebiger Themen —
+// quer durch Kultur, Natur, Ideen. surprise() nimmt den mit den WENIGSTEN Seitenaufrufen.
+const SURPRISE_SEEDS = [
+  "Zettelkasten", "Wabi-Sabi", "Solarpunk", "Land Art", "Umami", "Synästhesie",
+  "Permakultur", "Psychogeografie", "Oulipo", "Fluxus", "Arte Povera", "Brutalismus",
+  "Biolumineszenz", "Murmuration", "Zugunruhe", "Fermentation", "Kintsugi", "Ikigai",
+  "Situationistische Internationale", "Cyanotypie", "Camera obscura", "Polyphonie",
+  "Bibliotherapie", "Mnemotechnik", "Serendipität", "Panspermie", "Bioakustik",
+  "Lichtverschmutzung", "Genossenschaft", "Allmende", "Baukultur", "Soundscape",
+];
 
 export default {
   id: "anything",
@@ -55,7 +67,7 @@ export default {
     ],
     radarTitle: "Radar — Nischen-Fundstücke",
     radarTogetherReason: "ist eng mit deinem Like verknüpft",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -96,6 +108,18 @@ export default {
   async suggest(q) {
     try { return await wikiSuggest(q, { limit: 6 }); } catch { return []; }
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur morelike,
+  // ohne Verlinkungen/Kategorien — deutlich schneller als explore().
+  async similar(name, { limit = 20 } = {}) {
+    const hit = await resolve(name);
+    if (!hit) return { canonical: name, similar: [] };
+    const sim = await morelike(hit.lang, hit.title, { limit: Math.min(limit, 20) });
+    return { canonical: hit.title, similar: sim.map((t, i) => ({ name: t, url: wikiUrl(hit.lang, t), match: Math.max(0.35, 0.75 - i * 0.025) })) };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, der UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name) {
     const hit = await resolve(name);

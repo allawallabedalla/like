@@ -76,6 +76,9 @@ Quellen-Hinweis: Deezer und MusicBrainz sind offizielle, offene APIs. Bandcamp l
 Nutzung auf eigenes Risiko; fällt bei Formatänderungen still auf „aus" zurück.
 
 ## Mehr Komfort
+- **„Überrasch mich"** (leere Karte): zieht in **jeder Domäne** einen zufälligen, eher
+  unbekannten Eintrag aus einem kuratierten Pool — von vier Kandidaten gewinnt der
+  unbekannteste (kleinste Popularität). Bücher, Filme, Pflanzen, Spiele … inklusive.
 - **Dark Mode** (Kopfzeile, ◐): hell/dunkel umschalten, Wahl wird gemerkt (Standard folgt dem System).
 - **Graph-Backup** (Hilfe „?" → Daten): den ganzen Bestand als JSON exportieren und wieder
   importieren — z.B. um ihn auf einen anderen Rechner mitzunehmen. Beim Import wird der alte
@@ -185,11 +188,17 @@ Bewertungszahlen (TMDB/BGG) oder Besitzer-Schätzungen (SteamSpy).
 
 ## Brücke bauen: was verbindet zwei Einträge?
 Rechtsklick auf einen Knoten → **Brücke bauen…**, dann einen zweiten Knoten wählen. like
-sucht (über die „ähnlich"-Relation der Domäne) Einträge, die beide verbinden — erst direkte
-gemeinsame Nachbarn, sonst über zwei Schritte. Die Kandidaten schweben als helle **Geister-
-Kugeln** zwischen den beiden; ein Regler mischt von **naheliegend** (stärkste Verbindung) zu
-**klein/spannend** (Geheimtipp). Klick auf einen Geist fügt ihn samt Kanten ein. Funktioniert
-in allen Packs (bei Musik z.B. „welche:r kleine Act verbindet zwei Szenen?").
+sucht dann wie ein **Routenplaner**: von beiden Enden gleichzeitig (bidirektionale
+Breitensuche über die „ähnlich"-Relation der Domäne) — die erste Begegnung der Suchfronten
+ist damit automatisch die **kürzestmögliche Verbindung**. Während der Suche zeigt die
+Brückenleiste einen **Fortschrittsbalken** samt Live-Stand (erreichte Einträge, Abfragen,
+Suchtiefe); nach 5 Sekunden fragt ein Dialog **„Weitersuchen?"**, danach wieder nach 10,
+15, … Sekunden — so gräbt like auf Wunsch beliebig tief (bis zu 7 Zwischenstationen),
+bricht aber nie unbemerkt in eine Endlos-Suche aus. Die Kandidaten schweben als helle
+**Geister-Kugeln** zwischen den beiden (kürzeste Route zuerst); ein Regler mischt von
+**naheliegend** (kürzeste, stärkste Verbindung) zu **klein/spannend** (Geheimtipp). Klick
+auf einen Geist fügt die ganze Kette samt Kanten ein. Funktioniert in allen Packs (bei
+Musik z.B. „welche:r kleine Act verbindet zwei Szenen?").
 
 ## Feedback-Knopf (Pushover, optional)
 Ist ein **Pushover**-Zugang hinterlegt, erscheint oben ein **✉-Knopf**: Testuser können dir
@@ -298,6 +307,8 @@ für getrennte Sammlungen mehrere Instanzen betreiben.
 - [x] Eine App, alle Domänen (Umschalter in der Topbar)
 - [x] Read-only-Previews pro Pack auf GitHub Pages (ohne Installation testbar), animierte Landing
 - [x] „Brücke bauen" (verbindende Einträge finden) in allen Packs
+- [x] Brücke als Routenplaner: bidirektionale Suche (kürzeste Verbindung zuerst), Fortschrittsbalken + „Weitersuchen?"-Dialog (5 s, 10 s, 15 s, …)
+- [x] „Überrasch mich" + leichter „ähnlich"-Zugriff (Brücke) in allen Domänen
 - [x] Kollisionserkennung (Kugeln überlappen nicht) + pro-Pack kalibrierte Kugelgröße
 - [x] Venue-Ebene im Musik-Pack (Spielorte als Knoten)
 - [x] Feedback-Knopf (Pushover)

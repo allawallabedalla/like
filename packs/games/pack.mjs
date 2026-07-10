@@ -7,8 +7,20 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 import { similarByTaste, hasTastediveKey } from "../../lib/tastedive.mjs";
+import { surpriseFrom } from "../../lib/surprise.mjs";
 
 const STEAM = "https://store.steampowered.com/api";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool feiner Indie-Titel. surprise() nimmt
+// das Spiel mit den WENIGSTEN geschätzten Besitzer:innen -> eher ein Geheimtipp.
+const SURPRISE_SEEDS = [
+  "A Short Hike", "Outer Wilds", "Return of the Obra Dinn", "Tunic", "Chicory: A Colorful Tale",
+  "Eastward", "Spiritfarer", "Night in the Woods", "Oxenfree", "Firewatch", "Gris",
+  "Baba Is You", "The Witness", "Opus Magnum", "Into the Breach", "FTL: Faster Than Light",
+  "Katana ZERO", "Hyper Light Drifter", "Cocoon", "Animal Well", "Chants of Sennaar",
+  "Citizen Sleeper", "Norco", "Kentucky Route Zero", "Signalis", "Sable", "Inscryption",
+  "Wilmot's Warehouse", "Mini Metro", "Islanders",
+];
 const SPY = "https://steamspy.com/api.php";
 
 async function searchGame(name) {
@@ -97,7 +109,7 @@ export default {
     ],
     radarTitle: "Radar — Indie-Geheimtipps",
     radarTogetherReason: "vom selben Entwickler wie dein Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -143,6 +155,39 @@ export default {
       return (j.items || []).slice(0, 6).map((i) => i.name).filter((n) => n && !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
     });
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Top-Tag-Nachbarn
+  // (+ optional TasteDive), ohne Entwickler-Werke — schneller als explore().
+  async similar(name, { limit = 18 } = {}) {
+    const hit = await searchGame(name);
+    if (!hit) return { canonical: name, similar: [] };
+    const s = await spy(hit.id);
+    const tag0 = tagList(s)[0];
+    const similar = [], seen = new Set([hit.name.toLowerCase()]);
+    if (tag0) {
+      try {
+        const j = await cached("steamspy-tag", tag0, 7 * 864e5, () => jfetch(`${SPY}?request=tag&tag=${encodeURIComponent(tag0)}`));
+        for (const app of Object.values(j || {}).slice(0, 20)) {
+          const k = (app.name || "").toLowerCase();
+          if (!k || seen.has(k)) continue;
+          seen.add(k);
+          similar.push({ name: app.name, url: `https://store.steampowered.com/app/${app.appid}`, match: 0.5 });
+        }
+      } catch {}
+    }
+    try {
+      for (const t of await similarByTaste(hit.name, "game", { limit: 8 })) {
+        const k = t.name.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        similar.push({ name: t.name, url: null, match: 0.75 });
+      }
+    } catch {}
+    return { canonical: hit.name, similar: similar.slice(0, limit) };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name) {
     const hit = await searchGame(name);

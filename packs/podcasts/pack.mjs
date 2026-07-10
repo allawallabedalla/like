@@ -8,8 +8,20 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 import { similarByTaste, hasTastediveKey } from "../../lib/tastedive.mjs";
+import { surpriseFrom } from "../../lib/surprise.mjs";
 
 const ITUNES = "https://itunes.apple.com";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool liebevoll gemachter Podcasts (DE + EN),
+// eher abseits der Charts. surprise() nimmt den mit den WENIGSTEN Episoden.
+const SURPRISE_SEEDS = [
+  "99% Invisible", "Song Exploder", "The Memory Palace", "Everything Is Alive",
+  "Ologies with Alie Ward", "Criminal", "Heavyweight", "Dissect", "Switched on Pop",
+  "Cautionary Tales with Tim Harford", "The Anthropocene Reviewed", "Twenty Thousand Hertz",
+  "Articles of Interest", "Normal Gossip", "Search Engine", "Darknet Diaries", "Radiolab",
+  "Geschichten aus der Geschichte", "Alles gesagt?", "Hotel Matze", "Sternengeschichten",
+  "Methodisch inkorrekt", "Der Rest ist Geschichte", "Soundtrack deines Lebens",
+];
 
 async function searchPodcast(name) {
   return cached("pod-search", name, 14 * 864e5, async () => {
@@ -103,7 +115,7 @@ export default {
     radarTitle: "Radar — Podcast-Geheimtipps",
     radarTogetherReason: "vom selben Anbieter wie dein Like",
     previewLabel: "Neueste Folge anspielen",
-    features: { preview: true, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: true, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -150,6 +162,37 @@ export default {
       return (j.results || []).map((p) => p.collectionName).filter((n) => n && !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
     });
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Genre-Nachbarn
+  // (+ optional TasteDive), ohne Anbieter-Katalog — schneller als explore().
+  async similar(name, { limit = 18 } = {}) {
+    const hit = await searchPodcast(name);
+    if (!hit) return { canonical: name, similar: [] };
+    const canonical = hit.collectionName;
+    const similar = [], seen = new Set([canonical.toLowerCase()]);
+    if (hit.primaryGenreId || hit.genreIds?.[0]) {
+      try {
+        for (const p of await byGenre(hit.primaryGenreId || hit.genreIds[0])) {
+          const k = (p.collectionName || "").toLowerCase();
+          if (!k || seen.has(k)) continue;
+          seen.add(k);
+          similar.push({ name: p.collectionName, url: p.collectionViewUrl || null, match: 0.5 });
+        }
+      } catch {}
+    }
+    try {
+      for (const t of await similarByTaste(canonical, "podcast", { limit: 8 })) {
+        const k = t.name.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        similar.push({ name: t.name, url: null, match: 0.75 });
+      }
+    } catch {}
+    return { canonical, similar: similar.slice(0, limit) };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, der UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name) {
     const hit = await searchPodcast(name);
