@@ -25,12 +25,12 @@ import { readFile, writeFile, access, rename, mkdir } from "node:fs/promises";
 const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadGraph, saveGraph, materialize, addEvent, emptyGraph, upsertArtist } from "./lib/store.mjs";
+import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist } from "./lib/store.mjs";
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
-import { miniCluster, landingHtml } from "./lib/landing.mjs";
+import { landingHtml } from "./lib/landing.mjs";
 import { initAuth, register, verify, resetPassword, makeSession, userFromCookie } from "./lib/auth.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
@@ -112,7 +112,7 @@ for (const p of PACKS.values()) {
   try { g = JSON.parse(await readFile(join(ROOT, "packs", p.id, "demo.json"), "utf8")); } catch {}
   LANDING_CARDS.push({
     id: p.id, title: p.config.title, item: p.config.item, locked: isLockedPack(p.id),
-    n: Object.keys(g.artists || {}).length, e: (g.edges || []).length, mini: miniCluster(g),
+    n: Object.keys(g.artists || {}).length, e: (g.edges || []).length,
   });
 }
 // Statisch ausgelieferte PWA-Dateien (Pfad -> Datei in public/ + Content-Type).
@@ -134,7 +134,6 @@ function landingPage(unlocked) {
     pageTitle: "like — Übersicht",
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
-    cardSub: (c) => c.item.plur,
     footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
     lockLabel: "Coming soon",
@@ -599,7 +598,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/auth/login") {
       if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
       const b = await readBody(req).catch(() => ({}));
-      if (!verify(b.username, b.password)) return send(res, 401, { ok: false, error: "Name oder Passwort falsch" });
+      if (!(await verify(b.username, b.password))) return send(res, 401, { ok: false, error: "Name oder Passwort falsch" });
       const uid = String(b.username).trim().toLowerCase();
       await migrateAnonToUser(req, uid);
       setCookie(res, "like_session", makeSession(uid), req);
@@ -1009,46 +1008,13 @@ const server = createServer(async (req, res) => {
       });
     }
 
-    // Legacy (nur Musik): Wikipedia-Lineups / Auto-Entdeckung.
-    if (req.method === "POST" && url.pathname === "/api/auto" && pack.id === "music") {
-      const b = await readBody(req);
-      const lang = safeLang(b.lang);                                  // SSRF-Schutz: nur echte Sprachcodes
-      const maxArtists = clampInt(b.maxArtists, 60, 1, 200);          // Amplification-Deckel
-      const minArtists = clampInt(b.minArtists, 2, 1, 50);
-      const maxFestivals = clampInt(b.maxFestivals, 30, 1, 100);
-      return withGraphLock(GRAPH, async () => {
-        const g = await loadGraph(GRAPH);
-        try {
-          const { discoverAndScrape } = await import("./lib/discover.mjs");
-          const summary = await discoverAndScrape(g, { lang, maxArtists, minArtists, maxFestivals });
-          await persist(g);
-          return send(res, 200, { ok: true, summary, graph: materialize(g) });
-        } catch (err) {
-          return send(res, 502, { error: err.message });
-        }
-      });
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/scrape" && pack.id === "music") {
-      const { target, lang: langRaw, name, date, place } = await readBody(req);
-      const lang = safeLang(langRaw); // SSRF-Schutz: nur echte Sprachcodes im Wikipedia-Host
-      if (!target) return send(res, 400, { error: "target (URL oder Titel) fehlt" });
-      return withGraphLock(GRAPH, async () => {
-        const g = await loadGraph(GRAPH);
-        try {
-          const { fetchLineup } = await import("./lib/wikipedia.mjs");
-          const r = await fetchLineup(target, { lang });
-          if (!r.lineup.length) return send(res, 200, { ok: false, error: "Kein Lineup gefunden", eventName: r.eventName });
-          const { event, artistCount } = addEvent(g, {
-            name: name || r.eventName, date, place, lineup: r.lineup, sourceUrl: r.sourceUrl,
-          });
-          await persist(g);
-          return send(res, 200, { ok: true, eventName: event.name, artistCount, graph: materialize(g) });
-        } catch (err) {
-          return send(res, 502, { error: err.message });
-        }
-      });
-    }
+    // Die alten HTTP-Endpunkte für Wikipedia-Lineups/Auto-Entdeckung sind entfernt: kein
+    // UI-Knopf ruft sie je auf (README dokumentiert das Feature nur noch als CLI, siehe
+    // scrape.mjs/auto.mjs), und ihr Ergebnis (g.events) wird von migrate() beim nächsten
+    // loadGraph() ohnehin verworfen ("alte, deaktivierte Lineup-Ebene") — sie hielten aber
+    // den Graph-Lock für die volle, minutenlange Scrape-Dauer und blockierten so /api/explore
+    // & Co. für nichts. Die CLI-Skripte funktionieren unverändert (sie laufen außerhalb des
+    // Servers direkt gegen graph.json).
 
     if (req.method === "POST" && url.pathname === "/api/artist") {
       const { id, known, note, status } = await readBody(req);
@@ -1168,17 +1134,24 @@ const server = createServer(async (req, res) => {
       }
       const graphCands = [...cand.values()].sort((x, y) => y.closeness - x.closeness).slice(0, 30);
 
+      // Parallel statt sequenziell: pack.popularity() läuft für jedes Pack entweder über
+      // Last.fms eigene Drossel (lib/lastfm.mjs lfetch) oder über jfetch()s Pro-Host-Drossel
+      // (lib/jfetch.mjs) — beide serialisieren die tatsächlichen Netz-Requests bereits intern.
+      // Gleichzeitiges Anstoßen lässt nur die Cache-Treffer sofort durch und die echten
+      // Netz-Antworten überlappen hinter der Drossel, statt (RTT + Drossel-Pause) × 25 sequenziell
+      // aufzusummieren.
       const popById = new Map();
       if (pack.popularity) {
-        for (const c of graphCands.slice(0, 25)) {
+        const results = await Promise.allSettled(graphCands.slice(0, 25).map(async (c) => {
           const a = g.artists[c.id];
-          try {
-            const p = await pack.popularity(a.name, { mbid: a.mbid || undefined });
-            if (p) {
-              if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
-              popById.set(c.id, p);
-            }
-          } catch { /* ohne Popularität weiter */ }
+          const p = await pack.popularity(a.name, { mbid: a.mbid || undefined });
+          return { id: c.id, a, p };
+        }));
+        for (const r of results) {
+          if (r.status !== "fulfilled" || !r.value.p) continue; // ohne Popularität weiter
+          const { id, a, p } = r.value;
+          if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
+          popById.set(id, p);
         }
       }
       // Snapshots erst NACH den Netzaufrufen und unter Lock: stats.json ist über alle Nutzer
