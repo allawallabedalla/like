@@ -44,6 +44,15 @@ Hier stehen die bewusst zurückgestellten, größeren Punkte.
   Hauptgrund, warum er sich träge anfühlt. Mit `Promise.allSettled` in 4er-Häppchen (Last.fm-
   Drossel beachten) wäre er spürbar schneller.
 
+- [ ] **F7 — Flat-Modus: Nachbarschaft zieht beim Verschieben mit (wie im Space-Modus).**
+  Im Space-Modus wandern die Monde mit, wenn man ihre Sonne verschiebt — im Flat-Modus
+  bleibt beim Ziehen eines Knotens sein ganzes Umfeld liegen, die Struktur reißt optisch
+  auseinander. Auch im Flat-Modus sollen verbundene Knoten dem gezogenen folgen.
+  **Wichtig: über die physikalischen Verknüpfungen lösen**, nicht als starres
+  Gruppen-Verschieben — d. h. die Kanten-Federn während des Drags wirken lassen
+  (Nachbarn folgen proportional zur Verbindungsstärke und pendeln sich natürlich ein),
+  damit unverbundene Knoten liegen bleiben und sich Cluster nicht verzerren.
+
 ---
 
 ## Arbeitsweise
