@@ -1,4 +1,4 @@
-# BACKLOG — Runde 6 & 7 (Audit-Reste · Quellen-Challenge) — ✅ ERLEDIGT
+# BACKLOG — Runde 6, 7 & 8 (Audit-Reste · Quellen-Challenge · Live-UX-Audit) — ✅ ERLEDIGT
 
 **Angelegt:** 2026-07-10 (UTC) · **Abgeschlossen & auf `main` gemergt:** 2026-07-10 (UTC)
 **Kontext:** Befunde aus dem Code-Audit vom 10.07. F1–F8 und Q1–Q5 sind umgesetzt, verifiziert
@@ -116,3 +116,54 @@ Endpoints vor dem Umbau lokal kurz gegentesten.
   Kosmopoliten (Löwenzahn) willkürlich. Robuster: 3 verteilte Research-Grade-
   Fundorte ziehen und die Schnittmenge nehmen. Nebenbei: Kopf-Kommentar nennt
   GBIF als Datenquelle, im Code ist GBIF nur ein Suchlink — Kommentar anpassen.
+
+---
+
+## Runde 8 — Live-UX-Audit mit echtem Browser (2026-07-10) — ✅ ERLEDIGT
+
+Auf Wunsch: gründlicher Usability-Check für einfache UND komplexe Nutzer, dazu ein
+"innovativer technischer Check" — die App tatsächlich in einem Headless-Browser gefahren
+(Playwright, echter Server + synthetischer Graph, da externe APIs in der Agent-Umgebung
+blockiert sind), statt nur den Code zu lesen. Drei Verdachtsfälle live geprüft:
+
+- [x] **B1 — Last.fm-Key-Dialog sprang nicht an (bestätigt & behoben).** Bei fehlendem Key
+  zeigte die erste Live-Suche einen rohen, technischen Fehlertext statt des vorgesehenen
+  freundlichen Dialogs ("Hier in 1 Minute erstellen ↗"). Ursache: `server.mjs` liefert den
+  Fehler mit HTTP 502; der Client-Fetch-Wrapper (`parseRes`) wirft dann eine Exception, bevor
+  die `if (res.error)`-Prüfung mit der API-Key-Erkennung je erreicht wird — toter Code. Fix:
+  die Prüfung in den `catch`-Block von `exploreByName` verschoben (public/index.html). Live
+  verifiziert: Dialog öffnet jetzt zuverlässig, Toast ist der freundliche Text.
+
+- [x] **B2 — „Radar schlägt Venues als Geheimtipp vor" — Fehlalarm, zurückgezogen.** Erster
+  Live-Test zeigte einen Festival-Knoten in den Radar-Ergebnissen. Ursache war aber ein Fehler
+  in der eigenen Testvorbereitung: Venue-Knoten sind rein clientseitig aus `shows`-Metadaten
+  auf echten Kanten synthetisiert (public/index.html) und existieren serverseitig nie als
+  `g.artists`-Eintrag mit `venue`-Flag oder als `"venue"`-Kantentyp — der Testgraph hatte
+  genau das künstlich nachgebaut. Der ursprüngliche Fix (serverseitiger Venue-Filter im
+  Radar) war dadurch wirkungslose tote Prüfung und wurde wieder entfernt. Kein Bug in der
+  echten Datenlage.
+
+- [x] **B3 — Klick auf Knotenmitte löste Klangprobe statt Info-Panel aus (bestätigt &
+  entschärft).** Präzise vermessen: Der Play-Button-Trefferbereich deckte ~66 % des
+  Knotenradius ab und hatte Vorrang vor der Knoten-Auswahl — ein Klick nahe der Mitte
+  (der naheliegendste Zielpunkt) spielte eher eine Klangprobe ab, als das Info-Panel zu
+  öffnen. Auf Touch/Mobile ist das bewusst anders gelöst (Code-Kommentar: „Tipp = nur
+  Info-Karte öffnen; Abspielen über den ▶ im Panel") — Desktop widersprach der eigenen
+  Absicht. Fix: Trefferradius/gezeichneter Kreis von `rr·0.66` auf `rr·0.4` verkleinert
+  (public/index.html, zwei Stellen, bleiben deckungsgleich). Live vermessen: Grenze
+  verschob sich von ~21,5px auf ~15,5px Bildschirm-Radius (≈ 49 % weniger Fehlklick-Fläche),
+  Play-Button bleibt komfortabel treffbar.
+
+### Beobachtet, aber nicht umgesetzt (kleinere UX-Ideen für eine spätere Runde)
+- Leerer Zustand zeigt zwei redundante Suchleisten gleichzeitig (Topbar + zentrale
+  Empty-State-Box) — für Erstnutzer unnötig doppelt.
+- Radar/Aufräumen/Überrasch-mich in der Topbar sind auf leerer Karte sichtbar, aber wirkungslos.
+- Auf Mobile keine sichtbaren Node-Labels bei Standard-Zoom (evtl. LOD-bedingt, nicht
+  abschließend verifiziert — vor Umsetzung erst genauer prüfen).
+
+**Methodik-Hinweis:** Live-Test lief gegen einen manuell zusammengestellten Graphen
+(`slug()`-IDs, Playwright-Klicks über `__e2e.screenPos()`), da externe APIs (Last.fm, Deezer
+etc.) in dieser Agent-Umgebung nicht erreichbar sind. B2 zeigt, warum das Vorsicht braucht:
+eine Testfixture kann Situationen erzeugen, die die echte Datenlage nie hervorbringt — jeder
+so gefundene Befund wurde gegen den tatsächlichen Server-/Client-Code zurückverfolgt, bevor
+er als Bug galt bzw. hier bestätigt/zurückgezogen wurde.
