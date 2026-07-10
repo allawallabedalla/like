@@ -414,8 +414,16 @@ function reqHome(req) {
 
 // Spenden-Konfiguration aus der ENV: NUR wenn LIKE_DONATE_URL gesetzt ist (z. B. ein
 // PayPal.me-Link), zeigt das Frontend das freiwillige Spenden-Popup. Ungesetzt = aus
-// (lokal/Desktop/Tests bleiben komplett unberührt).
-const DONATE = process.env.LIKE_DONATE_URL ? { url: process.env.LIKE_DONATE_URL } : null;
+// (lokal/Desktop/Tests bleiben komplett unberührt). Fehlt das Schema (z. B. nur
+// „paypal.me/name"), wird https:// ergänzt — sonst würde der Browser den Link relativ zur
+// eigenen Domain auflösen (…/paypal.me/name -> 404).
+function normalizeDonateUrl(u) {
+  u = String(u).trim();
+  if (!u) return null;
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u.replace(/^\/+/, "");
+  return u;
+}
+const DONATE = process.env.LIKE_DONATE_URL ? { url: normalizeDonateUrl(process.env.LIKE_DONATE_URL) } : null;
 
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
 async function indexHtml(pack, unlocked, user) {
