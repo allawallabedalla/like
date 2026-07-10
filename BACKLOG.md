@@ -1,16 +1,17 @@
-# BACKLOG — Runde 6 & 7 (Audit-Reste · Quellen-Challenge)
+# BACKLOG — Runde 6 & 7 (Audit-Reste · Quellen-Challenge) — ✅ ERLEDIGT
 
-**Angelegt:** 2026-07-10 (UTC)
-**Kontext:** Befunde aus dem Code-Audit vom 10.07. Die dringlichen Fixes (Radar-Cache-Leak,
-Session-Reset, stats.json-Lock, CSV-Injection, Cache-Kollisionen, UI-Races) liegen bereits
-auf `claude/pitch-markdown-review-e78so1` → PR nach `main` (nicht ungefragt mergen).
-Hier stehen die bewusst zurückgestellten, größeren Punkte.
+**Angelegt:** 2026-07-10 (UTC) · **Abgeschlossen & auf `main` gemergt:** 2026-07-10 (UTC)
+**Kontext:** Befunde aus dem Code-Audit vom 10.07. F1–F8 und Q1–Q5 sind umgesetzt, verifiziert
+(Playwright-Suite + gemockte Logik-Tests für Q1–Q5, da externe API-Hosts in der Agent-
+Umgebung blockiert waren) und via Merge-Commit `8a776d6` auf `main`. F8 war bereits durch
+PR #32 (Bridge-Routenplaner) vorab erledigt. Vor dem nächsten Deploy: Q1–Q3 einmal live
+gegen die echten Endpoints prüfen (nicht in dieser Umgebung testbar).
 
 ---
 
 ## Punkte
 
-- [ ] **F1 — /api/auto & /api/scrape: Lock-Blockade + Ergebnis verpufft.** Beide Endpoints
+- [x] **F1 — /api/auto & /api/scrape: Lock-Blockade + Ergebnis verpufft.** Beide Endpoints
   scrapen minutenlang Wikipedia **innerhalb** von `withGraphLock(GRAPH)` — solange stehen
   /api/explore, Notizen usw. für diesen Graphen in der Warteschlange (explore vermeidet das
   bewusst). Obendrein löscht `migrate()` in `lib/store.mjs` bei jedem `loadGraph` genau die
@@ -18,33 +19,33 @@ Hier stehen die bewusst zurückgestellten, größeren Punkte.
   liefern `ok:true`, aber das Ergebnis taucht nie dauerhaft auf. Entscheiden: Endpoints
   entfernen ODER reparieren (Netzaufrufe vor den Lock ziehen, migrate() nicht mehr wischen).
 
-- [ ] **F2 — Login blockiert den Event-Loop.** `scryptSync` in `lib/auth.mjs` friert den
+- [x] **F2 — Login blockiert den Event-Loop.** `scryptSync` in `lib/auth.mjs` friert den
   Single-Process-Server bei jedem Register/Login/Reset für zig Millisekunden ein (Register
   hasht doppelt, Reset bis zu dreifach) — die Drossel lässt global 240 Versuche/5 min zu.
   Auf promisified `scrypt` (async) umstellen; Call-Sites in `server.mjs` mitziehen.
 
-- [ ] **F3 — „Gemerkte Ansicht" ist Schreib-Leiche (v1.6-Regression).** `like_view` wird bei
+- [x] **F3 — „Gemerkte Ansicht" ist Schreib-Leiche (v1.6-Regression).** `like_view` wird bei
   unload/hide in localStorage gespeichert, aber nirgends mehr eingelesen — der Start ruft
   immer `fitAll()`. Entweder nach dem ersten `rebuild()` wiederherstellen (fitAll dann
   überspringen) oder Speichern + ROADMAP-Eintrag entfernen.
 
-- [ ] **F4 — Tote Arbeit auf jedem Landing-Aufruf.** `server.mjs` und `export-static.mjs`
+- [x] **F4 — Tote Arbeit auf jedem Landing-Aufruf.** `server.mjs` und `export-static.mjs`
   berechnen pro `GET /` für ALLE Packs Mini-Cluster-SVGs (`miniCluster`) und übergeben
   `mini`, `lib/landing.mjs` rendert sie aber nie (auch `cardSub` ungenutzt). Dazu tote
   `.themetgl`-CSS-Regeln und ein `#egBtn`-Listener ohne zugehöriges Element in
   `public/index.html`. Rausnehmen — oder die Minis tatsächlich rendern (hübsch wär's).
 
-- [ ] **F5 — Modal-Zugänglichkeit.** Kein Modal hat `role="dialog"`/`aria-modal`; Tab wandert
+- [x] **F5 — Modal-Zugänglichkeit.** Kein Modal hat `role="dialog"`/`aria-modal`; Tab wandert
   hinter dem Overlay durch die Seite. Außerdem blockiert `user-scalable=no, maximum-scale=1`
   im Viewport-Meta das Pinch-Zoomen der Text-Panels (Android) — die Canvas-Gesten sind über
   `touch-action: none` ohnehin abgedeckt, die Einschränkung ist unnötig.
 
-- [ ] **F6 — Radar-Kandidaten: Popularitäts-Lookups drosseln/parallelisieren.** Der Radar
+- [x] **F6 — Radar-Kandidaten: Popularitäts-Lookups drosseln/parallelisieren.** Der Radar
   holt bis zu 25 Hörerzahlen **sequenziell** pro Aufruf (nach Cache-Miss) — das ist der
   Hauptgrund, warum er sich träge anfühlt. Mit `Promise.allSettled` in 4er-Häppchen (Last.fm-
   Drossel beachten) wäre er spürbar schneller.
 
-- [ ] **F7 — Flat-Modus: Nachbarschaft zieht beim Verschieben mit (wie im Space-Modus).**
+- [x] **F7 — Flat-Modus: Nachbarschaft zieht beim Verschieben mit (wie im Space-Modus).**
   Im Space-Modus wandern die Monde mit, wenn man ihre Sonne verschiebt — im Flat-Modus
   bleibt beim Ziehen eines Knotens sein ganzes Umfeld liegen, die Struktur reißt optisch
   auseinander. Auch im Flat-Modus sollen verbundene Knoten dem gezogenen folgen.
@@ -53,7 +54,7 @@ Hier stehen die bewusst zurückgestellten, größeren Punkte.
   (Nachbarn folgen proportional zur Verbindungsstärke und pendeln sich natürlich ein),
   damit unverbundene Knoten liegen bleiben und sich Cluster nicht verzerren.
 
-- [ ] **F8 — Brückenbauer: ganze Brücke einfügen + im Anything-Pack reparieren.**
+- [x] **F8 — Brückenbauer: ganze Brücke einfügen + im Anything-Pack reparieren.**
   Zwei Baustellen: (1) Im Music-Pack scheint der Brückenbauer zu funktionieren, im
   Anything-Pack (Wikipedia) findet er nichts — Ursache klären (vermutlich nutzt die
   Brückensuche pack-spezifische Ähnlichkeits-Aufrufe, die bei „anything" fehlen oder
@@ -82,21 +83,21 @@ Podcasts — geprüft, bewusst so lassen). Fünf Punkte, wo es eindeutig besser 
 **Vorbehalt:** Die Agent-Umgebung blockiert externe API-Hosts — die genannten
 Endpoints vor dem Umbau lokal kurz gegentesten.
 
-- [ ] **Q1 — Boardgames: „Fans Also Like" statt Franchise-Familie (blau).**
+- [x] **Q1 — Boardgames: „Fans Also Like" statt Franchise-Familie (blau).**
   `boardgamefamily` findet für Catan nur *Catan: Seefahrer* — Serien-Ableger,
   keine Geschmacksnachbarn. BGGs verhaltensbasiertes „Fans Also Like" liegt auf
   derselben inoffiziellen geekdo-JSON-API, die das Pack für Designer-Spiele schon
   nutzt: `api.geekdo.com/api/geekitemrecs?ajax=1&objectid=<id>&objecttype=thing`.
   Gleiche Risikoklasse, defensiv auf `[]` zurückfallen; Familie als Fallback behalten.
 
-- [ ] **Q2 — Games: exakte Review-Zahl statt SteamSpy-Besitzer-Bucket (Popularität).**
+- [x] **Q2 — Games: exakte Review-Zahl statt SteamSpy-Besitzer-Bucket (Popularität).**
   `ownersMid` = Mitte der Besitzer-Spanne („500k–1M" → 750000) — ändert sich fast
   nie, damit ist die Momentum-Zeitreihe (stats.json → „▲ +x %/Monat") im Games-Pack
   praktisch tot. Steams offizieller Endpoint liefert live und ohne Key:
   `store.steampowered.com/appreviews/<appid>?json=1&num_per_page=0`
   → `query_summary.total_reviews`. SteamSpy bleibt für Tags.
 
-- [ ] **Q3 — Papers: Semantic-Scholar-Recommendations statt `related_works` (blau).**
+- [x] **Q3 — Papers: Semantic-Scholar-Recommendations statt `related_works` (blau).**
   OpenAlex `related_works` ist eine statische ~10er-Konzept-Überlappungsliste —
   die schwächste Ähnlichkeitsquelle im Produkt. Standard für „ähnliche Paper":
   `api.semanticscholar.org/recommendations/v1/papers/forpaper/DOI:<doi>`
@@ -104,13 +105,13 @@ Endpoints vor dem Umbau lokal kurz gegentesten.
   MusicBrainz-Muster). OpenAlex bleibt für Identität, Ko-Autoren (orange) und
   `counts_by_year` (Momentum).
 
-- [ ] **Q4 — Games: Tag-Schnittmenge statt Top-Tag-Chart (blau, gleiche Quelle).**
+- [x] **Q4 — Games: Tag-Schnittmenge statt Top-Tag-Chart (blau, gleiche Quelle).**
   Aktuell Top-20 des EINEN stärksten Tags, popularitätssortiert — jedes Roguelike
   bekommt dieselben Mega-Hits als Nachbarn (widerspricht der Kleine-Acts-DNA).
   Mit denselben SteamSpy-Daten: Top-3-Tags schneiden (Rang = Anzahl geteilter
   Tags), Mega-Seller dämpfen.
 
-- [ ] **Q5 — Plants: Ko-Okkurrenz über mehrere Fundorte (orange, gleiche Quelle).**
+- [x] **Q5 — Plants: Ko-Okkurrenz über mehrere Fundorte (orange, gleiche Quelle).**
   `sameHabitat` zählt die Flora 60 km um EINEN repräsentativen Fundort — bei
   Kosmopoliten (Löwenzahn) willkürlich. Robuster: 3 verteilte Research-Grade-
   Fundorte ziehen und die Schnittmenge nehmen. Nebenbei: Kopf-Kommentar nennt
