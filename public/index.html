@@ -2,7 +2,9 @@
 <html lang="de">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<!-- Kein maximum-scale/user-scalable=no: die Karte selbst handhabt Pinch/Pan schon per JS
+     (#cv hat touch-action:none), die Sperre blockierte nur unnötig das Zoomen der Text-Panels. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Like</title>
 <!-- PWA / iPhone: installierbar über „Zum Home-Bildschirm", Vollbild ohne Browser-Leiste -->
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -868,7 +870,7 @@
   </div>
 
   <div class="modal-back" id="intro">
-    <div class="introcard">
+    <div class="introcard" role="dialog" aria-modal="true" aria-label="Einführung">
       <button class="iclose" id="introSkip" title="Überspringen">×</button>
       <div class="istage">
         <!-- Slide 1: Was ist like -->
@@ -975,15 +977,15 @@
   <div id="fader"></div>
 
   <div class="modal-back" id="tasteModal">
-    <div class="modal" style="max-width:460px">
-      <h3>◈ Dein Geschmacks-Fingerabdruck</h3>
+    <div class="modal" style="max-width:460px" role="dialog" aria-modal="true" aria-labelledby="tasteTitle">
+      <h3 id="tasteTitle">◈ Dein Geschmacks-Fingerabdruck</h3>
       <div id="tasteBody" class="tastebody"><small style="color:var(--muted)">Lade …</small></div>
       <div class="row"><button id="tasteClose">Schließen</button></div>
     </div>
   </div>
 
   <div class="modal-back" id="authModal">
-    <div class="modal" style="max-width:400px">
+    <div class="modal" style="max-width:400px" role="dialog" aria-modal="true" aria-labelledby="authTitle">
       <h3 id="authTitle">Anmelden</h3>
       <p style="color:var(--muted); font-size:12.5px; margin:0 0 12px" id="authIntro">Melde dich an, damit deine Karte auf allen Geräten gleich ist.</p>
       <input id="authUser" placeholder="Nutzername" autocomplete="username" style="width:100%; margin-bottom:8px; padding:9px 10px; background:var(--bg); border:1px solid var(--line-soft)" />
@@ -999,8 +1001,8 @@
   </div>
 
   <div class="modal-back" id="feedbackModal">
-    <div class="modal">
-      <h3>Feedback ans Team</h3>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
+      <h3 id="feedbackTitle">Feedback ans Team</h3>
       <p>Was ist dir aufgefallen? Idee, Fehler, Wunsch — alles hilft. Geht direkt als
       Nachricht ans Team (mit Angabe der aktuellen Domäne &amp; Version).</p>
       <textarea id="feedbackText" placeholder="Deine Nachricht…" style="width:100%;min-height:90px;resize:vertical"></textarea>
@@ -1012,7 +1014,7 @@
   </div>
 
   <div class="modal-back" id="supportModal">
-    <div class="modal supportcard">
+    <div class="modal supportcard" role="dialog" aria-modal="true" aria-labelledby="supportTitle">
       <button class="sclose" id="supportClose" title="Schließen" aria-label="Schließen">×</button>
       <h3 id="supportTitle">Magst du like?</h3>
       <p id="supportText">like ist ein privates Ein-Personen-Projekt — ohne Werbung, ohne Tracking, ohne Gewinnabsicht. Damit das Projekt weiterleben kann, freue ich mich über eine kleine Spende. ♥</p>
@@ -1033,7 +1035,7 @@
   </div>
 
   <div class="modal-back" id="keyModal">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="keyTitle">
       <h3 id="keyTitle">Last.fm-Key einrichten</h3>
       <p><span id="keyHint">Für die Live-Suche braucht like einen kostenlosen Last.fm-API-Key.</span>
       <a id="keyCreate" href="https://www.last.fm/api/account/create" target="_blank" rel="noreferrer">Hier in 1 Minute erstellen ↗</a>
@@ -1048,8 +1050,8 @@
 
   <!-- Routenplaner-Nachfrage: erscheint nach 5 s Suche, dann nach 10 s, 15 s, … -->
   <div class="modal-back" id="bridgeAsk">
-    <div class="modal">
-      <h3>Weitersuchen?</h3>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bridgeAskTitle">
+      <h3 id="bridgeAskTitle">Weitersuchen?</h3>
       <p id="bridgeAskText"></p>
       <div class="row">
         <button class="primary" id="bridgeAskGo">Weitersuchen</button>
@@ -1271,6 +1273,14 @@ const T = LANG !== "en" ? null : {
   "Brücke-Suche nur im lokalen Tool": "Bridge search only in the local tool",
   "Server nicht erreichbar — leer gestartet. Später neu laden.": "Server unreachable — started empty. Reload later.",
   "Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)": "Preview can't play (the browser blocked playback)",
+  "Notiz gespeichert": "Note saved", "Wiederhergestellt": "Restored", "Geleert.": "Cleared.",
+  "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
+  "klein": "small",
+  "1 unverknüpften Act von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.": "Remove 1 unconnected act from the map?\nSearched, booked/noted acts stay.",
+  "{N} unverknüpfte Acts von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.": "Remove {N} unconnected acts from the map?\nSearched, booked/noted acts stay.",
+  "Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)": "Use your current location as home?\n(Cancel = type a place)",
+  "Heimatort: {N} — neu geladene Ziele rechnen ab hier": "Home: {N} — newly loaded destinations measure from here",
+  "Heimatort: dein Standort — neu geladene Ziele rechnen ab hier": "Home: your location — newly loaded destinations measure from here",
   "Gerade keine Überraschung zur Hand": "No surprise at hand right now",
   "Überraschung fehlgeschlagen": "Surprise failed",
   "Erst ein paar Einträge laden — dann gibt's was zu entdecken.": "Load a few entries first — then there's something to discover.",
@@ -1645,7 +1655,7 @@ function applyCfg() {
     const share = $("shareBtn");
     $("focusBtn").replaceWith(share);
     share.classList.remove("iconbtn", "shareicon");
-    share.appendChild(document.createTextNode(" Teilen"));
+    share.appendChild(document.createTextNode(" " + t("Teilen")));
     // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst
     // „Überrasch mich" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile).
     const db = $("discoverBtn");
@@ -1834,12 +1844,16 @@ async function togglePreview(name) {
     // Hörerzahl des Acts mitgeben -> Server kann berühmte Namensvetter erkennen (C6-Plausi-Check)
     const node = nodes.find(n => n.name === name);
     const res = await API.preview(name, node && typeof node.listeners === "number" ? node.listeners : null);
+    // Inzwischen ein anderer ▶ gedrückt? Dann diese (veraltete) Antwort verwerfen — sonst
+    // überschriebe die langsame Antwort von Act A die längst laufende Klangprobe von Act B.
+    if (previewName !== name) return;
     if (!res.ok || !res.url) { toast(tf(`Keine Klangprobe für „{N}" gefunden`, { N: name })); previewName = null; refreshPreviewButtons(); return; }
     previewLabel = `${res.artist || name}${res.track ? " — " + res.track : ""}`;
     audio.src = res.url; audio.currentTime = 0;
     await audio.play();
     toast(`▶ ${previewLabel} (30 s)`);
   } catch {
+    if (previewName !== name) return; // Fehler einer veralteten Anfrage: neueren Zustand nicht anfassen
     toast("Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)"); previewName = null; refreshPreviewButtons(); updateNowPlaying();
   }
 }
@@ -2169,6 +2183,11 @@ function secretIds() {
 // alpha = "Energie": startet hoch, kühlt ab -> Layout kommt zur Ruhe (kein Dauer-Zittern).
 let alpha = 1;
 const ALPHA_MIN = 0.02, ALPHA_DECAY = 0.98;
+// Beim Ziehen im Flat-Modus hält tick() die Energie mindestens hier — sonst ist das Netz nach
+// dem Einpendeln längst auf ~ALPHA_MIN abgekühlt und die Federn (SPRING) unten hätten praktisch
+// keine Kraft mehr: Nachbarn blieben trotz Kante starr liegen (F7). Moderat statt reheat()s 0.7,
+// damit es sich wie ein sanftes Mitziehen anfühlt statt wie ein harter Relayout-Ruck.
+const DRAG_ALPHA = 0.28;
 let dirty = true;                       // "muss neu gezeichnet werden"
 function requestDraw() { dirty = true; } // von jeder Interaktion aufrufen, die die Darstellung ändert
 function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
@@ -2195,6 +2214,10 @@ function tick() {
   // beim Anklicken das Netz kurz auseinander (das „Wackeln beim Klicken"). Nur echtes Ziehen zählt.
   const draggingNow = dragNode && moved;
   if (alpha < ALPHA_MIN && !draggingNow) return;
+  // Nachbarn des gezogenen Knotens sollen über ihre Kanten-Feder folgen (F7, Flat-Modus) — im
+  // Planeten-Modus übernimmt das für Monde zusätzlich orbitMoons() (rein positionell), hier
+  // wirkt es über alle Kantentypen und ist proportional zur Bindungsstärke (SPRING-Ruhelänge).
+  if (draggingNow && alpha < DRAG_ALPHA) alpha = DRAG_ALPHA;
   const REP = 8800, SPRING = 0.012, DAMP = 0.86, CUT = 460, CUT2 = CUT * CUT; // etwas mehr Abstoßung -> luftigeres Netz
   const COLLIDE_PAD = 30; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
   const n = nodes.length;
@@ -3132,9 +3155,10 @@ addEventListener("mousemove", (e) => {
     if (!moved) return; // reines Klicken darf den Knoten nicht schon verschieben/aufheizen
     const w = world(p);
     dragNode.x = w.x; dragNode.y = w.y; dragNode.vx = 0; dragNode.vy = 0;
-    // KEIN reheat: die Federn würden sonst Nachbarn (z.B. den zuvor gesuchten Planeten)
-    // mitziehen. Nur der gegriffene Knoten bewegt sich; im Planeten-Modus folgen dessen
-    // Monde ohnehin über orbitMoons(). Kollisionen lösen sich alpha-unabhängig weiter auf.
+    // Kein reheat() hier (der würde alpha auf 0.7 hochreißen und ruckartig wirken) — tick()
+    // hält alpha während des Ziehens selbst auf DRAG_ALPHA, sodass Nachbarn über ihre Kanten-
+    // Feder sanft und proportional zur Bindungsstärke folgen (F7). Im Planeten-Modus folgen
+    // Monde zusätzlich (und primär) über orbitMoons(). Kollisionen lösen sich alpha-unabhängig weiter auf.
     requestDraw();
   } else {
     view.x = dragStart.vx + dx; view.y = dragStart.vy + dy; requestDraw(); // Verschieben
@@ -3626,6 +3650,9 @@ async function drainExpandQueue() {
   let processed = 0;
   try {
     while (expandQueue.length) {
+      // Läuft gerade eine Suche/ein anderer Ausbau, würde exploreByName den Klick still
+      // verwerfen (busy-Guard) — kurz warten statt gesammelte ＋-Klicks zu verlieren.
+      if (busy) { await new Promise((r) => setTimeout(r, 300)); continue; }
       const item = expandQueue.shift();
       processed++;
       const selectNow = expandQueue.length === 0 && processed > 1; // Info nur beim letzten, nur bei Mehrfach
@@ -3658,7 +3685,7 @@ document.getElementById("pruneOrphans").onclick = async () => {
   const orphans = nodes.filter(n => !n.venue && !linked.has(n.id) && !n.seed && !n.status && !n.note && !n.known);
   if (!orphans.length) { toast("Keine unverknüpften Acts — alles hängt zusammen."); return; }
   const n = orphans.length;
-  if (!confirm(`${n} unverknüpfte${n === 1 ? "n Act" : " Acts"} von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.`)) return;
+  if (!confirm(n === 1 ? t("1 unverknüpften Act von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.") : tf("{N} unverknüpfte Acts von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.", { N: n }))) return;
   const res = await API.reset("discovered");
   if (res.error) { toast("Fehler: " + res.error); return; }
   graph = res.graph; rebuild(new Map(nodes.map(x => [x.id, x])));
@@ -3667,7 +3694,11 @@ document.getElementById("pruneOrphans").onclick = async () => {
 
 function doSearch() {
   const v = document.getElementById("q").value.trim();
-  if (v) { closeSug(); document.getElementById("q").value = ""; exploreByName(v); }
+  if (!v) return;
+  // Läuft gerade ein Ausbau, würde exploreByName die Suche still verwerfen — dann die
+  // Eingabe NICHT leeren (sonst ist die getippte Suche weg), sondern kurz Bescheid geben.
+  if (busy) { toast("Es lädt gerade noch — gleich nochmal auf Enter drücken."); return; }
+  closeSug(); document.getElementById("q").value = ""; exploreByName(v);
 }
 document.getElementById("go").onclick = doSearch;
 
@@ -3837,6 +3868,7 @@ function askBridgeContinue(p) {
     document.getElementById("bridgeAskGo").onclick = () => done(true);
     document.getElementById("bridgeAskStop").onclick = () => done(false);
     m.classList.add("show");
+    document.getElementById("bridgeAskGo").focus();
   });
 }
 function clearBridge() {
@@ -3899,7 +3931,7 @@ function showBridgeBar() {
   document.getElementById("bridgeHint").textContent = t("Klick einen der hellen Kandidaten, um ihn einzufügen.");
   document.getElementById("bridgeTitle").textContent = tf("Brücke: {A} → {B}", { A: bridge.a.name, B: bridge.b.name });
   // "spannend" heißt klein — beim Musik-Pack "Hörer", sonst der Popularitätsbegriff des Packs
-  document.getElementById("bridgeSpicy").textContent = CFG.popularity ? "klein" : "spannend";
+  document.getElementById("bridgeSpicy").textContent = t(CFG.popularity ? "klein" : "spannend");
   const sl = document.getElementById("bridgeSlider"); sl.value = Math.round(bridge.sort * 100);
   bar.classList.add("show");
 }
@@ -3996,13 +4028,22 @@ document.getElementById("bridgeSlider").oninput = (e) => { if (bridge) { bridge.
 function removeNode(n) { selected = n; document.getElementById("removeAct").click(); }
 
 // ---- Autocomplete ----
-const sugEl = document.getElementById("suggest"); let sugItems = [], sugIdx = -1, sugTimer = null;
+const sugEl = document.getElementById("suggest"); let sugItems = [], sugIdx = -1, sugTimer = null, sugSeq = 0;
 const qEl = document.getElementById("q");
 qEl.addEventListener("input", () => {
   if (STATIC) return;
   clearTimeout(sugTimer); const v = qEl.value.trim();
   if (v.length < 2) { closeSug(); return; }
-  sugTimer = setTimeout(async () => { const r = await API.suggest(v); sugItems = r.names || []; sugIdx = -1; renderSug(); }, 200);
+  sugTimer = setTimeout(async () => {
+    const seq = ++sugSeq;
+    try {
+      const r = await API.suggest(v);
+      // Nur die Antwort auf die NEUESTE Eingabe anzeigen — sonst überschreiben langsame, alte
+      // Antworten die frischen Vorschläge oder öffnen das Dropdown über einem geleerten Feld.
+      if (seq !== sugSeq || qEl.value.trim() !== v) return;
+      sugItems = r.names || []; sugIdx = -1; renderSug();
+    } catch { /* Vorschläge sind optional — Netzfehler still ignorieren */ }
+  }, 200);
 });
 function renderSug() {
   if (!sugItems.length) { closeSug(); return; }
@@ -4011,7 +4052,7 @@ function renderSug() {
   sugEl.querySelectorAll("div").forEach(d => d.onmousedown = (e) => { e.preventDefault(); chooseSug(+d.dataset.i); });
 }
 function closeSug() { sugEl.classList.remove("open"); sugItems = []; sugIdx = -1; }
-function chooseSug(i) { const n = sugItems[i]; if (n) { qEl.value = ""; closeSug(); exploreByName(n); } }
+function chooseSug(i) { const n = sugItems[i]; if (!n) return; if (busy) { toast("Es lädt gerade noch — gleich nochmal auf Enter drücken."); return; } qEl.value = ""; closeSug(); exploreByName(n); }
 qEl.addEventListener("keydown", (e) => {
   if (sugEl.classList.contains("open")) {
     if (e.key === "ArrowDown") { e.preventDefault(); sugIdx = Math.min(sugIdx + 1, sugItems.length - 1); renderSug(); return; }
@@ -4101,7 +4142,7 @@ async function runRadar(force) {
         const n = nodeById.get(b.dataset.id);
         toggleBasket(n);
         const on = basket.has(n.id);
-        b.classList.toggle("liked", on); b.textContent = on ? "✓ Lineup" : "like!";
+        b.classList.toggle("liked", on); b.textContent = on ? `✓ ${CFG.basketLabel || "Lineup"}` : (CFG.likeLabel || "like!");
         b.title = on ? tf("Im {B} — klick zum Entfernen", { B: CFG.basketLabel || "Lineup" }) : tf("{L} — in dein {B}", { L: CFG.likeLabel || "like!", B: CFG.basketLabel || "Lineup" });
       } else {
         // noch nicht auf der Karte: erst laden, dann liken (Graph ändert sich ohnehin)
@@ -4150,7 +4191,7 @@ function renderIntro() {
   introBackBtn.style.visibility = introIdx === 0 ? "hidden" : "visible";
   introNextBtn.textContent = t(introIdx === introSlides.length - 1 ? "Los geht's" : "Weiter");
 }
-function openIntro() { introIdx = 0; renderIntro(); introEl.classList.add("show"); }
+function openIntro() { introIdx = 0; renderIntro(); introEl.classList.add("show"); document.getElementById("introSkip").focus(); }
 function closeIntro() { introEl.classList.remove("show"); try { localStorage.setItem(LSK("like_intro_seen"), "1"); } catch {} }
 introNextBtn.onclick = () => { if (introIdx < introSlides.length - 1) { introIdx++; renderIntro(); } else closeIntro(); };
 introBackBtn.onclick = () => { if (introIdx > 0) { introIdx--; renderIntro(); } };
@@ -4553,11 +4594,11 @@ function refreshHomeLabel() { const el = document.getElementById("homeLabel"); i
 async function promptTypedHome() {
   const q = prompt(t("Heimatort eingeben (z. B. „Wien, Österreich“):")); if (!q) return;
   let r = null; try { r = await GET("/api/geocode?q=" + encodeURIComponent(q)); } catch {}
-  if (r && r.ok) { localStorage.setItem("like_travel_home", JSON.stringify({ name: r.name, lat: r.lat, lon: r.lon })); toast("Heimatort: " + r.name + " — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); }
+  if (r && r.ok) { localStorage.setItem("like_travel_home", JSON.stringify({ name: r.name, lat: r.lat, lon: r.lon })); toast(tf("Heimatort: {N} — neu geladene Ziele rechnen ab hier", { N: r.name })); refreshHomeLabel(); }
   else toast("Ort nicht gefunden");
 }
 function setTravelHome() {
-  if (navigator.geolocation && confirm("Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)")) {
+  if (navigator.geolocation && confirm(t("Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)"))) {
     navigator.geolocation.getCurrentPosition(
       (pos) => { localStorage.setItem("like_travel_home", JSON.stringify({ name: t("Mein Standort"), lat: pos.coords.latitude, lon: pos.coords.longitude })); toast("Heimatort: dein Standort — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); },
       () => promptTypedHome());
@@ -4607,6 +4648,7 @@ function openAuth(mode) {
   else { T.textContent = t("Passwort zurücksetzen"); intro.textContent = t("Nutzername, Recovery-Code und neues Passwort eingeben."); sub.textContent = t("Zurücksetzen");
     sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">${t("Zurück zum Anmelden")}</a>`; }
   sw.querySelectorAll("[data-m]").forEach((a) => a.onclick = () => openAuth(a.dataset.m));
+  document.getElementById("authUser").focus(); // wie Key-/Feedback-Dialog: Fokus ins erste Feld
 }
 document.getElementById("authCancel").onclick = () => authModal.classList.remove("show");
 authModal.addEventListener("mousedown", (e) => { if (e.target === authModal) authModal.classList.remove("show"); });
@@ -4735,6 +4777,7 @@ tasteModal.addEventListener("mousedown", (e) => { if (e.target === tasteModal) t
 document.getElementById("tasteBtn").onclick = async () => {
   const body = document.getElementById("tasteBody");
   tasteModal.classList.add("show");
+  document.getElementById("tasteClose").focus();
   body.innerHTML = `<small style="color:var(--muted)">${t("Lade …")}</small>`;
   try {
     const res = await API.taste();
@@ -4838,6 +4881,8 @@ addEventListener("keydown", (e) => {
   if (feedbackModal.classList.contains("show")) { if (e.key === "Escape") closeFeedback(); return; }
   if (authModal.classList.contains("show")) { if (e.key === "Escape") authModal.classList.remove("show"); return; }
   if (tasteModal && tasteModal.classList.contains("show")) { if (e.key === "Escape") tasteModal.classList.remove("show"); return; }
+  const supportEl = document.getElementById("supportModal");
+  if (supportEl && supportEl.classList.contains("show")) { if (e.key === "Escape") supportEl.classList.remove("show"); return; }
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
@@ -4850,6 +4895,23 @@ addEventListener("keydown", (e) => {
   else if (e.key === "-") zoomBy(1 / 1.3);
   else if (e.key === "0") fitAll();
   else if (e.key === "?") toggleHelp();
+});
+
+// Fokus-Falle für offene Modals: Tab kreist innerhalb der sichtbaren Dialog-Box, statt
+// (wie zuvor) unsichtbar hinter dem abgedunkelten Overlay durch die restliche Seite zu wandern.
+addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  const back = document.querySelector(".modal-back.show");
+  if (!back) return;
+  const box = back.querySelector('[role="dialog"]') || back.firstElementChild;
+  if (!box) return;
+  const focusable = [...box.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    .filter((el) => el.offsetParent !== null); // nur sichtbare (z.B. nicht der inaktive Intro-Slide)
+  if (!focusable.length) return;
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  if (!box.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 
 // ---- API-Key-Dialog (Erststart ohne eingebetteten Key) ----
@@ -4970,6 +5032,7 @@ function maybeShowIntro() {
     fbRow.style.display = document.getElementById("feedbackBtn").style.display === "" ? "" : "none";
     loginRow.style.display = (!STATIC && !window.LIKE_USER) ? "" : "none";
     modal.classList.add("show");
+    document.getElementById("supportClose").focus();
   };
   // Wer spendet (bzw. es zumindest anklickt), hat 72 Stunden Ruhe. Danke! ♥
   // Eingeloggt zusätzlich am Konto vermerken -> gilt auch auf den anderen Geräten.
@@ -5016,8 +5079,11 @@ function maybeShowIntro() {
   // Layout VOR dem ersten Zeichnen fertig ausrechnen (bis es ruhig ist) — so wackelt beim
   // Anzeigen nichts mehr (kein sichtbares Zappeln direkt nach dem Start). Deckel als Notbremse.
   { let guard = 0; do { tick(); } while (alpha >= ALPHA_MIN && ++guard < 500); }
-  // Immer alles einpassen und zentrieren: so weit rauszoomen, dass der ganze Graph sichtbar ist.
-  fitAll();
+  // Gemerkte Ansicht (Pan/Zoom) wiederherstellen, falls vorhanden und plausibel — sonst wie
+  // gehabt alles einpassen und zentrieren, so weit rauszoomen, dass der ganze Graph sichtbar ist.
+  const savedView = loadView();
+  if (savedView && nodes.length) { view.k = savedView.k; view.x = savedView.x; view.y = savedView.y; requestDraw(); }
+  else fitAll();
   loop();
   checkKey();
   startupTasks();
@@ -5036,11 +5102,18 @@ function maybeShowIntro() {
 
 // Ansicht (Pan/Zoom) über Neustarts hinweg merken
 function saveView() { try { localStorage.setItem(LSK("like_view"), JSON.stringify(view)); } catch {} }
+function loadView() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LSK("like_view")));
+    // Plausi-Check: nur eine sinnvolle, endliche Ansicht übernehmen — sonst (kaputter/
+    // uralter Eintrag) lieber wie eh und je fitAll(), statt auf einer Geisterposition zu starten.
+    if (v && Number.isFinite(v.k) && Number.isFinite(v.x) && Number.isFinite(v.y) && v.k > 0.02 && v.k < 10) return v;
+  } catch {}
+  return null;
+}
 addEventListener("beforeunload", saveView);
 addEventListener("visibilitychange", () => { if (document.hidden) saveView(); });
 
-// Onboarding: Beispiel-Eintrag aus dem leeren Zustand laden
-document.getElementById("egBtn")?.addEventListener("click", () => exploreByName(CFG.exampleSeed || "Bonobo"));
 // Zentrale Suchleiste im leeren Zustand (nur eine Leiste, sonst nichts)
 (function () {
   const q2 = document.getElementById("q2"), go2 = document.getElementById("go2");

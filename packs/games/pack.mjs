@@ -1,8 +1,12 @@
 // packs/games/pack.mjs — (Indie-)Game-Nachbarschaften über Steam Storefront + SteamSpy
 // (beide offen, kein Key).
-//   blau   = geteilte Tags/Genres (SteamSpy-Tags) + optional TasteDive ("Spieler mochten auch")
+//   blau   = Schnittmenge der Top-3-SteamSpy-Tags (mehr geteilte Tags = näher dran) +
+//            optional TasteDive ("Spieler mochten auch")
 //   orange = vom selben Entwickler
-// Popularität = SteamSpy-Owner-Schätzung (Mittel der Spanne). Für "klein/Indie" ideal.
+// Popularität = Steams offizielle Rezensionszahl (query_summary.total_reviews), Fallback
+// SteamSpy-Owner-Schätzung (Mittel der Spanne) falls die Review-Zahl mal fehlt. Reviews
+// sind eine exakte, sich laufend ändernde Zahl statt SteamSpys grober Owner-Bucket-Spanne
+// ("500k–1M") — die Momentum-Zeitreihe (▲ +x%/Monat) bekommt dadurch überhaupt Bewegung.
 
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
@@ -12,7 +16,7 @@ import { surpriseFrom } from "../../lib/surprise.mjs";
 const STEAM = "https://store.steampowered.com/api";
 
 // „Überrasch mich" (Kaltstart): kuratierter Pool feiner Indie-Titel. surprise() nimmt
-// das Spiel mit den WENIGSTEN geschätzten Besitzer:innen -> eher ein Geheimtipp.
+// das Spiel mit den WENIGSTEN Reviews (popularity()) -> eher ein Geheimtipp.
 const SURPRISE_SEEDS = [
   "A Short Hike", "Outer Wilds", "Return of the Obra Dinn", "Tunic", "Chicory: A Colorful Tale",
   "Eastward", "Spiritfarer", "Night in the Woods", "Oxenfree", "Firewatch", "Gris",
@@ -41,7 +45,8 @@ async function spy(appid) {
   });
 }
 
-// Owner-Schätzung "20,000 .. 50,000" -> Mittelwert.
+// Owner-Schätzung "20,000 .. 50,000" -> Mittelwert. Nur noch Fallback (s.u.), wenn Steam
+// selbst keine Rezensionszahl liefert.
 function ownersMid(s) {
   const m = String(s?.owners || "").replace(/,/g, "").match(/(\d+)\D+(\d+)/);
   return m ? Math.round((+m[1] + +m[2]) / 2) : null;
@@ -49,6 +54,55 @@ function ownersMid(s) {
 function tagList(s) {
   if (!s?.tags) return [];
   return Array.isArray(s.tags) ? s.tags : Object.keys(s.tags);
+}
+// Tags nach SteamSpy-Stimmen sortiert (s.tags ist meist { tagName: votes }) — für die
+// Top-3-Schnittmenge brauchen wir eine verlässliche Rangfolge, nicht bloß Objekt-Reihenfolge.
+function topTagNames(s, n = 3) {
+  if (!s?.tags) return [];
+  if (Array.isArray(s.tags)) return s.tags.slice(0, n);
+  return Object.entries(s.tags).sort((a, b) => (b[1] || 0) - (a[1] || 0)).slice(0, n).map(([k]) => k);
+}
+
+// Offizieller Steam-Endpunkt: exakte, laufend aktuelle Rezensionszahl (kein Key nötig).
+async function reviewCount(appid) {
+  return cached("steam-reviews", appid, 3 * 864e5, async () => {
+    try {
+      const j = await jfetch(`https://store.steampowered.com/appreviews/${appid}?json=1&num_per_page=0&language=all&purchase_type=all`);
+      return j?.query_summary?.total_reviews || null;
+    } catch { return null; }
+  });
+}
+async function popularityFor(appid, s) {
+  const reviews = await reviewCount(appid);
+  return reviews ?? ownersMid(s);
+}
+
+// blau: Schnittmenge der Top-3-Tags statt nur des einen stärksten Tags — sonst landen alle
+// Spiele eines Genres beim selben Mega-Hit-Chart (widerspricht der Kleine-Acts-DNA). Rang =
+// wie viele der Top-3-Tags ein Kandidat mit dem Ausgangsspiel teilt; bei Gleichstand kleinere
+// Spiele bevorzugen, Mega-Seller im Match-Wert zusätzlich dämpfen.
+async function tagIntersectionSimilar(s, excludeNameLower, { limit = 20 } = {}) {
+  const top3 = topTagNames(s, 3);
+  if (!top3.length) return [];
+  const cand = new Map(); // name -> { app, hits }
+  for (const tag of top3) {
+    try {
+      const j = await cached("steamspy-tag", tag, 7 * 864e5, () => jfetch(`${SPY}?request=tag&tag=${encodeURIComponent(tag)}`));
+      for (const app of Object.values(j || {})) {
+        const nm = app?.name; if (!nm || nm.toLowerCase() === excludeNameLower) continue;
+        const rec = cand.get(nm) || { app, hits: 0 };
+        rec.hits++; cand.set(nm, rec);
+      }
+    } catch { /* ein Tag ohne Chart -> mit den übrigen weiter */ }
+  }
+  const dampBig = (owners) => owners == null ? 1 : owners > 5000000 ? 0.6 : owners > 1000000 ? 0.8 : 1;
+  return [...cand.values()]
+    .sort((a, b) => b.hits - a.hits || (ownersMid(a.app) ?? 1e9) - (ownersMid(b.app) ?? 1e9))
+    .slice(0, limit)
+    .map((r) => ({
+      name: r.app.name, url: `https://store.steampowered.com/app/${r.app.appid}`,
+      match: Math.min(1, 0.35 + 0.2 * r.hits) * dampBig(ownersMid(r.app)),
+    }));
 }
 
 async function byDeveloper(dev, { limit = 12 } = {}) {
@@ -80,10 +134,11 @@ export default {
     emptyTitle: "Noch keine Spiele auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: Tag-Nachbarn + vom selben Entwickler.",
     edges: {
-      similar: { label: "geteilte Tags (SteamSpy)", count: "ähnliche" },
+      similar: { label: "Tag-Schnittmenge (SteamSpy)", count: "ähnliche" },
       together: { label: "vom selben Entwickler", count: "vom Entwickler" },
     },
-    popularity: { label: "Besitzer", big: 500000, dimLabel: "Hits dämpfen", dimTitle: "Spiele mit sehr vielen Besitzern abdunkeln — nur die Indies leuchten" },
+    // Reviews statt Besitzer-Schätzung (s.o.) -> "big"-Schwelle grob umgerechnet (Faustregel ~30-50 Besitzer/Review).
+    popularity: { label: "Reviews", big: 15000, dimLabel: "Hits dämpfen", dimTitle: "Spiele mit sehr vielen Reviews abdunkeln — nur die Indies leuchten" },
     genreLabel: "Tags",
     genreFilterPlaceholder: "Tag filtern…",
     statuses: [
@@ -94,7 +149,7 @@ export default {
     ],
     noteLabel: "Notiz",
     notePlaceholder: "Empfohlen von, Plattform, Eindruck…",
-    similarLabel: "Geteilte Tags",
+    similarLabel: "Tag-Schnittmenge",
     togetherLabel: "Vom selben Entwickler",
     contextLabel: "Mehr vom Entwickler",
     contextHint: "(Steam)",
@@ -120,13 +175,13 @@ export default {
       "Spiel laden: geteilte Tags + vom selben Entwickler + Genres": "Load game: shared tags + by the same developer + genres",
       "Noch keine Spiele auf der Karte": "No games on the map yet",
       "bringt gleich sein Umfeld mit: Tag-Nachbarn + vom selben Entwickler.": "brings its surroundings along: tag neighbors + by the same developer.",
-      "geteilte Tags (SteamSpy)": "shared tags (SteamSpy)",
+      "Tag-Schnittmenge (SteamSpy)": "tag overlap (SteamSpy)",
       "ähnliche": "similar",
       "vom selben Entwickler": "by the same developer",
       "vom Entwickler": "by the developer",
-      "Besitzer": "Owners",
+      "Reviews": "Reviews",
       "Hits dämpfen": "Dim hits",
-      "Spiele mit sehr vielen Besitzern abdunkeln — nur die Indies leuchten": "Dim games with very many owners - only the indies glow",
+      "Spiele mit sehr vielen Reviews abdunkeln — nur die Indies leuchten": "Dim games with very many reviews - only the indies glow",
       "Tag filtern…": "Filter tags…",
       "Wunschliste": "Wishlist",
       "spiele ich": "playing",
@@ -134,7 +189,7 @@ export default {
       "nichts für mich": "not for me",
       "Notiz": "Note",
       "Empfohlen von, Plattform, Eindruck…": "Recommended by, platform, impression…",
-      "Geteilte Tags": "Shared tags",
+      "Tag-Schnittmenge": "Tag overlap",
       "Vom selben Entwickler": "By the same developer",
       "Mehr vom Entwickler": "More from the developer",
       "Entwickler-Umfeld laden": "Load developer context",
@@ -156,25 +211,15 @@ export default {
     });
   },
 
-  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Top-Tag-Nachbarn
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): Top-3-Tag-Schnittmenge
   // (+ optional TasteDive), ohne Entwickler-Werke — schneller als explore().
   async similar(name, { limit = 18 } = {}) {
     const hit = await searchGame(name);
     if (!hit) return { canonical: name, similar: [] };
     const s = await spy(hit.id);
-    const tag0 = tagList(s)[0];
-    const similar = [], seen = new Set([hit.name.toLowerCase()]);
-    if (tag0) {
-      try {
-        const j = await cached("steamspy-tag", tag0, 7 * 864e5, () => jfetch(`${SPY}?request=tag&tag=${encodeURIComponent(tag0)}`));
-        for (const app of Object.values(j || {}).slice(0, 20)) {
-          const k = (app.name || "").toLowerCase();
-          if (!k || seen.has(k)) continue;
-          seen.add(k);
-          similar.push({ name: app.name, url: `https://store.steampowered.com/app/${app.appid}`, match: 0.5 });
-        }
-      } catch {}
-    }
+    const seen = new Set([hit.name.toLowerCase()]);
+    const similar = (await tagIntersectionSimilar(s, hit.name.toLowerCase(), { limit: 20 }))
+      .filter((x) => { const k = x.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
     try {
       for (const t of await similarByTaste(hit.name, "game", { limit: 8 })) {
         const k = t.name.toLowerCase();
@@ -196,19 +241,10 @@ export default {
     const tags = tagList(s).slice(0, 6);
     const dev = s?.developer || null;
 
-    // blau: geteilte Tags — SteamSpy "tag"-Endpunkt liefert Top-Spiele pro Tag
-    const similar = [], seen = new Set([hit.name.toLowerCase()]);
-    if (tags[0]) {
-      try {
-        const j = await cached("steamspy-tag", tags[0], 7 * 864e5, () => jfetch(`${SPY}?request=tag&tag=${encodeURIComponent(tags[0])}`));
-        for (const app of Object.values(j || {}).slice(0, 20)) {
-          const k = (app.name || "").toLowerCase();
-          if (!k || seen.has(k)) continue;
-          seen.add(k);
-          similar.push({ name: app.name, url: `https://store.steampowered.com/app/${app.appid}`, match: 0.5 });
-        }
-      } catch {}
-    }
+    // blau: Top-3-Tag-Schnittmenge (SteamSpy) — mehr geteilte Tags = näherer Nachbar
+    const seen = new Set([hit.name.toLowerCase()]);
+    const similar = (await tagIntersectionSimilar(s, hit.name.toLowerCase(), { limit: 20 }))
+      .filter((x) => { const k = x.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
     try {
       for (const t of await similarByTaste(hit.name, "game", { limit: 8 })) {
         const k = t.name.toLowerCase();
@@ -248,8 +284,8 @@ export default {
       if (hit) {
         if (!a.url) out.url = `https://store.steampowered.com/app/${hit.id}`;
         const s = await spy(hit.id);
-        const owners = ownersMid(s);
-        if (owners) out.popularity = owners;
+        const pop = await popularityFor(hit.id, s);
+        if (pop) out.popularity = pop;
         if (!a.genres?.length && tagList(s).length) out.genres = tagList(s).slice(0, 6);
       }
     } catch {}
@@ -259,7 +295,7 @@ export default {
   async popularity(name) {
     const hit = await searchGame(name);
     if (!hit) return null;
-    return ownersMid(await spy(hit.id));
+    return popularityFor(hit.id, await spy(hit.id));
   },
 
   async context(name) {

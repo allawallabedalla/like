@@ -64,6 +64,31 @@ test.describe("App-Interaktionen (Regression)", () => {
     expect(moved).toBeGreaterThan(20);
   });
 
+  // F7 (BACKLOG): im Flat-Modus (Standard, kein Theme in localStorage) sollen verbundene
+  // Nachbarn dem gezogenen Knoten über ihre Kanten-Feder folgen — wie im Space-Modus die Monde.
+  // Unverbundene Knoten (anderer Hub) sollen dabei liegen bleiben.
+  test("Ziehen zieht verbundene Nachbarn mit (Flat-Modus, F7)", async ({ page }) => {
+    await openApp(page);
+    const neighborBefore = await page.evaluate(() => window.__e2e.pos("h0_l0")); // Nachbar von h0
+    const strangerBefore = await page.evaluate(() => window.__e2e.pos("h3_l0")); // fremder Hub, keine Kante zu h0
+    const sp = await page.evaluate(() => window.__e2e.screenPos("h0"));
+    const box = await page.locator("#cv").boundingBox();
+    const x = box.x + sp.x, y = box.y + sp.y;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    // Lange, langsame Bewegung -> die Feder-Physik hat mehrere Frames Zeit zu reagieren.
+    await page.mouse.move(x + 220, y + 160, { steps: 25 });
+    await page.waitForTimeout(200);
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const neighborAfter = await page.evaluate(() => window.__e2e.pos("h0_l0"));
+    const strangerAfter = await page.evaluate(() => window.__e2e.pos("h3_l0"));
+    const neighborMoved = Math.hypot(neighborAfter.x - neighborBefore.x, neighborAfter.y - neighborBefore.y);
+    const strangerMoved = Math.hypot(strangerAfter.x - strangerBefore.x, strangerAfter.y - strangerBefore.y);
+    expect(neighborMoved).toBeGreaterThan(15); // folgt spürbar
+    expect(strangerMoved).toBeLessThan(neighborMoved); // unverbunden bewegt sich deutlich weniger
+  });
+
   test("Preview-Pill: Scrub-Bar hat eine Breite (~70-108px)", async ({ page }) => {
     await openApp(page);
     const w = await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById("npBar")).width));

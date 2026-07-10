@@ -25,12 +25,12 @@ import { readFile, writeFile, access, rename, mkdir } from "node:fs/promises";
 const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadGraph, saveGraph, materialize, addEvent, emptyGraph, upsertArtist } from "./lib/store.mjs";
+import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist } from "./lib/store.mjs";
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
-import { miniCluster, landingHtml } from "./lib/landing.mjs";
+import { landingHtml } from "./lib/landing.mjs";
 import { initAuth, register, verify, resetPassword, makeSession, userFromCookie } from "./lib/auth.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
@@ -112,7 +112,7 @@ for (const p of PACKS.values()) {
   try { g = JSON.parse(await readFile(join(ROOT, "packs", p.id, "demo.json"), "utf8")); } catch {}
   LANDING_CARDS.push({
     id: p.id, title: p.config.title, item: p.config.item, locked: isLockedPack(p.id),
-    n: Object.keys(g.artists || {}).length, e: (g.edges || []).length, mini: miniCluster(g),
+    n: Object.keys(g.artists || {}).length, e: (g.edges || []).length,
   });
 }
 // Statisch ausgelieferte PWA-Dateien (Pfad -> Datei in public/ + Content-Type).
@@ -134,7 +134,6 @@ function landingPage(unlocked) {
     pageTitle: "like — Übersicht",
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
-    cardSub: (c) => c.item.plur,
     footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
     lockLabel: "Coming soon",
@@ -224,8 +223,10 @@ function datenschutzPage() {
 </div></body></html>`;
 }
 
-// Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO PACK.
-const radarCache = new Map(); // packId -> { at, key, payload }
+// Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO GRAPH-DATEI
+// (= pro Nutzer-Namensraum UND Pack). Nur nach Pack gekeyt würde ein Nutzer den gecachten
+// Radar eines anderen sehen, sobald die Like-Mengen-Schlüssel zufällig übereinstimmen.
+const radarCache = new Map(); // Graph-Pfad -> { at, key, payload }
 const RADAR_TTL = 10 * 60 * 1000;
 
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
@@ -597,7 +598,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/auth/login") {
       if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
       const b = await readBody(req).catch(() => ({}));
-      if (!verify(b.username, b.password)) return send(res, 401, { ok: false, error: "Name oder Passwort falsch" });
+      if (!(await verify(b.username, b.password))) return send(res, 401, { ok: false, error: "Name oder Passwort falsch" });
       const uid = String(b.username).trim().toLowerCase();
       await migrateAnonToUser(req, uid);
       setCookie(res, "like_session", makeSession(uid), req);
@@ -736,8 +737,8 @@ const server = createServer(async (req, res) => {
     // zur gemeinsamen Zeitreihe bei -> der Trend wird viel schneller belastbar. (Die eigenen
     // Karten/Graphen bleiben natürlich pro Namensraum privat.)
     const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
-    // Graph speichern UND den Radar-Cache dieses Packs verwerfen (nie veraltete Vorschläge).
-    const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
+    // Graph speichern UND den Radar-Cache dieses Graphen verwerfen (nie veraltete Vorschläge).
+    const persist = (g) => { radarCache.delete(GRAPH); return saveGraph(GRAPH, g); };
 
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       // Owner meldet sich einmalig per ?owner=<secret> ab -> Cookie setzen, sauber weiterleiten.
@@ -1007,46 +1008,13 @@ const server = createServer(async (req, res) => {
       });
     }
 
-    // Legacy (nur Musik): Wikipedia-Lineups / Auto-Entdeckung.
-    if (req.method === "POST" && url.pathname === "/api/auto" && pack.id === "music") {
-      const b = await readBody(req);
-      const lang = safeLang(b.lang);                                  // SSRF-Schutz: nur echte Sprachcodes
-      const maxArtists = clampInt(b.maxArtists, 60, 1, 200);          // Amplification-Deckel
-      const minArtists = clampInt(b.minArtists, 2, 1, 50);
-      const maxFestivals = clampInt(b.maxFestivals, 30, 1, 100);
-      return withGraphLock(GRAPH, async () => {
-        const g = await loadGraph(GRAPH);
-        try {
-          const { discoverAndScrape } = await import("./lib/discover.mjs");
-          const summary = await discoverAndScrape(g, { lang, maxArtists, minArtists, maxFestivals });
-          await persist(g);
-          return send(res, 200, { ok: true, summary, graph: materialize(g) });
-        } catch (err) {
-          return send(res, 502, { error: err.message });
-        }
-      });
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/scrape" && pack.id === "music") {
-      const { target, lang: langRaw, name, date, place } = await readBody(req);
-      const lang = safeLang(langRaw); // SSRF-Schutz: nur echte Sprachcodes im Wikipedia-Host
-      if (!target) return send(res, 400, { error: "target (URL oder Titel) fehlt" });
-      return withGraphLock(GRAPH, async () => {
-        const g = await loadGraph(GRAPH);
-        try {
-          const { fetchLineup } = await import("./lib/wikipedia.mjs");
-          const r = await fetchLineup(target, { lang });
-          if (!r.lineup.length) return send(res, 200, { ok: false, error: "Kein Lineup gefunden", eventName: r.eventName });
-          const { event, artistCount } = addEvent(g, {
-            name: name || r.eventName, date, place, lineup: r.lineup, sourceUrl: r.sourceUrl,
-          });
-          await persist(g);
-          return send(res, 200, { ok: true, eventName: event.name, artistCount, graph: materialize(g) });
-        } catch (err) {
-          return send(res, 502, { error: err.message });
-        }
-      });
-    }
+    // Die alten HTTP-Endpunkte für Wikipedia-Lineups/Auto-Entdeckung sind entfernt: kein
+    // UI-Knopf ruft sie je auf (README dokumentiert das Feature nur noch als CLI, siehe
+    // scrape.mjs/auto.mjs), und ihr Ergebnis (g.events) wird von migrate() beim nächsten
+    // loadGraph() ohnehin verworfen ("alte, deaktivierte Lineup-Ebene") — sie hielten aber
+    // den Graph-Lock für die volle, minutenlange Scrape-Dauer und blockierten so /api/explore
+    // & Co. für nichts. Die CLI-Skripte funktionieren unverändert (sie laufen außerhalb des
+    // Servers direkt gegen graph.json).
 
     if (req.method === "POST" && url.pathname === "/api/artist") {
       const { id, known, note, status } = await readBody(req);
@@ -1076,8 +1044,13 @@ const server = createServer(async (req, res) => {
         if (patch.url && !a.url) { a.url = patch.url; changed = true; }
         if (patch.popularity) {
           if (a.listeners !== patch.popularity) { a.listeners = patch.popularity; changed = true; }
-          const stats = await loadStats(STATS);
-          if (addSnapshot(stats, id, patch.popularity)) await saveStats(STATS, stats);
+          // stats.json ist über alle Nutzer geteilt -> Lese-Ändern-Schreiben serialisieren,
+          // sonst überschreiben sich zwei gleichzeitige Requests gegenseitig (lost update).
+          const stats = await withGraphLock(STATS, async () => {
+            const st = await loadStats(STATS);
+            if (addSnapshot(st, id, patch.popularity)) await saveStats(STATS, st);
+            return st;
+          });
           growth = growthPerMonth(stats, id);
         }
         if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
@@ -1136,7 +1109,7 @@ const server = createServer(async (req, res) => {
       if (!likes.size) return send(res, 400, { error: M.empty });
 
       const cacheKey = [...likes].sort().join(",") + "|" + limit + "|" + lang + (fromVisible ? "|v:" + [...visSet].sort().join(",") : "");
-      const cached = radarCache.get(pack.id);
+      const cached = radarCache.get(GRAPH);
       if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < RADAR_TTL) {
         return send(res, 200, { ...cached.payload, cached: true, computedAt: cached.at });
       }
@@ -1161,23 +1134,40 @@ const server = createServer(async (req, res) => {
       }
       const graphCands = [...cand.values()].sort((x, y) => y.closeness - x.closeness).slice(0, 30);
 
-      const stats = await loadStats(STATS);
-      let statsChanged = false;
+      // Parallel statt sequenziell: pack.popularity() läuft für jedes Pack entweder über
+      // Last.fms eigene Drossel (lib/lastfm.mjs lfetch) oder über jfetch()s Pro-Host-Drossel
+      // (lib/jfetch.mjs) — beide serialisieren die tatsächlichen Netz-Requests bereits intern.
+      // Gleichzeitiges Anstoßen lässt nur die Cache-Treffer sofort durch und die echten
+      // Netz-Antworten überlappen hinter der Drossel, statt (RTT + Drossel-Pause) × 25 sequenziell
+      // aufzusummieren.
       const popById = new Map();
       if (pack.popularity) {
-        for (const c of graphCands.slice(0, 25)) {
+        const results = await Promise.allSettled(graphCands.slice(0, 25).map(async (c) => {
           const a = g.artists[c.id];
-          try {
-            const p = await pack.popularity(a.name, { mbid: a.mbid || undefined });
-            if (p) {
-              if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
-              popById.set(c.id, p);
-              if (addSnapshot(stats, c.id, p)) statsChanged = true;
-            }
-          } catch { /* ohne Popularität weiter */ }
+          const p = await pack.popularity(a.name, { mbid: a.mbid || undefined });
+          return { id: c.id, a, p };
+        }));
+        for (const r of results) {
+          if (r.status !== "fulfilled" || !r.value.p) continue; // ohne Popularität weiter
+          const { id, a, p } = r.value;
+          if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
+          popById.set(id, p);
         }
       }
-      if (statsChanged) await saveStats(STATS, stats);
+      // Snapshots erst NACH den Netzaufrufen und unter Lock: stats.json ist über alle Nutzer
+      // geteilt — unserialisiert verlöre einer von zwei gleichzeitigen Writes seine Snapshots.
+      let stats;
+      if (popById.size) {
+        stats = await withGraphLock(STATS, async () => {
+          const st = await loadStats(STATS);
+          let ch = false;
+          for (const [id, p] of popById) if (addSnapshot(st, id, p)) ch = true;
+          if (ch) await saveStats(STATS, st);
+          return st;
+        });
+      } else {
+        stats = await loadStats(STATS);
+      }
       // Hörerzahlen NACH id in den AKTUELLEN Graph mergen (unter Lock) — nie die alte Kopie
       // zurückschreiben, sonst überschriebe man parallel dazwischen erkundete Acts (lost update).
       if (popById.size) await withGraphLock(GRAPH, async () => {
@@ -1228,7 +1218,7 @@ const server = createServer(async (req, res) => {
         await writeJsonAtomic(DIGEST, dg);
       } catch {}
       const payload = { ok: true, likes: likes.size, fromVisible, radar, computedAt: Date.now() };
-      radarCache.set(pack.id, { at: payload.computedAt, key: cacheKey, payload });
+      radarCache.set(GRAPH, { at: payload.computedAt, key: cacheKey, payload });
       return send(res, 200, payload);
     }
 
@@ -1244,10 +1234,13 @@ const server = createServer(async (req, res) => {
       }
       let n = 0;
       if (popById.size) {
-        const stats = await loadStats(STATS);
-        let statsChanged = false;
-        for (const [id, p] of popById) if (addSnapshot(stats, id, p)) { statsChanged = true; n++; }
-        if (statsChanged) await saveStats(STATS, stats);
+        // stats.json ist über alle Nutzer geteilt -> Lese-Ändern-Schreiben serialisieren.
+        await withGraphLock(STATS, async () => {
+          const stats = await loadStats(STATS);
+          let statsChanged = false;
+          for (const [id, p] of popById) if (addSnapshot(stats, id, p)) { statsChanged = true; n++; }
+          if (statsChanged) await saveStats(STATS, stats);
+        });
         // Hörerzahlen nach id in den AKTUELLEN Graph mergen (unter Lock) — nicht die alte Kopie clobbern.
         await withGraphLock(GRAPH, async () => {
           const g = await loadGraph(GRAPH);
@@ -1368,7 +1361,10 @@ const server = createServer(async (req, res) => {
     // Markierte Einträge als CSV exportieren (Shortlist).
     if (req.method === "GET" && url.pathname === "/api/export.csv") {
       const g = await loadGraph(GRAPH);
-      const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      // Formel-Injection: Zellen, die mit = + - @ (oder Tab/CR) beginnen, würden Excel/
+      // LibreOffice als Formel ausführen — Namen/Notizen/Booking-Texte kommen aus externen
+      // Quellen bzw. Nutzereingaben, daher solche Zellen mit ' entschärfen.
+      const esc = (v) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
       const music = pack.config.features?.booking;
       const rows = [music
         ? ["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz", "RA", "Soundcloud", "Instagram", "Website"]

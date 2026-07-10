@@ -1,5 +1,8 @@
 // packs/papers/pack.mjs — Paper-/Forschungs-Nachbarschaften über OpenAlex (offen, kein Key).
-//   blau   = inhaltlich verwandt (OpenAlex related_works)
+//   blau   = Semantic-Scholar-Empfehlungen (SPECTER-Embeddings, gratis/ohne Key, braucht eine
+//            DOI) — deutlich treffsicherer als OpenAlex' related_works (eine statische ~10er-
+//            Liste aus reiner Konzept-Überlappung). Fehlt die DOI oder liefert S2 nichts,
+//            fällt explore()/similar() auf related_works zurück.
 //   orange = von denselben Autor:innen (weitere Werke der Ko-Autor:innen — Ko-Autorschaft
 //            ist hier wörtlich "zusammen aufgetreten")
 // Popularität = cited_by_count; Momentum kommt aus counts_by_year (Zitationsgeschwindigkeit).
@@ -27,8 +30,14 @@ const SURPRISE_SEEDS = [
   "A Mathematical Theory of Communication", "The Mythical Man-Month", "No Silver Bullet",
 ];
 const MAILTO = process.env.OPENALEX_MAILTO || "";
+const S2_RECS = "https://api.semanticscholar.org/recommendations/v1/papers/forpaper";
 
 const shortId = (idUrl) => String(idUrl || "").split("/").pop();
+// DOI aus dem OpenAlex-Work-Objekt ziehen (mal Top-Level-Feld, mal unter ids.doi).
+const doiOf = (w) => {
+  const raw = w?.doi || w?.ids?.doi || null;
+  return raw ? String(raw).replace(/^https?:\/\/doi\.org\//i, "") : null;
+};
 // Anzeigename: "Titel (Erstautor Jahr)" — knapp, hält gleichnamige Titel auseinander.
 function display(w) {
   const author = w.authorships?.[0]?.author?.display_name;
@@ -55,6 +64,24 @@ async function workById(id) {
   return cached("oa-work", id, 30 * 864e5, () => oa(`/works/${id}`));
 }
 
+// Semantic Scholar (SPECTER-Embeddings) statt OpenAlex' related_works. Öffentlich dokumentiert,
+// aber ohne Key stark gedrosselt geteilt genutzt -> großzügiger gapMs (wie Nominatim in
+// lib/travel.mjs) + langlebiger Cache. Scheitert es (Rate-Limit, keine DOI-Übereinstimmung,
+// Formatänderung), gibt es still [] zurück -> Aufrufer fällt auf related_works zurück.
+async function s2Recommendations(doi, { limit = 12 } = {}) {
+  return cached("s2-recs", doi + "|" + limit, 14 * 864e5, async () => {
+    try {
+      const u = new URL(`${S2_RECS}/DOI:${encodeURIComponent(doi)}`);
+      u.searchParams.set("fields", "title,externalIds");
+      u.searchParams.set("limit", String(limit));
+      const j = await jfetch(u.href, { gapMs: 1100, timeout: 10000 });
+      return (j.recommendedPapers || [])
+        .filter((p) => p?.title)
+        .map((p) => ({ name: p.title, url: p.externalIds?.DOI ? `https://doi.org/${p.externalIds.DOI}` : null }));
+    } catch { return []; }
+  });
+}
+
 export default {
   id: "papers",
   key: null,
@@ -71,7 +98,7 @@ export default {
     emptyTitle: "Noch keine Paper auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: verwandte Arbeiten + Werke der Autor:innen.",
     edges: {
-      similar: { label: "inhaltlich verwandt (OpenAlex)", count: "verwandte" },
+      similar: { label: "inhaltlich verwandt (Semantic Scholar)", count: "verwandte" },
       together: { label: "von denselben Autor:innen", count: "von den Autor:innen" },
     },
     popularity: { label: "Zitationen", big: 1000, dimLabel: "Vielzitierte dämpfen", dimTitle: "Sehr häufig zitierte Arbeiten abdunkeln — nur die Nischen leuchten" },
@@ -109,7 +136,7 @@ export default {
       "Paper laden: inhaltlich verwandt + von denselben Autor:innen + Themen": "Load paper: related content + by the same authors + topics",
       "Noch keine Paper auf der Karte": "No papers on the map yet",
       "bringt gleich sein Umfeld mit: verwandte Arbeiten + Werke der Autor:innen.": "brings its surroundings along: related works + works by the authors.",
-      "inhaltlich verwandt (OpenAlex)": "related content (OpenAlex)",
+      "inhaltlich verwandt (Semantic Scholar)": "related content (Semantic Scholar)",
       "verwandte": "related",
       "von denselben Autor:innen": "by the same authors",
       "von den Autor:innen": "by the authors",
@@ -143,11 +170,16 @@ export default {
     });
   },
 
-  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur related_works,
-  // ohne Ko-Autoren-Werke — schneller als explore().
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): S2-Empfehlungen (DOI nötig),
+  // sonst related_works, ohne Ko-Autoren-Werke — schneller als explore().
   async similar(name, { limit = 12 } = {}) {
     const hit = await searchWork(name);
     if (!hit) return { canonical: name, similar: [] };
+    const doi = doiOf(hit);
+    if (doi) {
+      const recs = await s2Recommendations(doi, { limit });
+      if (recs.length) return { canonical: display(hit), similar: recs.map((r) => ({ ...r, match: 0.75 })) };
+    }
     const rel = [];
     for (const id of (hit.related_works || []).slice(0, Math.min(limit, 12)).map(shortId)) {
       try { const w = await workById(id); rel.push({ name: display(w), url: w.id, match: 0.6 }); } catch {}
@@ -163,11 +195,15 @@ export default {
     if (!hit) throw new Error(`„${name}" nicht bei OpenAlex gefunden`);
     const topics = (hit.topics || hit.concepts || []).map((t) => t.display_name).slice(0, 6);
 
-    // blau: related_works (OpenAlex hält bis zu ~10 vor)
-    const relIds = (hit.related_works || []).slice(0, 12).map(shortId);
-    const rel = [];
-    for (const id of relIds) {
-      try { const w = await workById(id); rel.push({ name: display(w), url: w.id, match: 0.6 }); } catch {}
+    // blau: Semantic-Scholar-Empfehlungen (braucht eine DOI); ohne DOI oder ohne Treffer
+    // fällt es auf OpenAlex related_works zurück (hält bis zu ~10 vor).
+    const doi = doiOf(hit);
+    let rel = doi ? (await s2Recommendations(doi, { limit: 15 })).map((r) => ({ ...r, match: 0.75 })) : [];
+    const usedS2 = rel.length > 0;
+    if (!rel.length) {
+      for (const id of (hit.related_works || []).slice(0, 12).map(shortId)) {
+        try { const w = await workById(id); rel.push({ name: display(w), url: w.id, match: 0.6 }); } catch {}
+      }
     }
 
     // orange: weitere Werke der (Ko-)Autor:innen — Ko-Autorschaft
@@ -189,11 +225,11 @@ export default {
       canonical: display(hit),
       url: hit.id,
       genres: topics,
-      similarSource: "openalex",
+      similarSource: usedS2 ? "semanticscholar" : "openalex",
       togetherSource: "openalex",
       similar: rel.slice(0, 15),
       together: together.slice(0, 12),
-      sources: ["openalex"],
+      sources: usedS2 ? ["openalex", "semanticscholar"] : ["openalex"],
     };
   },
 
@@ -235,6 +271,16 @@ export default {
     return [
       { name: "OpenAlex Suche", probe: async () => !!(await searchWork("Attention Is All You Need")) },
       { name: "OpenAlex related_works", probe: async () => { const w = await searchWork("Attention Is All You Need"); return (w.related_works || []).length > 0; } },
+      {
+        name: "Semantic Scholar Empfehlungen",
+        probe: async () => {
+          const w = await searchWork("Attention Is All You Need");
+          const doi = doiOf(w);
+          if (!doi) return true; // kein DOI beim Testpaper -> Feature einfach nicht geprüft, kein Fehlschlag
+          return (await s2Recommendations(doi, { limit: 1 })).length >= 0;
+        },
+        note: "gratis, ohne Key — Fallback: OpenAlex related_works",
+      },
     ];
   },
 };

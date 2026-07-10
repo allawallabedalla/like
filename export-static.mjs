@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, materialize } from "./lib/store.mjs";
 import { loadPack, listPacks } from "./lib/packs.mjs";
-import { miniCluster, landingHtml } from "./lib/landing.mjs";
+import { landingHtml } from "./lib/landing.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DOCS = join(ROOT, "docs");
@@ -44,7 +44,7 @@ async function exportPack(id, outDir) {
   await writeFile(join(outDir, "index.html"), out, "utf8");
   const n = Object.keys(graph.artists).length, e = graph.edges.length;
   console.log(`✓ ${join(outDir, "index.html").replace(ROOT + "/", "")} — Pack „${id}", ${n} Knoten, ${e} Kanten`);
-  return { id, title: pack.config.title, item: pack.config.item, n, e, mini: miniCluster(graph) };
+  return { id, title: pack.config.title, item: pack.config.item, n, e };
 }
 
 const arg = process.argv.find((a) => a.startsWith("--pack="))?.slice(7);
