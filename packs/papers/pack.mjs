@@ -8,7 +8,24 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 
+import { surpriseFrom } from "../../lib/surprise.mjs";
+
 const OA = "https://api.openalex.org";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool prägender Arbeiten quer durch die
+// Disziplinen. surprise() nimmt die mit den WENIGSTEN Zitationen -> eher eine Entdeckung.
+const SURPRISE_SEEDS = [
+  "As We May Think", "Computing Machinery and Intelligence", "The Tragedy of the Commons",
+  "The Strength of Weak Ties", "The Market for Lemons", "Prospect Theory: An Analysis of Decision under Risk",
+  "A Relational Model of Data for Large Shared Data Banks", "On Computable Numbers",
+  "The Use of Knowledge in Society", "Time, Clocks, and the Ordering of Events in a Distributed System",
+  "End-to-End Arguments in System Design", "The Anatomy of a Large-Scale Hypertextual Web Search Engine",
+  "The Byzantine Generals Problem", "New Directions in Cryptography",
+  "Collective dynamics of 'small-world' networks", "Emergence of Scaling in Random Networks",
+  "Why Most Published Research Findings Are False", "The Hallmarks of Cancer",
+  "Long Short-Term Memory", "Random Forests", "Latent Dirichlet Allocation",
+  "A Mathematical Theory of Communication", "The Mythical Man-Month", "No Silver Bullet",
+];
 const MAILTO = process.env.OPENALEX_MAILTO || "";
 
 const shortId = (idUrl) => String(idUrl || "").split("/").pop();
@@ -83,7 +100,7 @@ export default {
     ],
     radarTitle: "Radar — aufstrebende Arbeiten",
     radarTogetherReason: "teilt Autor:innen mit deinem Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -125,6 +142,21 @@ export default {
       return (j.results || []).map(display).filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase())).slice(0, 6);
     });
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur related_works,
+  // ohne Ko-Autoren-Werke — schneller als explore().
+  async similar(name, { limit = 12 } = {}) {
+    const hit = await searchWork(name);
+    if (!hit) return { canonical: name, similar: [] };
+    const rel = [];
+    for (const id of (hit.related_works || []).slice(0, Math.min(limit, 12)).map(shortId)) {
+      try { const w = await workById(id); rel.push({ name: display(w), url: w.id, match: 0.6 }); } catch {}
+    }
+    return { canonical: display(hit), similar: rel };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name) {
     const hit = await searchWork(name);

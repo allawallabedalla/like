@@ -355,6 +355,9 @@
   .bridgebar .blabels { display: flex; justify-content: space-between; font-size: 10px;
     letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   .bridgebar .bhint { font-size: 11px; color: var(--muted); }
+  /* Fortschrittsbalken der Routenplaner-Suche (Balken füllt sich bis zur nächsten Nachfrage) */
+  .bridgebar .bprog { width: 100%; height: 5px; background: var(--line-soft); border-radius: 3px; overflow: hidden; }
+  .bridgebar .bprog i { display: block; height: 100%; width: 0%; background: var(--accent); transition: width .15s linear; }
 
   /* Lineup-Korb (lebt im .leftstack über der Legende) */
   .basket { width: 230px; background: var(--bg); border: 1px solid var(--line);
@@ -771,6 +774,7 @@
   <div id="modebar" class="modebar"></div>
   <div id="bridgebar" class="bridgebar">
     <div class="bhead"><b id="bridgeTitle">Brücke</b><span class="x" id="bridgeClose" title="Abbrechen">✕</span></div>
+    <div class="bprog" id="bridgeProg" style="display:none"><i id="bridgeProgFill"></i></div>
     <input type="range" id="bridgeSlider" min="0" max="100" value="50" title="Reihenfolge der Brücken-Kandidaten">
     <div class="blabels"><span>naheliegend</span><span id="bridgeSpicy">spannend</span></div>
     <div class="bhint" id="bridgeHint">Klick einen der hellen Kandidaten, um ihn einzufügen.</div>
@@ -1042,6 +1046,18 @@
     </div>
   </div>
 
+  <!-- Routenplaner-Nachfrage: erscheint nach 5 s Suche, dann nach 10 s, 15 s, … -->
+  <div class="modal-back" id="bridgeAsk">
+    <div class="modal">
+      <h3>Weitersuchen?</h3>
+      <p id="bridgeAskText"></p>
+      <div class="row">
+        <button class="primary" id="bridgeAskGo">Weitersuchen</button>
+        <button id="bridgeAskStop">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
   <div class="panel" id="panel">
     <button class="close" id="closePanel" title="Panel schließen (Esc)">×</button>
     <h2 id="pName">–</h2>
@@ -1208,6 +1224,16 @@ const T = LANG !== "en" ? null : {
   "Brücke": "Bridge", "naheliegend": "obvious", "spannend": "adventurous", "Abbrechen": "Cancel",
   "Reihenfolge der Brücken-Kandidaten": "Order of bridge candidates",
   "Klick einen der hellen Kandidaten, um ihn einzufügen.": "Click one of the bright candidates to insert it.",
+  "Suche Route: {A} ↔ {B}": "Finding route: {A} ↔ {B}",
+  "Suche von beiden Enden gleichzeitig — die erste Begegnung ist die kürzeste Verbindung.": "Searching from both ends at once — the first meeting point is the shortest connection.",
+  "{N} Einträge erreicht · {Q} Abfragen · Suchtiefe {DA}+{DB}": "{N} entries reached · {Q} lookups · search depth {DA}+{DB}",
+  "Weitersuchen?": "Keep searching?", "Weitersuchen": "Keep searching",
+  "Zwischen „{A}\" und „{B}\" ist noch keine Verbindung aufgetaucht — {N} Einträge sind schon abgesucht (Suchtiefe {DA}+{DB}). Tiefer graben?": "No connection between \"{A}\" and \"{B}\" has turned up yet — {N} entries have been searched (depth {DA}+{DB}). Dig deeper?",
+  "{N} Brücken-Kandidaten{X} — hell markiert, kürzeste Route zuerst": "{N} bridge candidates{X} — highlighted, shortest route first",
+  "1 Brücken-Kandidat{X} — hell markiert": "1 bridge candidate{X} — highlighted",
+  " ({N} Stationen)": " ({N} stops)", " (zwei Stationen)": " (two stops)", " (drei Stationen)": " (three stops)",
+  "Keine Verbindung gefunden — der ganze erreichbare Umkreis ({N} Einträge) ist abgesucht.": "No connection found — the entire reachable neighborhood ({N} entries) has been searched.",
+  "Zeig mir einen zufälligen, eher unbekannten {S}": "Show me a random, rather unknown {S}",
   // Hilfe-Box
   "Klick auf Punkt": "Click a dot", "Doppelklick": "Double-click", "Nachbarn laden (weiter hangeln)": "Load neighbors (keep hopping)",
   "Shift-Klick": "Shift-click", "Acts vergleichen (Schnittmenge)": "Compare acts (intersection)",
@@ -1554,6 +1580,7 @@ function applyCfg() {
   $("q").placeholder = CFG.searchPlaceholder || "Suchen…   ( / )";
   $("q").title = CFG.searchTitle || "";
   $("go").title = CFG.goTitle || "";
+  if (CFG.id !== "music") $("surpriseBtn").title = tf("Zeig mir einen zufälligen, eher unbekannten {S}", { S: CFG.item.sing });
   $("genreFilter").placeholder = CFG.genreFilterPlaceholder || "Filtern…";
   renderLegend(); // dynamische Legende (zeigt nur, was gerade da ist) ohne Quellen-Hinweise — B11/B12
   // Popularität / "Große dämpfen"
@@ -1679,6 +1706,8 @@ const API = {
   preview: (name, listeners) => POST("/api/preview", { name, listeners }),
   context: (id) => POST("/api/context", { id }),
   bridge: (from, to) => POST("/api/bridge", { from, to }),
+  bridgeStep: (session) => POST("/api/bridge/step", { session }),
+  bridgeStop: (session) => POST("/api/bridge/stop", { session }),
   bridgeAdd: (from, to, via, fromId, toId) => POST("/api/bridge/add", { from, to, via, fromId, toId }),
   feedback: (message) => POST("/api/feedback", { message }),
   taste: () => GET("/api/taste"),
@@ -3709,17 +3738,41 @@ function startBridge(n) {
   updateModebar();
   toast(tf(`Brücke von „{N}": jetzt ein zweites {S} anklicken`, { N: n.name, S: CFG.item?.sing || "Element" }));
 }
+// Brücken-Suche als ROUTENPLANER: der Server sucht von beiden Enden gleichzeitig (bidirektionale
+// Breitensuche — die erste Begegnung ist die kürzeste Verbindung) und der Client treibt die Suche
+// in Etappen an: Progressbar in der Brückenleiste, nach 5 s die Nachfrage „Weitersuchen?" im
+// Modal, danach wieder nach 10 s, 15 s, … — bis eine Verbindung gefunden, alles abgesucht oder
+// abgebrochen ist.
 async function finishBridge(target) {
   const a = bridgeFrom; bridgeFrom = null;
   if (!a || target.id === a.id || target.venue || a.venue) { updateModebar(); return; }
   if (STATIC) { toast("Brücke-Suche nur im lokalen Tool"); updateModebar(); return; }
-  bridge = { a, b: target, cands: [], sort: 0.5, loading: true };
+  bridge = { a, b: target, cands: [], sort: 0.5, loading: true, session: null };
+  const myBridge = bridge;
   updateModebar(); requestDraw();
   busyId = target.id;
-  toast(tf(`Suche Brücke: „{A}" ↔ „{B}" …`, { A: a.name, B: target.name }));
+  showBridgeSearching();
+  let askAfter = 5000, phase0 = Date.now(); // erste Nachfrage nach 5 s, dann 10 s, 15 s, … (je +5 s)
+  const tick = setInterval(() => { // Balken füllt sich zur nächsten Nachfrage hin — läuft auch WÄHREND ein Suchpaket unterwegs ist
+    if (bridge !== myBridge) return;
+    const f = document.getElementById("bridgeProgFill");
+    if (f) f.style.width = Math.min(100, ((Date.now() - phase0) / askAfter) * 100) + "%";
+  }, 100);
   try {
-    const res = await API.bridge(a.name, target.name);
-    if (!bridge) return; // zwischenzeitlich abgebrochen (Progress-Abbrechen)
+    let res = await API.bridge(a.name, target.name);
+    while (bridge === myBridge && !res.error && !res.done) {
+      bridge.session = res.session;
+      updateBridgeStats(res.progress);
+      if (Date.now() - phase0 >= askAfter) {
+        const more = await askBridgeContinue(res.progress);
+        if (bridge !== myBridge) return;          // während der Nachfrage abgebrochen (✕/Modebar)
+        if (!more) { clearBridge(); return; }     // clearBridge() stoppt auch die Server-Suche
+        askAfter += 5000; phase0 = Date.now();
+      }
+      res = await API.bridgeStep(res.session);
+    }
+    if (bridge !== myBridge) return; // zwischenzeitlich abgebrochen
+    bridge.session = null; // Sitzung ist serverseitig beendet — kein Stop mehr nötig
     if (res.error) { toast("Fehler: " + res.error); clearBridge(); return; }
     // Nur Kandidaten rausfiltern, deren VOLLE Kette (A—via…—B) als Kanten SCHON existiert — dann
     // ist die Verbindung wirklich da. Ist ein Zwischen-Eintrag zwar auf der Karte, aber (noch)
@@ -3735,20 +3788,61 @@ async function finishBridge(target) {
     };
     const cands = (res.candidates || []).filter((c) => !chainExists(c));
     if (!cands.length) {
-      toast(res.candidates?.length ? tf(`„{A}" und „{B}" sind über die vorhandenen Einträge schon verbunden.`, { A: a.name, B: target.name }) : "Kein verbindender Eintrag gefunden (auch nicht über mehrere Schichten).");
+      toast(res.candidates?.length
+        ? tf(`„{A}" und „{B}" sind über die vorhandenen Einträge schon verbunden.`, { A: a.name, B: target.name })
+        : tf("Keine Verbindung gefunden — der ganze erreichbare Umkreis ({N} Einträge) ist abgesucht.", { N: res.progress?.visited ?? 0 }));
       clearBridge(); return;
     }
     bridge.cands = cands; bridge.loading = false; bridge.mode = res.mode;
+    updateModebar(); // Such-Spinner („wird gesucht …") aus der Modebar nehmen
     showBridgeBar();
     fitBridgeIntoView();
-    const stepTxt = res.mode === "two" ? " (zwei Stationen)" : res.mode === "three" ? " (drei Stationen)" : "";
-    toast(`${cands.length} Brücken-Kandidat${cands.length === 1 ? "" : "en"}${stepTxt} — hell markiert`);
+    // kürzeste Route zuerst (der Server sortiert so) — die Stationszahl der besten Route melden
+    const hops = cands[0].via.length;
+    const stepTxt = hops === 2 ? t(" (zwei Stationen)") : hops === 3 ? t(" (drei Stationen)") : hops > 3 ? tf(" ({N} Stationen)", { N: hops }) : "";
+    toast(cands.length === 1
+      ? tf("1 Brücken-Kandidat{X} — hell markiert", { X: stepTxt })
+      : tf("{N} Brücken-Kandidaten{X} — hell markiert, kürzeste Route zuerst", { N: cands.length, X: stepTxt }));
   } catch (e) {
-    toast("Fehler: " + e.message); clearBridge();
-  } finally { busyId = null; requestDraw(); }
+    if (bridge === myBridge) { toast("Fehler: " + e.message); clearBridge(); }
+  } finally { clearInterval(tick); busyId = null; requestDraw(); }
+}
+// Such-Modus der Brückenleiste: Titel + Progressbar + Live-Stand (Slider erst bei Ergebnis)
+function showBridgeSearching() {
+  const bar = document.getElementById("bridgebar");
+  document.getElementById("bridgeTitle").textContent = tf("Suche Route: {A} ↔ {B}", { A: bridge.a.name, B: bridge.b.name });
+  document.getElementById("bridgeProg").style.display = "";
+  document.getElementById("bridgeProgFill").style.width = "0%";
+  document.getElementById("bridgeSlider").style.display = "none";
+  bar.querySelector(".blabels").style.display = "none";
+  document.getElementById("bridgeHint").textContent = t("Suche von beiden Enden gleichzeitig — die erste Begegnung ist die kürzeste Verbindung.");
+  bar.classList.add("show");
+}
+function updateBridgeStats(p) {
+  if (!p) return;
+  document.getElementById("bridgeHint").textContent =
+    tf("{N} Einträge erreicht · {Q} Abfragen · Suchtiefe {DA}+{DB}", { N: p.visited, Q: p.checked, DA: p.depthA, DB: p.depthB });
+}
+// „Weitersuchen?"-Modal: Suche pausiert, bis der Mensch entscheidet. Abbruch von außen
+// (clearBridge) löst das Versprechen mit false auf, damit die Schleife nicht hängen bleibt.
+let bridgeAskResolve = null;
+function askBridgeContinue(p) {
+  return new Promise((resolve) => {
+    const m = document.getElementById("bridgeAsk");
+    document.getElementById("bridgeAskText").textContent = tf(
+      `Zwischen „{A}" und „{B}" ist noch keine Verbindung aufgetaucht — {N} Einträge sind schon abgesucht (Suchtiefe {DA}+{DB}). Tiefer graben?`,
+      { A: bridge.a.name, B: bridge.b.name, N: p?.visited ?? 0, DA: p?.depthA ?? 1, DB: p?.depthB ?? 1 });
+    const done = (v) => { bridgeAskResolve = null; m.classList.remove("show"); resolve(v); };
+    bridgeAskResolve = done;
+    document.getElementById("bridgeAskGo").onclick = () => done(true);
+    document.getElementById("bridgeAskStop").onclick = () => done(false);
+    m.classList.add("show");
+  });
 }
 function clearBridge() {
+  if (bridge?.session && !STATIC) API.bridgeStop(bridge.session).catch(() => {}); // Server-Suche beenden
   bridge = null; bridgeFrom = null;
+  if (bridgeAskResolve) bridgeAskResolve(false); // offenes „Weitersuchen?"-Modal schließen
   document.getElementById("bridgebar").classList.remove("show");
   updateModebar(); requestDraw();
 }
@@ -3760,7 +3854,9 @@ function bridgeRanked() {
   const logs = cs.map(listOf).filter((x) => x != null).map((l) => Math.log10(Math.max(1, l)));
   const lo = logs.length ? Math.min(...logs) : 0, hi = logs.length ? Math.max(...logs) : 1;
   const smallness = (c) => { const l = listOf(c); if (l == null) return 0.5; if (hi <= lo) return 0.5; return 1 - (Math.log10(Math.max(1, l)) - lo) / (hi - lo); };
-  return cs.map((c) => ({ ...c, score: (1 - t) * c.strength + t * smallness(c) }))
+  // Routenplaner-Logik: kürzere Ketten gelten als „naheliegender" — milder Malus pro Extra-Station
+  const lenBoost = (c) => 1 / (1 + 0.15 * (c.via.length - 1));
+  return cs.map((c) => ({ ...c, score: (1 - t) * c.strength * lenBoost(c) + t * smallness(c) }))
     .sort((x, y) => y.score - x.score).slice(0, BRIDGE_SHOWN);
 }
 // Position eines Geists: senkrecht zur A–B-Achse aufgefächert, bester Kandidat mittig
@@ -3796,6 +3892,11 @@ async function addBridge(i) {
 }
 function showBridgeBar() {
   const bar = document.getElementById("bridgebar");
+  // Ergebnis-Modus: Progressbar weg, Regler + Hinweis zurück (die Suche davor lief im Such-Modus)
+  document.getElementById("bridgeProg").style.display = "none";
+  document.getElementById("bridgeSlider").style.display = "";
+  bar.querySelector(".blabels").style.display = "";
+  document.getElementById("bridgeHint").textContent = t("Klick einen der hellen Kandidaten, um ihn einzufügen.");
   document.getElementById("bridgeTitle").textContent = tf("Brücke: {A} → {B}", { A: bridge.a.name, B: bridge.b.name });
   // "spannend" heißt klein — beim Musik-Pack "Hörer", sonst der Popularitätsbegriff des Packs
   document.getElementById("bridgeSpicy").textContent = CFG.popularity ? "klein" : "spannend";
@@ -4950,7 +5051,7 @@ document.getElementById("egBtn")?.addEventListener("click", () => exploreByName(
   // „Überrasch mich": zufälliger, eher unbekannter Act vom Server -> direkt reinstolpern.
   const sBtn = document.getElementById("surpriseBtn");
   if (sBtn) {
-    if (STATIC || !FEAT.preview) sBtn.style.display = "none"; // nur wo Live-Suche sinnvoll ist
+    if (STATIC || !FEAT.surprise) sBtn.style.display = "none"; // nur wo das Pack surprise() anbietet
     sBtn.addEventListener("click", async () => {
       sBtn.disabled = true; const label = sBtn.textContent; sBtn.textContent = t("✦ Suche …");
       try {

@@ -9,7 +9,20 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 
+import { surpriseFrom } from "../../lib/surprise.mjs";
+
 const INAT = "https://api.inaturalist.org/v1";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool bemerkenswerter Pflanzen (Urzeit-Relikte,
+// Fleischfresser, Rekordhalter). surprise() nimmt die mit den WENIGSTEN Beobachtungen.
+const SURPRISE_SEEDS = [
+  "Welwitschia mirabilis", "Drosera rotundifolia", "Dionaea muscipula", "Ginkgo biloba",
+  "Wollemia nobilis", "Amorphophallus titanum", "Mimosa pudica", "Selaginella lepidophylla",
+  "Victoria amazonica", "Nepenthes rajah", "Passiflora caerulea", "Aloe polyphylla",
+  "Eucalyptus deglupta", "Strongylodon macrobotrys", "Puya raimondii", "Dracaena cinnabari",
+  "Adansonia grandidieri", "Ophrys apifera", "Sequoiadendron giganteum", "Utricularia vulgaris",
+  "Lithops lesliei", "Rafflesia arnoldii", "Equisetum arvense", "Monotropa uniflora",
+];
 const PLANTAE = 47126; // iNat-Taxon-ID des Pflanzenreichs — hält Tiere/Pilze draußen
 
 const cap = (s) => String(s || "").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -141,7 +154,7 @@ export default {
     ],
     radarTitle: "Radar — seltene Arten",
     radarTogetherReason: "gedeiht am selben Standort wie dein Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -191,6 +204,19 @@ export default {
       return (j.results || []).map(display).filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
     });
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Gattungs-Geschwister,
+  // ohne Standort-Gemeinschaft — schneller als explore().
+  async similar(name, { limit = 15 } = {}) {
+    const hit = await searchTaxon(name);
+    if (!hit) return { canonical: name, similar: [] };
+    const taxon = await taxonById(hit.id) || hit;
+    const sibs = await genusSiblings(taxon, { limit: Math.min(limit, 15) });
+    return { canonical: display(taxon), similar: sibs.map((t) => ({ name: display(t), url: `https://www.inaturalist.org/taxa/${t.id}`, match: 0.6 })) };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name) {
     const hit = await searchTaxon(name);

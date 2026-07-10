@@ -8,6 +8,19 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 import { getKey } from "../../lib/keys.mjs";
+import { surpriseFrom } from "../../lib/surprise.mjs";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool eher kleiner/leiser Filme abseits der
+// Blockbuster. surprise() nimmt den mit den WENIGSTEN Bewertungen -> echte Entdeckung.
+const SURPRISE_SEEDS = [
+  "Stalker (1979)", "Wings of Desire (1987)", "In the Mood for Love (2000)", "Le Samouraï (1967)",
+  "Come and See (1985)", "Wild Strawberries (1957)", "Paterson (2016)", "The Fall (2006)",
+  "Under the Skin (2013)", "A Ghost Story (2017)", "Columbus (2017)", "First Cow (2019)",
+  "Leave No Trace (2018)", "The Rider (2017)", "Embrace of the Serpent (2015)", "Ida (2013)",
+  "Toni Erdmann (2016)", "Victoria (2015)", "System Crasher (2019)", "Aftersun (2022)",
+  "Perfect Days (2023)", "The Green Ray (1986)", "Cléo from 5 to 7 (1962)", "Wanda (1970)",
+  "Beau Travail (1999)", "Ratcatcher (1999)", "Morvern Callar (2002)", "Fish Tank (2009)",
+];
 
 const TMDB = "https://api.themoviedb.org/3";
 const KEY_INFO = { envVar: "TMDB_API_KEY", file: ".tmdb-key", name: "TMDB", createUrl: "https://www.themoviedb.org/settings/api" };
@@ -77,7 +90,7 @@ export default {
     ],
     radarTitle: "Radar — Film-Geheimtipps",
     radarTogetherReason: "wird mit deinem Like zusammen geschaut",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: { name: "TMDB-Key", createUrl: "https://www.themoviedb.org/settings/api", hint: "Für die Live-Suche braucht like movies einen kostenlosen TMDB-API-Key (Konto → Einstellungen → API → „API Key (v3 auth)“)." },
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -123,6 +136,20 @@ export default {
     });
   },
 
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur /similar,
+  // ohne Details/Recommendations — deutlich schneller als explore().
+  async similar(name, { limit = 20 } = {}) {
+    const hit = await searchMovie(name);
+    if (!hit) return { canonical: name, similar: [] };
+    const sim = await cached("tmdb-sim", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}/similar`));
+    return {
+      canonical: display(hit),
+      similar: (sim.results || []).slice(0, limit).map((m, i) => ({
+        name: display(m), url: `https://www.themoviedb.org/movie/${m.id}`, match: Math.max(0.3, 0.8 - i * 0.03),
+      })),
+    };
+  },
+
   async explore(name) {
     const hit = await searchMovie(name);
     if (!hit) throw new Error(`„${name}" nicht bei TMDB gefunden`);
@@ -148,6 +175,9 @@ export default {
       sources: ["tmdb"],
     };
   },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, der UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async enrich(a) {
     const out = {};

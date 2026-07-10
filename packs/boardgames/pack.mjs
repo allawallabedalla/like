@@ -7,8 +7,21 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 import { tags, blocks, decode } from "../../lib/xml.mjs";
+import { surpriseFrom } from "../../lib/surprise.mjs";
 
 const BGG = "https://boardgamegeek.com/xmlapi2";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool eher kleiner/eleganter Spiele abseits
+// der Dauerbrenner. surprise() nimmt das mit den WENIGSTEN Bewertungen.
+const SURPRISE_SEEDS = [
+  "The Crew: The Quest for Planet Nine (2019)", "Hanamikoji (2013)", "Patchwork (2014)",
+  "Hive (2000)", "Onitama (2014)", "Santorini (2016)", "Jaipur (2009)", "Targi (2012)",
+  "Battle Line (2000)", "Lost Cities (1999)", "Cartographers (2019)", "Welcome To (2018)",
+  "Parks (2019)", "Concordia (2013)", "The Quacks of Quedlinburg (2018)", "Isle of Skye (2015)",
+  "Glen More (2010)", "Yokohama (2016)", "Orléans (2014)", "Great Western Trail (2016)",
+  "A Feast for Odin (2016)", "Underwater Cities (2018)", "Lost Ruins of Arnak (2020)",
+  "Radlands (2021)", "Cascadia (2021)", "Calico (2020)", "Fjords (2005)", "Ra (1999)",
+];
 const yearOf = (item) => tags(item._inner, "yearpublished")[0]?.value;
 const display = (name, year) => year ? `${name} (${year})` : name;
 const stripYear = (name) => String(name).replace(/\s*\((\d{4})\)\s*$/, "").trim();
@@ -91,7 +104,7 @@ export default {
     ],
     radarTitle: "Radar — Brettspiel-Geheimtipps",
     radarTogetherReason: "vom selben Designer wie dein Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -139,6 +152,31 @@ export default {
       }).filter((n) => n && !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
     });
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur die BGG-Familien,
+  // ohne Designer-Werke — schneller als explore().
+  async similar(name, { limit = 20 } = {}) {
+    const id = await searchGame(name);
+    if (!id) return { canonical: name, similar: [] };
+    const item = await thing(id);
+    if (!item) return { canonical: name, similar: [] };
+    const nm = primaryName(item);
+    const similar = [], seen = new Set([nm.toLowerCase()]);
+    for (const fam of linksOf(item, "boardgamefamily").slice(0, 2)) {
+      try {
+        for (const g of await familyMembers(fam.id, { limit: 10 })) {
+          const k = g.name.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.6 });
+        }
+      } catch { /* Familie nicht auflösbar -> weiter */ }
+    }
+    return { canonical: display(nm, yearOf(item)), similar: similar.slice(0, limit) };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name) {
     const id = await searchGame(name);

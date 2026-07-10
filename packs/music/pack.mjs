@@ -84,7 +84,7 @@ export default {
     ],
     radarTitle: "Radar — Geheimtipps",
     radarTogetherReason: "hat mit deinem Like gespielt",
-    features: { preview: true, radar: true, context: true, active: true, booking: true, tour: true, venues: true },
+    features: { preview: true, radar: true, context: true, active: true, booking: true, tour: true, venues: true, surprise: true },
     key: { name: "Last.fm-Key", createUrl: "https://www.last.fm/api/account/create", hint: "Für die Live-Suche braucht like einen kostenlosen Last.fm-API-Key." },
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {

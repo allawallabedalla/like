@@ -6,6 +6,11 @@ Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kant
 ---
 
 ## ✅ Erledigt (autonom, ohne Keys/Kosten)
+- Brücke als **Routenplaner**: bidirektionale Breitensuche mit Server-Sitzung
+  (/api/bridge + /step + /stop) — kürzeste Verbindung zuerst, bis zu 7 Zwischenstationen;
+  Fortschrittsbalken in der Brückenleiste, „Weitersuchen?"-Dialog nach 5/10/15/… Sekunden
+- Feature-Parität der Packs mit Like Music: leichtes `similar()` (schnellere Brücke)
+  und „Überrasch mich" (`surprise()` mit kuratiertem Seed-Pool) in allen 10 Domänen
 - Booking-Infos aus RA im Panel (Agentur/Kontakt, Region, Socials, Website)
 - „tritt auf?"-Badge (RA upcoming events) + grüner Punkt am Knoten
 - Genres für alle Acts (beim Anklicken via Last.fm-Tags nachgeladen)

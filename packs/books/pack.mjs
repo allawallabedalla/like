@@ -8,8 +8,24 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 import { similarByTaste, hasTastediveKey } from "../../lib/tastedive.mjs";
+import { surpriseFrom } from "../../lib/surprise.mjs";
 
 const OL = "https://openlibrary.org";
+
+// „Überrasch mich" (Kaltstart): kuratierter Pool leiserer Klassiker & Perlen quer durch
+// Genres/Epochen. surprise() nimmt das Buch mit der KLEINSTEN Merklisten-Nachfrage.
+const SURPRISE_SEEDS = [
+  "Stoner (John Williams)", "The Master and Margarita (Mikhail Bulgakov)", "Piranesi (Susanna Clarke)",
+  "The Vegetarian (Han Kang)", "Solaris (Stanisław Lem)", "Invisible Cities (Italo Calvino)",
+  "The Left Hand of Darkness (Ursula K. Le Guin)", "Kindred (Octavia E. Butler)",
+  "The Remains of the Day (Kazuo Ishiguro)", "Annihilation (Jeff VanderMeer)",
+  "Pedro Páramo (Juan Rulfo)", "The Book of Disquiet (Fernando Pessoa)", "Ficciones (Jorge Luis Borges)",
+  "The Hour of the Star (Clarice Lispector)", "Giovanni's Room (James Baldwin)",
+  "Wide Sargasso Sea (Jean Rhys)", "The Waves (Virginia Woolf)", "Hunger (Knut Hamsun)",
+  "The Blind Owl (Sadegh Hedayat)", "Ice (Anna Kavan)", "The Third Policeman (Flann O'Brien)",
+  "We (Yevgeny Zamyatin)", "Roadside Picnic (Arkady Strugatsky)", "The Summer Book (Tove Jansson)",
+  "Convenience Store Woman (Sayaka Murata)", "The Memory Police (Yoko Ogawa)", "Train Dreams (Denis Johnson)",
+];
 const FIELDS = "key,title,author_name,subject,ratings_count,want_to_read_count,first_publish_year,edition_count";
 
 const display = (d) => d.author_name?.length ? `${d.title} (${d.author_name[0]})` : d.title;
@@ -111,7 +127,7 @@ export default {
     ],
     radarTitle: "Radar — Buch-Geheimtipps",
     radarTogetherReason: "vom selben Autor wie dein Like",
-    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false },
+    features: { preview: false, radar: true, context: true, active: false, booking: false, tour: true, venues: false, surprise: true },
     key: null,
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -160,6 +176,40 @@ export default {
       return (j.docs || []).map(display).filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
     });
   },
+
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Subject-Nachbarn
+  // (+ optional TasteDive), ohne die Autoren-Werke — schneller als explore().
+  async similar(name, { limit = 20 } = {}) {
+    const doc = await searchDoc(name);
+    if (!doc) return { canonical: name, similar: [] };
+    const subjects = cleanSubjects(doc.subject);
+    const self = (t) => t && t.toLowerCase() === doc.title.toLowerCase();
+    const similar = [], seen = new Set();
+    for (const s of subjects.slice(0, 2)) {
+      try {
+        for (const w of await worksBySubject(s, { limit: 12 })) {
+          if (self(w.title)) continue;
+          const nm = w.author ? `${w.title} (${w.author})` : w.title;
+          const k = nm.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          similar.push({ name: nm, url: w.key ? OL + w.key : null, match: 0.55 });
+        }
+      } catch { /* Subject unbekannt -> weiter */ }
+    }
+    try {
+      for (const t of await similarByTaste(doc.title, "book", { limit: 10 })) {
+        const k = t.name.toLowerCase();
+        if (self(t.name) || seen.has(k)) continue;
+        seen.add(k);
+        similar.push({ name: t.name, url: null, match: 0.75 });
+      }
+    } catch {}
+    return { canonical: display(doc), similar: similar.slice(0, limit) };
+  },
+
+  // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
+  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
   async explore(name) {
     const doc = await searchDoc(name);
