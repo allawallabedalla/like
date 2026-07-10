@@ -1,9 +1,11 @@
-// packs/plants/pack.mjs — Pflanzen-Nachbarschaften über iNaturalist + GBIF (beide offen, kein Key).
+// packs/plants/pack.mjs — Pflanzen-Nachbarschaften über iNaturalist (offen, kein Key; GBIF
+// nur als externer Profil-Link, keine eigene API-Anbindung).
 //   blau   = botanisch verwandt (gleiche Gattung/Familie, via iNat-Taxonomie)
 //   orange = gedeiht am selben Standort (Ko-Okkurrenz: Pflanzen, die iNaturalist-Beobachter
-//            oft im selben Umkreis finden — teilen faktisch Klima/Boden, also ähnliche
-//            Standortansprüche). Echte strukturierte Wunsch-Bedingungen (Sonne/Boden/pH)
-//            gibt es frei nicht sauber; Ko-Okkurrenz ist der beste freie Proxy dafür.
+//            an mehreren, geografisch verteilten Fundorten dieser Art oft mit-beobachten —
+//            teilen faktisch Klima/Boden, also ähnliche Standortansprüche). Echte
+//            strukturierte Wunsch-Bedingungen (Sonne/Boden/pH) gibt es frei nicht sauber;
+//            Ko-Okkurrenz ist der beste freie Proxy dafür.
 // Popularität = observations_count (wie oft beobachtet/fotografiert).
 
 import { cached } from "../../lib/cache.mjs";
@@ -65,46 +67,77 @@ async function genusSiblings(taxon, { limit = 12 } = {}) {
   });
 }
 
-// Standort-Nachbarn (Ko-Okkurrenz): Pflanzen, die im selben Umkreis wachsen wie diese —
-// also ähnliche Klima-/Bodenbedingungen mögen. Zwei Schritte, beide gecacht:
-//   1) einen repräsentativen Fundort der Art holen (gut belegte Beobachtung mit Koordinaten)
-//   2) im Umkreis die häufigsten ANDEREN Pflanzenarten zählen (species_counts) = Standortgemeinschaft
-// count = Beobachtungen der Nachbar-Art in der Region -> Kantengewicht (häufiger = dicker).
+// Kilometer zwischen zwei Koordinaten (Haversine) — hier nur für einen Mindestabstand
+// zwischen Fundorten gebraucht, keine Präzisionsanforderung.
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Bis zu `n` geografisch verteilte, gut belegte Fundorte der Art (Research-Grade, mit
+// Koordinaten) — statt nur des EINEN "besten" Funds. Ein einzelner Fundort ist bei
+// Kosmopoliten (z.B. Löwenzahn) willkürlich: die Flora um zufällig genau diesen einen Park
+// sagt wenig über die Art allgemein. Kandidaten mit Mindestabstand zueinander auswählen,
+// damit die Fundorte tatsächlich unterschiedliche Regionen/Klimazonen abdecken.
+async function representativeLocations(taxonId, { n = 3, minSepKm = 80 } = {}) {
+  const u = new URL(INAT + "/observations");
+  u.searchParams.set("taxon_id", String(taxonId));
+  u.searchParams.set("quality_grade", "research");
+  u.searchParams.set("geo", "true");
+  u.searchParams.set("order_by", "votes");
+  u.searchParams.set("per_page", "20"); // Kandidatenpool, daraus verteilte auswählen
+  const results = (await jfetch(u.href)).results || [];
+  const locs = [];
+  for (const obs of results) {
+    const loc = obs?.location; if (!loc) continue;
+    const [lat, lng] = loc.split(",").map(Number);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (locs.every((p) => haversineKm(p.lat, p.lng, lat, lng) >= minSepKm)) locs.push({ lat, lng });
+    if (locs.length >= n) break;
+  }
+  return locs;
+}
+
+// Standort-Nachbarn (Ko-Okkurrenz): Pflanzen, die an MEHREREN, weit auseinanderliegenden
+// Fundorten dieser Art mit-beobachtet werden — also wirklich die Standortansprüche teilen,
+// nicht nur zufällig am selben einzelnen Ort wachsen. Rang: an mehreren Fundorten gesehen
+// ("hits") schlägt einen einzelnen Treffer; bei Gleichstand mehr Beobachtungen zuerst.
+// count = aufsummierte Beobachtungen der Nachbar-Art -> Kantengewicht (häufiger = dicker).
 async function sameHabitat(taxon, { limit = 12 } = {}) {
   const genus = (taxon.ancestors || []).find((a) => a.rank === "genus");
   return cached("inat-habitat", taxon.id + "|" + limit, 14 * 864e5, async () => {
     try {
-      // repräsentativen Fundort suchen (Research-Grade, mit Geokoordinaten)
-      const ou = new URL(INAT + "/observations");
-      ou.searchParams.set("taxon_id", String(taxon.id));
-      ou.searchParams.set("quality_grade", "research");
-      ou.searchParams.set("geo", "true");
-      ou.searchParams.set("order_by", "votes");
-      ou.searchParams.set("per_page", "1");
-      const obs = (await jfetch(ou.href)).results?.[0];
-      const loc = obs?.location; // "lat,lng"
-      if (!loc) return [];
-      const [lat, lng] = loc.split(",");
-      // häufigste Pflanzen im Umkreis (~60 km) — die Standortgemeinschaft
-      const su = new URL(INAT + "/observations/species_counts");
-      su.searchParams.set("lat", lat);
-      su.searchParams.set("lng", lng);
-      su.searchParams.set("radius", "60");
-      su.searchParams.set("iconic_taxa", "Plantae");
-      su.searchParams.set("quality_grade", "research");
-      su.searchParams.set("per_page", String(limit + 6));
-      su.searchParams.set("locale", "de");
-      const j = await jfetch(su.href);
-      const out = [];
-      for (const r of j.results || []) {
-        const t = r.taxon;
-        if (!t || t.id === taxon.id) continue;
-        if (genus && (t.ancestor_ids || []).includes(genus.id)) continue; // eigene Gattung ist schon "verwandt" (blau)
-        if (t.rank !== "species") continue;
-        out.push({ taxon: t, count: r.count || 1 });
-        if (out.length >= limit) break;
+      const locs = await representativeLocations(taxon.id, { n: 3, minSepKm: 80 });
+      if (!locs.length) return [];
+      const cand = new Map(); // taxonId -> { taxon, count, hits }
+      for (const { lat, lng } of locs) {
+        try {
+          const su = new URL(INAT + "/observations/species_counts");
+          su.searchParams.set("lat", lat);
+          su.searchParams.set("lng", lng);
+          su.searchParams.set("radius", "60");
+          su.searchParams.set("iconic_taxa", "Plantae");
+          su.searchParams.set("quality_grade", "research");
+          su.searchParams.set("per_page", "40"); // größerer Pool je Standort, nach Filtern bleibt genug übrig
+          su.searchParams.set("locale", "de");
+          const j = await jfetch(su.href);
+          for (const r of j.results || []) {
+            const t = r.taxon;
+            if (!t || t.id === taxon.id) continue;
+            if (genus && (t.ancestor_ids || []).includes(genus.id)) continue; // eigene Gattung ist schon "verwandt" (blau)
+            if (t.rank !== "species") continue;
+            const rec = cand.get(t.id) || { taxon: t, count: 0, hits: 0 };
+            rec.count += r.count || 1; rec.hits++;
+            cand.set(t.id, rec);
+          }
+        } catch { /* ein Fundort ohne Antwort -> mit den übrigen weiter */ }
       }
-      return out;
+      return [...cand.values()]
+        .sort((a, b) => b.hits - a.hits || b.count - a.count)
+        .slice(0, limit)
+        .map((r) => ({ taxon: r.taxon, count: r.count }));
     } catch { return []; }
   });
 }

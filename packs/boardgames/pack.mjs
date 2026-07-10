@@ -1,6 +1,7 @@
 // packs/boardgames/pack.mjs — Brettspiel-Nachbarschaften über BoardGameGeek XMLAPI2
-// (offen, kein Key; liefert XML). "Ähnlich" gibt es bei BGG nicht als API, deshalb:
-//   blau   = geteilte Mechaniken/Kategorien (BGG "boardgamemechanic"/-category)
+// (offen, kein Key; liefert XML). "Ähnlich" gibt es dort nicht als offizielle API, deshalb:
+//   blau   = "Fans Also Like" (BGGs eigene, verhaltensbasierte Empfehlung; inoffizielles
+//            JSON-API, Fallback bei Nichttreffer: geteilte BGG-Familie/Serie)
 //   orange = vom selben Designer / Verlag
 // Popularität = usersrated (wie viele Menschen es bewertet haben).
 
@@ -70,13 +71,13 @@ export default {
     brand: "like",
     item: { sing: "Spiel", plur: "Spiele" },
     searchPlaceholder: "Brettspiel suchen…   ( / )",
-    searchTitle: "Brettspiel bei BoardGameGeek suchen — lädt mechanisch Ähnliches + vom selben Designer (Taste /)",
-    goTitle: "Spiel laden: geteilte Mechaniken + vom selben Designer/Verlag + Kategorien",
+    searchTitle: "Brettspiel bei BoardGameGeek suchen — lädt Fans-mögen-auch + vom selben Designer (Taste /)",
+    goTitle: "Spiel laden: Fans mögen auch + vom selben Designer/Verlag + Kategorien",
     exampleSeed: "Catan (1995)",
     emptyTitle: "Noch keine Spiele auf der Karte",
-    emptyHint: "bringt gleich sein Umfeld mit: mechanisch Ähnliches + vom selben Designer.",
+    emptyHint: "bringt gleich sein Umfeld mit: Fans-mögen-auch + vom selben Designer.",
     edges: {
-      similar: { label: "geteilte Mechaniken (BGG)", count: "ähnliche" },
+      similar: { label: "Fans mögen auch (BGG)", count: "ähnliche" },
       together: { label: "vom selben Designer/Verlag", count: "vom selben Designer" },
     },
     popularity: { label: "Bewertungen", big: 20000, dimLabel: "Hits dämpfen", dimTitle: "Spiele mit ≥20k BGG-Bewertungen abdunkeln — nur die Geheimtipps leuchten" },
@@ -90,7 +91,7 @@ export default {
     ],
     noteLabel: "Notiz",
     notePlaceholder: "Spieleranzahl, wo gespielt, Eindruck…",
-    similarLabel: "Geteilte Mechaniken",
+    similarLabel: "Fans mögen auch",
     togetherLabel: "Vom selben Designer/Verlag",
     contextLabel: "Mehr vom Designer",
     contextHint: "(BGG)",
@@ -111,11 +112,11 @@ export default {
       "Spiel": "Game",
       "Spiele": "Games",
       "Brettspiel suchen…   ( / )": "Search board game…   ( / )",
-      "Brettspiel bei BoardGameGeek suchen — lädt mechanisch Ähnliches + vom selben Designer (Taste /)": "Search board game on BoardGameGeek - loads mechanically similar games + by the same designer (key /)",
-      "Spiel laden: geteilte Mechaniken + vom selben Designer/Verlag + Kategorien": "Load game: shared mechanics + by the same designer/publisher + categories",
+      "Brettspiel bei BoardGameGeek suchen — lädt Fans-mögen-auch + vom selben Designer (Taste /)": "Search board game on BoardGameGeek - loads fans-also-like + by the same designer (key /)",
+      "Spiel laden: Fans mögen auch + vom selben Designer/Verlag + Kategorien": "Load game: fans also like + by the same designer/publisher + categories",
       "Noch keine Spiele auf der Karte": "No games on the map yet",
-      "bringt gleich sein Umfeld mit: mechanisch Ähnliches + vom selben Designer.": "brings its surroundings along: mechanically similar games + by the same designer.",
-      "geteilte Mechaniken (BGG)": "shared mechanics (BGG)",
+      "bringt gleich sein Umfeld mit: Fans-mögen-auch + vom selben Designer.": "brings its surroundings along: fans-also-like + by the same designer.",
+      "Fans mögen auch (BGG)": "fans also like (BGG)",
       "ähnliche": "similar",
       "vom selben Designer/Verlag": "by the same designer/publisher",
       "vom selben Designer": "by the same designer",
@@ -130,7 +131,7 @@ export default {
       "nichts für mich": "not for me",
       "Notiz": "Note",
       "Spieleranzahl, wo gespielt, Eindruck…": "Player count, where played, impression…",
-      "Geteilte Mechaniken": "Shared mechanics",
+      "Fans mögen auch": "Fans also like",
       "Vom selben Designer/Verlag": "By the same designer/publisher",
       "Mehr vom Designer": "More from the designer",
       "Designer-Umfeld laden": "Load designer context",
@@ -153,8 +154,8 @@ export default {
     });
   },
 
-  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur die BGG-Familien,
-  // ohne Designer-Werke — schneller als explore().
+  // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): „Fans Also Like", sonst
+  // BGG-Familien als Fallback — schneller als explore() (keine Designer-Werke).
   async similar(name, { limit = 20 } = {}) {
     const id = await searchGame(name);
     if (!id) return { canonical: name, similar: [] };
@@ -162,15 +163,23 @@ export default {
     if (!item) return { canonical: name, similar: [] };
     const nm = primaryName(item);
     const similar = [], seen = new Set([nm.toLowerCase()]);
-    for (const fam of linksOf(item, "boardgamefamily").slice(0, 2)) {
-      try {
-        for (const g of await familyMembers(fam.id, { limit: 10 })) {
-          const k = g.name.toLowerCase();
-          if (seen.has(k)) continue;
-          seen.add(k);
-          similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.6 });
-        }
-      } catch { /* Familie nicht auflösbar -> weiter */ }
+    for (const g of await fansAlsoLike(id, { limit })) {
+      const k = g.name.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.7 });
+    }
+    if (!similar.length) {
+      for (const fam of linksOf(item, "boardgamefamily").slice(0, 2)) {
+        try {
+          for (const g of await familyMembers(fam.id, { limit: 10 })) {
+            const k = g.name.toLowerCase();
+            if (seen.has(k)) continue;
+            seen.add(k);
+            similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.6 });
+          }
+        } catch { /* Familie nicht auflösbar -> weiter */ }
+      }
     }
     return { canonical: display(nm, yearOf(item)), similar: similar.slice(0, limit) };
   },
@@ -191,18 +200,28 @@ export default {
 
     const seen = new Set([nm.toLowerCase()]);
 
-    // blau: Spiele derselben BGG-Familie (Serie/Thema — z.B. alle Catan-Ableger) über
-    // den offiziellen /family-Endpunkt; das ist BGGs verlässlichste "verwandt"-Liste.
+    // blau: „Fans Also Like" (BGGs eigene, verhaltensbasierte Empfehlung) — findet echte
+    // Geschmacksnachbarn statt nur Serien-Ableger. Inoffizielles API, defensiv: liefert es
+    // nichts (Formatänderung/Nichttreffer), fällt explore() auf die BGG-Familie zurück
+    // (Serie/Thema, z.B. alle Catan-Ableger — über den offiziellen /family-Endpunkt).
     const similar = [];
-    for (const fam of linksOf(item, "boardgamefamily").slice(0, 2)) {
-      try {
-        for (const g of await familyMembers(fam.id, { limit: 10 })) {
-          const k = g.name.toLowerCase();
-          if (seen.has(k)) continue;
-          seen.add(k);
-          similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.6 });
-        }
-      } catch { /* Familie nicht auflösbar -> weiter */ }
+    for (const g of await fansAlsoLike(id, { limit: 15 })) {
+      const k = g.name.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.7 });
+    }
+    if (!similar.length) {
+      for (const fam of linksOf(item, "boardgamefamily").slice(0, 2)) {
+        try {
+          for (const g of await familyMembers(fam.id, { limit: 10 })) {
+            const k = g.name.toLowerCase();
+            if (seen.has(k)) continue;
+            seen.add(k);
+            similar.push({ name: g.name, url: `https://boardgamegeek.com/boardgame/${g.id}`, match: 0.6 });
+          }
+        } catch { /* Familie nicht auflösbar -> weiter */ }
+      }
     }
 
     // orange: weitere Spiele des ersten Designers
@@ -283,6 +302,29 @@ async function familyMembers(familyId, { limit = 10 } = {}) {
       .filter((l) => l.inbound === "true")
       .slice(0, limit)
       .map((l) => ({ id: l.id, name: decode(l.value) }));
+  });
+}
+
+// "Fans Also Like" (das Empfehlungs-Widget auf der BGG-Spielseite) gibt es in der XMLAPI2
+// nicht; dieselbe geekdo-JSON-API wie gamesByDesigner() liefert es unter einem anderen
+// Endpunkt. Inoffiziell — nur lesend, gecacht, fällt bei Formatänderungen/Nichttreffer
+// still auf [] zurück (dann greift explore()/similar() auf die BGG-Familie zurück).
+async function fansAlsoLike(gameId, { limit = 12 } = {}) {
+  return cached("bgg-recs", gameId + "|" + limit, 14 * 864e5, async () => {
+    try {
+      const u = new URL("https://api.geekdo.com/api/geekitemrecs");
+      u.searchParams.set("ajax", "1");
+      u.searchParams.set("objectid", String(gameId));
+      u.searchParams.set("objecttype", "thing");
+      u.searchParams.set("pageid", "1");
+      const j = await jfetch(u.href, { gapMs: 400 });
+      // Antwortform nicht offiziell dokumentiert -> mehrere plausible Formen abfangen.
+      const raw = j.items || j.recommendations?.items || j.similaritems?.items || [];
+      return raw
+        .filter((it) => (it.objectid || it.id) && it.name)
+        .slice(0, limit)
+        .map((it) => ({ id: String(it.objectid || it.id), name: it.name }));
+    } catch { return []; }
   });
 }
 
