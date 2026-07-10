@@ -53,6 +53,18 @@ Hier stehen die bewusst zurückgestellten, größeren Punkte.
   (Nachbarn folgen proportional zur Verbindungsstärke und pendeln sich natürlich ein),
   damit unverbundene Knoten liegen bleiben und sich Cluster nicht verzerren.
 
+- [ ] **F8 — Brückenbauer: ganze Brücke einfügen + im Anything-Pack reparieren.**
+  Zwei Baustellen: (1) Im Music-Pack scheint der Brückenbauer zu funktionieren, im
+  Anything-Pack (Wikipedia) findet er nichts — Ursache klären (vermutlich nutzt die
+  Brückensuche pack-spezifische Ähnlichkeits-Aufrufe, die bei „anything" fehlen oder
+  anders heißen) und für alle Packs lauffähig machen. (2) Sobald eine Brücke gefunden
+  ist, soll die **komplette Kette** von A nach B dargestellt und in den Graphen
+  eingefügt werden — alle Zwischenglieder mit ihren Kanten, nicht nur ein einzelner
+  „Missing-Link"-Act. Auf eine ansprechende, zur App passende Umsetzung achten:
+  die Brücke als zusammenhängender Pfad sichtbar machen (z. B. Glieder nacheinander
+  einblenden und den Pfad kurz hervorheben, im Stil der bestehenden Spawn-Kaskade),
+  damit sie sich wie ein gebauter Weg anfühlt und nicht wie lose neue Knoten.
+
 ---
 
 ## Arbeitsweise
