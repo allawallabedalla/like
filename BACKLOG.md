@@ -1,35 +1,51 @@
-# BACKLOG — Runde 5 (Spawn, Suche, Brücken, Quellen, Sortier-Knopf)
+# BACKLOG — Runde 6 (Audit-Reste: Locks, Auth, tote Pfade, A11y)
 
-**Angelegt:** 2026-07-08 08:36 CEST (06:36 UTC)
-**Branch:** `claude/chat-crash-unresponsive-aya13j` → PR nach `main` (nicht ungefragt mergen).
+**Angelegt:** 2026-07-10 (UTC)
+**Kontext:** Befunde aus dem Code-Audit vom 10.07. Die dringlichen Fixes (Radar-Cache-Leak,
+Session-Reset, stats.json-Lock, CSV-Injection, Cache-Kollisionen, UI-Races) liegen bereits
+auf `claude/pitch-markdown-review-e78so1` → PR nach `main` (nicht ungefragt mergen).
+Hier stehen die bewusst zurückgestellten, größeren Punkte.
 
 ---
 
 ## Punkte
 
-- [x] **E1 — Deploy-Nachverfolgung.** PR- bzw. Commit-Ref im Footer UND in der App (verlinkt auf GitHub). LIKE_BUILD_PR="17" -> "PR #17"; sonst RENDER_GIT_COMMIT -> Kurz-SHA + Commit-Link.
-  Impressum · Datenschutz". Unklar, was „überall den PR# einfügen" meint — mit dir klären.
+- [ ] **F1 — /api/auto & /api/scrape: Lock-Blockade + Ergebnis verpufft.** Beide Endpoints
+  scrapen minutenlang Wikipedia **innerhalb** von `withGraphLock(GRAPH)` — solange stehen
+  /api/explore, Notizen usw. für diesen Graphen in der Warteschlange (explore vermeidet das
+  bewusst). Obendrein löscht `migrate()` in `lib/store.mjs` bei jedem `loadGraph` genau die
+  Felder wieder (`events`, `a.bl`, `a.wikiChecked`), die diese Endpoints persistieren — sie
+  liefern `ok:true`, aber das Ergebnis taucht nie dauerhaft auf. Entscheiden: Endpoints
+  entfernen ODER reparieren (Netzaufrufe vor den Lock ziehen, migrate() nicht mehr wischen).
 
-- [x] **E2 — Spawn-Stagger kontinuierlich.** Der zeitversetzte Fade-in klappt noch nicht: aktuell
-  sind zwei sofort da und der Rest fadet als Klumpen rein. Es soll ein KONTINUIERLICHES, nach-
-  einander „Mehr-Erscheinen" sein (Kaskade), nicht Batch.
+- [ ] **F2 — Login blockiert den Event-Loop.** `scryptSync` in `lib/auth.mjs` friert den
+  Single-Process-Server bei jedem Register/Login/Reset für zig Millisekunden ein (Register
+  hasht doppelt, Reset bis zu dreifach) — die Drossel lässt global 240 Versuche/5 min zu.
+  Auf promisified `scrypt` (async) umstellen; Call-Sites in `server.mjs` mitziehen.
 
-- [x] **E3 — Neuer Such-Artist landet teils sehr weit weg.** Suche zentriert zwar schön, aber der
-  neu eingefügte Artist liegt manchmal weit draußen. Platzierung prüfen & korrigieren (Seed +
-  seine neuen Nachbarn sinnvoll um die Mitte gruppieren).
+- [ ] **F3 — „Gemerkte Ansicht" ist Schreib-Leiche (v1.6-Regression).** `like_view` wird bei
+  unload/hide in localStorage gespeichert, aber nirgends mehr eingelesen — der Start ruft
+  immer `fitAll()`. Entweder nach dem ersten `rebuild()` wiederherstellen (fitAll dann
+  überspringen) oder Speichern + ROADMAP-Eintrag entfernen.
 
-- [x] **E4 — Brücke bauen defekt + findet wenig.** Brücke zwischen zwei noch unverknüpften Acts
-  klappt nicht: Meldung „sind schon auf der Karte", aber kein verbindendes Netz sichtbar. Zudem
-  findet der Brückenbauer wenig — nachschärfen.
+- [ ] **F4 — Tote Arbeit auf jedem Landing-Aufruf.** `server.mjs` und `export-static.mjs`
+  berechnen pro `GET /` für ALLE Packs Mini-Cluster-SVGs (`miniCluster`) und übergeben
+  `mini`, `lib/landing.mjs` rendert sie aber nie (auch `cardSub` ungenutzt). Dazu tote
+  `.themetgl`-CSS-Regeln und ein `#egBtn`-Listener ohne zugehöriges Element in
+  `public/index.html`. Rausnehmen — oder die Minis tatsächlich rendern (hübsch wär's).
 
-- [x] **E5 — Co-Auftritt-Quellen für nicht-elektronische Acts.** RA ist elektronik-lastig; für
-  andere Genres große Lücken bei „zusammen aufgetreten". Woher sonst? (Setlist.fm/Songkick/
-  Bandsintown prüfen — was ohne Key/kostenlos geht.)
+- [ ] **F5 — Modal-Zugänglichkeit.** Kein Modal hat `role="dialog"`/`aria-modal`; Tab wandert
+  hinter dem Overlay durch die Seite. Außerdem blockiert `user-scalable=no, maximum-scale=1`
+  im Viewport-Meta das Pinch-Zoomen der Text-Panels (Android) — die Canvas-Gesten sind über
+  `touch-action: none` ohnehin abgedeckt, die Einschränkung ist unnötig.
 
-- [x] **E6 — „Netz sortieren" in die Titelleiste.** Aktuell im Entdecken-Menü (schwer zu finden,
-  wirkt „hinter den Venues"). Als eigener Knopf oben in die Topbar (zu ?/⋯ usw.).
+- [ ] **F6 — Radar-Kandidaten: Popularitäts-Lookups drosseln/parallelisieren.** Der Radar
+  holt bis zu 25 Hörerzahlen **sequenziell** pro Aufruf (nach Cache-Miss) — das ist der
+  Hauptgrund, warum er sich träge anfühlt. Mit `Promise.allSettled` in 4er-Häppchen (Last.fm-
+  Drossel beachten) wäre er spürbar schneller.
 
 ---
 
 ## Arbeitsweise
-Punkt für Punkt, Haken setzen, im Browser verifizieren wo möglich. Sinnvolle Commits, dann PR.
+Punkt für Punkt, Haken setzen, im Browser bzw. per Suite (`npm run test:ci`) verifizieren.
+Sinnvolle Commits, dann PR — nicht ungefragt mergen.
