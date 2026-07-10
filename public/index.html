@@ -1245,6 +1245,14 @@ const T = LANG !== "en" ? null : {
   "Brücke-Suche nur im lokalen Tool": "Bridge search only in the local tool",
   "Server nicht erreichbar — leer gestartet. Später neu laden.": "Server unreachable — started empty. Reload later.",
   "Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)": "Preview can't play (the browser blocked playback)",
+  "Notiz gespeichert": "Note saved", "Wiederhergestellt": "Restored", "Geleert.": "Cleared.",
+  "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
+  "klein": "small",
+  "1 unverknüpften Act von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.": "Remove 1 unconnected act from the map?\nSearched, booked/noted acts stay.",
+  "{N} unverknüpfte Acts von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.": "Remove {N} unconnected acts from the map?\nSearched, booked/noted acts stay.",
+  "Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)": "Use your current location as home?\n(Cancel = type a place)",
+  "Heimatort: {N} — neu geladene Ziele rechnen ab hier": "Home: {N} — newly loaded destinations measure from here",
+  "Heimatort: dein Standort — neu geladene Ziele rechnen ab hier": "Home: your location — newly loaded destinations measure from here",
   "Gerade keine Überraschung zur Hand": "No surprise at hand right now",
   "Überraschung fehlgeschlagen": "Surprise failed",
   "Erst ein paar Einträge laden — dann gibt's was zu entdecken.": "Load a few entries first — then there's something to discover.",
@@ -1618,7 +1626,7 @@ function applyCfg() {
     const share = $("shareBtn");
     $("focusBtn").replaceWith(share);
     share.classList.remove("iconbtn", "shareicon");
-    share.appendChild(document.createTextNode(" Teilen"));
+    share.appendChild(document.createTextNode(" " + t("Teilen")));
     // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst
     // „Überrasch mich" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile).
     const db = $("discoverBtn");
@@ -1805,12 +1813,16 @@ async function togglePreview(name) {
     // Hörerzahl des Acts mitgeben -> Server kann berühmte Namensvetter erkennen (C6-Plausi-Check)
     const node = nodes.find(n => n.name === name);
     const res = await API.preview(name, node && typeof node.listeners === "number" ? node.listeners : null);
+    // Inzwischen ein anderer ▶ gedrückt? Dann diese (veraltete) Antwort verwerfen — sonst
+    // überschriebe die langsame Antwort von Act A die längst laufende Klangprobe von Act B.
+    if (previewName !== name) return;
     if (!res.ok || !res.url) { toast(tf(`Keine Klangprobe für „{N}" gefunden`, { N: name })); previewName = null; refreshPreviewButtons(); return; }
     previewLabel = `${res.artist || name}${res.track ? " — " + res.track : ""}`;
     audio.src = res.url; audio.currentTime = 0;
     await audio.play();
     toast(`▶ ${previewLabel} (30 s)`);
   } catch {
+    if (previewName !== name) return; // Fehler einer veralteten Anfrage: neueren Zustand nicht anfassen
     toast("Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)"); previewName = null; refreshPreviewButtons(); updateNowPlaying();
   }
 }
@@ -3597,6 +3609,9 @@ async function drainExpandQueue() {
   let processed = 0;
   try {
     while (expandQueue.length) {
+      // Läuft gerade eine Suche/ein anderer Ausbau, würde exploreByName den Klick still
+      // verwerfen (busy-Guard) — kurz warten statt gesammelte ＋-Klicks zu verlieren.
+      if (busy) { await new Promise((r) => setTimeout(r, 300)); continue; }
       const item = expandQueue.shift();
       processed++;
       const selectNow = expandQueue.length === 0 && processed > 1; // Info nur beim letzten, nur bei Mehrfach
@@ -3629,7 +3644,7 @@ document.getElementById("pruneOrphans").onclick = async () => {
   const orphans = nodes.filter(n => !n.venue && !linked.has(n.id) && !n.seed && !n.status && !n.note && !n.known);
   if (!orphans.length) { toast("Keine unverknüpften Acts — alles hängt zusammen."); return; }
   const n = orphans.length;
-  if (!confirm(`${n} unverknüpfte${n === 1 ? "n Act" : " Acts"} von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.`)) return;
+  if (!confirm(n === 1 ? t("1 unverknüpften Act von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.") : tf("{N} unverknüpfte Acts von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.", { N: n }))) return;
   const res = await API.reset("discovered");
   if (res.error) { toast("Fehler: " + res.error); return; }
   graph = res.graph; rebuild(new Map(nodes.map(x => [x.id, x])));
@@ -3638,7 +3653,11 @@ document.getElementById("pruneOrphans").onclick = async () => {
 
 function doSearch() {
   const v = document.getElementById("q").value.trim();
-  if (v) { closeSug(); document.getElementById("q").value = ""; exploreByName(v); }
+  if (!v) return;
+  // Läuft gerade ein Ausbau, würde exploreByName die Suche still verwerfen — dann die
+  // Eingabe NICHT leeren (sonst ist die getippte Suche weg), sondern kurz Bescheid geben.
+  if (busy) { toast("Es lädt gerade noch — gleich nochmal auf Enter drücken."); return; }
+  closeSug(); document.getElementById("q").value = ""; exploreByName(v);
 }
 document.getElementById("go").onclick = doSearch;
 
@@ -3798,7 +3817,7 @@ function showBridgeBar() {
   const bar = document.getElementById("bridgebar");
   document.getElementById("bridgeTitle").textContent = tf("Brücke: {A} → {B}", { A: bridge.a.name, B: bridge.b.name });
   // "spannend" heißt klein — beim Musik-Pack "Hörer", sonst der Popularitätsbegriff des Packs
-  document.getElementById("bridgeSpicy").textContent = CFG.popularity ? "klein" : "spannend";
+  document.getElementById("bridgeSpicy").textContent = t(CFG.popularity ? "klein" : "spannend");
   const sl = document.getElementById("bridgeSlider"); sl.value = Math.round(bridge.sort * 100);
   bar.classList.add("show");
 }
@@ -3895,13 +3914,22 @@ document.getElementById("bridgeSlider").oninput = (e) => { if (bridge) { bridge.
 function removeNode(n) { selected = n; document.getElementById("removeAct").click(); }
 
 // ---- Autocomplete ----
-const sugEl = document.getElementById("suggest"); let sugItems = [], sugIdx = -1, sugTimer = null;
+const sugEl = document.getElementById("suggest"); let sugItems = [], sugIdx = -1, sugTimer = null, sugSeq = 0;
 const qEl = document.getElementById("q");
 qEl.addEventListener("input", () => {
   if (STATIC) return;
   clearTimeout(sugTimer); const v = qEl.value.trim();
   if (v.length < 2) { closeSug(); return; }
-  sugTimer = setTimeout(async () => { const r = await API.suggest(v); sugItems = r.names || []; sugIdx = -1; renderSug(); }, 200);
+  sugTimer = setTimeout(async () => {
+    const seq = ++sugSeq;
+    try {
+      const r = await API.suggest(v);
+      // Nur die Antwort auf die NEUESTE Eingabe anzeigen — sonst überschreiben langsame, alte
+      // Antworten die frischen Vorschläge oder öffnen das Dropdown über einem geleerten Feld.
+      if (seq !== sugSeq || qEl.value.trim() !== v) return;
+      sugItems = r.names || []; sugIdx = -1; renderSug();
+    } catch { /* Vorschläge sind optional — Netzfehler still ignorieren */ }
+  }, 200);
 });
 function renderSug() {
   if (!sugItems.length) { closeSug(); return; }
@@ -3910,7 +3938,7 @@ function renderSug() {
   sugEl.querySelectorAll("div").forEach(d => d.onmousedown = (e) => { e.preventDefault(); chooseSug(+d.dataset.i); });
 }
 function closeSug() { sugEl.classList.remove("open"); sugItems = []; sugIdx = -1; }
-function chooseSug(i) { const n = sugItems[i]; if (n) { qEl.value = ""; closeSug(); exploreByName(n); } }
+function chooseSug(i) { const n = sugItems[i]; if (!n) return; if (busy) { toast("Es lädt gerade noch — gleich nochmal auf Enter drücken."); return; } qEl.value = ""; closeSug(); exploreByName(n); }
 qEl.addEventListener("keydown", (e) => {
   if (sugEl.classList.contains("open")) {
     if (e.key === "ArrowDown") { e.preventDefault(); sugIdx = Math.min(sugIdx + 1, sugItems.length - 1); renderSug(); return; }
@@ -4000,7 +4028,7 @@ async function runRadar(force) {
         const n = nodeById.get(b.dataset.id);
         toggleBasket(n);
         const on = basket.has(n.id);
-        b.classList.toggle("liked", on); b.textContent = on ? "✓ Lineup" : "like!";
+        b.classList.toggle("liked", on); b.textContent = on ? `✓ ${CFG.basketLabel || "Lineup"}` : (CFG.likeLabel || "like!");
         b.title = on ? tf("Im {B} — klick zum Entfernen", { B: CFG.basketLabel || "Lineup" }) : tf("{L} — in dein {B}", { L: CFG.likeLabel || "like!", B: CFG.basketLabel || "Lineup" });
       } else {
         // noch nicht auf der Karte: erst laden, dann liken (Graph ändert sich ohnehin)
@@ -4452,11 +4480,11 @@ function refreshHomeLabel() { const el = document.getElementById("homeLabel"); i
 async function promptTypedHome() {
   const q = prompt(t("Heimatort eingeben (z. B. „Wien, Österreich“):")); if (!q) return;
   let r = null; try { r = await GET("/api/geocode?q=" + encodeURIComponent(q)); } catch {}
-  if (r && r.ok) { localStorage.setItem("like_travel_home", JSON.stringify({ name: r.name, lat: r.lat, lon: r.lon })); toast("Heimatort: " + r.name + " — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); }
+  if (r && r.ok) { localStorage.setItem("like_travel_home", JSON.stringify({ name: r.name, lat: r.lat, lon: r.lon })); toast(tf("Heimatort: {N} — neu geladene Ziele rechnen ab hier", { N: r.name })); refreshHomeLabel(); }
   else toast("Ort nicht gefunden");
 }
 function setTravelHome() {
-  if (navigator.geolocation && confirm("Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)")) {
+  if (navigator.geolocation && confirm(t("Deinen aktuellen Standort als Heimatort verwenden?\n(Abbrechen = Ort eintippen)"))) {
     navigator.geolocation.getCurrentPosition(
       (pos) => { localStorage.setItem("like_travel_home", JSON.stringify({ name: t("Mein Standort"), lat: pos.coords.latitude, lon: pos.coords.longitude })); toast("Heimatort: dein Standort — neu geladene Ziele rechnen ab hier"); refreshHomeLabel(); },
       () => promptTypedHome());
@@ -4506,6 +4534,7 @@ function openAuth(mode) {
   else { T.textContent = t("Passwort zurücksetzen"); intro.textContent = t("Nutzername, Recovery-Code und neues Passwort eingeben."); sub.textContent = t("Zurücksetzen");
     sw.innerHTML = `<a data-m="login" style="cursor:pointer;text-decoration:underline">${t("Zurück zum Anmelden")}</a>`; }
   sw.querySelectorAll("[data-m]").forEach((a) => a.onclick = () => openAuth(a.dataset.m));
+  document.getElementById("authUser").focus(); // wie Key-/Feedback-Dialog: Fokus ins erste Feld
 }
 document.getElementById("authCancel").onclick = () => authModal.classList.remove("show");
 authModal.addEventListener("mousedown", (e) => { if (e.target === authModal) authModal.classList.remove("show"); });
@@ -4737,6 +4766,8 @@ addEventListener("keydown", (e) => {
   if (feedbackModal.classList.contains("show")) { if (e.key === "Escape") closeFeedback(); return; }
   if (authModal.classList.contains("show")) { if (e.key === "Escape") authModal.classList.remove("show"); return; }
   if (tasteModal && tasteModal.classList.contains("show")) { if (e.key === "Escape") tasteModal.classList.remove("show"); return; }
+  const supportEl = document.getElementById("supportModal");
+  if (supportEl && supportEl.classList.contains("show")) { if (e.key === "Escape") supportEl.classList.remove("show"); return; }
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }

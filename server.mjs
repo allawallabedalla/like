@@ -222,8 +222,10 @@ function datenschutzPage() {
 </div></body></html>`;
 }
 
-// Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO PACK.
-const radarCache = new Map(); // packId -> { at, key, payload }
+// Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO GRAPH-DATEI
+// (= pro Nutzer-Namensraum UND Pack). Nur nach Pack gekeyt würde ein Nutzer den gecachten
+// Radar eines anderen sehen, sobald die Like-Mengen-Schlüssel zufällig übereinstimmen.
+const radarCache = new Map(); // Graph-Pfad -> { at, key, payload }
 const RADAR_TTL = 10 * 60 * 1000;
 
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
@@ -619,8 +621,8 @@ const server = createServer(async (req, res) => {
     // zur gemeinsamen Zeitreihe bei -> der Trend wird viel schneller belastbar. (Die eigenen
     // Karten/Graphen bleiben natürlich pro Namensraum privat.)
     const STATS = dataFile(DATA_DIR, pack.id, "stats.json");
-    // Graph speichern UND den Radar-Cache dieses Packs verwerfen (nie veraltete Vorschläge).
-    const persist = (g) => { radarCache.delete(pack.id); return saveGraph(GRAPH, g); };
+    // Graph speichern UND den Radar-Cache dieses Graphen verwerfen (nie veraltete Vorschläge).
+    const persist = (g) => { radarCache.delete(GRAPH); return saveGraph(GRAPH, g); };
 
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       // Owner meldet sich einmalig per ?owner=<secret> ab -> Cookie setzen, sauber weiterleiten.
@@ -1017,8 +1019,13 @@ const server = createServer(async (req, res) => {
         if (patch.url && !a.url) { a.url = patch.url; changed = true; }
         if (patch.popularity) {
           if (a.listeners !== patch.popularity) { a.listeners = patch.popularity; changed = true; }
-          const stats = await loadStats(STATS);
-          if (addSnapshot(stats, id, patch.popularity)) await saveStats(STATS, stats);
+          // stats.json ist über alle Nutzer geteilt -> Lese-Ändern-Schreiben serialisieren,
+          // sonst überschreiben sich zwei gleichzeitige Requests gegenseitig (lost update).
+          const stats = await withGraphLock(STATS, async () => {
+            const st = await loadStats(STATS);
+            if (addSnapshot(st, id, patch.popularity)) await saveStats(STATS, st);
+            return st;
+          });
           growth = growthPerMonth(stats, id);
         }
         if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
@@ -1077,7 +1084,7 @@ const server = createServer(async (req, res) => {
       if (!likes.size) return send(res, 400, { error: M.empty });
 
       const cacheKey = [...likes].sort().join(",") + "|" + limit + "|" + lang + (fromVisible ? "|v:" + [...visSet].sort().join(",") : "");
-      const cached = radarCache.get(pack.id);
+      const cached = radarCache.get(GRAPH);
       if (!force && cached && cached.key === cacheKey && Date.now() - cached.at < RADAR_TTL) {
         return send(res, 200, { ...cached.payload, cached: true, computedAt: cached.at });
       }
@@ -1102,8 +1109,6 @@ const server = createServer(async (req, res) => {
       }
       const graphCands = [...cand.values()].sort((x, y) => y.closeness - x.closeness).slice(0, 30);
 
-      const stats = await loadStats(STATS);
-      let statsChanged = false;
       const popById = new Map();
       if (pack.popularity) {
         for (const c of graphCands.slice(0, 25)) {
@@ -1113,12 +1118,24 @@ const server = createServer(async (req, res) => {
             if (p) {
               if (a.listeners !== p) a.listeners = p; // nur in-memory: fürs Scoring/die Ausgabe unten
               popById.set(c.id, p);
-              if (addSnapshot(stats, c.id, p)) statsChanged = true;
             }
           } catch { /* ohne Popularität weiter */ }
         }
       }
-      if (statsChanged) await saveStats(STATS, stats);
+      // Snapshots erst NACH den Netzaufrufen und unter Lock: stats.json ist über alle Nutzer
+      // geteilt — unserialisiert verlöre einer von zwei gleichzeitigen Writes seine Snapshots.
+      let stats;
+      if (popById.size) {
+        stats = await withGraphLock(STATS, async () => {
+          const st = await loadStats(STATS);
+          let ch = false;
+          for (const [id, p] of popById) if (addSnapshot(st, id, p)) ch = true;
+          if (ch) await saveStats(STATS, st);
+          return st;
+        });
+      } else {
+        stats = await loadStats(STATS);
+      }
       // Hörerzahlen NACH id in den AKTUELLEN Graph mergen (unter Lock) — nie die alte Kopie
       // zurückschreiben, sonst überschriebe man parallel dazwischen erkundete Acts (lost update).
       if (popById.size) await withGraphLock(GRAPH, async () => {
@@ -1169,7 +1186,7 @@ const server = createServer(async (req, res) => {
         await writeJsonAtomic(DIGEST, dg);
       } catch {}
       const payload = { ok: true, likes: likes.size, fromVisible, radar, computedAt: Date.now() };
-      radarCache.set(pack.id, { at: payload.computedAt, key: cacheKey, payload });
+      radarCache.set(GRAPH, { at: payload.computedAt, key: cacheKey, payload });
       return send(res, 200, payload);
     }
 
@@ -1185,10 +1202,13 @@ const server = createServer(async (req, res) => {
       }
       let n = 0;
       if (popById.size) {
-        const stats = await loadStats(STATS);
-        let statsChanged = false;
-        for (const [id, p] of popById) if (addSnapshot(stats, id, p)) { statsChanged = true; n++; }
-        if (statsChanged) await saveStats(STATS, stats);
+        // stats.json ist über alle Nutzer geteilt -> Lese-Ändern-Schreiben serialisieren.
+        await withGraphLock(STATS, async () => {
+          const stats = await loadStats(STATS);
+          let statsChanged = false;
+          for (const [id, p] of popById) if (addSnapshot(stats, id, p)) { statsChanged = true; n++; }
+          if (statsChanged) await saveStats(STATS, stats);
+        });
         // Hörerzahlen nach id in den AKTUELLEN Graph mergen (unter Lock) — nicht die alte Kopie clobbern.
         await withGraphLock(GRAPH, async () => {
           const g = await loadGraph(GRAPH);
@@ -1309,7 +1329,10 @@ const server = createServer(async (req, res) => {
     // Markierte Einträge als CSV exportieren (Shortlist).
     if (req.method === "GET" && url.pathname === "/api/export.csv") {
       const g = await loadGraph(GRAPH);
-      const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      // Formel-Injection: Zellen, die mit = + - @ (oder Tab/CR) beginnen, würden Excel/
+      // LibreOffice als Formel ausführen — Namen/Notizen/Booking-Texte kommen aus externen
+      // Quellen bzw. Nutzereingaben, daher solche Zellen mit ' entschärfen.
+      const esc = (v) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
       const music = pack.config.features?.booking;
       const rows = [music
         ? ["Name", "Status", "Genres", "Region", "Aktiv", "Booking/Kontakt", "Notiz", "RA", "Soundcloud", "Instagram", "Website"]
