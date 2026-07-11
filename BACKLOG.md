@@ -190,16 +190,14 @@ CSV-Export, Space-Modus, Mobile-Tap, Konto-Validierung).
   ohne nachfolgende Mausbewegung. Live verifiziert (Tooltip verschwindet sofort, Klick auf
   alte Position trifft nichts mehr, Regressionssuite weiter grün).
 
-- [x] **Startup-Key-Dialog kann mitten in einer Aktion unangekündigt aufploppen — als
-  Rückfrage notiert, nicht verändert.** Fund während des Tests: der Last.fm-Key-Dialog kann
-  (unabhängig vom in dieser Runde gefixten Such-Fehler-Pfad, B1) auch über den separaten
-  Start-Health-Check (`startupTasks()`) aufgehen — asynchron, ohne festen Zeitpunkt, sobald
-  das Intro weg ist. Dabei legt sich ein vollflächiges Overlay über die Karte, das jede
-  Interaktion blockiert, mitten in einer bereits laufenden Aktion (z. B. während man gerade
-  einen Moduswechsel macht). Das ist kein eindeutiger Bug, sondern eine Designfrage: soll
-  der Startup-Check ganz entfallen (B1 deckt den eigentlichen Bedarfsmoment jetzt zuverlässig
-  ab), an eine bestimmte Nutzergeste gekoppelt werden, oder als nicht-blockierender Banner
-  statt Vollbild-Modal erscheinen? **Rückfrage an den Betreiber, bevor das geändert wird.**
+- [x] **Startup-Key-Dialog kann mitten in einer Aktion unangekündigt aufploppen — geklärt,
+  bewusst NICHT verändert.** Fund während des Tests: der Last.fm-Key-Dialog kann (unabhängig
+  vom in dieser Runde gefixten Such-Fehler-Pfad, B1) auch über den separaten Start-Health-Check
+  (`startupTasks()`) aufgehen — asynchron, sobald das Intro weg ist, als Vollbild-Overlay.
+  **Klärung:** Auf der echten Instanz ist `LASTFM_API_KEY` als Render-Secret hinterlegt
+  (`render.yaml`) — der Fall „kein Key" tritt für echte Nutzer der Produktivseite gar nicht
+  ein, betrifft nur Selbst-Hoster ohne eigenen Key (von der README als Anwendungsfall
+  vorgesehen). Auf Betreiber-Entscheidung: **so lassen wie es ist.**
 
 ### Geprüft, aber kein Bug (Fehlalarme dieser Runde — zur Nachvollziehbarkeit dokumentiert)
 - „Status-Feld leer bei Klick auf declined-Act" — Testartefakt: Klick landete (a) zunächst
