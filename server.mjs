@@ -1003,7 +1003,8 @@ const server = createServer(async (req, res) => {
       countUsage(url.pathname === "/api/expand" ? "expand" : "explore", pack.id);
       let r;
       // Netz-Aufruf BEWUSST außerhalb des Graph-Locks (langsame I/O soll den Mutex nicht halten).
-      try { r = await pack.explore(name, { home: reqHome(req) }); }
+      // lang: einzelne Packs richten Anbieter-Storefronts an der UI-Sprache aus (E14, Podcasts).
+      try { r = await pack.explore(name, { home: reqHome(req), lang: req.headers["x-like-lang"] === "en" ? "en" : "de" }); }
       catch (err) { return send(res, 502, { error: err.message }); }
       return withGraphLock(GRAPH, async () => {
         const g = await loadGraph(GRAPH);
