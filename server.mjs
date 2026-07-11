@@ -21,7 +21,7 @@ import { brotliCompressSync, gzipSync, constants as zlibConstants } from "node:z
 import { createHash, timingSafeEqual, randomUUID } from "node:crypto";
 // Konstantzeit-Vergleich (gegen Timing-Angriffe aufs Unlock-Passwort); längenverschieden -> false.
 const timingEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && timingSafeEqual(A, B); };
-import { readFile, writeFile, access, rename, mkdir } from "node:fs/promises";
+import { readFile, writeFile, access, rename, mkdir, readdir, rm, stat } from "node:fs/promises";
 // JSON atomar schreiben (tmp+rename) — kein zerhacktes digest.json bei Absturz/voller Platte.
 const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
@@ -213,14 +213,14 @@ function datenschutzPage() {
   <p>Die App läuft bei einem Hosting-Anbieter (Render). Beim Aufruf entstehen technisch notwendige Server-Logs (u. a. IP-Adresse, Zeitpunkt, angeforderte Ressource) zur Auslieferung und Sicherheit der Seite. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Der Anbieter kann Server außerhalb der EU betreiben; entsprechende Übermittlungen erfolgen ggf. auf Grundlage geeigneter Garantien.</p>
   <h2>Cookies &amp; lokale Speicherung</h2>
   <ul>
-    <li><b>sessionStorage</b> (anonyme Tab-Kennung): hält deine Karte innerhalb eines Browser-Tabs zusammen. Keine dauerhafte Speicherung, kein Cookie.</li>
+    <li><b>localStorage</b> (anonyme Geräte-Kennung): hält deine Karte auf diesem Gerät zusammen, damit sie das Schließen des Tabs überlebt. Kein Cookie, keine Weitergabe; die zugehörige Karte wird serverseitig nach <b>30 Tagen ohne Besuch automatisch gelöscht</b>. Du kannst die Kennung jederzeit selbst entfernen (Browser-Speicher leeren).</li>
     <li><b>localStorage</b> (Theme, Ansicht, gemerkter Kartenausschnitt): reine Komfort-Einstellungen, verbleiben auf deinem Gerät.</li>
     <li><b>Login-Cookie</b>: nur wenn du dir freiwillig ein Konto anlegst — hält dich angemeldet.</li>
   </ul>
   <h2>Konto (optional)</h2>
-  <p>Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an einen anonymen, temporären Tab gebunden.</p>
+  <p>Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an eine anonyme Geräte-Kennung gebunden und verfällt nach 30 Tagen Inaktivität.</p>
   <h2>Deine Karte</h2>
-  <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Tab-Kennung.</p>
+  <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Geräte-Kennung (Letztere wird nach 30 Tagen ohne Besuch automatisch gelöscht).</p>
   <h2>Externe Dienste</h2>
   <p>Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
   <h2>Deine Rechte</h2>
@@ -381,9 +381,10 @@ function reqPackId(url, req) {
 }
 
 // Datenraum pro Request: eingeloggt -> eigener dauerhafter Namensraum; anonym -> eigener
-// temporärer Namensraum pro Tab (Client schickt x-like-anon aus dem sessionStorage);
-// ganz ohne Kennung -> gemeinsamer Fallback (z. B. Desktop/lokal). So teilt sich niemand
-// unbeabsichtigt eine Karte, und anonyme Views sind vergänglich.
+// Namensraum pro GERÄT (E2: Client schickt x-like-anon aus dem localStorage — die Karte
+// überlebt das Tab-Schließen, wird aber serverseitig nach 30 Tagen Inaktivität aufgeräumt,
+// s. sweepAnon + Datenschutzseite); ganz ohne Kennung -> gemeinsamer Fallback (Desktop/lokal).
+// So teilt sich niemand unbeabsichtigt eine Karte, und verlassene Karten verfallen trotzdem.
 const sanitizeId = (s) => String(s || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
 function dataRootFor(req, authUser) {
   if (authUser) return join(DATA_DIR, "users", sanitizeId(authUser));
@@ -391,6 +392,34 @@ function dataRootFor(req, authUser) {
   if (anon) return join(DATA_DIR, "anon", anon);
   return DATA_DIR;
 }
+
+// Anonyme Namensräume aufräumen (E2): ein Anon-Ordner gilt als inaktiv, wenn KEINE Datei
+// darin jünger als LIKE_ANON_TTL_DAYS (Default 30, 0 = aus) ist — dann wird er gelöscht.
+// Läuft beim Start und danach alle 12 h; Fehler sind unkritisch (nächster Lauf räumt nach).
+const ANON_TTL_DAYS = Math.max(0, Number(process.env.LIKE_ANON_TTL_DAYS ?? 30) || 0);
+async function sweepAnon() {
+  if (!ANON_TTL_DAYS) return;
+  const cutoff = Date.now() - ANON_TTL_DAYS * 864e5;
+  const base = join(DATA_DIR, "anon");
+  let dirs = [];
+  try { dirs = await readdir(base, { withFileTypes: true }); } catch { return; } // noch keine Anon-Daten
+  for (const d of dirs) {
+    if (!d.isDirectory()) continue;
+    const root = join(base, d.name);
+    let newest = 0;
+    try {
+      // zwei Ebenen reichen: anon/<id>/<pack>/graph.json
+      for (const p of await readdir(root, { withFileTypes: true })) {
+        const pp = join(root, p.name);
+        if (p.isFile()) { newest = Math.max(newest, (await stat(pp)).mtimeMs); continue; }
+        for (const f of await readdir(pp)) newest = Math.max(newest, (await stat(join(pp, f))).mtimeMs);
+      }
+      if (newest && newest < cutoff) await rm(root, { recursive: true, force: true });
+    } catch {}
+  }
+}
+sweepAnon().catch(() => {});
+setInterval(() => sweepAnon().catch(() => {}), 12 * 3600e3).unref();
 
 // Zwei Graphen verlustfrei vereinen (Union): fehlende Acts/Kanten übernehmen, vorhandene
 // nur mit fehlenden Feldern ergänzen. So gehen weder die aktuelle Karte noch bereits im
