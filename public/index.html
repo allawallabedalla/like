@@ -1966,7 +1966,16 @@ function toggleGenreFilter(g) {
   if (activeGenres.has(k)) activeGenres.delete(k); else activeGenres.add(k);
   document.querySelectorAll("#pGenres span").forEach((s) => s.classList.toggle("active", activeGenres.has((s.dataset.g || "").toLowerCase())));
   updateGenreLegend();
+  dropHoverIfFiltered();
   requestDraw();
+}
+// Ein Knoten, dessen Tooltip/Badges gerade eingeblendet sind, kann durch einen Genre-Filter
+// unsichtbar werden, OHNE dass sich die Maus bewegt (Filter sitzt in der Topbar/im Panel,
+// weit weg vom Canvas) — sonst bliebe der DOM-Tooltip für einen nicht mehr gezeichneten
+// Knoten stehen (canvas-gezeichnete Badges korrigieren sich zwar von selbst pro Frame, der
+// Tooltip aber nur bei der nächsten Mausbewegung).
+function dropHoverIfFiltered() {
+  if (hover && interactionHidden(hover)) { hover = null; updateTooltip(null); }
 }
 function updateGenreLegend() {
   const el = document.getElementById("legendGenres");
@@ -2747,7 +2756,7 @@ function draw() {
     let g = null, gd = Infinity;
     for (const n of nodes) {
       if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id)) continue;
-      if (lodHiddenNode(n) || vis(n) < 0.5) continue; // ausgeblendete (LOD) Knoten bekommen keinen Play-Knopf
+      if (interactionHidden(n) || vis(n) < 0.5) continue; // ausgeblendete (LOD/Genre-Filter) Knoten bekommen keinen Play-Knopf
       const dx = mouseWorld.x - n.x, dy = mouseWorld.y - n.y, dd = Math.sqrt(dx * dx + dy * dy);
       if (dd < gd) { gd = dd; g = n; }
     }
@@ -3015,6 +3024,16 @@ function genreMissNode(n) {
   if (activeGenres.size && !(n.genres || []).some((x) => activeGenres.has(x.toLowerCase()))) return true;
   return false;
 }
+// Für Hit-Tests: ein Knoten ist "weg", wenn LOD ihn versteckt ODER der Genre-Filter ihn
+// ausblendet (genT=0, s. stepNodeAnims) — sonst bleiben unsichtbare, herausgefilterte Knoten an
+// ihrer alten Position weiter hover-/klickbar (Tooltip/Play/Panel für einen nicht gezeichneten
+// Knoten). Getrennt von lodHiddenNode() gehalten, damit dessen eigene _lodA-Fade-Verfolgung
+// nicht mit der eigenständigen Genre-Fade-Animation (_genA) kollidiert.
+function interactionHidden(n) {
+  if (lodHiddenNode(n)) return true;
+  if (selected && n.id === selected.id) return false; // ausgewählter Act bleibt trotz Filter bedienbar (s. genT)
+  return genreFilterActive() && genreMissNode(n);
+}
 function pick(px, py) {
   const w = world({ x: px, y: py });
   const fs = focusSet();
@@ -3024,7 +3043,7 @@ function pick(px, py) {
   const minHit = (COARSE ? 22 : 16) / view.k;
   for (const n of nodes) {
     if (fs && !fs.has(n.id)) continue;
-    if (lodHiddenNode(n)) continue; // ausgeblendete Blätter reagieren nicht auf Hover/Klick (B1)
+    if (interactionHidden(n)) continue; // ausgeblendete Blätter (LOD/Genre-Filter) reagieren nicht auf Hover/Klick (B1)
     const r = Math.max(radius(n) + 6, minHit);
     const d = (n.x - w.x) ** 2 + (n.y - w.y) ** 2;
     if (d < r * r && d < bestD) { bestD = d; best = n; }
@@ -3052,7 +3071,7 @@ function onDeleteBadge(n, px, py) {
 // Gesuchte Knoten (Seed) tragen stattdessen das Lösch-× — daher hier ausgeschlossen (kein Konflikt).
 function isMoonHover(n) {
   if (!n || n.venue || n.seed || (n.appear ?? 1) < 1) return false;
-  if (lodHiddenNode(n)) return false; // ausgeblendete Blätter tragen keine Aktionen (B1)
+  if (interactionHidden(n)) return false; // ausgeblendete Blätter tragen keine Aktionen (B1)
   return true; // ＋/ⓘ/× an JEDEM nicht-gesuchten Knoten — auch an Nicht-Monden/geteilten Nachbarn (B6)
 }
 function moonBadges(n) {
@@ -3092,7 +3111,7 @@ function onPlayBtn(px, py) {
   if (!FEAT.preview) return null;
   const w = world({ x: px, y: py });
   let g = null, gd = Infinity;
-  for (const n of nodes) { if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id) || lodHiddenNode(n)) continue; const dd = Math.hypot(w.x - n.x, w.y - n.y); if (dd < gd) { gd = dd; g = n; } }
+  for (const n of nodes) { if (n.venue || (n.appear ?? 1) < 1 || !nodeById.has(n.id) || interactionHidden(n)) continue; const dd = Math.hypot(w.x - n.x, w.y - n.y); if (dd < gd) { gd = dd; g = n; } }
   if (!g) return null;
   // R deckungsgleich mit dem gezeichneten ▶-Kreis (s. draw()) — bewusst kleiner als der Knoten
   // selbst, damit ein Klick nahe der Mitte in aller Regel die Info öffnet statt eine Klangprobe
@@ -3146,7 +3165,7 @@ addEventListener("mousemove", (e) => {
     if (onX || onMoonB || onSeedI) n = hover; // Badges zählen zum Hover, sonst verschwänden sie beim Anpeilen
     // Sanfte Halte-Zone: solange die Maus im Hof des gehoverten Knotens (inkl. seiner ＋/ⓘ/×-Badges)
     // bleibt, den Hover NICHT fallenlassen — sonst flackern die Badges beim Anpeilen weg (B8).
-    if (!n && hover && overCanvas && (hover.appear ?? 1) >= 1 && !lodHiddenNode(hover)) {
+    if (!n && hover && overCanvas && (hover.appear ?? 1) >= 1 && !interactionHidden(hover)) {
       const wm = world(p), holdR = radius(hover) + 34 / view.k;
       if ((hover.x - wm.x) ** 2 + (hover.y - wm.y) ** 2 < holdR * holdR) n = hover;
     }
@@ -3562,7 +3581,7 @@ document.getElementById("removeAct").onclick = async () => {
 };
 
 document.getElementById("dimKnown").onchange = requestDraw;
-document.getElementById("genreFilter").addEventListener("input", (e) => { filterGenre = e.target.value.trim(); requestDraw(); });
+document.getElementById("genreFilter").addEventListener("input", (e) => { filterGenre = e.target.value.trim(); dropHoverIfFiltered(); requestDraw(); });
 document.getElementById("export").onclick = () => {
   // alle kuratierten Einträge (Status/Notiz) als CSV — clientseitig, funktioniert auch statisch
   const rows = [FEAT.booking
@@ -4585,7 +4604,7 @@ document.getElementById("mTaste").onclick = () => { closeMore(); document.getEle
 document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); };
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
 document.getElementById("mGenre").addEventListener("input", (e) => {
-  const gf = document.getElementById("genreFilter"); gf.value = e.target.value; filterGenre = e.target.value.trim(); requestDraw();
+  const gf = document.getElementById("genreFilter"); gf.value = e.target.value; filterGenre = e.target.value.trim(); dropHoverIfFiltered(); requestDraw();
 });
 // Handy-Suche im ⋯-Menü (die Topbar-Suche ist auf schmalen Screens ausgeblendet)
 document.getElementById("mSearch").addEventListener("keydown", (e) => {

@@ -167,3 +167,54 @@ etc.) in dieser Agent-Umgebung nicht erreichbar sind. B2 zeigt, warum das Vorsic
 eine Testfixture kann Situationen erzeugen, die die echte Datenlage nie hervorbringt — jeder
 so gefundene Befund wurde gegen den tatsächlichen Server-/Client-Code zurückverfolgt, bevor
 er als Bug galt bzw. hier bestätigt/zurückgezogen wurde.
+
+---
+
+## Runde 9 — Zweite Live-Runde: tiefere Feature-Abdeckung (2026-07-10) — ✅ ERLEDIGT
+
+Auf Wunsch: noch eine intensive Usability-/Debug-Runde, diesmal mit einem reichhaltigeren
+synthetischen Graphen (2 Cluster + Brückenfigur, Booking-Metadaten, Status/Notizen) und
+gezielt gegen bisher ungeprüfte Bereiche (Genre-Filter, Booking-Modus, Kontextmenü, Undo,
+CSV-Export, Space-Modus, Mobile-Tap, Konto-Validierung).
+
+- [x] **B4 — Genre-gefilterte Knoten blieben klick-/hoverbar (bestätigt & behoben).** Ein
+  Knoten, der durch den Genre-Filter auf Deckkraft 0 ausgeblendet wird (`genT=0` in
+  `stepNodeAnims`), reagierte weiterhin auf Hover/Klick an seiner alten Bildschirmposition:
+  `pick()`, `onPlayBtn()` und `isMoonHover()` prüften nur `lodHiddenNode()`, nicht den
+  Genre-Filter. Sichtbar wurde das über einen hängengebliebenen Tooltip/Badge für einen gar
+  nicht mehr gezeichneten Knoten — und ein Klick auf die alte Position hätte ihn trotzdem
+  auswählen können. Fix: neue `interactionHidden()`-Hilfsfunktion (LOD ODER Genre-Filter,
+  außer der Knoten ist gerade ausgewählt) an allen vier Hit-Test-Stellen; zusätzlich
+  `dropHoverIfFiltered()` beim Ändern des Filters (Topbar-Input, Mobile-Menü-Input,
+  Panel-Genre-Pills), damit ein bereits eingeblendeter Tooltip sofort verschwindet, auch
+  ohne nachfolgende Mausbewegung. Live verifiziert (Tooltip verschwindet sofort, Klick auf
+  alte Position trifft nichts mehr, Regressionssuite weiter grün).
+
+- [x] **Startup-Key-Dialog kann mitten in einer Aktion unangekündigt aufploppen — als
+  Rückfrage notiert, nicht verändert.** Fund während des Tests: der Last.fm-Key-Dialog kann
+  (unabhängig vom in dieser Runde gefixten Such-Fehler-Pfad, B1) auch über den separaten
+  Start-Health-Check (`startupTasks()`) aufgehen — asynchron, ohne festen Zeitpunkt, sobald
+  das Intro weg ist. Dabei legt sich ein vollflächiges Overlay über die Karte, das jede
+  Interaktion blockiert, mitten in einer bereits laufenden Aktion (z. B. während man gerade
+  einen Moduswechsel macht). Das ist kein eindeutiger Bug, sondern eine Designfrage: soll
+  der Startup-Check ganz entfallen (B1 deckt den eigentlichen Bedarfsmoment jetzt zuverlässig
+  ab), an eine bestimmte Nutzergeste gekoppelt werden, oder als nicht-blockierender Banner
+  statt Vollbild-Modal erscheinen? **Rückfrage an den Betreiber, bevor das geändert wird.**
+
+### Geprüft, aber kein Bug (Fehlalarme dieser Runde — zur Nachvollziehbarkeit dokumentiert)
+- „Status-Feld leer bei Klick auf declined-Act" — Testartefakt: Klick landete (a) zunächst
+  im o.g. Startup-Key-Modal-Overlay, (b) danach in der (seit B3 kleineren, aber weiterhin
+  vorhandenen) Play-Zone eines kleinen Knotens. Mit radius-proportionalem Klick-Versatz
+  funktioniert die Status-Auswahl einwandfrei.
+- „Act entfernen"-Button „außerhalb des Sichtbereichs" — derselbe Startup-Modal-Overlay,
+  keine echte Layout-/Scroll-Überlappung (Position lag klar innerhalb von 900px Höhe).
+- CSV-Export „Booking/Kontakt"-Spalte leer — eigener Test-Fixture-Fehler (`contact` statt
+  `details` als Feldname gesetzt), keine Export-Logik betroffen.
+- Undo/Entfernen, Space-Modus-Monde-Umlauf, Mobile-Tap-auf-Knotenmitte (öffnet zuverlässig
+  die Info-Karte, nie Play — wie im Code dokumentiert), Kontextmenü, Hilfe-Popover,
+  Konto-Formular-Validierung: alle live geprüft, keine Auffälligkeiten.
+
+**Methodik-Lehre:** Ein fester Bildschirm-Pixel-Versatz zum "sicheren" Klicken auf einen
+Knoten reicht nicht — er muss proportional zum Radius des jeweiligen Knotens sein (kleine
+Knoten haben eine proportional kleine, aber nicht verschwindende Play-Zone). Ohne Weiteres
+lassen sich sonst App-Verhalten und Test-Artefakte verwechseln (s. o.).
