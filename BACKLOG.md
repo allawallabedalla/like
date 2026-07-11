@@ -216,3 +216,137 @@ CSV-Export, Space-Modus, Mobile-Tap, Konto-Validierung).
 Knoten reicht nicht — er muss proportional zum Radius des jeweiligen Knotens sein (kleine
 Knoten haben eine proportional kleine, aber nicht verschwindende Play-Zone). Ohne Weiteres
 lassen sich sonst App-Verhalten und Test-Artefakte verwechseln (s. o.).
+
+---
+
+## Runde 10 — Optimierungs-Workshop (2026-07-11)
+
+Auf Wunsch: ein Workshop mit 6 unabhängigen Fachrollen (Performance, SEO, Analytics,
+Accessibility, Security, Retention), die je 6-8 Ideen mit konkreten Tools entwickelt haben,
+danach von einem Moderator gemeinsam dedupliziert, thematisch gruppiert und priorisiert.
+Alle Punkte sind gegen den echten Code verifiziert (nicht nur brainstormt). Reihenfolge nach
+Priorität; Pro/Contra pro Punkt.
+
+- [ ] **W1 — Meta-Tags/OG-Karten je Pack + robots.txt/sitemap.xml/llms.txt.** `index.html`
+  hat nur `<title>Like</title>`, keine Description/OG/Twitter-Tags, kein canonical, keine
+  robots.txt/sitemap.xml im Repo. Reine Server-Template-Ergänzung in `server.mjs`, betrifft
+  alle 10 Packs gleichzeitig. **Pro:** kein Risiko für Bestandsfunktionalität, sofort messbar
+  (Rich-Results-Test, Search-Console-Indexierung), höchster Impact/Aufwand-Hebel im ganzen
+  Workshop. **Contra:** Wirkung zeigt sich erst über Wochen/Monate; bei eher direktem/
+  Community-Traffic ungewiss, wie viel realer Zuwachs dabei rausspringt.
+
+- [ ] **W2 — Antwort-Kompression (gzip/brotli) via `node:zlib`.** `send()` in `server.mjs`
+  setzt nur cache-control/content-type, keine Content-Encoding-Verhandlung — die 368 KB
+  große `index.html` geht unkomprimiert raus. `node:zlib` ist eingebaut (kein npm nötig).
+  **Pro:** 70-80 % kleinere Antworten, verbessert Ladezeit bei jedem Aufruf sofort messbar.
+  **Contra:** Falls Render selbst schon komprimiert (viele PaaS-Anbieter tun das am Edge),
+  ist der Zusatznutzen kleiner als gedacht — vor dem Bauen mit
+  `curl -H "Accept-Encoding: gzip" -I https://likelife.info` verifizieren.
+
+- [ ] **W3 — Dependabot + `npm audit` + CodeQL in CI.** Kostenlos für Public Repos,
+  GitHub-nativ, automatisiert die Dependency-/CVE-Wartung, die als Solo-Maintainer leicht
+  durchrutscht (z. B. veraltete Electron-Version). **Pro:** kein Server-/Betriebsaufwand,
+  fängt genau die Wartung ab, die sonst vergessen wird. **Contra:** erzeugt laufend PRs/
+  Alerts, die jemand triagieren muss — Dauer- statt Einmalaufwand; CodeQL kann auf einer so
+  großen Single-File-`index.html` viele False Positives werfen.
+
+- [ ] **W4 — ARIA-Live-Region + `aria-label` für den Canvas.** Der Force-Graph (`#cv`) hat
+  keine DOM-Repräsentation — für Screenreader ist die Kernfunktion unsichtbar. **Pro:** sehr
+  kleiner Patch, kein Rendering-Umbau nötig, echter Sofort-Nutzen. **Contra:** nur ein
+  Pflaster — löst nicht die eigentliche Lücke (keine Tastaturnavigation); ohne W15
+  (Listenansicht) bleibt der Graph trotzdem nicht wirklich bedienbar, nur "beschriftet".
+
+- [ ] **W5 — axe-core in die bestehende Playwright-Suite (`test:ci`) integrieren.**
+  **Pro:** Infrastruktur existiert schon, verhindert künftige A11y-Regressionen (z. B. an den
+  kürzlich gefixten Modals) automatisch, geringer Einrichtungsaufwand. **Contra:** findet nur
+  automatisch prüfbare Verstöße (Kontrast, fehlende Labels) — die strukturelle
+  Canvas-Bedienbarkeit erkennt kein automatisches Tool, das bleibt manuelle Arbeit.
+
+- [ ] **W6 — `prefers-reduced-motion` auch auf die Physik-Simulation anwenden.** Das Flag
+  (`REDUCE_MOTION`) existiert im Code bereits, wird aber nur für Deko-Animationen ausgewertet,
+  nicht für die Force-Simulation selbst. **Pro:** echter WCAG-2.3.3-Bezug, sehr lokal
+  begrenzter Fix. **Contra:** reiner Nischen-Fix für eine kleine Zielgruppe, verbessert die
+  Kernerfahrung für alle anderen Nutzer nicht.
+
+- [ ] **W7 — Aggregierte, anonyme Nutzungszähler via `node:sqlite`.** Schließt die einzige
+  echte blinde Stelle: niemand weiß, welche Packs/Features (Radar, Brücke, Klangprobe)
+  tatsächlich genutzt werden. `node:sqlite` ist ab Node 22 eingebaut (verifiziert vorhanden),
+  passt zur ohnehin geplanten SQLite-Migration. **Pro:** bleibt technisch aggregiert/anonym,
+  bricht das Zero-Tracking-Versprechen nicht. **Contra:** erfordert eine bewusste, öffentlich
+  kommunizierte Entscheidung — selbst harmlose Zähler können bei Nutzern, die die App gerade
+  WEGEN "keine Analyse" gewählt haben, Vertrauen kosten, wenn die Kommunikation misslingt.
+
+- [ ] **W8 — Cache-Control-Split: statische Assets von dynamischer Config trennen.**
+  `send()` setzt aktuell pauschal `cache-control: no-store` für jede Antwort, auch für den
+  großen unveränderlichen CSS/JS/Font-Block. **Pro:** löst nebenbei ein zweites Problem
+  (Service-Worker liefert nach Login/Logout/Pack-Freischaltung sonst veraltete Config aus),
+  spürbar schnellere Wiederbesuche für Stammnutzer. **Contra:** mittlerer Umbauaufwand —
+  braucht Versionierung/Content-Hashing der ausgelagerten Datei plus Anpassung der Deploy-
+  Logik, nicht in 10 Minuten erledigt.
+
+- [ ] **W9 — Security-Header ergänzen (CSP, HSTS, Referrer-Policy, Permissions-Policy).**
+  `nosniff`/`X-Frame-Options` sind laut Code bereits gesetzt — echt offen sind CSP/HSTS/
+  Referrer-Policy/Permissions-Policy. **Pro:** schließt eine echte, verifizierte Lücke,
+  kostenlos extern prüfbar (Mozilla Observatory, securityheaders.com) als Vorher/Nachher-
+  Beweis. **Contra:** echtes CSP ist wegen der Inline-`<script>`/`<style>`-Blöcke kein
+  Zehn-Zeilen-Job — braucht eine Nonce-Strategie pro Request; falsch konfiguriert blockt es
+  die Inline-Scripts und bricht die App komplett.
+
+- [ ] **W10 — Öffentliches Changelog + Feedback über GitHub Discussions öffnen.**
+  **Pro:** kostenlos, GitHub-nativ, macht Fortschritt sichtbar, reaktiviert wiederkehrende
+  Nutzer ohne Push/E-Mail-Infrastruktur. **Contra:** nutzt nur, wenn es gepflegt wird — ein
+  Changelog, das nach zwei Einträgen einschläft, wirkt schlechter als gar keins; zusätzlicher
+  Redaktionsaufwand pro Release.
+
+- [ ] **W11 — In-Memory-LRU-Schicht vor dem Disk-Cache (`lib/cache.mjs`).** `cached()` liest
+  bei jedem Aufruf synchron eine JSON-Datei von der Platte, auch bei wiederholten Anfragen
+  in derselben Prozesslaufzeit. **Pro:** kleiner, risikoarmer Patch (~50-100 Zeilen, kein
+  npm nötig), reduziert Disk-I/O bei heißen Keys spürbar. **Contra:** Nutzen hängt vom
+  tatsächlichen I/O-Anteil ab — ohne Profiling (clinic.js/0x) vorab ist unklar, ob das
+  gemessen überhaupt ins Gewicht fällt.
+
+- [ ] **W12 — Canvas-Viewport-Culling beim Zeichnen.** Nach dem bereits erledigten
+  Spatial-Grid-Fix für die Physik zeichnet `draw()` weiterhin jeden Frame ALLE Knoten/Kanten,
+  auch außerhalb des sichtbaren Ausschnitts. **Pro:** wird konkret relevant, sobald
+  Booking-Nutzer über mehrere Explore/Expand-Runden große Graphen anhäufen. **Contra:**
+  mittlerer Aufwand für einen Effekt, der bei der aktuellen (eher kleinen) Graphgröße noch
+  nicht spürbar ist — Investition in eine noch nicht akute Zukunft.
+
+- [ ] **W13 — GitHub Sponsors/Open Collective + Downloads-Badge.** Aktuell läuft die gesamte
+  Finanzierung über einen einzigen PayPal.me-Link. **Pro:** Minutenaufwand (`FUNDING.yml`,
+  ein Badge), macht die "keine Gewinnabsicht"-Aussage der Datenschutzseite nachprüfbar statt
+  nur behauptet. **Contra:** zusätzlicher Kanal bedeutet auch zusätzliche Konten/Pflege
+  (Open Collective erfordert ein geführtes öffentliches Ledger) — nur sinnvoll, wenn das
+  wirklich gepflegt wird.
+
+- [ ] **W14 — Öffentliche, teilbare Karten-Schnappschüsse (bereits in ROADMAP.md offen).**
+  Der Share-Button teilt aktuell nur EINEN Act, nicht die kuratierte Nachbarschaft als Ganzes.
+  **Pro:** stärkster organische Wachstumshebel, den eine werbefreie App haben kann —
+  `export-static.mjs` liefert bereits eine Rendering-Basis. **Contra:** größtes Aufwand-Item
+  in der Liste (Snapshot-Renderer, OG-Bild-Generierung, Read-Only-Link-Infrastruktur) — eher
+  ein eigenes Feature-Projekt als ein Workshop-Punkt.
+
+- [ ] **W15 — Synchronisierte Listenansicht als zugängliche Alternative zum Canvas-Graphen.**
+  Größter A11y-Lift im ganzen Workshop. **Pro:** liefert Tastaturnavigation praktisch
+  kostenlos mit und löst Screenreader- UND Tastatur-Zugang in einem Rutsch, statt zusätzlich
+  eine separate roving-tabindex-Lösung direkt auf dem Canvas zu bauen. **Contra:** größter
+  strukturelle Umbau der Liste — eigene View, eigenes State-Sync mit dem Graphen, nicht
+  nebenbei erledigt.
+
+### Themen-Cluster (zur Einordnung)
+Performance/Ladezeit (W2, W8, W11, W12) · SEO/Auffindbarkeit (W1) · Privacy-first Analytics
+(W7, unabhängig von 3 Rollen vorgeschlagen) · Canvas-Barrierefreiheit (W4, W5, W6, W15) ·
+Security-Härtung (W3, W9) · Community/Retention/Monetarisierung (W10, W13, W14).
+
+### Dedupliziert (mehrfach von unterschiedlichen Rollen genannt, hier einmal gezählt)
+- Lighthouse CI/Performance-Budget (Performance- UND SEO-Rolle unabhängig vorgeschlagen).
+- Aggregierte Nutzungszahlen (Analytics: `node:sqlite`: SEO/Docs: GoatCounter; Retention:
+  Plausible/Umami) — im Kern derselbe Bedarf für unterschiedliche Infrastruktur-Teile.
+- Listenansicht vs. separate Tastatur-Navigation — dieselbe Grundlösung (→ W15 statt zwei
+  getrennter Punkte).
+- Web-Push- vs. E-Mail-Wochen-Digest — konkurrierende Kanäle fürs selbe Ziel
+  (Reengagement); für ein Solo-Projekt nur einer sinnvoll, hier bewusst nicht aufgenommen.
+
+**Arbeitsweise:** Wie bisher — Punkt für Punkt, Haken setzen, verifizieren, sinnvolle Commits,
+PR nicht ungefragt mergen. Empfehlung als Einstieg: W1 und W2 (geringstes Risiko, sofort
+verifizierbar, kein Umbau bestehender Abläufe).
