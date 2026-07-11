@@ -2610,6 +2610,14 @@ function draw() {
   // keine Linien; sobald man etwas reinzoomt, erscheinen als Erstes die Verbindungen (noch VOR
   // den Planeten, die erst ab ~0.8 auftauchen). Ramp 0.35 → 0.7.
   const linkFade = Math.max(0, Math.min(1, (view.k - 0.35) / (0.7 - 0.35)));
+  // W12 (Viewport-Culling): sichtbarer Welt-Ausschnitt mit großzügigem Puffer (Labels/Höfe
+  // ragen über den Knotenmittelpunkt hinaus). Bei großen Karten spart das je Frame die
+  // Draw-Calls für alles, was ohnehin außerhalb des Bildes läge.
+  const vm = 170 / view.k;
+  const vx0 = -view.x / view.k - vm, vy0 = -view.y / view.k - vm;
+  const vx1 = (W - view.x) / view.k + vm, vy1 = (H - view.y) / view.k + vm;
+  const inView = (n) => { const r = n._haloR || 0; return n.x > vx0 - r && n.x < vx1 + r && n.y > vy0 - r && n.y < vy1 + r; };
+  const edgeInView = (l) => Math.min(l.a.x, l.b.x) < vx1 && Math.max(l.a.x, l.b.x) > vx0 && Math.min(l.a.y, l.b.y) < vy1 && Math.max(l.a.y, l.b.y) > vy0;
   const hidden = (id) => (fs && !fs.has(id) && !(selected && id === selected.id));
   const vis = (n) => (n._lodA ?? 1) * (n._genA ?? 1);
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
@@ -2638,6 +2646,7 @@ function draw() {
   // die Optik; die Link-Kräfte in tick() wirken unverändert weiter).
   const cSim = getCss("--edge-similar"), cTog = getCss("--edge-together"), cVen = getCss("--venue");
   if (showEdges) for (const l of links) {
+    if (!edgeInView(l)) continue; // W12: Kanten-Bounding-Box komplett außerhalb -> nicht zeichnen
     if (hidden(l.a.id) || hidden(l.b.id)) continue;
     const key = l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
     const onPath = pe && pe.has(key);
@@ -2673,6 +2682,7 @@ function draw() {
   if (planetMode) {
     for (const n of nodes) {
       if (hidden(n.id) || n.venue) continue;
+      if (!inView(n)) continue; // W12
       const ap = (n.appear ?? 1) * vis(n); if (ap < 0.05) continue; // Hof faded mit LOD/Genre (B2/B10)
       if (dimNode(n) && !(selected && n.id === selected.id)) continue; // gedimmte Knoten ohne Hof
       // Hof NUR für die 3 größten je Szene (assignHalos) — sonst diffuser Nebel. Selektion/Hover
@@ -2700,6 +2710,7 @@ function draw() {
   const labelJobs = []; // Labels erst sammeln, dann priorisiert + kollisionsfrei zeichnen
   for (const n of nodes) {
     if (hidden(n.id)) continue;
+    if (!inView(n)) continue; // W12: außerhalb des (gepufferten) Ausschnitts — Label inklusive
     const lodA = vis(n); // kombinierte LOD-/Genre-Sichtbarkeit (B2/B10)
     if (lodA < 0.02) continue; // vollständig ausgeblendet (weich)
     // Spawn-Animation: frische Knoten wachsen mit leichtem Überschwung ein (easeOutBack).
