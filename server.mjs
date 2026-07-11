@@ -1171,14 +1171,21 @@ const server = createServer(async (req, res) => {
     // Servers direkt gegen graph.json).
 
     if (req.method === "POST" && url.pathname === "/api/artist") {
-      const { id, known, note, status } = await readBody(req);
+      const { id, known, note, status, fee, basket } = await readBody(req);
       return withGraphLock(GRAPH, async () => {
         const g = await loadGraph(GRAPH);
         const a = g.artists[id];
         if (!a) return send(res, 404, { error: "Eintrag unbekannt" });
         if (typeof known === "boolean") a.known = known;
         if (typeof note === "string") a.note = note;
-        if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
+        if (typeof status === "string") {
+          if (a.status !== status) a.statusChangedAt = Date.now(); // E9: wann zuletzt bewegt?
+          a.status = status; a.known = status !== ""; // known bleibt abgeleitet
+        }
+        // E9: Gage (Freitext, Zahlen werden clientseitig summiert) + Lineup-Korb serverseitig —
+        // der Korb lebte nur in localStorage und ging bei der Anon-zu-Konto-Migration verloren.
+        if (typeof fee === "string") { const f = fee.trim().slice(0, 40); if (f) a.fee = f; else delete a.fee; }
+        if (typeof basket === "boolean") { if (basket) a.basket = true; else delete a.basket; }
         await persist(g);
         return send(res, 200, { ok: true, artist: a });
       });

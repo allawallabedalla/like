@@ -1130,6 +1130,11 @@
         </select>
         <button id="shareBtn" class="iconbtn shareicon" title="Diesen Act teilen — Teilen-Dialog oder E-Mail"><svg class="ic" viewBox="0 0 16 16"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
       </div>
+      <div id="statusStamp" style="color:var(--muted);font-size:11px;margin-top:3px"></div>
+    </div>
+    <div class="field workonly" id="fieldFee" style="display:none">
+      <label id="lblFee">Gage</label>
+      <input id="fee" placeholder="z.B. 1500" autocomplete="off" title="Gage/Honorar (frei, Zahlen werden im Lineup-Korb summiert) — speichert beim Verlassen des Felds" />
     </div>
     <div class="field">
       <label id="lblNote">Booking-Notiz</label>
@@ -1326,6 +1331,9 @@ const T = LANG !== "en" ? null : {
   "Probier mal:": "Try one:",
   "Ähnlichkeit {N} %": "Similarity {N} %",
   "{N} gemeinsames Event": "{N} shared event", "{N} gemeinsame Events": "{N} shared events",
+  "Gage": "Fee", "Gagen": "fees", "Gage gespeichert": "Fee saved", "Gage entfernt": "Fee removed",
+  "heute geändert": "changed today",
+  "vor {N} Tag geändert": "changed {N} day ago", "vor {N} Tagen geändert": "changed {N} days ago",
   "klick dich durch oder such selbst: deine erste Suche startet deine eigene Karte.": "click around or search yourself: your first search starts your own map.",
   "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
   "klein": "small",
@@ -1984,8 +1992,8 @@ let trail = [];                  // Breadcrumb der erkundeten Acts
 let bridgeFrom = null;           // Start-Eintrag für "Brücke bauen…" (Ziel wird als Nächstes geklickt)
 let bridge = null;               // aktive Brücken-Session: { a, b, cands:[{via,strength}], sort }
 const adj = new Map();           // Adjazenz id -> Set(nachbar-id)
-let basket = new Set();          // Lineup-Korb (ids)
-try { basket = new Set(JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]")); } catch {}
+let basket = new Set();          // Lineup-Korb (ids) — Quelle: a.basket im Graphen (E9); STATIC: localStorage
+try { if (STATIC) basket = new Set(JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]")); } catch {}
 // Status-Farben/-Labels kommen aus der Pack-Config (Musik: Shortlist/angefragt/…)
 const STATUS_COLOR = Object.fromEntries(CFG.statuses.map((s) => [s.value, s.color]));
 const STATUS_LABEL = { "": "—", ...Object.fromEntries(CFG.statuses.map((s) => [s.value, s.label])) };
@@ -2086,6 +2094,9 @@ const seededRnd = (id, salt = "") => seededUnit(id + "|" + salt);
 
 function rebuild(prev, reheatAmt = 1) {
   const arts = Object.values(graph.artists);
+  // E9: Korb aus dem Graphen ableiten (a.basket, serverseitig persistiert) — nicht in STATIC,
+  // dort bleibt der localStorage-Korb.
+  if (!STATIC) basket = new Set(arts.filter(a => a.basket).map(a => a.id));
   const deg = {};
   for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
   const isNew = new Set();
@@ -2099,7 +2110,8 @@ function rebuild(prev, reheatAmt = 1) {
     if (!old) isNew.add(a.id);
     return {
       id: a.id, name: a.name, url: a.url, seed: !!a.seed, known: !!a.known, note: a.note || "",
-      status: a.status || "", booking: a.booking || null, active: !!a.active,
+      status: a.status || "", statusChangedAt: a.statusChangedAt || null, fee: a.fee || "",
+      booking: a.booking || null, active: !!a.active,
       genres: a.genres || [], explored: !!a.explored,
       listeners: a.listeners ?? null, bcLocation: a.bcLocation || null,
       deg: deg[a.id] || 0,
@@ -3496,6 +3508,15 @@ function selectNode(n) {
   renderGenrePills(n.genres);
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
   document.getElementById("status").value = n.status || "";
+  // E9: Status-Zeitstempel ("angefragt vor 12 Tagen") + Gagenfeld (nur Booking-Packs)
+  const stamp = document.getElementById("statusStamp");
+  if (n.status && n.statusChangedAt) {
+    const days = Math.floor((Date.now() - n.statusChangedAt) / 864e5);
+    stamp.textContent = days <= 0 ? t("heute geändert") : tf(days === 1 ? "vor {N} Tag geändert" : "vor {N} Tagen geändert", { N: days });
+  } else stamp.textContent = "";
+  const feeField = document.getElementById("fieldFee");
+  feeField.style.display = FEAT.booking ? "" : "none";
+  document.getElementById("fee").value = n.fee || "";
   document.getElementById("note").value = n.note || "";
   refreshLikeBtn();
   document.getElementById("pLabels").innerHTML = "";
@@ -3633,10 +3654,27 @@ document.getElementById("status").onchange = async (e) => {
     selected.status = status;
     const a = graph.artists[selected.id]; if (a) { a.status = status; a.known = status !== ""; }
     renderLegend(); // „Status-Ring"-Eintrag ein-/ausblenden (B12)
+    if (res.artist?.statusChangedAt) { selected.statusChangedAt = res.artist.statusChangedAt; if (a) a.statusChangedAt = res.artist.statusChangedAt; }
+    document.getElementById("statusStamp").textContent = status ? t("heute geändert") : "";
     requestDraw(); // Status-Farbring am Knoten aktualisieren
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
 };
+// E9: Gage speichern beim Verlassen des Felds; Zahlen daraus summiert der Lineup-Korb.
+document.getElementById("fee").addEventListener("change", async (e) => {
+  if (!selected || selected.venue) return;
+  if (STATIC) { toast("Nur im lokalen Tool änderbar"); return; }
+  const fee = e.target.value.trim();
+  try {
+    const res = await API.artist({ id: selected.id, fee });
+    if (res.ok) {
+      selected.fee = fee || undefined;
+      const a = graph.artists[selected.id]; if (a) { if (fee) a.fee = fee; else delete a.fee; }
+      renderBasket(); // Summenzeile aktualisieren
+      toast(fee ? t("Gage gespeichert") : t("Gage entfernt"));
+    }
+  } catch (err) { toast("Fehler: " + err.message); }
+});
 // Teilen: bevorzugt der native Teilen-Dialog (Web Share API) — echter, in jede App teilbarer
 // Link + Text (E-Mail, Nachrichten, WhatsApp …). Nur wenn das der Browser nicht kann, Fallback
 // auf mailto (Plain-Text). So ist es kein bloßer Link-Textblock mehr.
@@ -4183,8 +4221,14 @@ function renderTrail() {
 }
 
 // ---- Lineup-Korb ----
-function saveBasket() { try { localStorage.setItem(LSK("like_basket"), JSON.stringify([...basket])); } catch {} }
-function toggleBasket(n) { if (n.venue) return; const add = !basket.has(n.id); add ? basket.add(n.id) : basket.delete(n.id); if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; } saveBasket(); renderBasket(); refreshLikeBtn(); requestDraw(); }
+// E9: Der Korb lebt jetzt im Graphen (a.basket, serverseitig) — er überlebt damit Reload,
+// Gerätewechsel und die Anon-zu-Konto-Migration. localStorage bleibt nur als STATIC-Fallback
+// und wird beim ersten Laden einmalig in den Server übernommen (s. Boot-IIFE).
+function saveBasket(id, add) {
+  if (STATIC) { try { localStorage.setItem(LSK("like_basket"), JSON.stringify([...basket])); } catch {} return; }
+  if (id) API.artist({ id, basket: add }).catch(() => {}); // fire-and-forget, UI ist schon aktuell
+}
+function toggleBasket(n) { if (n.venue) return; const add = !basket.has(n.id); add ? basket.add(n.id) : basket.delete(n.id); if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; } const a = graph.artists[n.id]; if (a) { if (add) a.basket = true; else delete a.basket; } saveBasket(n.id, add); renderBasket(); refreshLikeBtn(); requestDraw(); }
 // like!-Button spiegelt, ob der gewählte Act schon im Lineup ist
 function refreshLikeBtn() {
   if (!selected) return;
@@ -4200,24 +4244,27 @@ function renderBasket() {
   const items = [...basket].map(id => graph.artists[id]).filter(Boolean);
   if (!items.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
   const bl = CFG.basketLabel || "Lineup";
+  // E9: Gagen-Summe über den Korb — nur Zahlen-Anteile zählen ("1.5k" bleibt außen vor, ehrlich einfach).
+  const feeSum = items.reduce((s, a) => { const v = parseFloat(String(a.fee || "").replace(/[^\d,.\-]/g, "").replace(",", ".")); return s + (Number.isFinite(v) ? v : 0); }, 0);
+  const feeRow = FEAT.booking && feeSum > 0 ? `<div style="padding:6px 10px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--muted)">Σ ${t("Gagen")}: <b style="color:var(--text)">${feeSum.toLocaleString(LANG === "en" ? "en-US" : "de-DE")}</b></div>` : "";
   el.innerHTML = `<h3 title="${tf("Dein {B}-Korb — mit {L} oder Taste b füllen", { B: bl, L: CFG.likeLabel || "like!" })}">${bl} <span>${items.length}</span></h3><ul>` +
-    items.map(a => `<li data-id="${esc(a.id)}" title="${t("Klick: hinspringen")}"><b>${esc(a.name)}</b><a data-rm="${esc(a.id)}" title="${tf("Aus dem {B} nehmen", { B: bl })}">✕</a></li>`).join("") +
-    `</ul><div class="actions"><button id="bExport" title="${tf("{B} als CSV exportieren", { B: bl })}">CSV</button><button id="bClear" title="${tf("{B}-Korb leeren", { B: bl })}">${t("Leeren")}</button></div>`;
+    items.map(a => `<li data-id="${esc(a.id)}" title="${t("Klick: hinspringen")}"><b>${esc(a.name)}${a.fee ? ` <span style="color:var(--muted)">· ${esc(a.fee)}</span>` : ""}</b><a data-rm="${esc(a.id)}" title="${tf("Aus dem {B} nehmen", { B: bl })}">✕</a></li>`).join("") +
+    `</ul>${feeRow}<div class="actions"><button id="bExport" title="${tf("{B} als CSV exportieren", { B: bl })}">CSV</button><button id="bClear" title="${tf("{B}-Korb leeren", { B: bl })}">${t("Leeren")}</button></div>`;
   el.classList.add("show");
   el.querySelectorAll("li").forEach(li => li.onclick = (e) => {
-    if (e.target.dataset.rm) { basket.delete(e.target.dataset.rm); saveBasket(); renderBasket(); return; }
+    if (e.target.dataset.rm) { const rid = e.target.dataset.rm; basket.delete(rid); const a = graph.artists[rid]; if (a) delete a.basket; saveBasket(rid, false); renderBasket(); return; }
     const node = nodeById.get(li.dataset.id); if (node) { centerOn(node); selectNode(node); }
   });
-  document.getElementById("bClear").onclick = () => { basket.clear(); saveBasket(); renderBasket(); };
+  document.getElementById("bClear").onclick = () => { for (const id of basket) { const a = graph.artists[id]; if (a) delete a.basket; saveBasket(id, false); } basket.clear(); renderBasket(); };
   document.getElementById("bExport").onclick = exportBasketCsv;
 }
 function exportBasketCsv() {
   const rows = [FEAT.booking
-    ? ["Name", "Status", "Genres", t("Region"), t("Aktiv"), t("Booking/Kontakt"), t("Notiz")]
+    ? ["Name", "Status", t("Gage"), CFG.popularity?.label || "Popularität", "Genres", t("Region"), t("Aktiv"), t("Booking/Kontakt"), t("Notiz"), "URL"]
     : ["Name", "Status", CFG.genreLabel || "Genres", t("Notiz"), "URL"]];
   for (const id of basket) { const a = graph.artists[id]; if (!a) continue; const b = a.booking || {};
     rows.push(FEAT.booking
-      ? [a.name, a.status || "", (a.genres || []).join("; "), [b.area, b.country].filter(Boolean).join(", "), a.active ? t("ja") : "", b.details || "", a.note || ""]
+      ? [a.name, a.status || "", a.fee || "", a.listeners ?? "", (a.genres || []).join("; "), [b.area, b.country].filter(Boolean).join(", "), a.active ? t("ja") : "", b.details || "", a.note || "", a.url || ""]
       : [a.name, a.status || "", (a.genres || []).join("; "), a.note || "", a.url || ""]); }
   const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
   const blob = new Blob([csv], { type: "text/csv" }), u = URL.createObjectURL(blob);
@@ -5293,6 +5340,17 @@ function maybeShowIntro() {
   // bleibt schwarz. Stattdessen leer starten + Hinweis; der Rest (loop, Intro …) läuft weiter.
   try { graph = await API.graph(); }
   catch { graph = { artists: {}, edges: [] }; try { toast("Server nicht erreichbar — leer gestartet. Später neu laden."); } catch {} }
+  // E9: einmalige Übernahme des alten localStorage-Korbs in den Graphen (serverseitig) —
+  // vorher ging der Korb bei der Anon-zu-Konto-Migration und beim Gerätewechsel verloren.
+  if (!STATIC) {
+    try {
+      const old = JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]");
+      if (old.length) {
+        for (const id of old) if (graph.artists[id]) { graph.artists[id].basket = true; API.artist({ id, basket: true }).catch(() => {}); }
+        localStorage.removeItem(LSK("like_basket"));
+      }
+    } catch {}
+  }
   // E1: Erstbesuch mit leerer Karte -> kuratierte Beispiel-Karte zeigen (nie gespeichert;
   // die erste eigene Suche oder das × am Hinweisband ersetzt sie). Wer sie einmal
   // weggeklickt/ersetzt hat, bekommt sie nicht erneut (like_demo_off).
