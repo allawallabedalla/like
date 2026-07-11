@@ -31,6 +31,7 @@ import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.m
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback, notifyQuiet } from "./lib/pushover.mjs";
+import { initUsage, countUsage, usageSnapshot } from "./lib/usage.mjs";
 import { landingHtml } from "./lib/landing.mjs";
 import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount } from "./lib/auth.mjs";
 
@@ -221,6 +222,8 @@ function datenschutzPage() {
   <p>Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an eine anonyme Geräte-Kennung gebunden und verfällt nach 30 Tagen Inaktivität.</p>
   <h2>Deine Karte</h2>
   <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Geräte-Kennung (Letztere wird nach 30 Tagen ohne Besuch automatisch gelöscht).</p>
+  <h2>Anonyme Nutzungszähler</h2>
+  <p>Der Server zählt, wie oft Funktionen insgesamt genutzt werden (z. B. „Suche wurde heute 12-mal verwendet") — als reine Tagessummen, <b>ohne</b> IP-Adressen, Kennungen, Profile oder Reihenfolgen. Ein Rückschluss auf einzelne Personen ist damit nicht möglich; die Zahlen dienen allein dazu, die Weiterentwicklung sinnvoll zu priorisieren. Es sind keinerlei Analyse- oder Werbedienste Dritter eingebunden.</p>
   <h2>Externe Dienste</h2>
   <p>Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
   <h2>Deine Rechte</h2>
@@ -238,6 +241,7 @@ const RADAR_TTL = 10 * 60 * 1000;
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
 const FEEDBACK_ON = await hasPushover();
 await initAuth(DATA_DIR); // Accounts (optional): Nutzer-Store + Session-Secret laden
+await initUsage(DATA_DIR); // W7: anonyme, rein aggregierte Tageszähler (siehe Datenschutzseite)
 // Datei-Cache beschränken: beim Start + täglich alte Einträge löschen (sonst füllt er die Platte).
 import("./lib/cache.mjs").then(({ pruneCache }) => {
   pruneCache().catch(() => {});
@@ -754,6 +758,12 @@ const server = createServer(async (req, res) => {
       return send(res, 401, { ok: false, error: "falsches Passwort" });
     }
 
+    // W7: aggregierte Nutzungszähler — NUR für den Betreiber (like_owner-Cookie, s. ?owner=).
+    if (req.method === "GET" && url.pathname === "/api/usage") {
+      if (!OWNER_SECRET || !isOwnerReq(req)) return send(res, 404, { error: "not found" });
+      return send(res, 200, { ok: true, days: usageSnapshot() });
+    }
+
     // SEO-Grundgerüst (W1): robots.txt, sitemap.xml, llms.txt — alles aus Bordmitteln.
     if (req.method === "GET" && url.pathname === "/robots.txt") {
       const base = publicBase(req);
@@ -872,6 +882,7 @@ const server = createServer(async (req, res) => {
         res.writeHead(302, { location: "/" }); return res.end();
       }
       notifyVisitMaybe(req, pack); // Besuch melden (nur Fremde, gedrosselt) — läuft nebenher
+      countUsage("view", pack.id); // W7: aggregierter Tageszähler, kein Personenbezug
       return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser, req), "text/html; charset=utf-8");
     }
 
@@ -974,6 +985,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && (url.pathname === "/api/explore" || url.pathname === "/api/expand")) {
       const { name } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
+      countUsage(url.pathname === "/api/expand" ? "expand" : "explore", pack.id);
       let r;
       // Netz-Aufruf BEWUSST außerhalb des Graph-Locks (langsame I/O soll den Mutex nicht halten).
       try { r = await pack.explore(name, { home: reqHome(req) }); }
@@ -1008,6 +1020,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/bridge") {
       const { from, to } = await readBody(req);
       if (!from || !to) return send(res, 400, { error: "from/to fehlt" });
+      countUsage("bridge", pack.id);
       try {
         sweepBridges();
         const [ra, rb] = await Promise.all([neighborsFor(pack, from, 60), neighborsFor(pack, to, 60)]);
@@ -1189,6 +1202,7 @@ const server = createServer(async (req, res) => {
       const { name, listeners } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
       if (!pack.preview) return send(res, 200, { ok: false });
+      countUsage("preview", pack.id);
       let p = null;
       try { p = await pack.preview(name, { listeners: typeof listeners === "number" ? listeners : null }); } catch {}
       if (!p?.url) return send(res, 200, { ok: false });
@@ -1212,6 +1226,7 @@ const server = createServer(async (req, res) => {
 
     // Radar: Geheimtipp-Score — kleine Einträge nah an deinen Likes, mit Begründung.
     if (req.method === "POST" && url.pathname === "/api/radar") {
+      countUsage("radar", pack.id);
       const { limit = 10, extraLikes = [], visible = null, force = false } = await readBody(req);
       // Sprache des Clients (x-like-lang): Begründungen/Fehltexte auf Englisch, wenn gewünscht.
       // Pack-eigene Labels laufen über das en-Overlay der Pack-Config (exakter String -> EN).
@@ -1478,6 +1493,7 @@ const server = createServer(async (req, res) => {
     // „Überrasch mich" (leere Seite): ein zufälliger, eher unbekannter Eintrag zum Reinstolpern.
     if (req.method === "GET" && url.pathname === "/api/surprise") {
       if (!pack.surprise) return send(res, 200, { ok: false });
+      countUsage("surprise", pack.id);
       let name = null;
       try { name = await pack.surprise(); } catch {}
       return name ? send(res, 200, { ok: true, name }) : send(res, 200, { ok: false });
