@@ -350,3 +350,202 @@ Security-Härtung (W3, W9) · Community/Retention/Monetarisierung (W10, W13, W14
 **Arbeitsweise:** Wie bisher — Punkt für Punkt, Haken setzen, verifizieren, sinnvolle Commits,
 PR nicht ungefragt mergen. Empfehlung als Einstieg: W1 und W2 (geringstes Risiko, sofort
 verifizierbar, kein Umbau bestehender Abläufe).
+
+---
+
+## Runde 11 — Externer Berater-Workshop (2026-07-11)
+
+Auf Wunsch: zweiter Workshop mit 8 komplett neuen, "externen" Berater-Rollen (Produktstratege,
+Onboarding-UX, Markt-/Wettbewerbsanalyst, Graph-/Dataviz-Experte, Open-Source-Stratege,
+Mobile/PWA, Content-/Kuration, Booking-Branchen-Insider), jeweils mit Blick über den Horizont
+auf vergleichbare Dienste (Gnoosic/Music-Map, Every Noise at Once, Radio Garden, Connected
+Papers, Obsidian, Letterboxd, Excalidraw, Obscurify, Prism.fm …). Ein Moderator hat
+dedupliziert, Behauptungen stichprobenartig am Code verifiziert und Kontroversen entschieden.
+Vergleichsangaben sind Wissensstand der Rollen (externe Seiten in der Agent-Umgebung nicht
+erreichbar), Code-Befunde sind verifiziert.
+
+**Gesamtbild (einstimmig):** Das Produkt ist deutlich besser als sein Schaufenster. Technik,
+Graph-Engine, Release-Hygiene und Touch-Fundament werden durchweg als ungewöhnlich reif für
+ein Solo-Zero-Budget-Projekt eingestuft. Die Schwächen liegen fast alle bei Erstkontakt,
+Sichtbarkeit und Persistenz — fast alle Empfehlungen verschalten Vorhandenes neu, statt Neues
+zu bauen.
+
+- [ ] **E1 — Nie mit leerer Karte starten: Demo-Nachbarschaft beim Erstbesuch (4× unabhängig
+  — stärkstes Signal der Runde).** Der Aha-Moment (lebendiges Netz) kommt heute erst nach
+  eigener, gelingender Sucheingabe; dabei liegt in allen 10 Packs ein kuratiertes `demo.json`,
+  das nur für Landing-Zählwerte genutzt wird. Demo-Graph als gelabelte Beispiel-Karte laden,
+  erste eigene Suche ersetzt sie. Vergleich: Radio Garden/Every Noise/Connected Papers starten
+  alle gefüllt; Obsidian liefert einen Demo-Vault. **Pro:** Time-to-Wow fällt auf null,
+  Verschaltung statt Neubau. **Contra:** kann sich "vorgekaut" anfühlen und den Moment der
+  eigenen ersten Suche entwerten; braucht klares Labeling + saubere Ersetzen-Logik.
+  *(Impact hoch / Aufwand niedrig)*
+
+- [ ] **E2 — Anonyme Karten sterben mit dem Tab: localStorage statt sessionStorage (2×).**
+  `like_anon` liegt in sessionStorage — 30 Minuten Kuration sind beim Tab-Schließen weg, und
+  genau der Moment mit aufgebautem Wert wäre der stärkste Konto-Konversionshebel (Muster:
+  Excalidraw/tldraw/Figma). Migrations- und Aufräumlogik existieren. **Pro:** wenige Zeilen,
+  direkter Effekt auf Wiederkehr UND Registrierungen. **Contra:** kollidiert mit der
+  Datenschutzseite (verspricht keine dauerhafte Speicherung) — nur mit ehrlicher Textanpassung,
+  sichtbarem Hinweis ("Karte bleibt 30 Tage auf diesem Gerät") und serverseitiger TTL machen;
+  auf geteilten Geräten sieht der Nächste die Karte des Vorgängers.
+  *(Impact hoch / Aufwand niedrig)*
+
+- [ ] **E3 — Landing verkauft das Produkt nicht: Pitch-Headline sichtbar, Musik als Hero (3×).**
+  Einziger Untertitel ist "Wähle, wonach du heute stöbern willst" (lib/landing.mjs); die
+  erklärende Zeile steckt im Hover-Tooltip (auf Touch unsichtbar), und in Produktion tragen
+  9 von 10 Planeten ein Schloss — die Landing verkauft einen gesperrten Katalog. Pitch-Zeile
+  aus PITCH.md als Heading, Musik-Planet zentral, gesperrte Packs als kleine "Labs"-Reihe.
+  **Pro:** reine Copy/CSS-Änderung, besteht endlich den 5-Sekunden-Test aus dem eigenen
+  PITCH.md. **Contra:** degradiert die 9 anderen Packs sichtbar — zementiert die
+  Fokus-Entscheidung (E5), die vorher bewusst getroffen sein sollte.
+  *(Impact hoch / Aufwand niedrig)*
+
+- [ ] **E4 — LICENSE-Datei hinzufügen (MIT oder AGPL-3.0).** Verifiziert: keine LICENSE, kein
+  `license`-Feld in package.json — rechtlich "all rights reserved", obwohl das README zu Fork,
+  Docker-Self-Hosting und Render-Deploy einlädt. **Pro:** Minutenaufwand, zwingende Grundlage
+  für alles Community-Hafte. **Contra:** die Wahl bindet: MIT erlaubt kommerzielle
+  Closed-Source-Forks (auch mit Tracking), AGPL schreckt manche Nachnutzer ab — schwer
+  rückgängig zu machen, sobald Dritte beitragen. Vorbilder: Plausible (privacy-first → AGPL),
+  linkding (Solo-Maintainer → MIT). **Entscheidung liegt beim Betreiber.**
+  *(Impact hoch / Aufwand niedrig)*
+
+- [ ] **E5 — Fokus-Entscheidung dokumentieren: Musik ist das Produkt, die 9 anderen Packs sind
+  Labs (2×, identisches Warnbeispiel).** Booking, Klangprobe, Radar-Momentum und die orange
+  Kante existieren nur/primär im Musik-Pack; die anderen Packs sind produktiv gesperrt, bekamen
+  aber in Runde 7 Qualitätsarbeit. **Pro:** kostet einen Absatz in ROADMAP.md, verhindert
+  künftige Parity-Opportunitätskosten; beide Berater nennen unabhängig Gnod/TasteDive als
+  Warnbeispiel (breit + flach = stagnierend) und Letterboxd/BGG als Gegenmodell. **Contra:**
+  die Packs sind auch persönlicher Spielplatz und Projektcharme — ein offizieller Freeze kann
+  sich wie Selbstbeschneidung anfühlen und steht im Weg, falls ein Pack später doch zündet.
+  *(Impact hoch / Aufwand niedrig)*
+
+- [ ] **E6 — RA-Abhängigkeit absichern: Gratis-Keys aktivieren, Health-Check-Alarm, UPCOMING.**
+  Verifiziert: lib/ra.mjs fragt nur `type:PREVIOUS` ab; Songkick-/Bandsintown-/Setlist.fm-
+  Adapter liegen fertig in lib/, sind ohne Keys aber inaktiv. Das wichtigste Datenmonopol
+  (orange Kante) hängt an einer inoffiziellen API, die still degradiert. Keys beschaffen,
+  Pushover-Alarm bei leerer RA-Antwort (Anbindung existiert seit heute), RA-Query um UPCOMING
+  erweitern (Routing-Argument für Booker). **Pro:** Adapter fertig, Alarm-Infrastruktur da.
+  **Contra:** Key-Beschaffung liegt außerhalb des Codes (Songkick vergibt teils zögerlich —
+  prüfen); mehr Quellen = mehr Wartungs- und Drosselungsfläche.
+  *(Impact hoch / Aufwand mittel)*
+
+- [ ] **E7 — Mobile: Suche nicht hinter dem ⋯-Menü verstecken.** Verifiziert: unter 640px wird
+  `.search` per `display:none` entfernt — die Kern-Aktion braucht zwei Taps in ein generisches
+  Menü. Lupen-Icon in der Topbar → Fullscreen-Such-Overlay mit Autofokus (Empty-State-Markup
+  als Basis). Vergleich: Google Maps/Spotify halten die Suche mobil primär. **Pro:** teuerste
+  einzelne Mobile-Hürde eines Discovery-Produkts. **Contra:** Topbar-Platz ist knapp;
+  Fullscreen-Overlay ist neues UI mit eigenen Zuständen (Fokus, Zurück-Verhalten).
+  *(Impact hoch / Aufwand mittel)*
+
+- [ ] **E8 — Erste Suche absichern: Suggest-Dropdown auch an #q2 + klickbare Seed-Chips.**
+  Verifiziert: der Suggest-Handler hängt nur an #q; die Empty-State-Suche #q2 (Eingabe mit der
+  höchsten Absprung-Konsequenz) hat kein Autocomplete — Tippfehler enden im Fehler-Toast.
+  Seed-Daten (`exampleSeed`, `SURPRISE_SEEDS`) existieren. **Pro:** kleiner Fix an der
+  kritischsten Funnel-Stelle. **Contra:** wird durch E1 teils obsolet; zweite
+  Suggest-Instanz = doppelte Verkabelung, Autocomplete-Race (Runde 1-Fix) mitdenken.
+  *(Impact mittel / Aufwand niedrig)*
+
+- [ ] **E9 — Booking-Pipeline-Basics: Gagenfeld + Summenzeile, Status-Zeitstempel, Lineup-Korb
+  serverseitig.** Verifiziert: kein Fee-/Budget-Feld, kein `statusChangedAt`; der Lineup-Korb
+  lebt nur in localStorage und wird bei der Anon-zu-Konto-Migration NICHT mitgenommen
+  (Datenverlust-Risiko im "Booking-Tool"). Vergleich: Prism.fm/Gigwell hängen Deal-Terms an
+  jeden Hold. **Pro:** die drei Lücken, deretwegen parallel Excel offen bleibt — vom einzigen
+  Branchen-Insider. **Contra:** Gagen sind sensible Daten (Verantwortung steigt); ohne belegte
+  Booker-Nutzung baut man evtl. für ein Publikum von einer Person. Große Event-Dimension
+  (Status pro Festival) explizit NICHT jetzt.
+  *(Impact mittel / Aufwand niedrig)*
+
+- [ ] **E10 — Kanten zu Bürgern erster Klasse: Parallelkanten trennen + Kanten inspizierbar.**
+  Verifiziert: draw() zeichnet similar- und together-Kante desselben Paares als identische
+  Gerade — die spätere übermalt die erste; ausgerechnet der wertvollste Fall (ähnlich UND
+  zusammen aufgetreten) ist unlesbar. pick() prüft nur Knoten, obwohl Belegdaten (`l.shows`)
+  am Link liegen. Gegenläufig gebogene Kurven + Hover-Tooltip ("3 gemeinsame Events").
+  Vergleich: Cytoscape/Neo4j Bloom. **Pro:** macht die "Geheimwaffe" erstmals sichtbar und
+  belegbar; echter Rendering-Bug. **Contra:** Kanten-Hit-Testing auf Canvas ist fummelig
+  (Kurven-Abstand, Zoom, Konkurrenz zum Node-Hover); Kurven machen dichte Graphen unruhiger.
+  *(Impact mittel / Aufwand niedrig)*
+
+- [ ] **E11 — Service-Worker: App-Shell nicht bei jedem Start am Netz aufhängen.** Verifiziert:
+  sw.js fährt netz-zuerst ohne Timeout — die Shell liegt im Cache, wird aber erst nach
+  komplettem Fetch-Fehlschlag genutzt; auf schlechtem Mobilfunk hängt jeder Start.
+  `Promise.race` mit ~3s-Timeout + Cache-Fallback, versionierter Cache-Name (Muster: Workbox
+  `networkTimeoutSeconds`). **Pro:** kleiner Eingriff, spürbar für jeden PWA-Nutzer.
+  **Contra:** Cache-Fallback kann die veraltete personalisierte Shell liefern — ohne den
+  Cache-Control-Split (W8) kuriert man ein Symptom ("eingeloggt, aber alte Config").
+  *(Impact mittel / Aufwand niedrig)*
+
+- [ ] **E12 — Spenden-Popup entschärfen: sessionsbasiert statt alle 10 Minuten.** Verifiziert:
+  `NAG_EVERY` = 10 Nutzungs-Minuten, "Später" bringt nur 10 weitere, erst Spenden-Klick 72h
+  Ruhe — die längsten, wertvollsten Sessions werden am häufigsten unterbrochen
+  (Markenwiderspruch zu "kein Feed, keine Werbung"). "Später" ≥ 7 Tage, Nag an
+  Wiederkehr-Sessions koppeln, dezenter Herz-Button in der Topbar (Muster:
+  Wikipedia/Signal). **Pro:** behebt echten Markenwiderspruch. **Contra:** Spenden sind die
+  einzige Einnahme — seltener nerven kann real weniger Spenden bedeuten; ohne Zahlen
+  (W7-Zähler) ist der Trade-off blind.
+  *(Impact mittel / Aufwand niedrig)*
+
+- [ ] **E13 — Kaltstart-Import: Last.fm-Username als Seed für die eigene Karte.** Verifiziert:
+  /api/import akzeptiert nur das eigene JSON-Backup; lib/lastfm.mjs kennt kein
+  `user.getTopArtists` — dabei ist es dieselbe API mit demselben Key. "Meine 50 Lieblings-Acts
+  als fertige Landkarte" löst zugleich den Radar-Kaltstart (ohne Likes tot). Vergleich:
+  Obscurify/LibraryThing leben vom Profil-Import. **Pro:** stärkstes denkbares
+  Erstnutzer-Erlebnis für die Zielgruppe. **Contra:** erreicht nur die (schrumpfende)
+  Last.fm-Nische; 50 Acts + Nachbarn = API-Lastspike (Drosselung!) und ggf. überfordernder
+  Dichte-Graph. BGG/Goodreads/Steam-Importe erst bei Nachfrage.
+  *(Impact hoch / Aufwand mittel)*
+
+- [ ] **E14 — Ehrliche Daten statt Pseudo-Präzision (Books/Podcasts, nur das Nötigste).**
+  Verifiziert: Books vergibt hartkodierte match-Werte 0.55/0.75 und holt Top-12 pro Subject
+  (populärste zuerst → jedes Sci-Fi-Buch bekommt denselben Kanon); Podcasts lädt hartkodiert
+  die `/de/`-iTunes-Storefront (EN-Nutzer bekommen deutsche Charts); das Frontend übersetzt
+  match in Dicke UND Deckkraft. Games macht es seit Q4 richtig (Tag-Schnittmenge). Wegen E5
+  nur Sofort-Fixes: Storefront an UI-Sprache koppeln, uniforme Kanten wo keine echten Scores
+  existieren; volle Schnittmengen-Umstellung erst bei Entsperrung. **Pro:** kleine, lokale
+  Wahrheits-Fixes. **Contra:** betrifft gesperrte Packs (Spannung zu E5); uniforme Kanten
+  sehen ehrlicher, aber langweiliger aus.
+  *(Impact mittel / Aufwand mittel)*
+
+- [ ] **E15 — Stöbern/Booking-Schalter neu schneiden: generisches "Einfach/Profi" + Booking
+  nur bei `features.booking`.** Verifiziert: `.workonly` versteckt im Stöbern-Modus auch
+  Genre-Filter, Szenen, Shift-Klick-Vergleich, Fingerabdruck, Backup und Diagnose — in ALLEN
+  Domänen, obwohl `features.booking` nur im Musik-Pack true ist; ein Bücher-Nutzer klickt nie
+  auf "Booking", die halbe Funktionstiefe bleibt unauffindbar. Vergleich: Spotify for
+  Artists/Letterboxd Pro als getrennte Schichten. **Pro:** Flag-/CSS-Infrastruktur existiert,
+  im Kern Umbenennung + zweites Flag. **Contra:** bei konsequenter Labs-Entscheidung (E5)
+  zählt fast nur Musik — dort ist "Booking" der richtige Name; mehr UI-Zustände,
+  Bestandsnutzer müssen umlernen.
+  *(Impact mittel / Aufwand niedrig)*
+
+### Kontroversen (vom Moderator entschieden)
+- **Web-Push vs. Runde-10-Entscheidung:** Produktstratege: Radar/Momentum sind "ein Discover
+  Weekly ohne Zustellkanal" — höchster Retention-Hebel. Moderator: analytisch richtig, aber
+  falsche Reihenfolge — erst E1/E2, sonst pusht man Nutzer in ein Produkt zurück, das ihre
+  Karte vergessen hat. Runde-12-Kandidat.
+- **Content-Qualität vs. Labs-Freeze:** Fokus-Fraktion gewinnt (2× unabhängig, konsistentes
+  Warnbeispiel); vom Content-Berater nur die Ehrlichkeits-Fixes (E14) übernehmen.
+- **Anon-Persistenz vs. Privacy-Versprechen:** lösbar und den Trade-off wert, aber NUR mit
+  ehrlicher Datenschutz-Anpassung — stillschweigend umstellen wäre Bruch des Kernversprechens.
+- **Tour reparieren vs. ersetzen:** kurzfristig den nachweislich falschen Satz "Nähe zeigt
+  Verwandtschaft" korrigieren (das Force-Layout hält das Versprechen nicht — Kollisions-
+  Padding, Mond-Halo-Federn), mittelfristig Learn-by-Doing statt 5-Slide-Tour.
+- **Kreisende Monde:** Teil des Wow-Effekts, aber Dauerbewegung zerstört das räumliche
+  Gedächtnis ("Rabbit-Hole mit Gedächtnis"). Kompromiss: Orbit als Spawn-Choreografie, nach
+  dem Einpendeln einfrieren.
+- **Single-File vs. Contributor-Zugänglichkeit:** 5.275-Zeilen-index.html aufbrechen?
+  Aufschieben — erst LICENSE/englisches README/CONTRIBUTING würden zeigen, ob überhaupt
+  Contributor kommen.
+
+### Weitere Quick Wins aus den Einzel-Gutachten (klein, unstrittig)
+- Kamerafahrten-Tween für centerOn/fitAll/Minimap (~30 Zeilen im requestDraw-Loop).
+- Hover hebt inzidente Kanten/Nachbarn hervor (adj-Map existiert).
+- Media Session API für Deezer-Previews (~20 Zeilen, Metadaten vorhanden).
+- CSV-Export um Hörerzahl/Momentum/Profil-URL ergänzen; `statusChangedAt` beim
+  Status-Speichern setzen (Teil von E9).
+- Anything-Pack: Ausschlussfilter für Listen-/Jahres-/Begriffsklärungsseiten.
+- GHCR-Job in release.yml + docker-compose.yml (kleiner CI-Zusatz).
+
+### Empfohlene Reihenfolge
+Sofort-Kandidaten (risikoarm): E4 (LICENSE — Betreiber-Entscheidung MIT vs. AGPL nötig),
+E3 (Landing-Copy), E8, E11, E14-Sofort-Fixes. Größte Hebel mit Abstimmungsbedarf: E1
+(Demo-Karte — Geschmacksfrage), E2 (localStorage — Datenschutztext!), E5 (Fokus — strategische
+Betreiber-Entscheidung).
