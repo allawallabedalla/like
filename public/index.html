@@ -454,6 +454,17 @@
   .empty .box h3 { color: var(--text); font-size: 20px; margin: 0 0 10px; }
   .empty .box p { margin: 6px 0; font-size: 13px; line-height: 1.6; }
   .empty kbd { border: 1px solid var(--line-soft); padding: 1px 6px; font: 12px inherit; border-radius: 3px; }
+  /* E1: Hinweisband der Beispiel-Karte (erster Besuch, leerer Graph) */
+  .demobar { position: fixed; top: 62px; left: 50%; transform: translateX(-50%); z-index: 6;
+    display: flex; align-items: center; gap: 10px; max-width: min(620px, 94vw);
+    background: var(--panel, var(--bg)); border: 1px solid var(--line-soft); border-radius: 12px;
+    padding: 8px 10px 8px 14px; font-size: 13px; color: var(--text);
+    box-shadow: 0 10px 30px -12px rgba(0,0,0,.35); }
+  .demobar b { color: var(--edge-together); }
+  .demobar button { flex: none; border: none; background: none; color: var(--muted); font-size: 16px;
+    cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  .demobar button:hover { color: var(--text); background: var(--line-soft); }
+  @media (max-width: 640px) { .demobar { top: auto; bottom: 14px; font-size: 12px; } }
 
   /* Hilfe-Popover (Shortcuts & Bedienung) */
   .helpbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
@@ -1275,6 +1286,8 @@ const T = LANG !== "en" ? null : {
   "Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)": "Preview can't play (the browser blocked playback)",
   "Notiz gespeichert": "Note saved", "Wiederhergestellt": "Restored", "Geleert.": "Cleared.",
   "Kommende Auftritte": "Upcoming shows",
+  "Beispiel-Karte": "Sample map", "Beispiel-Karte schließen": "Close sample map",
+  "klick dich durch oder such selbst: deine erste Suche startet deine eigene Karte.": "click around or search yourself: your first search starts your own map.",
   "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
   "klein": "small",
   "1 unverknüpften Act von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.": "Remove 1 unconnected act from the map?\nSearched, booked/noted acts stay.",
@@ -1733,6 +1746,7 @@ const API = {
   crossbridge: (name) => POST("/api/crossbridge", { name }),
   artist: (body) => POST("/api/artist", body),
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
+  demo: () => GET("/api/demo"),
 };
 
 const cv = document.getElementById("cv");
@@ -3646,9 +3660,29 @@ async function reload(focusName, { select = true, center = true, reheatAmt = 1 }
 }
 
 let busy = false;
+// ---- E1: Beispiel-Karte beim leeren Erstbesuch ----
+// Rein clientseitig: die demo.json des Packs wird angezeigt, aber nie gespeichert. Die erste
+// eigene Suche (exploreByName -> reload() holt den echten Graphen) ersetzt sie automatisch.
+let demoMode = false;
+function endDemo(resetGraph) {
+  if (!demoMode) return;
+  demoMode = false;
+  document.getElementById("demoBar")?.remove();
+  try { localStorage.setItem("like_demo_off", "1"); } catch {} // nicht erneut aufdrängen
+  if (resetGraph) { graph = { artists: {}, edges: [] }; rebuild(); fitAll(); }
+}
+function showDemoBar() {
+  const bar = document.createElement("div");
+  bar.className = "demobar"; bar.id = "demoBar";
+  bar.innerHTML = `<span><b>${t("Beispiel-Karte")}</b> — ${t("klick dich durch oder such selbst: deine erste Suche startet deine eigene Karte.")}</span><button id="demoOff" aria-label="${t("Beispiel-Karte schließen")}">×</button>`;
+  document.body.appendChild(bar);
+  document.getElementById("demoOff").onclick = () => endDemo(true);
+}
+
 async function exploreByName(name, { select = true, center = true, reheatAmt = 1 } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
+  endDemo(false); // erste eigene Suche: reload() ersetzt die Beispiel-Karte gleich durch den echten Graphen
   busy = true;
   const k = slugify(name);
   const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
@@ -4894,6 +4928,7 @@ document.getElementById("importFile").onchange = async (e) => {
     const data = JSON.parse(await file.text());
     const res = await API.import(data);
     if (res.error) { toast("Fehler: " + res.error); return; }
+    endDemo(false); // Backup ersetzt die Beispiel-Karte
     graph = res.graph; rebuild(); fitAll();
     toast(`Importiert: ${res.artists} Acts`);
   } catch { toast("Datei ist kein gültiger Graph-Export"); }
@@ -5113,6 +5148,15 @@ function maybeShowIntro() {
   // bleibt schwarz. Stattdessen leer starten + Hinweis; der Rest (loop, Intro …) läuft weiter.
   try { graph = await API.graph(); }
   catch { graph = { artists: {}, edges: [] }; try { toast("Server nicht erreichbar — leer gestartet. Später neu laden."); } catch {} }
+  // E1: Erstbesuch mit leerer Karte -> kuratierte Beispiel-Karte zeigen (nie gespeichert;
+  // die erste eigene Suche oder das × am Hinweisband ersetzt sie). Wer sie einmal
+  // weggeklickt/ersetzt hat, bekommt sie nicht erneut (like_demo_off).
+  if (!STATIC && !Object.keys(graph.artists || {}).length) {
+    let off = false; try { off = localStorage.getItem("like_demo_off") === "1"; } catch {}
+    if (!off) {
+      try { const d = await API.demo(); if (d?.ok && Object.keys(d.graph.artists || {}).length) { graph = d.graph; demoMode = true; } } catch {}
+    }
+  }
   rebuild();
   // Layout VOR dem ersten Zeichnen fertig ausrechnen (bis es ruhig ist) — so wackelt beim
   // Anzeigen nichts mehr (kein sichtbares Zappeln direkt nach dem Start). Deckel als Notbremse.
@@ -5120,8 +5164,9 @@ function maybeShowIntro() {
   // Gemerkte Ansicht (Pan/Zoom) wiederherstellen, falls vorhanden und plausibel — sonst wie
   // gehabt alles einpassen und zentrieren, so weit rauszoomen, dass der ganze Graph sichtbar ist.
   const savedView = loadView();
-  if (savedView && nodes.length) { view.k = savedView.k; view.x = savedView.x; view.y = savedView.y; requestDraw(); }
+  if (savedView && nodes.length && !demoMode) { view.k = savedView.k; view.x = savedView.x; view.y = savedView.y; requestDraw(); }
   else fitAll();
+  if (demoMode) showDemoBar();
   loop();
   checkKey();
   startupTasks();

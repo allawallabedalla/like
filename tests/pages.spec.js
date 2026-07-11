@@ -37,8 +37,25 @@ test.describe("Seiten laden fehlerfrei", () => {
     await expect(page.locator("#segSpace")).toBeVisible();
     await expect(page.locator("#segFlat")).toBeVisible();
     await page.keyboard.press("Escape");
-    // Empty-State: zentrale Suchleiste
+    // E1: Erstbesuch zeigt die Beispiel-Karte samt Hinweisband — das × führt zurück
+    // zum leeren Zustand mit der zentralen Suchleiste.
+    await expect(page.locator("#demoBar")).toBeVisible();
+    await page.locator("#demoOff").click();
+    await expect(page.locator("#demoBar")).toHaveCount(0);
     await expect(page.locator(".emptysearch #q2")).toBeVisible();
+    assertClean(sink);
+  });
+
+  test("E1: Beispiel-Karte lädt beim leeren Erstbesuch (Knoten sichtbar, nichts gespeichert)", async ({ page, baseURL }) => {
+    const sink = collect(page, baseURL);
+    await page.goto(`/?pack=${PUBLIC_PACK}&e2e=1`, { waitUntil: "networkidle" });
+    await dismissIntro(page);
+    await expect(page.locator("#demoBar")).toBeVisible();
+    const count = await page.evaluate(() => window.__e2e?.count());
+    expect(count, "Demo-Karte bringt Knoten mit").toBeGreaterThan(3);
+    // nichts wurde in den echten (leeren) Graphen geschrieben
+    const real = await page.evaluate(async () => (await (await fetch("/api/graph?pack=music", { headers: { "x-like-anon": localStorage.getItem("like_anon") || "" } })).json()));
+    expect(Object.keys(real.artists || {}).length).toBe(0);
     assertClean(sink);
   });
 });

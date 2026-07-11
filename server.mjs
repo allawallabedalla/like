@@ -977,6 +977,16 @@ const server = createServer(async (req, res) => {
       return send(res, 200, materialize(g));
     }
 
+    // E1: kuratierte Beispiel-Karte des Packs (rein lesend, wird NIE in den Nutzer-Graphen
+    // gemischt) — der Client zeigt sie beim leeren Erstbesuch, die erste eigene Suche ersetzt sie.
+    if (req.method === "GET" && url.pathname === "/api/demo") {
+      try {
+        const g = JSON.parse(await readFile(join(ROOT, "packs", pack.id, "demo.json"), "utf8"));
+        if (!Object.keys(g.artists || {}).length) return send(res, 200, { ok: false });
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      } catch { return send(res, 200, { ok: false }); }
+    }
+
     // Vorwärmen: die (langsamen) Ähnlich-/Zusammen-Fetches eines Namens schon mal in den Cache
     // holen, OHNE den Graphen zu ändern. Wird beim Hovern ausgelöst -> der spätere Ausbau ist
     // dann ein Cache-Hit und fühlt sich flott an. Nebenläufig, Antwort kommt sofort.
