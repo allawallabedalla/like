@@ -811,6 +811,22 @@ const server = createServer(async (req, res) => {
       return send(res, 200, body, "text/plain; charset=utf-8");
     }
 
+    // W14: Read-Only-Ansicht eines geteilten Karten-Snapshots (STATIC-Modus des Frontends).
+    if (req.method === "GET" && /^\/s\/[a-f0-9]{12}$/.test(url.pathname)) {
+      const sid = url.pathname.slice(3);
+      let shared;
+      try { shared = JSON.parse(await readFile(join(DATA_DIR, "shares", sid + ".json"), "utf8")); }
+      catch { return send(res, 404, "Diesen geteilten Link gibt es nicht (mehr).", "text/plain; charset=utf-8"); }
+      const sPack = PACKS.get(shared.meta?.pack) || PACKS.get(DEFAULT_PACK);
+      const esc2 = (s) => JSON.stringify(s).replace(/</g, "\\u003c");
+      const n = Object.keys(shared.artists || {}).length;
+      const m = { title: `Geteilte Karte (${n} ${sPack.config.item?.plur || "Einträge"}) — like`, desc: `Eine kuratierte ${sPack.config.title}-Nachbarschaft auf like — schau dir das Netz an und bau deine eigene Karte.`, path: `/s/${sid}` };
+      const withMeta = APP_SPLIT.shell.replace("<title>Like</title>", `<title>${escAttr(m.title)}</title>\n${metaTags({ ...m, base: publicBase(req) })}`);
+      // STATIC-Modus: LIKE_GRAPH macht das Frontend read-only (Banner, keine Schreib-Aktionen).
+      const html = withMeta.replace("<script>", `<script>window.LIKE_CFG = ${esc2(sPack.config)};\nwindow.LIKE_PACKS = ${esc2(PACK_LIST)};\nwindow.LIKE_GRAPH = ${esc2(materialize(shared))};</script>\n<script>`);
+      return send(res, 200, html, "text/html; charset=utf-8", "public, max-age=300");
+    }
+
     // W8: versionierte App-Statik (Haupt-Script/Styles) — unbegrenzt cachebar, weil der
     // Dateiname den Inhalts-Hash trägt. send() komprimiert wie üblich.
     if (req.method === "GET" && url.pathname === APP_SPLIT.jsPath) {
@@ -1170,6 +1186,29 @@ const server = createServer(async (req, res) => {
         await persist(g);
         return send(res, 200, { ok: true, graph: materialize(g) });
       });
+    }
+
+    // W14: Karten-Snapshot teilen — unveränderliche Kopie des eigenen Graphen unter
+    // zufälliger ID. Private Felder (Notizen, Status, Gagen, Korb) werden entfernt;
+    // der Link (/s/<id>) zeigt eine Read-Only-Ansicht.
+    if (req.method === "POST" && url.pathname === "/api/share") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const g = await loadGraph(GRAPH);
+      const names = Object.keys(g.artists || {});
+      if (!names.length) return send(res, 400, { ok: false, error: "Die Karte ist noch leer." });
+      if (names.length > 800) return send(res, 400, { ok: false, error: "Karte zu groß zum Teilen (max. 800 Einträge)." });
+      const pub = { meta: { shared: true, pack: pack.id, created: new Date().toISOString() }, artists: {}, edges: g.edges };
+      for (const [id, a] of Object.entries(g.artists)) {
+        const { note, fee, status, statusChangedAt, basket, known, ...rest } = a; // privates bleibt privat
+        pub.artists[id] = rest;
+      }
+      const sid = randomUUID().replace(/-/g, "").slice(0, 12);
+      const dir = join(DATA_DIR, "shares");
+      await mkdir(dir, { recursive: true });
+      await writeJsonAtomic(join(dir, sid + ".json"), pub);
+      countUsage("share", pack.id);
+      const base = publicBase(req);
+      return send(res, 200, { ok: true, id: sid, url: `${base || ""}/s/${sid}` });
     }
 
     // E13: Kaltstart-Import — Last.fm-Nutzername -> Top-Künstler als fertige Start-Karte.
