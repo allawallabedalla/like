@@ -1324,6 +1324,8 @@ const T = LANG !== "en" ? null : {
   "Kommende Auftritte": "Upcoming shows",
   "Beispiel-Karte": "Sample map", "Beispiel-Karte schließen": "Close sample map",
   "Probier mal:": "Try one:",
+  "Ähnlichkeit {N} %": "Similarity {N} %",
+  "{N} gemeinsames Event": "{N} shared event", "{N} gemeinsame Events": "{N} shared events",
   "klick dich durch oder such selbst: deine erste Suche startet deine eigene Karte.": "click around or search yourself: your first search starts your own map.",
   "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
   "klein": "small",
@@ -2156,6 +2158,12 @@ function rebuild(prev, reheatAmt = 1) {
   const pairKey = (l) => l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
   for (const l of links) { if (l.type === "venue") continue; const k = pairKey(l); bondByPair.set(k, 1 - (1 - (bondByPair.get(k) ?? 0)) * (1 - (l.strength ?? 0.5))); }
   for (const l of links) { l.bond = l.type === "venue" ? l.strength : (bondByPair.get(pairKey(l)) ?? l.strength); }
+  // E10: Parallelkanten (ähnlich UND zusammen zwischen demselben Paar) markieren — draw()
+  // biegt sie gegenläufig, statt dass die später gezeichnete die erste exakt übermalt.
+  // Ausgerechnet der wertvollste Fall (beides!) war bisher unlesbar.
+  const typesByPair = new Map();
+  for (const l of links) { if (l.type === "venue") continue; const k = pairKey(l); let s = typesByPair.get(k); if (!s) typesByPair.set(k, s = new Set()); s.add(l.type); }
+  for (const l of links) { l._par = (l.type !== "venue" && (typesByPair.get(pairKey(l))?.size || 0) > 1) ? (l.type === "similar" ? 1 : -1) : 0; }
   // Adjazenz für Schnittmengen / Pfade
   adj.clear();
   for (const l of links) {
@@ -2647,7 +2655,16 @@ function draw() {
     else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
     ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe || bridgeActive) ? 0.06 : aBase)) * ea * linkFade;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
-    ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
+    ctx.beginPath();
+    if (l._par) {
+      // E10: gegenläufig gebogene Kurven für Parallelkanten — Versatz senkrecht zur Achse,
+      // proportional zur Distanz (gedeckelt), im Weltraum, zoomt also natürlich mit.
+      const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, d = Math.hypot(dx, dy) || 1;
+      const off = Math.min(26, d * 0.16) * l._par;
+      ctx.moveTo(l.a.x, l.a.y);
+      ctx.quadraticCurveTo((l.a.x + l.b.x) / 2 - dy / d * off, (l.a.y + l.b.y) / 2 + dx / d * off, l.b.x, l.b.y);
+    } else { ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); }
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 
@@ -3252,7 +3269,10 @@ addEventListener("mousemove", (e) => {
     if (n !== hover) { hover = n; schedulePrefetch(n); requestDraw(); }
     else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen (beide Modi)
     cv.style.cursor = (onX || onMoonB || onSeedI) ? "pointer" : (n ? "pointer" : "grab");
-    updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
+    // E10: kein Knoten unterm Zeiger -> liegt eine Kante darunter? Dann ihre Belege zeigen.
+    const edgeHover = (!n && overCanvas) ? edgeAt(p) : null;
+    if (edgeHover) updateEdgeTooltip(edgeHover, e);
+    else updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
     return;
   }
   const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
@@ -3835,6 +3855,49 @@ document.getElementById("go").onclick = doSearch;
 
 // ---- Tooltip ----
 const tipEl = document.getElementById("tooltip");
+// E10: Kante unter dem Mauszeiger finden (Punkt-zu-Strecke, Kurven-Versatz der Parallel-
+// kanten wird am Parameter t mitgerechnet). Endstücke bleiben den Knoten überlassen.
+function edgeAt(p) {
+  if (!showEdges || view.k <= 0.35) return null; // Kanten sind ausgeblendet/weggezoomt
+  const wm = world(p), thr = 7 / view.k;
+  let best = null, bestD = thr;
+  for (const l of links) {
+    if (l.type === "venue") continue;
+    if (interactionHidden(l.a) || interactionHidden(l.b)) continue;
+    const ax = l.a.x, ay = l.a.y, dx = l.b.x - l.a.x, dy = l.b.y - l.a.y;
+    const len2 = dx * dx + dy * dy || 1, dlen = Math.sqrt(len2);
+    let tt = ((wm.x - ax) * dx + (wm.y - ay) * dy) / len2;
+    if (tt < 0.1 || tt > 0.9) continue;
+    let px2 = ax + dx * tt, py2 = ay + dy * tt;
+    if (l._par) { // Abweichung der Quadratic-Kurve von der Geraden: 2t(1−t)·off, senkrecht
+      const dev = Math.min(26, dlen * 0.16) * l._par * 2 * tt * (1 - tt);
+      px2 -= dy / dlen * dev; py2 += dx / dlen * dev;
+    }
+    const dd = Math.hypot(wm.x - px2, wm.y - py2);
+    if (dd < bestD) { bestD = dd; best = l; }
+  }
+  return best;
+}
+// E10: Kanten-Tooltip — macht die Belege („3 gemeinsame Events") erstmals sichtbar.
+function updateEdgeTooltip(l, e) {
+  const isSim = l.type === "similar";
+  const label = isSim ? (CFG.edges?.similar?.label || "ähnlich") : (CFG.togetherLabel || CFG.edges?.together?.label || "zusammen aufgetreten");
+  const parts = [`<b>${esc(l.a.name)} — ${esc(l.b.name)}</b>`, `<span class="g">${esc(t(label))}</span>`];
+  if (isSim) {
+    const w = Math.max(0, Math.min(1, l.weight ?? 0.5));
+    parts.push(`<span class="g">${tf("Ähnlichkeit {N} %", { N: Math.round(w * 100) })}</span>`);
+  } else {
+    const cnt = Math.max(1, Math.round(l.weight || 1));
+    parts.push(`<span class="g">${tf(cnt === 1 ? "{N} gemeinsames Event" : "{N} gemeinsame Events", { N: cnt })}</span>`);
+    for (const s of (l.shows || []).slice(0, 2)) parts.push(`<span class="g">▸ ${[s.event, s.date, s.city || s.venue].filter(Boolean).map(esc).join(" · ")}</span>`);
+  }
+  tipEl.innerHTML = parts.join("<br>");
+  tipEl.classList.add("show");
+  const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tw - 8) + "px";
+  tipEl.style.top = Math.min(e.clientY + 14, innerHeight - th - 8) + "px";
+}
+
 function updateTooltip(n, e) {
   if (!n) { tipEl.classList.remove("show"); return; }
   const parts = [`<b>${esc(n.name)}</b>`];
