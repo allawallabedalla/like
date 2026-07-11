@@ -594,3 +594,51 @@ Headless-Browser (Desktop + Mobile). **Hinweise für den Betrieb:** neue optiona
 `LIKE_PUBLIC_URL` (canonical/OG-Basis), `LIKE_ANON_TTL_DAYS` (Default 30);
 DATA_DIR bekommt `usage.json` und `shares/`; nach Deploys ändert sich der app.<hash>-Name
 automatisch mit dem Inhalt.
+
+
+---
+
+## Runde 13 — ＋-Latenz: 6-stufiger Verbesserungszyklus (2026-07-11) — ✅ ERLEDIGT
+
+Kundenfeedback: „Ladezeiten nach dem ＋ sind viel zu lang." Bearbeitet als DMAIC-Zyklus
+(+ Standardisieren), fachliche Grundlage: Taskforce aus 6 gleichberechtigten Agents mit
+Challenge-Runde (Vorschläge -> gegenseitige Kritik -> Konsens-Protokoll; mehrere Ideen
+wurden dabei von ihren Autoren selbst zurückgezogen).
+
+1. **Definieren:** kalt ~3,1 s -> Ziel ≈2 s; Hover+Klick ohne Doppel-Requests; kein
+   einziger externer Request mehr als vorher (RA-/Last.fm-Drosseln unangetastet).
+2. **Messen:** neues Standard-Werkzeug `scripts/bench-explore.mjs` (gemocktes fetch,
+   feste Modell-RTTs, Fetch-Zählung). Baseline: kalt 3098 ms / 4 Fetches · warm 7 ms ·
+   Hover+Klick 4854 ms / **7 Fetches** (Prefetch-Klick-Race belegt).
+3. **Analysieren (Taskforce-Konsens):** ~840 ms Drossel-Sleeps IM Antwortpfad · ~370-500 ms
+   unnötige Serialisierung (Tags nach RA statt parallel) · doppelter Vollgraph-Roundtrip ·
+   fehlendes In-Flight-Dedup in cached() (Prefetch verdoppelt Requests und stellt den Klick
+   hinter sich selbst).
+4. **Verbessern (4 Konsens-Maßnahmen, 0 zusätzliche externe Requests):**
+   - Single-Flight in `lib/cache.mjs` (Klick teilt sich das Promise des Prefetchs;
+     Rejections werden nie memoiert).
+   - Drossel-Pausen zweiarmig in die Gate-Kette verlegt (`lfetch`, `gql`, `jfetch`,
+     `setlistfm.api`) — der NÄCHSTE Request wartet, nicht der Klicker; Retry-Backoffs
+     unangetastet.
+   - `getTopTags` parallel zu `coAppearances` (packs/music, nach getSimilar/canonical;
+     Schluck-Semantik und Genre-Reihenfolge unverändert).
+   - Client nutzt `res.graph` aus der Explore-Antwort (reload mit optionalem Graph;
+     Fallback auf GET /api/graph bleibt).
+5. **Prüfen:** Benchmark nachher: kalt **2265 ms (−27 %)** · warm 2 ms · Hover+Klick
+   **1795 ms (−63 %) / 4 Fetches** (Dedup belegt). Bann-Schutz-Test: Abstand zwischen zwei
+   echten fetches je Host bleibt ≥ gap (Last.fm 121/121 ms, RA 300/300 ms), auch wenn der
+   vorige Request FEHLSCHLÄGT. `npm run check` grün, Suite 73 passed / 0 failed,
+   Browser-Test: Explore feuert keinen zweiten /api/graph-Request mehr.
+   Ziel ≈2 s knapp verfehlt (2,27 s) — der Rest ist die unvermeidbare serielle RA-Kette
+   (Search 0,6 s + Pflicht-Abstand 0,3 s + Events-Query 1,1 s).
+6. **Standardisieren:** bench-explore.mjs liegt als Regressions-Werkzeug im Repo (vor
+   künftigen Änderungen am ＋-Pfad laufen lassen); Erkenntnisse hier dokumentiert.
+
+**Mittelfristig (aus dem Taskforce-Konsens, bewusst noch nicht gebaut):** zweiphasiger
+Ausbau in der client-getriebenen Zwei-Request-Variante (gefühlt <1 s; „ähnlich" sofort,
+RA-Kanten nachladen) · Negativ-Cache ≤15 min für RA-Störungen · Queue-Prefetch ·
+„RA antwortet langsam…"-Hinweis nach 4 s · Retry-Kappung 4->2 nur im Klickpfad.
+**Im Challenge verworfen:** optimistischer RA-Start (Autocorrect-Mismatch = verschwendete
+RA-Requests), Delta-Antworten (doppelte Merge-Semantik), Long-Poll-Explore (Serverzustand),
+Tap-Prefetch (30 Panels = 60 RA-Requests), Prioritäts-Gates (Prämisse hielt Code-Prüfung
+nicht stand).

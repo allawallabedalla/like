@@ -134,9 +134,14 @@ export default {
     let canonical = name, similar = [], coacts = [], raGenres = [], tags = [], sources = [];
     try { const r = await getSimilar(name, { limit: 30 }); canonical = r.sourceName; similar = r.similar; }
     catch (e) { if (/API-Key/i.test(e.message)) throw e; /* sonst: nicht bei Last.fm */ }
-    try { tags = await getTopTags(canonical); } catch {}
+    // Tags (Last.fm) und Co-Auftritte (RA) brauchen beide nur `canonical` und treffen
+    // GETRENNTE Hosts/Gates — parallel statt seriell spart ~370-500 ms pro kaltem Ausbau
+    // (Taskforce R13). Schluck-Semantik wie vorher: jeder Zweig scheitert für sich still;
+    // die Genre-Mischreihenfolge (RA vor Tags, unten) bleibt unverändert.
     let booking = null;
-    try { const ca = await coAppearances(canonical); coacts = ca.coacts; raGenres = ca.genres; sources = ca.sources; booking = ca.booking; } catch {}
+    const [tagsR, caR] = await Promise.allSettled([getTopTags(canonical), coAppearances(canonical)]);
+    if (tagsR.status === "fulfilled") tags = tagsR.value;
+    if (caR.status === "fulfilled") { const ca = caR.value; coacts = ca.coacts; raGenres = ca.genres; sources = ca.sources; booking = ca.booking; }
 
     const genres = [], seenG = new Set();
     for (const x of [...raGenres, ...tags]) { const k = x.toLowerCase(); if (!seenG.has(k)) { seenG.add(k); genres.push(x); } }
