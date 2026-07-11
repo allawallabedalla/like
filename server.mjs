@@ -26,7 +26,8 @@ import { readFile, writeFile, access, rename, mkdir, readdir, rm, stat } from "n
 const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist } from "./lib/store.mjs";
+import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist, slug } from "./lib/store.mjs";
+import { getUserTopArtists, getSimilar } from "./lib/lastfm.mjs"; // E13: Kaltstart-Import (nur Musik-Pack)
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
@@ -1168,6 +1169,41 @@ const server = createServer(async (req, res) => {
         }
         await persist(g);
         return send(res, 200, { ok: true, graph: materialize(g) });
+      });
+    }
+
+    // E13: Kaltstart-Import — Last.fm-Nutzername -> Top-Künstler als fertige Start-Karte.
+    // Bewusst schlank gegen API-Lastspikes: EIN user.getTopArtists-Aufruf + getSimilar nur
+    // für die Top-12 (lfetch drosselt ohnehin), Kanten NUR innerhalb der Import-Menge.
+    // Ausbauen können die Knoten danach ganz normal per Doppelklick.
+    if (req.method === "POST" && url.pathname === "/api/lastfm-import") {
+      if (pack.id !== "music") return send(res, 400, { ok: false, error: "Nur im Musik-Pack verfügbar." });
+      const { user } = await readBody(req);
+      const uname = String(user || "").trim();
+      if (!/^[A-Za-z0-9_.-]{2,32}$/.test(uname)) return send(res, 400, { ok: false, error: "Ungültiger Last.fm-Nutzername." });
+      countUsage("lastfmImport", pack.id);
+      let top;
+      try { top = (await getUserTopArtists(uname, { limit: 30 })).filter((a) => a.name); }
+      catch (err) { return send(res, 502, { ok: false, error: err.message }); }
+      if (!top.length) return send(res, 404, { ok: false, error: "Keine Künstler gefunden — Profil privat oder leer?" });
+      const inSet = new Map(top.map((a) => [slug(a.name), a]));
+      // Ähnlichkeits-Kanten INNERHALB der Import-Menge einsammeln (Netz statt loser Punkte).
+      const pairs = [];
+      for (const a of top.slice(0, 12)) {
+        try {
+          const r = await getSimilar(a.name, { limit: 60 });
+          for (const s of r.similar || []) {
+            const sid = slug(s.name);
+            if (inSet.has(sid) && sid !== slug(a.name)) pairs.push({ from: slug(a.name), to: sid, match: s.match || 0.5 });
+          }
+        } catch {} // einzelner Ausfall egal — dann fehlt halt eine Kante
+      }
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        for (const a of top) upsertArtist(g, { name: a.name, mbid: a.mbid, url: a.url, seed: true });
+        for (const p2 of pairs) addEdge(g, p2.from, p2.to, "similar", p2.match, "lastfm");
+        await persist(g);
+        return send(res, 200, { ok: true, imported: top.length, edges: pairs.length, graph: materialize(g) });
       });
     }
 

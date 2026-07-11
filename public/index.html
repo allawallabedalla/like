@@ -837,6 +837,7 @@
     </div>
     <div id="seedChips" class="seedchips hideStatic"></div>
     <button id="surpriseBtn" class="surprisebtn hideStatic" title="Zeig mir einen zufälligen, eher unbekannten Act">✦ Überrasch mich</button>
+    <button id="lfmImport" class="loginhint hideStatic" style="display:none" title="Deine meistgehörten Last.fm-Künstler als fertige Start-Karte laden (Name genügt, kein Passwort)">↧ Last.fm-Künstler als Start-Karte importieren</button>
     <button id="loginHint" class="loginhint hideStatic" style="display:none"
       title="Anonym bleibt deine Karte auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.">
       <span class="lh-i">↗</span> Anmelden — deine Karte dauerhaft &amp; auf allen Geräten sichern
@@ -1334,6 +1335,10 @@ const T = LANG !== "en" ? null : {
   "Gage": "Fee", "Gagen": "fees", "Gage gespeichert": "Fee saved", "Gage entfernt": "Fee removed",
   "heute geändert": "changed today",
   "vor {N} Tag geändert": "changed {N} day ago", "vor {N} Tagen geändert": "changed {N} days ago",
+  "↧ Last.fm-Künstler als Start-Karte importieren": "↧ Import your Last.fm artists as a starter map",
+  "Dein Last.fm-Nutzername (öffentliches Profil genügt, kein Passwort):": "Your Last.fm username (public profile is enough, no password):",
+  "↧ Importiere …": "↧ Importing …",
+  "{N} Künstler importiert — Doppelklick lädt Nachbarn": "{N} artists imported — double-click loads neighbors",
   "klick dich durch oder such selbst: deine erste Suche startet deine eigene Karte.": "click around or search yourself: your first search starts your own map.",
   "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
   "klein": "small",
@@ -1794,6 +1799,7 @@ const API = {
   artist: (body) => POST("/api/artist", body),
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
   demo: () => GET("/api/demo"),
+  lastfmImport: (user) => POST("/api/lastfm-import", { user }),
 };
 
 const cv = document.getElementById("cv");
@@ -5434,6 +5440,25 @@ addEventListener("visibilitychange", () => { if (document.hidden) saveView(); })
   if (chipsEl && seeds.length && !STATIC) {
     chipsEl.innerHTML = `<span>${t("Probier mal:")}</span>` + seeds.map((s) => `<button type="button" data-n="${esc(s)}">${esc(s)}</button>`).join("");
     chipsEl.querySelectorAll("button").forEach((b) => b.onclick = () => exploreByName(b.dataset.n));
+  }
+  // E13: Last.fm-Kaltstart — Nutzername genügt, die Top-Künstler kommen als fertige Karte.
+  const lfm = document.getElementById("lfmImport");
+  if (lfm && CFG.id === "music" && !STATIC) {
+    lfm.style.display = "";
+    lfm.addEventListener("click", async () => {
+      const user = prompt(t("Dein Last.fm-Nutzername (öffentliches Profil genügt, kein Passwort):"));
+      if (!user || !user.trim()) return;
+      lfm.disabled = true; const label = lfm.textContent; lfm.textContent = t("↧ Importiere …");
+      try {
+        const res = await API.lastfmImport(user.trim());
+        if (!res.ok) { toast("Fehler: " + (res.error || "?")); return; }
+        endDemo(false);
+        graph = res.graph; rebuild(); fitAll();
+        fillSizes(); fillGenres(); // Hörerzahlen/Genres für die frischen Knoten nachladen
+        toast(tf("{N} Künstler importiert — Doppelklick lädt Nachbarn", { N: res.imported }));
+      } catch (e) { toast("Fehler: " + e.message); }
+      finally { lfm.disabled = false; lfm.textContent = label; }
+    });
   }
   // „Überrasch mich": zufälliger, eher unbekannter Act vom Server -> direkt reinstolpern.
   const sBtn = document.getElementById("surpriseBtn");
