@@ -227,7 +227,7 @@ danach von einem Moderator gemeinsam dedupliziert, thematisch gruppiert und prio
 Alle Punkte sind gegen den echten Code verifiziert (nicht nur brainstormt). Reihenfolge nach
 Priorität; Pro/Contra pro Punkt.
 
-- [ ] **W1 — Meta-Tags/OG-Karten je Pack + robots.txt/sitemap.xml/llms.txt.** `index.html`
+- [x] **W1 — Meta-Tags/OG-Karten je Pack + robots.txt/sitemap.xml/llms.txt.** `index.html`
   hat nur `<title>Like</title>`, keine Description/OG/Twitter-Tags, kein canonical, keine
   robots.txt/sitemap.xml im Repo. Reine Server-Template-Ergänzung in `server.mjs`, betrifft
   alle 10 Packs gleichzeitig. **Pro:** kein Risiko für Bestandsfunktionalität, sofort messbar
@@ -235,7 +235,7 @@ Priorität; Pro/Contra pro Punkt.
   Workshop. **Contra:** Wirkung zeigt sich erst über Wochen/Monate; bei eher direktem/
   Community-Traffic ungewiss, wie viel realer Zuwachs dabei rausspringt.
 
-- [ ] **W2 — Antwort-Kompression (gzip/brotli) via `node:zlib`.** `send()` in `server.mjs`
+- [x] **W2 — Antwort-Kompression (gzip/brotli) via `node:zlib`.** `send()` in `server.mjs`
   setzt nur cache-control/content-type, keine Content-Encoding-Verhandlung — die 368 KB
   große `index.html` geht unkomprimiert raus. `node:zlib` ist eingebaut (kein npm nötig).
   **Pro:** 70-80 % kleinere Antworten, verbessert Ladezeit bei jedem Aufruf sofort messbar.
@@ -250,7 +250,7 @@ Priorität; Pro/Contra pro Punkt.
   Alerts, die jemand triagieren muss — Dauer- statt Einmalaufwand; CodeQL kann auf einer so
   großen Single-File-`index.html` viele False Positives werfen.
 
-- [ ] **W4 — ARIA-Live-Region + `aria-label` für den Canvas.** Der Force-Graph (`#cv`) hat
+- [x] **W4 — ARIA-Live-Region + `aria-label` für den Canvas.** Der Force-Graph (`#cv`) hat
   keine DOM-Repräsentation — für Screenreader ist die Kernfunktion unsichtbar. **Pro:** sehr
   kleiner Patch, kein Rendering-Umbau nötig, echter Sofort-Nutzen. **Contra:** nur ein
   Pflaster — löst nicht die eigentliche Lücke (keine Tastaturnavigation); ohne W15
@@ -262,13 +262,13 @@ Priorität; Pro/Contra pro Punkt.
   automatisch prüfbare Verstöße (Kontrast, fehlende Labels) — die strukturelle
   Canvas-Bedienbarkeit erkennt kein automatisches Tool, das bleibt manuelle Arbeit.
 
-- [ ] **W6 — `prefers-reduced-motion` auch auf die Physik-Simulation anwenden.** Das Flag
+- [x] **W6 — `prefers-reduced-motion` auch auf die Physik-Simulation anwenden.** Das Flag
   (`REDUCE_MOTION`) existiert im Code bereits, wird aber nur für Deko-Animationen ausgewertet,
   nicht für die Force-Simulation selbst. **Pro:** echter WCAG-2.3.3-Bezug, sehr lokal
   begrenzter Fix. **Contra:** reiner Nischen-Fix für eine kleine Zielgruppe, verbessert die
   Kernerfahrung für alle anderen Nutzer nicht.
 
-- [ ] **W7 — Aggregierte, anonyme Nutzungszähler via `node:sqlite`.** Schließt die einzige
+- [x] **W7 — Aggregierte, anonyme Nutzungszähler via `node:sqlite`.** Schließt die einzige
   echte blinde Stelle: niemand weiß, welche Packs/Features (Radar, Brücke, Klangprobe)
   tatsächlich genutzt werden. `node:sqlite` ist ab Node 22 eingebaut (verifiziert vorhanden),
   passt zur ohnehin geplanten SQLite-Migration. **Pro:** bleibt technisch aggregiert/anonym,
@@ -276,7 +276,7 @@ Priorität; Pro/Contra pro Punkt.
   kommunizierte Entscheidung — selbst harmlose Zähler können bei Nutzern, die die App gerade
   WEGEN "keine Analyse" gewählt haben, Vertrauen kosten, wenn die Kommunikation misslingt.
 
-- [ ] **W8 — Cache-Control-Split: statische Assets von dynamischer Config trennen.**
+- [x] **W8 — Cache-Control-Split: statische Assets von dynamischer Config trennen.**
   `send()` setzt aktuell pauschal `cache-control: no-store` für jede Antwort, auch für den
   großen unveränderlichen CSS/JS/Font-Block. **Pro:** löst nebenbei ein zweites Problem
   (Service-Worker liefert nach Login/Logout/Pack-Freischaltung sonst veraltete Config aus),
@@ -284,7 +284,7 @@ Priorität; Pro/Contra pro Punkt.
   braucht Versionierung/Content-Hashing der ausgelagerten Datei plus Anpassung der Deploy-
   Logik, nicht in 10 Minuten erledigt.
 
-- [ ] **W9 — Security-Header ergänzen (CSP, HSTS, Referrer-Policy, Permissions-Policy).**
+- [x] **W9 — Security-Header ergänzen (CSP, HSTS, Referrer-Policy, Permissions-Policy).**
   `nosniff`/`X-Frame-Options` sind laut Code bereits gesetzt — echt offen sind CSP/HSTS/
   Referrer-Policy/Permissions-Policy. **Pro:** schließt eine echte, verifizierte Lücke,
   kostenlos extern prüfbar (Mozilla Observatory, securityheaders.com) als Vorher/Nachher-
@@ -305,7 +305,7 @@ Priorität; Pro/Contra pro Punkt.
   tatsächlichen I/O-Anteil ab — ohne Profiling (clinic.js/0x) vorab ist unklar, ob das
   gemessen überhaupt ins Gewicht fällt.
 
-- [ ] **W12 — Canvas-Viewport-Culling beim Zeichnen.** Nach dem bereits erledigten
+- [x] **W12 — Canvas-Viewport-Culling beim Zeichnen.** Nach dem bereits erledigten
   Spatial-Grid-Fix für die Physik zeichnet `draw()` weiterhin jeden Frame ALLE Knoten/Kanten,
   auch außerhalb des sichtbaren Ausschnitts. **Pro:** wird konkret relevant, sobald
   Booking-Nutzer über mehrere Explore/Expand-Runden große Graphen anhäufen. **Contra:**
@@ -319,14 +319,14 @@ Priorität; Pro/Contra pro Punkt.
   (Open Collective erfordert ein geführtes öffentliches Ledger) — nur sinnvoll, wenn das
   wirklich gepflegt wird.
 
-- [ ] **W14 — Öffentliche, teilbare Karten-Schnappschüsse (bereits in ROADMAP.md offen).**
+- [x] **W14 — Öffentliche, teilbare Karten-Schnappschüsse (bereits in ROADMAP.md offen).**
   Der Share-Button teilt aktuell nur EINEN Act, nicht die kuratierte Nachbarschaft als Ganzes.
   **Pro:** stärkster organische Wachstumshebel, den eine werbefreie App haben kann —
   `export-static.mjs` liefert bereits eine Rendering-Basis. **Contra:** größtes Aufwand-Item
   in der Liste (Snapshot-Renderer, OG-Bild-Generierung, Read-Only-Link-Infrastruktur) — eher
   ein eigenes Feature-Projekt als ein Workshop-Punkt.
 
-- [ ] **W15 — Synchronisierte Listenansicht als zugängliche Alternative zum Canvas-Graphen.**
+- [x] **W15 — Synchronisierte Listenansicht als zugängliche Alternative zum Canvas-Graphen.**
   Größter A11y-Lift im ganzen Workshop. **Pro:** liefert Tastaturnavigation praktisch
   kostenlos mit und löst Screenreader- UND Tastatur-Zugang in einem Rutsch, statt zusätzlich
   eine separate roving-tabindex-Lösung direkt auf dem Canvas zu bauen. **Contra:** größter
@@ -370,7 +370,7 @@ ein Solo-Zero-Budget-Projekt eingestuft. Die Schwächen liegen fast alle bei Ers
 Sichtbarkeit und Persistenz — fast alle Empfehlungen verschalten Vorhandenes neu, statt Neues
 zu bauen.
 
-- [ ] **E1 — Nie mit leerer Karte starten: Demo-Nachbarschaft beim Erstbesuch (4× unabhängig
+- [x] **E1 — Nie mit leerer Karte starten: Demo-Nachbarschaft beim Erstbesuch (4× unabhängig
   — stärkstes Signal der Runde).** Der Aha-Moment (lebendiges Netz) kommt heute erst nach
   eigener, gelingender Sucheingabe; dabei liegt in allen 10 Packs ein kuratiertes `demo.json`,
   das nur für Landing-Zählwerte genutzt wird. Demo-Graph als gelabelte Beispiel-Karte laden,
@@ -380,7 +380,7 @@ zu bauen.
   eigenen ersten Suche entwerten; braucht klares Labeling + saubere Ersetzen-Logik.
   *(Impact hoch / Aufwand niedrig)*
 
-- [ ] **E2 — Anonyme Karten sterben mit dem Tab: localStorage statt sessionStorage (2×).**
+- [x] **E2 — Anonyme Karten sterben mit dem Tab: localStorage statt sessionStorage (2×).**
   `like_anon` liegt in sessionStorage — 30 Minuten Kuration sind beim Tab-Schließen weg, und
   genau der Moment mit aufgebautem Wert wäre der stärkste Konto-Konversionshebel (Muster:
   Excalidraw/tldraw/Figma). Migrations- und Aufräumlogik existieren. **Pro:** wenige Zeilen,
@@ -390,7 +390,7 @@ zu bauen.
   auf geteilten Geräten sieht der Nächste die Karte des Vorgängers.
   *(Impact hoch / Aufwand niedrig)*
 
-- [ ] **E3 — Landing verkauft das Produkt nicht: Pitch-Headline sichtbar, Musik als Hero (3×).**
+- [x] **E3 — Landing verkauft das Produkt nicht: Pitch-Headline sichtbar, Musik als Hero (3×).**
   Einziger Untertitel ist "Wähle, wonach du heute stöbern willst" (lib/landing.mjs); die
   erklärende Zeile steckt im Hover-Tooltip (auf Touch unsichtbar), und in Produktion tragen
   9 von 10 Planeten ein Schloss — die Landing verkauft einen gesperrten Katalog. Pitch-Zeile
@@ -400,7 +400,7 @@ zu bauen.
   Fokus-Entscheidung (E5), die vorher bewusst getroffen sein sollte.
   *(Impact hoch / Aufwand niedrig)*
 
-- [ ] **E4 — LICENSE-Datei hinzufügen (MIT oder AGPL-3.0).** Verifiziert: keine LICENSE, kein
+- [x] **E4 — LICENSE-Datei hinzufügen (MIT oder AGPL-3.0).** Verifiziert: keine LICENSE, kein
   `license`-Feld in package.json — rechtlich "all rights reserved", obwohl das README zu Fork,
   Docker-Self-Hosting und Render-Deploy einlädt. **Pro:** Minutenaufwand, zwingende Grundlage
   für alles Community-Hafte. **Contra:** die Wahl bindet: MIT erlaubt kommerzielle
@@ -409,7 +409,7 @@ zu bauen.
   linkding (Solo-Maintainer → MIT). **Entscheidung liegt beim Betreiber.**
   *(Impact hoch / Aufwand niedrig)*
 
-- [ ] **E5 — Fokus-Entscheidung dokumentieren: Musik ist das Produkt, die 9 anderen Packs sind
+- [x] **E5 — Fokus-Entscheidung dokumentieren: Musik ist das Produkt, die 9 anderen Packs sind
   Labs (2×, identisches Warnbeispiel).** Booking, Klangprobe, Radar-Momentum und die orange
   Kante existieren nur/primär im Musik-Pack; die anderen Packs sind produktiv gesperrt, bekamen
   aber in Runde 7 Qualitätsarbeit. **Pro:** kostet einen Absatz in ROADMAP.md, verhindert
@@ -419,7 +419,7 @@ zu bauen.
   sich wie Selbstbeschneidung anfühlen und steht im Weg, falls ein Pack später doch zündet.
   *(Impact hoch / Aufwand niedrig)*
 
-- [ ] **E6 — RA-Abhängigkeit absichern: Gratis-Keys aktivieren, Health-Check-Alarm, UPCOMING.**
+- [x] **E6 — RA-Abhängigkeit absichern: Gratis-Keys aktivieren, Health-Check-Alarm, UPCOMING.**
   Verifiziert: lib/ra.mjs fragt nur `type:PREVIOUS` ab; Songkick-/Bandsintown-/Setlist.fm-
   Adapter liegen fertig in lib/, sind ohne Keys aber inaktiv. Das wichtigste Datenmonopol
   (orange Kante) hängt an einer inoffiziellen API, die still degradiert. Keys beschaffen,
@@ -429,7 +429,7 @@ zu bauen.
   prüfen); mehr Quellen = mehr Wartungs- und Drosselungsfläche.
   *(Impact hoch / Aufwand mittel)*
 
-- [ ] **E7 — Mobile: Suche nicht hinter dem ⋯-Menü verstecken.** Verifiziert: unter 640px wird
+- [x] **E7 — Mobile: Suche nicht hinter dem ⋯-Menü verstecken.** Verifiziert: unter 640px wird
   `.search` per `display:none` entfernt — die Kern-Aktion braucht zwei Taps in ein generisches
   Menü. Lupen-Icon in der Topbar → Fullscreen-Such-Overlay mit Autofokus (Empty-State-Markup
   als Basis). Vergleich: Google Maps/Spotify halten die Suche mobil primär. **Pro:** teuerste
@@ -437,7 +437,7 @@ zu bauen.
   Fullscreen-Overlay ist neues UI mit eigenen Zuständen (Fokus, Zurück-Verhalten).
   *(Impact hoch / Aufwand mittel)*
 
-- [ ] **E8 — Erste Suche absichern: Suggest-Dropdown auch an #q2 + klickbare Seed-Chips.**
+- [x] **E8 — Erste Suche absichern: Suggest-Dropdown auch an #q2 + klickbare Seed-Chips.**
   Verifiziert: der Suggest-Handler hängt nur an #q; die Empty-State-Suche #q2 (Eingabe mit der
   höchsten Absprung-Konsequenz) hat kein Autocomplete — Tippfehler enden im Fehler-Toast.
   Seed-Daten (`exampleSeed`, `SURPRISE_SEEDS`) existieren. **Pro:** kleiner Fix an der
@@ -445,7 +445,7 @@ zu bauen.
   Suggest-Instanz = doppelte Verkabelung, Autocomplete-Race (Runde 1-Fix) mitdenken.
   *(Impact mittel / Aufwand niedrig)*
 
-- [ ] **E9 — Booking-Pipeline-Basics: Gagenfeld + Summenzeile, Status-Zeitstempel, Lineup-Korb
+- [x] **E9 — Booking-Pipeline-Basics: Gagenfeld + Summenzeile, Status-Zeitstempel, Lineup-Korb
   serverseitig.** Verifiziert: kein Fee-/Budget-Feld, kein `statusChangedAt`; der Lineup-Korb
   lebt nur in localStorage und wird bei der Anon-zu-Konto-Migration NICHT mitgenommen
   (Datenverlust-Risiko im "Booking-Tool"). Vergleich: Prism.fm/Gigwell hängen Deal-Terms an
@@ -455,7 +455,7 @@ zu bauen.
   (Status pro Festival) explizit NICHT jetzt.
   *(Impact mittel / Aufwand niedrig)*
 
-- [ ] **E10 — Kanten zu Bürgern erster Klasse: Parallelkanten trennen + Kanten inspizierbar.**
+- [x] **E10 — Kanten zu Bürgern erster Klasse: Parallelkanten trennen + Kanten inspizierbar.**
   Verifiziert: draw() zeichnet similar- und together-Kante desselben Paares als identische
   Gerade — die spätere übermalt die erste; ausgerechnet der wertvollste Fall (ähnlich UND
   zusammen aufgetreten) ist unlesbar. pick() prüft nur Knoten, obwohl Belegdaten (`l.shows`)
@@ -465,7 +465,7 @@ zu bauen.
   (Kurven-Abstand, Zoom, Konkurrenz zum Node-Hover); Kurven machen dichte Graphen unruhiger.
   *(Impact mittel / Aufwand niedrig)*
 
-- [ ] **E11 — Service-Worker: App-Shell nicht bei jedem Start am Netz aufhängen.** Verifiziert:
+- [x] **E11 — Service-Worker: App-Shell nicht bei jedem Start am Netz aufhängen.** Verifiziert:
   sw.js fährt netz-zuerst ohne Timeout — die Shell liegt im Cache, wird aber erst nach
   komplettem Fetch-Fehlschlag genutzt; auf schlechtem Mobilfunk hängt jeder Start.
   `Promise.race` mit ~3s-Timeout + Cache-Fallback, versionierter Cache-Name (Muster: Workbox
@@ -484,7 +484,7 @@ zu bauen.
   (W7-Zähler) ist der Trade-off blind.
   *(Impact mittel / Aufwand niedrig)*
 
-- [ ] **E13 — Kaltstart-Import: Last.fm-Username als Seed für die eigene Karte.** Verifiziert:
+- [x] **E13 — Kaltstart-Import: Last.fm-Username als Seed für die eigene Karte.** Verifiziert:
   /api/import akzeptiert nur das eigene JSON-Backup; lib/lastfm.mjs kennt kein
   `user.getTopArtists` — dabei ist es dieselbe API mit demselben Key. "Meine 50 Lieblings-Acts
   als fertige Landkarte" löst zugleich den Radar-Kaltstart (ohne Likes tot). Vergleich:
@@ -494,7 +494,7 @@ zu bauen.
   Dichte-Graph. BGG/Goodreads/Steam-Importe erst bei Nachfrage.
   *(Impact hoch / Aufwand mittel)*
 
-- [ ] **E14 — Ehrliche Daten statt Pseudo-Präzision (Books/Podcasts, nur das Nötigste).**
+- [x] **E14 — Ehrliche Daten statt Pseudo-Präzision (Books/Podcasts, nur das Nötigste).**
   Verifiziert: Books vergibt hartkodierte match-Werte 0.55/0.75 und holt Top-12 pro Subject
   (populärste zuerst → jedes Sci-Fi-Buch bekommt denselben Kanon); Podcasts lädt hartkodiert
   die `/de/`-iTunes-Storefront (EN-Nutzer bekommen deutsche Charts); das Frontend übersetzt
@@ -549,3 +549,48 @@ Sofort-Kandidaten (risikoarm): E4 (LICENSE — Betreiber-Entscheidung MIT vs. AG
 E3 (Landing-Copy), E8, E11, E14-Sofort-Fixes. Größte Hebel mit Abstimmungsbedarf: E1
 (Demo-Karte — Geschmacksfrage), E2 (localStorage — Datenschutztext!), E5 (Fokus — strategische
 Betreiber-Entscheidung).
+
+
+---
+
+## Runde 12 — Review-Abstimmung + Komplettumsetzung (2026-07-11) — ✅ ERLEDIGT
+
+Ein 10-köpfiges Review-Team (Solo-Dev, Endnutzer, Bookerin, Datenschutz, Ökonom, Tech-Lead,
+Growth, Inklusion, Risiko, Advocatus Diaboli) hat alle 30 Punkte aus Runde 10+11 bewertet
+(300 Einzelurteile). Auf Betreiber-Entscheidung wurden anschließend ALLE Machen- und
+Später-Punkte umgesetzt — mit vier Vorgaben: AGPL-3.0 als Lizenz (E4), Musik-Fokus offiziell
+(E5), E2+W7 beide mit ehrlicher Datenschutz-Anpassung, **E12 (Spenden-Popup) bewusst NICHT
+angefasst**.
+
+**Umgesetzt und einzeln live verifiziert** (Details in den Commits auf
+`claude/pitch-markdown-review-e78so1`):
+W1 (Meta/OG/robots/sitemap/llms.txt) · W2 (brotli/gzip, ~66 % kleiner) · W4 (aria-live +
+Canvas-Label) · W6 (reduced-motion für Physik) · W7 (anonyme Tageszähler + /api/usage nur
+für Betreiber + Datenschutztext) · W8 (Statik-Split: app.<hash>.js/css immutable, Hülle
+39 KB) · W9 (Referrer-/Permissions-Policy, HSTS; CSP bewusst vertagt — Nonce-Strategie) ·
+W12 (Viewport-Culling) · W14 (Karte als Read-Only-Link /s/<id>, private Felder bereinigt) ·
+W15 (Listenansicht, Taste l) · E1 (Beispiel-Karte beim Erstbesuch) · E2 (Anon-ID in
+localStorage + 30-Tage-Aufräumung + Datenschutztext) · E3 (Landing: Pitch-Headline,
+Musik-Hero, Labs) · E4 (AGPL-3.0) · E5 (Fokus-Absatz in ROADMAP) · E6 (RA-Health-Alarm via
+Pushover + kommende Auftritte im Panel) · E7 (Mobile-Such-Overlay) · E8 (Suggest an #q2 +
+Seed-Chips) · E9 (Gagenfeld+Summe, statusChangedAt, Korb serverseitig inkl. einmaliger
+localStorage-Übernahme) · E10 (Parallelkanten gebogen + Kanten-Tooltip mit Belegen) ·
+E11 (SW-Netz-Timeout 3 s, Cache v2) · E13 (Last.fm-Import als Start-Karte) · E14
+(Podcasts-Storefront folgt Sprache, Pseudo-Matches raus).
+
+**Bewusst NICHT umgesetzt** (Team-Votum "Weglassen" bzw. Betreiber-Entscheidung):
+- E12 Spenden-Popup entschärfen — Betreiber: unverändert lassen (einzige Einnahmequelle).
+- E15 Booking-Schalter umbauen (1:1:8) — nach Fokus-Entscheidung zählt Musik, dort passt der Name.
+- W3 Dependabot/CodeQL (2:2:6) — Dauer-Triage ohne Futter bei Zero-Dependency.
+- W5 axe-core-CI (3:2:5) — prüft das Hauptproblem (Canvas) nicht; W15 löst es strukturell.
+- W10 Changelog/Discussions (0:4:6) — schläft ohne Pflege ein und schadet dann.
+- W11 In-Memory-LRU (0:3:7) — Optimieren ohne Messung ist Bastelei.
+- W13 Spendenkanäle (3:2:5) — mehr Kanäle ≠ mehr Spenden.
+- W9-CSP — vertagt: braucht Nonce-Strategie, falsch konfiguriert legt es die App lahm.
+
+**Verifiziert:** `npm run check` grün, `npm run test:ci` 73 passed / 0 failed (+
+interactions.spec 7 passed separat), dazu Live-Smoke-Tests jedes Features im
+Headless-Browser (Desktop + Mobile). **Hinweise für den Betrieb:** neue optionale ENV
+`LIKE_PUBLIC_URL` (canonical/OG-Basis), `LIKE_ANON_TTL_DAYS` (Default 30);
+DATA_DIR bekommt `usage.json` und `shares/`; nach Deploys ändert sich der app.<hash>-Name
+automatisch mit dem Inhalt.
