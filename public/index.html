@@ -1162,6 +1162,9 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
+  <!-- W4: unsichtbare Live-Region — Screenreader erfahren Statusmeldungen und Auswahl-Wechsel,
+       die sonst nur visuell (Toast/Canvas) passieren. -->
+  <div id="ariaLive" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"></div>
   <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npmid"><span class="npidle"><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></span></div>
 </div>
 
@@ -1784,6 +1787,10 @@ const API = {
 };
 
 const cv = document.getElementById("cv");
+// W4: Der Canvas hat keine DOM-Repräsentation — wenigstens Rolle + Beschreibung liefern.
+// (Auswahl/Status werden zusätzlich über die aria-live-Region angesagt, s. announce().)
+cv.setAttribute("role", "application");
+cv.setAttribute("aria-label", "Interaktive Karte: verbundene Einträge als Netz. Auswahl und Statusmeldungen werden automatisch vorgelesen; Suche und Listen sind über die Werkzeugleiste erreichbar.");
 const ctx = cv.getContext("2d");
 let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechnet damit)
 // Zoom-Schwellen für Beschriftungen: weit draußen bleibt die Karte ruhig, erst beim
@@ -2048,6 +2055,13 @@ function toast(msg) {
   const el = document.getElementById("toast");
   el.textContent = t(msg); el.classList.add("show"); // t(): Literal-Meldungen laufen durchs Wörterbuch
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 1800);
+  announce(t(msg)); // W4: Toasts auch an Screenreader
+}
+// W4: Text in die (unsichtbare) aria-live-Region schreiben — kurz leeren, damit auch
+// identische Folgemeldungen erneut vorgelesen werden.
+function announce(text) {
+  const live = document.getElementById("ariaLive"); if (!live) return;
+  live.textContent = ""; setTimeout(() => { live.textContent = text; }, 30);
 }
 function toastUndo(msg, fn) {
   const el = document.getElementById("toast");
@@ -2256,7 +2270,16 @@ const ALPHA_MIN = 0.02, ALPHA_DECAY = 0.98;
 const DRAG_ALPHA = 0.28;
 let dirty = true;                       // "muss neu gezeichnet werden"
 function requestDraw() { dirty = true; } // von jeder Interaktion aufrufen, die die Darstellung ändert
-function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
+function reheat(a = 0.7) {
+  alpha = Math.max(alpha, a); dirty = true;
+  // W6 (prefers-reduced-motion): das Layout nicht sichtbar auspendeln lassen, sondern
+  // synchron zu Ende rechnen — die Karte "springt" in den Ruhezustand statt zu wabern.
+  // (Beim Ziehen bleibt die Physik live, sonst wäre Drag unbenutzbar.)
+  if (REDUCE_MOTION && !dragNode) {
+    let guard = 0; do { tick(); } while (alpha >= ALPHA_MIN && ++guard < 500);
+    requestDraw();
+  }
+}
 
 // B9: Geschwindigkeits-Faktor nach Abstand zur Bildmitte (Screen-Koordinaten). Genau in der
 // Mitte 0 (stillstehen), dann per Smoothstep sanft hoch auf 1 (Normaltempo) ab ca. 40% der
@@ -3436,6 +3459,8 @@ function selectNode(n) {
   requestDraw();
   document.getElementById("pName").innerHTML = esc(n.name) +
     (n.seed ? ' <span class="badge seed">gesucht</span>' : '');
+  // W4: Auswahl-Wechsel für Screenreader ansagen (Name + Vernetzungsgrad).
+  announce(`${n.name} — ${tf(n.deg === 1 ? "{N} Verbindung" : "{N} Verbindungen", { N: n.deg || 0 })}`);
   renderSub(n, null);
   renderGenrePills(n.genres);
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
