@@ -314,10 +314,10 @@ async function notifyVisitMaybe(req, pack) {
 
 // Nur Text-Formate komprimieren — Bilder/Binärformate sind schon komprimiert.
 const COMPRESSIBLE = /^(application\/(json|manifest\+json|xml)|text\/|image\/svg)/;
-function send(res, code, body, type = "application/json") {
+function send(res, code, body, type = "application/json", cacheControl = "no-store") {
   let data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
   const headers = {
-    "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff",
+    "content-type": type, "cache-control": cacheControl, "x-content-type-options": "nosniff",
     "referrer-policy": "strict-origin-when-cross-origin",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
   };
@@ -535,9 +535,29 @@ function packMeta(pack) {
   };
 }
 
+// W8: Statik-Split — der große, unveränderliche Teil der App (Haupt-Script ~270 KB und
+// Styles ~80 KB) wird als versionierte, ein Jahr lang cachebare Dateien ausgeliefert
+// (/app.<hash>.js, /app.<hash>.css). Nur die kleine HTML-Hülle mit der pro Request
+// injizierten Config (LIKE_CFG/LIKE_USER/…) bleibt dynamisch (no-store). Der Hash ändert
+// sich mit dem Inhalt -> neue Version wird sofort geladen, alte bleibt nie hängen.
+// (Einmal beim Start gelesen; im Dev-Betrieb nach Änderungen an index.html Server neu starten.)
+const APP_SPLIT = await (async () => {
+  const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+  const main = scripts.reduce((a, m) => (m[1].length > (a ? a[1].length : 0) ? m : a), null);
+  const style = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)][0] || null;
+  const js = main ? main[1] : "", css = style ? style[1] : "";
+  const h = (s) => createHash("sha256").update(s).digest("hex").slice(0, 12);
+  const jsPath = `/app.${h(js)}.js`, cssPath = `/app.${h(css)}.css`;
+  let shell = html;
+  if (main) shell = shell.replace(main[0], `<script src="${jsPath}"></script>`);
+  if (style) shell = shell.replace(style[0], `<link rel="stylesheet" href="${cssPath}">`);
+  return { shell, js, css, jsPath, cssPath };
+})();
+
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
 async function indexHtml(pack, unlocked, user, req) {
-  const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
+  const html = APP_SPLIT.shell;
   const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
   const u = JSON.stringify(user || null).replace(/</g, "\\u003c");
@@ -788,6 +808,15 @@ const server = createServer(async (req, res) => {
       const open = PACK_LIST.filter((p) => !p.locked).map((p) => `- ${p.title}${base ? ` (${base}/?pack=${encodeURIComponent(p.id)})` : ""}`).join("\n");
       const body = `# like\n\n> Interaktive Landkarte für Entdeckungen: ähnliche Acts/Filme/Bücher u. a. als Force-Graph.\n> Open Source (AGPL-3.0), ohne Tracking und Werbung. Für Musik zusätzlich Booking-Werkzeuge\n> (Status, Notizen, CSV-Export) und die Besonderheit „zusammen aufgetreten"-Verbindungen.\n\n## Offene Bereiche\n${open}\n\n## Rechtliches\n- Impressum: ${base}/impressum\n- Datenschutz: ${base}/datenschutz\n`;
       return send(res, 200, body, "text/plain; charset=utf-8");
+    }
+
+    // W8: versionierte App-Statik (Haupt-Script/Styles) — unbegrenzt cachebar, weil der
+    // Dateiname den Inhalts-Hash trägt. send() komprimiert wie üblich.
+    if (req.method === "GET" && url.pathname === APP_SPLIT.jsPath) {
+      return send(res, 200, APP_SPLIT.js, "text/javascript; charset=utf-8", "public, max-age=31536000, immutable");
+    }
+    if (req.method === "GET" && url.pathname === APP_SPLIT.cssPath) {
+      return send(res, 200, APP_SPLIT.css, "text/css; charset=utf-8", "public, max-age=31536000, immutable");
     }
 
     // PWA-Assets (Manifest, Service-Worker, Icons) — statisch aus public/, ohne Pack-Kontext.
