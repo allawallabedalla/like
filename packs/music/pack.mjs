@@ -50,6 +50,9 @@ export default {
     searchTitle: "Act bei Last.fm suchen — lädt ähnliche Acts + gemeinsame Auftritte (Taste /)",
     goTitle: "Act laden: ähnlicher Stil + zusammen aufgetreten + Genres",
     exampleSeed: "Bonobo",
+    // E8: klickbare Startpunkte im leeren Zustand — bewusst verschiedene Ecken der Karte
+    // (Downtempo-Hub, Neoclassical, Bassmusik), damit der erste Klick garantiert trägt.
+    seedChips: ["Bonobo", "Hania Rani", "Skee Mask"],
     emptyTitle: "Noch keine Acts auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: ähnlicher Stil + zusammen aufgetreten.",
     edges: {
