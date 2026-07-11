@@ -29,9 +29,9 @@ import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist } from "./l
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
-import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
+import { hasPushover, sendFeedback, notifyQuiet } from "./lib/pushover.mjs";
 import { landingHtml } from "./lib/landing.mjs";
-import { initAuth, register, verify, resetPassword, makeSession, userFromCookie } from "./lib/auth.mjs";
+import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount } from "./lib/auth.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -591,6 +591,8 @@ const server = createServer(async (req, res) => {
       const b = await readBody(req).catch(() => ({}));
       const r = await register(b.username, b.password);
       if (r.error) return send(res, 400, { ok: false, error: r.error });
+      // Betreiber-Hinweis (nur wenn Pushover eingerichtet ist); bewusst nicht awaited.
+      notifyQuiet({ title: "like — neuer Nutzer", message: `„${r.user}" hat sich registriert (Konto Nr. ${userCount()}).` });
       await migrateAnonToUser(req, r.user);
       setCookie(res, "like_session", makeSession(r.user), req);
       return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
