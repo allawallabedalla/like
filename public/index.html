@@ -1274,6 +1274,7 @@ const T = LANG !== "en" ? null : {
   "Server nicht erreichbar — leer gestartet. Später neu laden.": "Server unreachable — started empty. Reload later.",
   "Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)": "Preview can't play (the browser blocked playback)",
   "Notiz gespeichert": "Note saved", "Wiederhergestellt": "Restored", "Geleert.": "Cleared.",
+  "Kommende Auftritte": "Upcoming shows",
   "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
   "klein": "small",
   "1 unverknüpften Act von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.": "Remove 1 unconnected act from the map?\nSearched, booked/noted acts stay.",
@@ -3458,7 +3459,11 @@ function bookingHtml(n) {
     b.website && `<a href="${esc(b.website)}" target="_blank" rel="noreferrer">Website ↗</a>`,
   ].filter(Boolean).join("");
   const det = b.details ? `<div class="det">${esc(b.details)}</div>` : "";
-  return live + region + det + (links ? `<div class="links">${links}</div>` : "");
+  // Kommende Auftritte (E6): fürs Booking oft DAS Routing-Argument — „spielt ohnehin in der Region".
+  const up = (b.upcomingShows || []).slice(0, 4).map((s) =>
+    `<div class="det">▸ ${[s.date, s.event || s.venue, s.city].filter(Boolean).map(esc).join(" · ")}</div>`).join("");
+  const upBlock = up ? `<div class="det" style="margin-top:6px;font-weight:600">${t("Kommende Auftritte")}</div>${up}` : "";
+  return live + region + det + upBlock + (links ? `<div class="links">${links}</div>` : "");
 }
 // Sub-Zeile im Panel: Verbindungen · Hörerzahl (▲ Momentum) · Ort · Links
 const fmtListeners = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1000 ? Math.round(n / 1000) + "k" : String(n);
