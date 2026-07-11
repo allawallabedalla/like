@@ -3851,9 +3851,11 @@ document.getElementById("exportPng").onclick = () => {
 // ---- Laden / Erkunden ----
 function slugify(s) { return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, ""); }
 
-async function reload(focusName, { select = true, center = true, reheatAmt = 1 } = {}) {
+async function reload(focusName, { select = true, center = true, reheatAmt = 1, graph: pre } = {}) {
   const prev = new Map(nodes.map(n => [n.id, n]));
-  graph = await API.graph();
+  // R13: /api/explore liefert den frischen Graphen bereits mit — dann den zweiten
+  // /api/graph-Roundtrip (plus doppeltes Server-materialize/brotli) sparen.
+  graph = pre || await API.graph();
   rebuild(prev, reheatAmt);
   if (focusName) {
     const k = slugify(focusName);
@@ -3896,7 +3898,7 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
   toast(tf(`Lade „{N}" …`, { N: name }));
   try {
     const res = await API.explore(name);
-    await reload(res.name, { select, center, reheatAmt });
+    await reload(res.name, { select, center, reheatAmt, graph: res.graph }); // res.graph: kein zweiter Roundtrip (R13)
     addTrail(res.name);
     fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
     fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift
