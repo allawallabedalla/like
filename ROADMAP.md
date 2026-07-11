@@ -3,6 +3,16 @@
 Stand: Suche + Doppelklick-Durchhangeln, Last.fm (ähnlicher Stil) + RA (zusammen aufgetreten),
 Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kantenfarben.
 
+## Fokus-Entscheidung (2026-07)
+
+**Like Music ist das Produkt. Die neun anderen Packs sind Labs.** Booking, Klangprobe,
+Radar-Momentum und die orange „zusammen aufgetreten"-Kante existieren nur bzw. primär im
+Musik-Pack; in Produktion sind die übrigen Packs hinter dem „Coming soon"-Gate gesperrt.
+Deshalb fließt gezielte Feature-/Qualitätsarbeit zuerst in Musik — die Labs-Packs bleiben
+funktionsfähig und erreichbar, bekommen aber keine Parity-Runden mehr, solange sie gesperrt
+sind. Wird ein Labs-Pack entsperrt, werden seine aufgeschobenen Punkte (siehe BACKLOG,
+z. B. E14) zusammen mit der Freischaltung angegangen.
+
 ---
 
 ## ✅ Erledigt (autonom, ohne Keys/Kosten)

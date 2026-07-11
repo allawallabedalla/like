@@ -3,6 +3,7 @@
   "version": "2.5.0",
   "description": "Like — Künstler-Nachbarschaften (Booking-/Entdeckungs-Tool)",
   "author": "Nicolas Reis",
+  "license": "AGPL-3.0-only",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
