@@ -193,7 +193,7 @@ export default {
           const k = nm.toLowerCase();
           if (seen.has(k)) continue;
           seen.add(k);
-          similar.push({ name: nm, url: w.key ? OL + w.key : null, match: 0.55 });
+          similar.push({ name: nm, url: w.key ? OL + w.key : null, match: 0.5 });
         }
       } catch { /* Subject unbekannt -> weiter */ }
     }
@@ -202,7 +202,7 @@ export default {
         const k = t.name.toLowerCase();
         if (self(t.name) || seen.has(k)) continue;
         seen.add(k);
-        similar.push({ name: t.name, url: null, match: 0.75 });
+        similar.push({ name: t.name, url: null, match: 0.5 });
       }
     } catch {}
     return { canonical: display(doc), similar: similar.slice(0, limit) };
@@ -228,7 +228,7 @@ export default {
           const k = nm.toLowerCase();
           if (seen.has(k)) continue;
           seen.add(k);
-          similar.push({ name: nm, url: w.key ? OL + w.key : null, match: 0.55 });
+          similar.push({ name: nm, url: w.key ? OL + w.key : null, match: 0.5 });
         }
       } catch { /* Subject unbekannt -> weiter */ }
     }
@@ -237,7 +237,7 @@ export default {
         const k = t.name.toLowerCase();
         if (self(t.name) || seen.has(k)) continue;
         seen.add(k);
-        similar.push({ name: t.name, url: null, match: 0.75 }); // Geschmacks-Signal wiegt mehr
+        similar.push({ name: t.name, url: null, match: 0.5 }); // Geschmacks-Signal wiegt mehr
       }
     } catch {}
 

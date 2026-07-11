@@ -45,7 +45,7 @@ services:
         sync: false
       - key: TASTEDIVE_KEY     # optional: „mochten auch" für Bücher/Podcasts/Games
         sync: false
-      - key: PUSHOVER_TOKEN    # optional: Feedback-Knopf
+      - key: PUSHOVER_TOKEN    # optional: Feedback-Knopf + Push bei jeder Neu-Registrierung
         sync: false
       - key: PUSHOVER_USER
         sync: false

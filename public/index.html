@@ -173,12 +173,26 @@
   @media (max-width: 1040px) {
     #mGenre { display: block !important; } /* Genre-Filter ins Menü, sobald er aus der Leiste fällt */
   }
+  /* E7: Lupen-Button existiert nur auf schmalen Screens — dort ist die Inline-Suche versteckt. */
+  #mSearchBtn { display: none; }
   @media (max-width: 640px) {
     #go, .search { display: none !important; }
     #searchTitle { display: block; }
     #mSearch { display: block !important; } /* schlägt .gfilter{display:none} im Menü */
+    #mSearchBtn { display: inline-flex !important; }
     .bar { gap: 7px; }
   }
+  /* E7: Vollbild-Suche (Mobile) — Autofokus + dieselben Vorschläge wie die Desktop-Suche. */
+  .msearch { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: none;
+    padding: max(12px, env(safe-area-inset-top)) 12px 12px; }
+  .msearch.show { display: block; }
+  .msearch-bar { position: relative; display: flex; gap: 10px; align-items: center; }
+  .msearch-bar input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 12px;
+    padding: 0 14px; font: inherit; font-size: 16px; background: var(--bg); color: var(--text); outline: none; }
+  .msearch-bar input:focus { border-color: var(--accent); }
+  .msearch-bar .suggest { top: calc(100% + 6px); border-radius: 10px; }
+  .msearch-bar button { flex: none; border: none; background: none; color: var(--muted);
+    font: 600 14px inherit; cursor: pointer; padding: 8px 4px; }
   /* Touch/Handy: Browser-Gesten der Karte überlassen wir dem Canvas selbst; kein Gummiband-Scroll. */
   #cv { touch-action: none; }
   html, body { overscroll-behavior: none; }
@@ -438,7 +452,7 @@
   .loginhint:hover { color: var(--accent); opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
   .loginhint .lh-i { font-size: 12px; opacity: .8; margin-right: 4px; }
   /* Leerer Zustand = nur eine große, zentrale Suchleiste im Fokus. */
-  .emptysearch { pointer-events: auto; width: min(560px, 88vw); display: flex; align-items: center; gap: 0;
+  .emptysearch { position: relative; pointer-events: auto; width: min(560px, 88vw); display: flex; align-items: center; gap: 0;
     border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg);
     box-shadow: 0 20px 60px -24px #000; transition: border-color .16s, box-shadow .16s; }
   .emptysearch:focus-within { border-color: var(--accent);
@@ -454,6 +468,48 @@
   .empty .box h3 { color: var(--text); font-size: 20px; margin: 0 0 10px; }
   .empty .box p { margin: 6px 0; font-size: 13px; line-height: 1.6; }
   .empty kbd { border: 1px solid var(--line-soft); padding: 1px 6px; font: 12px inherit; border-radius: 3px; }
+  /* E8: klickbare Beispiel-Chips unter der zentralen Suche ("Blank-Page"-Hilfe) */
+  .seedchips { pointer-events: auto; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 88vw; }
+  .seedchips span { color: var(--muted); font-size: 12.5px; align-self: center; }
+  .seedchips button { border: 1px solid var(--line-soft); background: var(--bg); color: var(--text);
+    border-radius: 999px; padding: 6px 13px; font: 500 12.5px inherit; cursor: pointer; opacity: .85;
+    transition: border-color .15s, opacity .15s; }
+  .seedchips button:hover { border-color: var(--accent); opacity: 1; }
+  /* W15: Listenansicht — legt sich unter der Topbar über die Karte; Panel bleibt nutzbar. */
+  .listview { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 24; display: none;
+    background: var(--bg); overflow-y: auto; }
+  .listview.show { display: block; }
+  .lv-head { position: sticky; top: 0; display: flex; gap: 8px; padding: 10px 14px;
+    background: var(--bg); border-bottom: 1px solid var(--line-soft); z-index: 1; }
+  .lv-head input { flex: 1; min-width: 0; height: 36px; border: 1px solid var(--line); border-radius: 10px;
+    padding: 0 12px; font: inherit; font-size: 13.5px; background: var(--bg); color: var(--text); outline: none; }
+  .lv-head input:focus { border-color: var(--accent); }
+  .lv-head select { height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+    color: var(--text); font: inherit; font-size: 13px; padding: 0 8px; }
+  #lvList { list-style: none; margin: 0; padding: 6px 0 40px; max-width: 760px; margin-inline: auto; }
+  #lvList button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    border: none; background: none; color: var(--text); font: inherit; padding: 10px 16px; cursor: pointer;
+    border-bottom: 1px solid var(--line-soft); }
+  #lvList button:hover, #lvList button:focus-visible { background: color-mix(in srgb, var(--text) 6%, transparent); outline: none; }
+  #lvList button.sel { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  #lvList b { font-weight: 600; flex: none; }
+  #lvList .lv-sub { color: var(--muted); font-size: 12px; flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #lvList .lv-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+  /* E1: Hinweisband der Beispiel-Karte (erster Besuch, leerer Graph) */
+  .demobar { position: fixed; top: 62px; left: 50%; transform: translateX(-50%); z-index: 6;
+    display: flex; align-items: center; gap: 10px; max-width: min(620px, 94vw);
+    background: var(--panel, var(--bg)); border: 1px solid var(--line-soft); border-radius: 12px;
+    padding: 8px 10px 8px 14px; font-size: 13px; color: var(--text);
+    box-shadow: 0 10px 30px -12px rgba(0,0,0,.35); }
+  .demobar b { color: var(--edge-together); }
+  .demobar button { flex: none; border: none; background: none; color: var(--muted); font-size: 16px;
+    cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  .demobar button:hover { color: var(--text); background: var(--line-soft); }
+  @media (max-width: 640px) { .demobar { top: auto; bottom: 14px; font-size: 12px; } }
+  /* offene Listenansicht: Hinweisband würde den Listen-Kopf überlappen (demoBar wird ans
+     body-Ende gehängt, ist also ein späterer Sibling von #listView) */
+  .listview.show ~ .demobar { display: none; }
 
   /* Hilfe-Popover (Shortcuts & Bedienung) */
   .helpbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
@@ -709,6 +765,7 @@
       </div>
       <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
+    <button id="mSearchBtn" class="iconbtn hideStatic" title="Suchen" aria-label="Suchen"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
     <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
     <button id="discoverBtn" title="Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
     <button id="tasteBtn" class="iconbtn hideStatic workonly" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
@@ -736,6 +793,8 @@
       <button type="button" id="segSpace">Space</button>
       <button type="button" id="segFlat">Flat</button>
     </div>
+    <!-- W15: Listenansicht — tastatur- und screenreader-taugliche Alternative zur Karte -->
+    <div class="mrow"><button id="segList" title="Alle Einträge als sortier- und filterbare Liste — vollständig mit Tastatur bedienbar (Taste l)">☰ Listenansicht</button></div>
     <div class="mtitle hideStatic">Konto</div>
     <div id="acctBox" class="hideStatic" style="margin-bottom:10px; font-size:12.5px"></div>
     <div class="mtitle mobileonly hideStatic" id="searchTitle">Suche</div>
@@ -768,8 +827,26 @@
       <button id="export" class="workonly" title="Markierte Acts als CSV"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>CSV</button>
       <button id="exportPng" title="Karte als Bild (PNG)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>PNG</button>
     </div>
+    <!-- W14: ganze Karte als Read-Only-Link teilen -->
+    <div class="mrow hideStatic">
+      <button id="shareMap" title="Unveränderliche Kopie deiner Karte als öffentlichen Read-Only-Link teilen (ohne Notizen/Status/Gagen)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg><span id="shareMapLbl">Karte als Link teilen</span></button>
+    </div>
     <div class="counts" id="counts" title="Größe der Karte: Acts und Verbindungen">–</div>
     <div style="margin-top:8px;font-size:11.5px;opacity:.6"><a href="/impressum" target="_blank" style="color:inherit">Impressum</a> · <a href="/datenschutz" target="_blank" style="color:inherit">Datenschutz</a></div>
+  </div>
+
+  <!-- W15: Listenansicht — synchron zur Karte (gleiche Daten, gleiche Auswahl, gleicher Genre-Filter) -->
+  <div id="listView" class="listview" role="region" aria-label="Listenansicht der Karte">
+    <div class="lv-head">
+      <input id="lvFilter" placeholder="Liste filtern…" autocomplete="off" aria-label="Liste filtern" />
+      <select id="lvSort" aria-label="Sortierung">
+        <option value="name">A–Z</option>
+        <option value="pop">Popularität</option>
+        <option value="deg">Verbindungen</option>
+      </select>
+      <button id="lvClose" class="iconbtn" aria-label="Liste schließen" title="Zurück zur Karte">×</button>
+    </div>
+    <ul id="lvList"></ul>
   </div>
 
   <div id="trail" class="trail"></div>
@@ -800,13 +877,25 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="q2" placeholder="Act suchen…   z.B. Bonobo" autocomplete="off" />
       <button id="go2">Suchen</button>
+      <div id="suggest2" class="suggest"></div>
     </div>
+    <div id="seedChips" class="seedchips hideStatic"></div>
     <button id="surpriseBtn" class="surprisebtn hideStatic" title="Zeig mir einen zufälligen, eher unbekannten Act">✦ Überrasch mich</button>
+    <button id="lfmImport" class="loginhint hideStatic" style="display:none" title="Deine meistgehörten Last.fm-Künstler als fertige Start-Karte laden (Name genügt, kein Passwort)">↧ Last.fm-Künstler als Start-Karte importieren</button>
     <button id="loginHint" class="loginhint hideStatic" style="display:none"
-      title="Anonym lebt deine Karte nur in diesem Tab und geht beim Schließen verloren. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.">
+      title="Anonym bleibt deine Karte auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.">
       <span class="lh-i">↗</span> Anmelden — deine Karte dauerhaft &amp; auf allen Geräten sichern
     </button>
     <div class="box" id="emptyStatic" style="display:none"><h3 id="emptyTitle"></h3></div>
+  </div>
+
+  <!-- E7: Vollbild-Suche für schmale Screens (Lupen-Button in der Topbar) -->
+  <div class="msearch hideStatic" id="mSearchOverlay">
+    <div class="msearch-bar">
+      <input id="mq" autocomplete="off" />
+      <button id="mqCancel" type="button">Abbrechen</button>
+      <div id="mSuggest" class="suggest"></div>
+    </div>
   </div>
 
   <div class="radarbox" id="radarbox">
@@ -1086,6 +1175,11 @@
         </select>
         <button id="shareBtn" class="iconbtn shareicon" title="Diesen Act teilen — Teilen-Dialog oder E-Mail"><svg class="ic" viewBox="0 0 16 16"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
       </div>
+      <div id="statusStamp" style="color:var(--muted);font-size:11px;margin-top:3px"></div>
+    </div>
+    <div class="field workonly" id="fieldFee" style="display:none">
+      <label id="lblFee">Gage</label>
+      <input id="fee" placeholder="z.B. 1500" autocomplete="off" title="Gage/Honorar (frei, Zahlen werden im Lineup-Korb summiert) — speichert beim Verlassen des Felds" />
     </div>
     <div class="field">
       <label id="lblNote">Booking-Notiz</label>
@@ -1118,6 +1212,9 @@
   <div id="tooltip" class="tooltip"></div>
   <div id="ctxmenu" class="ctxmenu"></div>
   <div class="toast" id="toast"></div>
+  <!-- W4: unsichtbare Live-Region — Screenreader erfahren Statusmeldungen und Auswahl-Wechsel,
+       die sonst nur visuell (Toast/Canvas) passieren. -->
+  <div id="ariaLive" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"></div>
   <div class="nowplaying" id="nowplaying"><button id="npStop" title="Klangprobe stoppen">■</button><span class="npmid"><span class="npidle"><span class="npeq"><i></i><i></i><i></i></span><span id="npText"></span></span><span class="npscrub"><span class="npbar" id="npBar" title="Klicken oder ziehen zum Spulen"><i class="npfill" id="npFill"></i><b class="npknob" id="npKnob"></b></span><span class="nptime" id="npTime">0:00</span></span></span></div>
 </div>
 
@@ -1175,7 +1272,7 @@ const T = LANG !== "en" ? null : {
   "Act bei Last.fm suchen — lädt ähnliche Acts + gemeinsame Auftritte (Taste /)": "Search an act on Last.fm — loads similar acts + shared gigs (key /)",
   "Act laden: ähnlicher Stil + zusammen aufgetreten + Genres": "Load an act: similar style + performed together + genres",
   "Zeig mir einen zufälligen, eher unbekannten Act": "Show me a random, rather unknown act",
-  "Anonym lebt deine Karte nur in diesem Tab und geht beim Schließen verloren. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.": "Anonymously, your map lives only in this tab and is lost when you close it. With an account, your map, likes and notes are stored permanently — the same on all your devices.",
+  "Anonym bleibt deine Karte auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.": "Anonymously, your map stays on this device and is cleaned up after 30 days of inactivity. With an account, your map, likes and notes are stored permanently — the same on all your devices.",
   "Anmelden — deine Karte dauerhaft & auf allen Geräten sichern": "Sign in — keep your map permanently & on all devices",
   // Panel
   "Panel schließen (Esc)": "Close panel (Esc)",
@@ -1274,6 +1371,27 @@ const T = LANG !== "en" ? null : {
   "Server nicht erreichbar — leer gestartet. Später neu laden.": "Server unreachable — started empty. Reload later.",
   "Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)": "Preview can't play (the browser blocked playback)",
   "Notiz gespeichert": "Note saved", "Wiederhergestellt": "Restored", "Geleert.": "Cleared.",
+  "Kommende Auftritte": "Upcoming shows",
+  "Beispiel-Karte": "Sample map", "Beispiel-Karte schließen": "Close sample map",
+  "Probier mal:": "Try one:",
+  "Ähnlichkeit {N} %": "Similarity {N} %",
+  "{N} gemeinsames Event": "{N} shared event", "{N} gemeinsame Events": "{N} shared events",
+  "Gage": "Fee", "Gagen": "fees", "Gage gespeichert": "Fee saved", "Gage entfernt": "Fee removed",
+  "heute geändert": "changed today",
+  "vor {N} Tag geändert": "changed {N} day ago", "vor {N} Tagen geändert": "changed {N} days ago",
+  "↧ Last.fm-Künstler als Start-Karte importieren": "↧ Import your Last.fm artists as a starter map",
+  "Dein Last.fm-Nutzername (öffentliches Profil genügt, kein Passwort):": "Your Last.fm username (public profile is enough, no password):",
+  "↧ Importiere …": "↧ Importing …",
+  "{N} Künstler importiert — Doppelklick lädt Nachbarn": "{N} artists imported — double-click loads neighbors",
+  "Karte als Link teilen": "Share map as link", "Erstelle Link …": "Creating link …",
+  "Link kopiert — deine Karte ist jetzt teilbar (read-only)": "Link copied — your map is now shareable (read-only)",
+  "Dein Karten-Link (read-only):": "Your map link (read-only):",
+  "Die Beispiel-Karte lässt sich nicht teilen — bau erst deine eigene.": "The sample map can't be shared — build your own first.",
+  "☰ Listenansicht": "☰ List view", "Listenansicht geöffnet": "List view opened",
+  "Liste filtern…": "Filter list…", "Liste schließen": "Close list", "Zurück zur Karte": "Back to the map",
+  "Listenansicht der Karte": "List view of the map", "Sortierung": "Sort order", "Popularität": "Popularity",
+  "Alle Einträge als sortier- und filterbare Liste — vollständig mit Tastatur bedienbar (Taste l)": "All entries as a sortable, filterable list — fully keyboard-accessible (key l)",
+  "klick dich durch oder such selbst: deine erste Suche startet deine eigene Karte.": "click around or search yourself: your first search starts your own map.",
   "Es lädt gerade noch — gleich nochmal auf Enter drücken.": "Still loading — hit Enter again in a moment.",
   "klein": "small",
   "1 unverknüpften Act von der Karte nehmen?\nGesuchte, gebuchte/notierte Acts bleiben.": "Remove 1 unconnected act from the map?\nSearched, booked/noted acts stay.",
@@ -1355,7 +1473,7 @@ const T = LANG !== "en" ? null : {
   "Mein Standort": "My location",
   "Angemeldet als": "Signed in as", "abmelden": "sign out",
   "Anmelden / Registrieren": "Sign in / register",
-  "Ohne Login: eigener, temporärer View (nur in diesem Tab). Angemeldet: deine Karte auf allen Geräten.": "Without login: your own temporary view (this tab only). Signed in: your map on all your devices.",
+  "Ohne Login: eigene Karte auf diesem Gerät (nach 30 Tagen Inaktivität aufgeräumt). Angemeldet: deine Karte auf allen Geräten.": "Without login: your own map on this device (cleaned up after 30 days of inactivity). Signed in: your map on all your devices.",
   "Neues Passwort": "New password",
   "Melde dich an — deine Karte ist dann auf allen Geräten gleich.": "Sign in — your map will then be the same on all devices.",
   "Neu hier? Konto erstellen": "New here? Create an account",
@@ -1674,10 +1792,18 @@ const PACK_HEADERS = CFG.id ? { "x-like-pack": CFG.id } : {};
 // Heimat-Distanz geräteübergreifend aus der Nutzer-Wahl statt aus der Server-ENV kommt.
 function reqHeaders(extra) {
   const h = { ...PACK_HEADERS, "x-like-lang": LANG }; // Server übersetzt seine Meldungen/Radar-Begründungen
-  // Anonym: eigener, temporärer View pro Tab (Anon-ID im sessionStorage -> beim Schließen weg).
+  // Anonym: eigener View pro GERÄT (E2: Anon-ID im localStorage, überlebt das Tab-Schließen;
+  // der Server räumt inaktive Anon-Karten nach 30 Tagen auf). Alte sessionStorage-IDs werden
+  // einmalig übernommen, damit laufende Sitzungen ihre Karte behalten.
   // Eingeloggt: Server nutzt den Account-Namensraum, keine Anon-ID nötig.
   if (!window.LIKE_USER) {
-    try { let a = sessionStorage.getItem("like_anon"); if (!a) { a = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))); sessionStorage.setItem("like_anon", a); } h["x-like-anon"] = a; } catch {}
+    try {
+      let a = localStorage.getItem("like_anon") || sessionStorage.getItem("like_anon");
+      if (!a) a = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+      localStorage.setItem("like_anon", a);
+      try { sessionStorage.removeItem("like_anon"); } catch {}
+      h["x-like-anon"] = a;
+    } catch {}
   }
   if (CFG.id === "travel") {
     try { const home = JSON.parse(localStorage.getItem("like_travel_home") || "null");
@@ -1724,9 +1850,16 @@ const API = {
   crossbridge: (name) => POST("/api/crossbridge", { name }),
   artist: (body) => POST("/api/artist", body),
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
+  demo: () => GET("/api/demo"),
+  lastfmImport: (user) => POST("/api/lastfm-import", { user }),
+  shareMap: () => POST("/api/share", {}),
 };
 
 const cv = document.getElementById("cv");
+// W4: Der Canvas hat keine DOM-Repräsentation — wenigstens Rolle + Beschreibung liefern.
+// (Auswahl/Status werden zusätzlich über die aria-live-Region angesagt, s. announce().)
+cv.setAttribute("role", "application");
+cv.setAttribute("aria-label", "Interaktive Karte: verbundene Einträge als Netz. Auswahl und Statusmeldungen werden automatisch vorgelesen; Suche und Listen sind über die Werkzeugleiste erreichbar.");
 const ctx = cv.getContext("2d");
 let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechnet damit)
 // Zoom-Schwellen für Beschriftungen: weit draußen bleibt die Karte ruhig, erst beim
@@ -1918,8 +2051,8 @@ let trail = [];                  // Breadcrumb der erkundeten Acts
 let bridgeFrom = null;           // Start-Eintrag für "Brücke bauen…" (Ziel wird als Nächstes geklickt)
 let bridge = null;               // aktive Brücken-Session: { a, b, cands:[{via,strength}], sort }
 const adj = new Map();           // Adjazenz id -> Set(nachbar-id)
-let basket = new Set();          // Lineup-Korb (ids)
-try { basket = new Set(JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]")); } catch {}
+let basket = new Set();          // Lineup-Korb (ids) — Quelle: a.basket im Graphen (E9); STATIC: localStorage
+try { if (STATIC) basket = new Set(JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]")); } catch {}
 // Status-Farben/-Labels kommen aus der Pack-Config (Musik: Shortlist/angefragt/…)
 const STATUS_COLOR = Object.fromEntries(CFG.statuses.map((s) => [s.value, s.color]));
 const STATUS_LABEL = { "": "—", ...Object.fromEntries(CFG.statuses.map((s) => [s.value, s.label])) };
@@ -1976,6 +2109,7 @@ function toggleGenreFilter(g) {
 // Tooltip aber nur bei der nächsten Mausbewegung).
 function dropHoverIfFiltered() {
   if (hover && interactionHidden(hover)) { hover = null; updateTooltip(null); }
+  if (typeof renderListView === "function") renderListView(); // W15: Genre-Filter wirkt auch in der Liste
 }
 function updateGenreLegend() {
   const el = document.getElementById("legendGenres");
@@ -1991,6 +2125,13 @@ function toast(msg) {
   const el = document.getElementById("toast");
   el.textContent = t(msg); el.classList.add("show"); // t(): Literal-Meldungen laufen durchs Wörterbuch
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 1800);
+  announce(t(msg)); // W4: Toasts auch an Screenreader
+}
+// W4: Text in die (unsichtbare) aria-live-Region schreiben — kurz leeren, damit auch
+// identische Folgemeldungen erneut vorgelesen werden.
+function announce(text) {
+  const live = document.getElementById("ariaLive"); if (!live) return;
+  live.textContent = ""; setTimeout(() => { live.textContent = text; }, 30);
 }
 function toastUndo(msg, fn) {
   const el = document.getElementById("toast");
@@ -2013,6 +2154,9 @@ const seededRnd = (id, salt = "") => seededUnit(id + "|" + salt);
 
 function rebuild(prev, reheatAmt = 1) {
   const arts = Object.values(graph.artists);
+  // E9: Korb aus dem Graphen ableiten (a.basket, serverseitig persistiert) — nicht in STATIC,
+  // dort bleibt der localStorage-Korb.
+  if (!STATIC) basket = new Set(arts.filter(a => a.basket).map(a => a.id));
   const deg = {};
   for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
   const isNew = new Set();
@@ -2026,7 +2170,8 @@ function rebuild(prev, reheatAmt = 1) {
     if (!old) isNew.add(a.id);
     return {
       id: a.id, name: a.name, url: a.url, seed: !!a.seed, known: !!a.known, note: a.note || "",
-      status: a.status || "", booking: a.booking || null, active: !!a.active,
+      status: a.status || "", statusChangedAt: a.statusChangedAt || null, fee: a.fee || "",
+      booking: a.booking || null, active: !!a.active,
       genres: a.genres || [], explored: !!a.explored,
       listeners: a.listeners ?? null, bcLocation: a.bcLocation || null,
       deg: deg[a.id] || 0,
@@ -2085,6 +2230,12 @@ function rebuild(prev, reheatAmt = 1) {
   const pairKey = (l) => l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
   for (const l of links) { if (l.type === "venue") continue; const k = pairKey(l); bondByPair.set(k, 1 - (1 - (bondByPair.get(k) ?? 0)) * (1 - (l.strength ?? 0.5))); }
   for (const l of links) { l.bond = l.type === "venue" ? l.strength : (bondByPair.get(pairKey(l)) ?? l.strength); }
+  // E10: Parallelkanten (ähnlich UND zusammen zwischen demselben Paar) markieren — draw()
+  // biegt sie gegenläufig, statt dass die später gezeichnete die erste exakt übermalt.
+  // Ausgerechnet der wertvollste Fall (beides!) war bisher unlesbar.
+  const typesByPair = new Map();
+  for (const l of links) { if (l.type === "venue") continue; const k = pairKey(l); let s = typesByPair.get(k); if (!s) typesByPair.set(k, s = new Set()); s.add(l.type); }
+  for (const l of links) { l._par = (l.type !== "venue" && (typesByPair.get(pairKey(l))?.size || 0) > 1) ? (l.type === "similar" ? 1 : -1) : 0; }
   // Adjazenz für Schnittmengen / Pfade
   adj.clear();
   for (const l of links) {
@@ -2139,6 +2290,7 @@ function rebuild(prev, reheatAmt = 1) {
   assignHalos();        // Halo nur für die 3 größten je Szene (füllt communities-Cache neu)
   renderBasket();
   renderLegend();       // dynamische Legende an den neuen Bestand anpassen (B12)
+  if (typeof renderListView === "function") renderListView(); // W15: Liste synchron halten
   reheat(reheatAmt); // neues Layout durchrechnen lassen (beim ＋-Ausbauen bewusst sanfter -> weniger Zappeln, B4)
 }
 
@@ -2199,7 +2351,16 @@ const ALPHA_MIN = 0.02, ALPHA_DECAY = 0.98;
 const DRAG_ALPHA = 0.28;
 let dirty = true;                       // "muss neu gezeichnet werden"
 function requestDraw() { dirty = true; } // von jeder Interaktion aufrufen, die die Darstellung ändert
-function reheat(a = 0.7) { alpha = Math.max(alpha, a); dirty = true; }
+function reheat(a = 0.7) {
+  alpha = Math.max(alpha, a); dirty = true;
+  // W6 (prefers-reduced-motion): das Layout nicht sichtbar auspendeln lassen, sondern
+  // synchron zu Ende rechnen — die Karte "springt" in den Ruhezustand statt zu wabern.
+  // (Beim Ziehen bleibt die Physik live, sonst wäre Drag unbenutzbar.)
+  if (REDUCE_MOTION && !dragNode) {
+    let guard = 0; do { tick(); } while (alpha >= ALPHA_MIN && ++guard < 500);
+    requestDraw();
+  }
+}
 
 // B9: Geschwindigkeits-Faktor nach Abstand zur Bildmitte (Screen-Koordinaten). Genau in der
 // Mitte 0 (stillstehen), dann per Smoothstep sanft hoch auf 1 (Normaltempo) ab ca. 40% der
@@ -2522,6 +2683,14 @@ function draw() {
   // keine Linien; sobald man etwas reinzoomt, erscheinen als Erstes die Verbindungen (noch VOR
   // den Planeten, die erst ab ~0.8 auftauchen). Ramp 0.35 → 0.7.
   const linkFade = Math.max(0, Math.min(1, (view.k - 0.35) / (0.7 - 0.35)));
+  // W12 (Viewport-Culling): sichtbarer Welt-Ausschnitt mit großzügigem Puffer (Labels/Höfe
+  // ragen über den Knotenmittelpunkt hinaus). Bei großen Karten spart das je Frame die
+  // Draw-Calls für alles, was ohnehin außerhalb des Bildes läge.
+  const vm = 170 / view.k;
+  const vx0 = -view.x / view.k - vm, vy0 = -view.y / view.k - vm;
+  const vx1 = (W - view.x) / view.k + vm, vy1 = (H - view.y) / view.k + vm;
+  const inView = (n) => { const r = n._haloR || 0; return n.x > vx0 - r && n.x < vx1 + r && n.y > vy0 - r && n.y < vy1 + r; };
+  const edgeInView = (l) => Math.min(l.a.x, l.b.x) < vx1 && Math.max(l.a.x, l.b.x) > vx0 && Math.min(l.a.y, l.b.y) < vy1 && Math.max(l.a.y, l.b.y) > vy0;
   const hidden = (id) => (fs && !fs.has(id) && !(selected && id === selected.id));
   const vis = (n) => (n._lodA ?? 1) * (n._genA ?? 1);
   drawScenes(); // Szenen-Flächen ganz hinten (hinter Kanten/Knoten)
@@ -2550,6 +2719,7 @@ function draw() {
   // die Optik; die Link-Kräfte in tick() wirken unverändert weiter).
   const cSim = getCss("--edge-similar"), cTog = getCss("--edge-together"), cVen = getCss("--venue");
   if (showEdges) for (const l of links) {
+    if (!edgeInView(l)) continue; // W12: Kanten-Bounding-Box komplett außerhalb -> nicht zeichnen
     if (hidden(l.a.id) || hidden(l.b.id)) continue;
     const key = l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
     const onPath = pe && pe.has(key);
@@ -2567,7 +2737,16 @@ function draw() {
     else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
     ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe || bridgeActive) ? 0.06 : aBase)) * ea * linkFade;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
-    ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
+    ctx.beginPath();
+    if (l._par) {
+      // E10: gegenläufig gebogene Kurven für Parallelkanten — Versatz senkrecht zur Achse,
+      // proportional zur Distanz (gedeckelt), im Weltraum, zoomt also natürlich mit.
+      const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, d = Math.hypot(dx, dy) || 1;
+      const off = Math.min(26, d * 0.16) * l._par;
+      ctx.moveTo(l.a.x, l.a.y);
+      ctx.quadraticCurveTo((l.a.x + l.b.x) / 2 - dy / d * off, (l.a.y + l.b.y) / 2 + dx / d * off, l.b.x, l.b.y);
+    } else { ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); }
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 
@@ -2576,6 +2755,7 @@ function draw() {
   if (planetMode) {
     for (const n of nodes) {
       if (hidden(n.id) || n.venue) continue;
+      if (!inView(n)) continue; // W12
       const ap = (n.appear ?? 1) * vis(n); if (ap < 0.05) continue; // Hof faded mit LOD/Genre (B2/B10)
       if (dimNode(n) && !(selected && n.id === selected.id)) continue; // gedimmte Knoten ohne Hof
       // Hof NUR für die 3 größten je Szene (assignHalos) — sonst diffuser Nebel. Selektion/Hover
@@ -2603,6 +2783,7 @@ function draw() {
   const labelJobs = []; // Labels erst sammeln, dann priorisiert + kollisionsfrei zeichnen
   for (const n of nodes) {
     if (hidden(n.id)) continue;
+    if (!inView(n)) continue; // W12: außerhalb des (gepufferten) Ausschnitts — Label inklusive
     const lodA = vis(n); // kombinierte LOD-/Genre-Sichtbarkeit (B2/B10)
     if (lodA < 0.02) continue; // vollständig ausgeblendet (weich)
     // Spawn-Animation: frische Knoten wachsen mit leichtem Überschwung ein (easeOutBack).
@@ -3172,7 +3353,10 @@ addEventListener("mousemove", (e) => {
     if (n !== hover) { hover = n; schedulePrefetch(n); requestDraw(); }
     else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen (beide Modi)
     cv.style.cursor = (onX || onMoonB || onSeedI) ? "pointer" : (n ? "pointer" : "grab");
-    updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
+    // E10: kein Knoten unterm Zeiger -> liegt eine Kante darunter? Dann ihre Belege zeigen.
+    const edgeHover = (!n && overCanvas) ? edgeAt(p) : null;
+    if (edgeHover) updateEdgeTooltip(edgeHover, e);
+    else updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
     return;
   }
   const dx = p.x - dragStart.x, dy = p.y - dragStart.y;
@@ -3379,10 +3563,21 @@ function selectNode(n) {
   requestDraw();
   document.getElementById("pName").innerHTML = esc(n.name) +
     (n.seed ? ' <span class="badge seed">gesucht</span>' : '');
+  // W4: Auswahl-Wechsel für Screenreader ansagen (Name + Vernetzungsgrad).
+  announce(`${n.name} — ${tf(n.deg === 1 ? "{N} Verbindung" : "{N} Verbindungen", { N: n.deg || 0 })}`);
   renderSub(n, null);
   renderGenrePills(n.genres);
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
   document.getElementById("status").value = n.status || "";
+  // E9: Status-Zeitstempel ("angefragt vor 12 Tagen") + Gagenfeld (nur Booking-Packs)
+  const stamp = document.getElementById("statusStamp");
+  if (n.status && n.statusChangedAt) {
+    const days = Math.floor((Date.now() - n.statusChangedAt) / 864e5);
+    stamp.textContent = days <= 0 ? t("heute geändert") : tf(days === 1 ? "vor {N} Tag geändert" : "vor {N} Tagen geändert", { N: days });
+  } else stamp.textContent = "";
+  const feeField = document.getElementById("fieldFee");
+  feeField.style.display = FEAT.booking ? "" : "none";
+  document.getElementById("fee").value = n.fee || "";
   document.getElementById("note").value = n.note || "";
   refreshLikeBtn();
   document.getElementById("pLabels").innerHTML = "";
@@ -3458,7 +3653,11 @@ function bookingHtml(n) {
     b.website && `<a href="${esc(b.website)}" target="_blank" rel="noreferrer">Website ↗</a>`,
   ].filter(Boolean).join("");
   const det = b.details ? `<div class="det">${esc(b.details)}</div>` : "";
-  return live + region + det + (links ? `<div class="links">${links}</div>` : "");
+  // Kommende Auftritte (E6): fürs Booking oft DAS Routing-Argument — „spielt ohnehin in der Region".
+  const up = (b.upcomingShows || []).slice(0, 4).map((s) =>
+    `<div class="det">▸ ${[s.date, s.event || s.venue, s.city].filter(Boolean).map(esc).join(" · ")}</div>`).join("");
+  const upBlock = up ? `<div class="det" style="margin-top:6px;font-weight:600">${t("Kommende Auftritte")}</div>${up}` : "";
+  return live + region + det + upBlock + (links ? `<div class="links">${links}</div>` : "");
 }
 // Sub-Zeile im Panel: Verbindungen · Hörerzahl (▲ Momentum) · Ort · Links
 const fmtListeners = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1000 ? Math.round(n / 1000) + "k" : String(n);
@@ -3516,13 +3715,47 @@ document.getElementById("status").onchange = async (e) => {
     selected.status = status;
     const a = graph.artists[selected.id]; if (a) { a.status = status; a.known = status !== ""; }
     renderLegend(); // „Status-Ring"-Eintrag ein-/ausblenden (B12)
+    if (res.artist?.statusChangedAt) { selected.statusChangedAt = res.artist.statusChangedAt; if (a) a.statusChangedAt = res.artist.statusChangedAt; }
+    document.getElementById("statusStamp").textContent = status ? t("heute geändert") : "";
     requestDraw(); // Status-Farbring am Knoten aktualisieren
     toast(status ? "Status: " + STATUS_LABEL[status] : "Status entfernt");
   }
 };
+// E9: Gage speichern beim Verlassen des Felds; Zahlen daraus summiert der Lineup-Korb.
+document.getElementById("fee").addEventListener("change", async (e) => {
+  if (!selected || selected.venue) return;
+  if (STATIC) { toast("Nur im lokalen Tool änderbar"); return; }
+  const fee = e.target.value.trim();
+  try {
+    const res = await API.artist({ id: selected.id, fee });
+    if (res.ok) {
+      selected.fee = fee || undefined;
+      const a = graph.artists[selected.id]; if (a) { if (fee) a.fee = fee; else delete a.fee; }
+      renderBasket(); // Summenzeile aktualisieren
+      toast(fee ? t("Gage gespeichert") : t("Gage entfernt"));
+    }
+  } catch (err) { toast("Fehler: " + err.message); }
+});
 // Teilen: bevorzugt der native Teilen-Dialog (Web Share API) — echter, in jede App teilbarer
 // Link + Text (E-Mail, Nachrichten, WhatsApp …). Nur wenn das der Browser nicht kann, Fallback
 // auf mailto (Plain-Text). So ist es kein bloßer Link-Textblock mehr.
+// W14: ganze Karte als Read-Only-Link teilen — Link in die Zwischenablage, fertig.
+document.getElementById("shareMap").onclick = async () => {
+  if (demoMode) { toast(t("Die Beispiel-Karte lässt sich nicht teilen — bau erst deine eigene.")); return; }
+  const btn = document.getElementById("shareMap"), lbl = document.getElementById("shareMapLbl");
+  btn.disabled = true; const old = lbl.textContent; lbl.textContent = t("Erstelle Link …");
+  try {
+    const res = await API.shareMap();
+    if (!res.ok) { toast("Fehler: " + (res.error || "?")); return; }
+    const link = res.url && /^https?:/.test(res.url) ? res.url : location.origin + "/s/" + res.id;
+    let copied = false;
+    try { await navigator.clipboard.writeText(link); copied = true; } catch {}
+    if (copied) toast(t("Link kopiert — deine Karte ist jetzt teilbar (read-only)"));
+    else prompt(t("Dein Karten-Link (read-only):"), link);
+  } catch (e) { toast("Fehler: " + e.message); }
+  finally { btn.disabled = false; lbl.textContent = old; }
+};
+
 document.getElementById("shareBtn").onclick = async () => {
   if (!selected || selected.venue) return;
   const n = selected, b = n.booking || {};
@@ -3633,9 +3866,29 @@ async function reload(focusName, { select = true, center = true, reheatAmt = 1 }
 }
 
 let busy = false;
+// ---- E1: Beispiel-Karte beim leeren Erstbesuch ----
+// Rein clientseitig: die demo.json des Packs wird angezeigt, aber nie gespeichert. Die erste
+// eigene Suche (exploreByName -> reload() holt den echten Graphen) ersetzt sie automatisch.
+let demoMode = false;
+function endDemo(resetGraph) {
+  if (!demoMode) return;
+  demoMode = false;
+  document.getElementById("demoBar")?.remove();
+  try { localStorage.setItem("like_demo_off", "1"); } catch {} // nicht erneut aufdrängen
+  if (resetGraph) { graph = { artists: {}, edges: [] }; rebuild(); fitAll(); }
+}
+function showDemoBar() {
+  const bar = document.createElement("div");
+  bar.className = "demobar"; bar.id = "demoBar";
+  bar.innerHTML = `<span><b>${t("Beispiel-Karte")}</b> — ${t("klick dich durch oder such selbst: deine erste Suche startet deine eigene Karte.")}</span><button id="demoOff" aria-label="${t("Beispiel-Karte schließen")}">×</button>`;
+  document.body.appendChild(bar);
+  document.getElementById("demoOff").onclick = () => endDemo(true);
+}
+
 async function exploreByName(name, { select = true, center = true, reheatAmt = 1 } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
+  endDemo(false); // erste eigene Suche: reload() ersetzt die Beispiel-Karte gleich durch den echten Graphen
   busy = true;
   const k = slugify(name);
   const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
@@ -3729,6 +3982,49 @@ document.getElementById("go").onclick = doSearch;
 
 // ---- Tooltip ----
 const tipEl = document.getElementById("tooltip");
+// E10: Kante unter dem Mauszeiger finden (Punkt-zu-Strecke, Kurven-Versatz der Parallel-
+// kanten wird am Parameter t mitgerechnet). Endstücke bleiben den Knoten überlassen.
+function edgeAt(p) {
+  if (!showEdges || view.k <= 0.35) return null; // Kanten sind ausgeblendet/weggezoomt
+  const wm = world(p), thr = 7 / view.k;
+  let best = null, bestD = thr;
+  for (const l of links) {
+    if (l.type === "venue") continue;
+    if (interactionHidden(l.a) || interactionHidden(l.b)) continue;
+    const ax = l.a.x, ay = l.a.y, dx = l.b.x - l.a.x, dy = l.b.y - l.a.y;
+    const len2 = dx * dx + dy * dy || 1, dlen = Math.sqrt(len2);
+    let tt = ((wm.x - ax) * dx + (wm.y - ay) * dy) / len2;
+    if (tt < 0.1 || tt > 0.9) continue;
+    let px2 = ax + dx * tt, py2 = ay + dy * tt;
+    if (l._par) { // Abweichung der Quadratic-Kurve von der Geraden: 2t(1−t)·off, senkrecht
+      const dev = Math.min(26, dlen * 0.16) * l._par * 2 * tt * (1 - tt);
+      px2 -= dy / dlen * dev; py2 += dx / dlen * dev;
+    }
+    const dd = Math.hypot(wm.x - px2, wm.y - py2);
+    if (dd < bestD) { bestD = dd; best = l; }
+  }
+  return best;
+}
+// E10: Kanten-Tooltip — macht die Belege („3 gemeinsame Events") erstmals sichtbar.
+function updateEdgeTooltip(l, e) {
+  const isSim = l.type === "similar";
+  const label = isSim ? (CFG.edges?.similar?.label || "ähnlich") : (CFG.togetherLabel || CFG.edges?.together?.label || "zusammen aufgetreten");
+  const parts = [`<b>${esc(l.a.name)} — ${esc(l.b.name)}</b>`, `<span class="g">${esc(t(label))}</span>`];
+  if (isSim) {
+    const w = Math.max(0, Math.min(1, l.weight ?? 0.5));
+    parts.push(`<span class="g">${tf("Ähnlichkeit {N} %", { N: Math.round(w * 100) })}</span>`);
+  } else {
+    const cnt = Math.max(1, Math.round(l.weight || 1));
+    parts.push(`<span class="g">${tf(cnt === 1 ? "{N} gemeinsames Event" : "{N} gemeinsame Events", { N: cnt })}</span>`);
+    for (const s of (l.shows || []).slice(0, 2)) parts.push(`<span class="g">▸ ${[s.event, s.date, s.city || s.venue].filter(Boolean).map(esc).join(" · ")}</span>`);
+  }
+  tipEl.innerHTML = parts.join("<br>");
+  tipEl.classList.add("show");
+  const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tw - 8) + "px";
+  tipEl.style.top = Math.min(e.clientY + 14, innerHeight - th - 8) + "px";
+}
+
 function updateTooltip(n, e) {
   if (!n) { tipEl.classList.remove("show"); return; }
   const parts = [`<b>${esc(n.name)}</b>`];
@@ -4003,8 +4299,14 @@ function renderTrail() {
 }
 
 // ---- Lineup-Korb ----
-function saveBasket() { try { localStorage.setItem(LSK("like_basket"), JSON.stringify([...basket])); } catch {} }
-function toggleBasket(n) { if (n.venue) return; const add = !basket.has(n.id); add ? basket.add(n.id) : basket.delete(n.id); if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; } saveBasket(); renderBasket(); refreshLikeBtn(); requestDraw(); }
+// E9: Der Korb lebt jetzt im Graphen (a.basket, serverseitig) — er überlebt damit Reload,
+// Gerätewechsel und die Anon-zu-Konto-Migration. localStorage bleibt nur als STATIC-Fallback
+// und wird beim ersten Laden einmalig in den Server übernommen (s. Boot-IIFE).
+function saveBasket(id, add) {
+  if (STATIC) { try { localStorage.setItem(LSK("like_basket"), JSON.stringify([...basket])); } catch {} return; }
+  if (id) API.artist({ id, basket: add }).catch(() => {}); // fire-and-forget, UI ist schon aktuell
+}
+function toggleBasket(n) { if (n.venue) return; const add = !basket.has(n.id); add ? basket.add(n.id) : basket.delete(n.id); if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; } const a = graph.artists[n.id]; if (a) { if (add) a.basket = true; else delete a.basket; } saveBasket(n.id, add); renderBasket(); refreshLikeBtn(); requestDraw(); }
 // like!-Button spiegelt, ob der gewählte Act schon im Lineup ist
 function refreshLikeBtn() {
   if (!selected) return;
@@ -4020,24 +4322,27 @@ function renderBasket() {
   const items = [...basket].map(id => graph.artists[id]).filter(Boolean);
   if (!items.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
   const bl = CFG.basketLabel || "Lineup";
+  // E9: Gagen-Summe über den Korb — nur Zahlen-Anteile zählen ("1.5k" bleibt außen vor, ehrlich einfach).
+  const feeSum = items.reduce((s, a) => { const v = parseFloat(String(a.fee || "").replace(/[^\d,.\-]/g, "").replace(",", ".")); return s + (Number.isFinite(v) ? v : 0); }, 0);
+  const feeRow = FEAT.booking && feeSum > 0 ? `<div style="padding:6px 10px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--muted)">Σ ${t("Gagen")}: <b style="color:var(--text)">${feeSum.toLocaleString(LANG === "en" ? "en-US" : "de-DE")}</b></div>` : "";
   el.innerHTML = `<h3 title="${tf("Dein {B}-Korb — mit {L} oder Taste b füllen", { B: bl, L: CFG.likeLabel || "like!" })}">${bl} <span>${items.length}</span></h3><ul>` +
-    items.map(a => `<li data-id="${esc(a.id)}" title="${t("Klick: hinspringen")}"><b>${esc(a.name)}</b><a data-rm="${esc(a.id)}" title="${tf("Aus dem {B} nehmen", { B: bl })}">✕</a></li>`).join("") +
-    `</ul><div class="actions"><button id="bExport" title="${tf("{B} als CSV exportieren", { B: bl })}">CSV</button><button id="bClear" title="${tf("{B}-Korb leeren", { B: bl })}">${t("Leeren")}</button></div>`;
+    items.map(a => `<li data-id="${esc(a.id)}" title="${t("Klick: hinspringen")}"><b>${esc(a.name)}${a.fee ? ` <span style="color:var(--muted)">· ${esc(a.fee)}</span>` : ""}</b><a data-rm="${esc(a.id)}" title="${tf("Aus dem {B} nehmen", { B: bl })}">✕</a></li>`).join("") +
+    `</ul>${feeRow}<div class="actions"><button id="bExport" title="${tf("{B} als CSV exportieren", { B: bl })}">CSV</button><button id="bClear" title="${tf("{B}-Korb leeren", { B: bl })}">${t("Leeren")}</button></div>`;
   el.classList.add("show");
   el.querySelectorAll("li").forEach(li => li.onclick = (e) => {
-    if (e.target.dataset.rm) { basket.delete(e.target.dataset.rm); saveBasket(); renderBasket(); return; }
+    if (e.target.dataset.rm) { const rid = e.target.dataset.rm; basket.delete(rid); const a = graph.artists[rid]; if (a) delete a.basket; saveBasket(rid, false); renderBasket(); return; }
     const node = nodeById.get(li.dataset.id); if (node) { centerOn(node); selectNode(node); }
   });
-  document.getElementById("bClear").onclick = () => { basket.clear(); saveBasket(); renderBasket(); };
+  document.getElementById("bClear").onclick = () => { for (const id of basket) { const a = graph.artists[id]; if (a) delete a.basket; saveBasket(id, false); } basket.clear(); renderBasket(); };
   document.getElementById("bExport").onclick = exportBasketCsv;
 }
 function exportBasketCsv() {
   const rows = [FEAT.booking
-    ? ["Name", "Status", "Genres", t("Region"), t("Aktiv"), t("Booking/Kontakt"), t("Notiz")]
+    ? ["Name", "Status", t("Gage"), CFG.popularity?.label || "Popularität", "Genres", t("Region"), t("Aktiv"), t("Booking/Kontakt"), t("Notiz"), "URL"]
     : ["Name", "Status", CFG.genreLabel || "Genres", t("Notiz"), "URL"]];
   for (const id of basket) { const a = graph.artists[id]; if (!a) continue; const b = a.booking || {};
     rows.push(FEAT.booking
-      ? [a.name, a.status || "", (a.genres || []).join("; "), [b.area, b.country].filter(Boolean).join(", "), a.active ? t("ja") : "", b.details || "", a.note || ""]
+      ? [a.name, a.status || "", a.fee || "", a.listeners ?? "", (a.genres || []).join("; "), [b.area, b.country].filter(Boolean).join(", "), a.active ? t("ja") : "", b.details || "", a.note || "", a.url || ""]
       : [a.name, a.status || "", (a.genres || []).join("; "), a.note || "", a.url || ""]); }
   const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
   const blob = new Blob([csv], { type: "text/csv" }), u = URL.createObjectURL(blob);
@@ -4053,40 +4358,91 @@ document.getElementById("bridgeSlider").oninput = (e) => { if (bridge) { bridge.
 function removeNode(n) { selected = n; document.getElementById("removeAct").click(); }
 
 // ---- Autocomplete ----
-const sugEl = document.getElementById("suggest"); let sugItems = [], sugIdx = -1, sugTimer = null, sugSeq = 0;
-const qEl = document.getElementById("q");
-qEl.addEventListener("input", () => {
-  if (STATIC) return;
-  clearTimeout(sugTimer); const v = qEl.value.trim();
-  if (v.length < 2) { closeSug(); return; }
-  sugTimer = setTimeout(async () => {
-    const seq = ++sugSeq;
-    try {
-      const r = await API.suggest(v);
-      // Nur die Antwort auf die NEUESTE Eingabe anzeigen — sonst überschreiben langsame, alte
-      // Antworten die frischen Vorschläge oder öffnen das Dropdown über einem geleerten Feld.
-      if (seq !== sugSeq || qEl.value.trim() !== v) return;
-      sugItems = r.names || []; sugIdx = -1; renderSug();
-    } catch { /* Vorschläge sind optional — Netzfehler still ignorieren */ }
-  }, 200);
-});
-function renderSug() {
-  if (!sugItems.length) { closeSug(); return; }
-  sugEl.innerHTML = sugItems.map((n, i) => `<div class="${i === sugIdx ? "active" : ""}" data-i="${i}">${esc(n)}</div>`).join("");
-  sugEl.classList.add("open");
-  sugEl.querySelectorAll("div").forEach(d => d.onmousedown = (e) => { e.preventDefault(); chooseSug(+d.dataset.i); });
+// Wiederverwendbares Autocomplete (E7/E8): eigener Zustand pro Eingabefeld, gemeinsame Logik.
+// pick(name) = Auswahl aus dem Dropdown; submit() = Enter ohne Auswahl (klassische Suche).
+function attachSuggest(input, listEl, pick, submit) {
+  const st = { items: [], idx: -1, timer: null, seq: 0 };
+  const close = () => { listEl.classList.remove("open"); st.items = []; st.idx = -1; };
+  const choose = (i) => {
+    const n = st.items[i]; if (!n) return;
+    if (busy) { toast(t("Es lädt gerade noch — gleich nochmal auf Enter drücken.")); return; }
+    input.value = ""; close(); pick(n);
+  };
+  const render = () => {
+    if (!st.items.length) { close(); return; }
+    listEl.innerHTML = st.items.map((n, i) => `<div class="${i === st.idx ? "active" : ""}" data-i="${i}">${esc(n)}</div>`).join("");
+    listEl.classList.add("open");
+    listEl.querySelectorAll("div").forEach(d => d.onmousedown = (e) => { e.preventDefault(); choose(+d.dataset.i); });
+  };
+  input.addEventListener("input", () => {
+    if (STATIC) return;
+    clearTimeout(st.timer); const v = input.value.trim();
+    if (v.length < 2) { close(); return; }
+    st.timer = setTimeout(async () => {
+      const seq = ++st.seq;
+      try {
+        const r = await API.suggest(v);
+        // Nur die Antwort auf die NEUESTE Eingabe anzeigen — sonst überschreiben langsame, alte
+        // Antworten die frischen Vorschläge oder öffnen das Dropdown über einem geleerten Feld.
+        if (seq !== st.seq || input.value.trim() !== v) return;
+        st.items = r.names || []; st.idx = -1; render();
+      } catch { /* Vorschläge sind optional — Netzfehler still ignorieren */ }
+    }, 200);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (listEl.classList.contains("open")) {
+      if (e.key === "ArrowDown") { e.preventDefault(); st.idx = Math.min(st.idx + 1, st.items.length - 1); render(); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); st.idx = Math.max(st.idx - 1, 0); render(); return; }
+      if (e.key === "Enter") { e.preventDefault(); st.idx >= 0 ? choose(st.idx) : submit(); return; }
+      if (e.key === "Escape") { close(); return; }
+    } else if (e.key === "Enter") submit();
+  });
+  input.addEventListener("blur", () => setTimeout(close, 150));
+  return { close };
 }
-function closeSug() { sugEl.classList.remove("open"); sugItems = []; sugIdx = -1; }
-function chooseSug(i) { const n = sugItems[i]; if (!n) return; if (busy) { toast("Es lädt gerade noch — gleich nochmal auf Enter drücken."); return; } qEl.value = ""; closeSug(); exploreByName(n); }
-qEl.addEventListener("keydown", (e) => {
-  if (sugEl.classList.contains("open")) {
-    if (e.key === "ArrowDown") { e.preventDefault(); sugIdx = Math.min(sugIdx + 1, sugItems.length - 1); renderSug(); return; }
-    if (e.key === "ArrowUp") { e.preventDefault(); sugIdx = Math.max(sugIdx - 1, 0); renderSug(); return; }
-    if (e.key === "Enter") { e.preventDefault(); sugIdx >= 0 ? chooseSug(sugIdx) : doSearch(); return; }
-    if (e.key === "Escape") { closeSug(); return; }
-  } else if (e.key === "Enter") doSearch();
-});
-qEl.addEventListener("blur", () => setTimeout(closeSug, 150));
+const sugEl = document.getElementById("suggest");
+const qEl = document.getElementById("q");
+const qSug = attachSuggest(qEl, sugEl, (n) => exploreByName(n), doSearch);
+function closeSug() { qSug.close(); } // bestehende Aufrufer (doSearch)
+
+// ---- W15: Listenansicht — dieselben Daten wie die Karte, aber als sortier-/filterbare,
+// tastaturbedienbare Liste. Auswahl ist bidirektional synchron (Klick öffnet das Panel).
+let listOpen = false;
+function toggleListView(v) {
+  listOpen = v ?? !listOpen;
+  document.getElementById("listView").classList.toggle("show", listOpen);
+  document.getElementById("segList").classList.toggle("on", listOpen);
+  if (listOpen) { renderListView(); announce(t("Listenansicht geöffnet")); document.getElementById("lvFilter").focus(); }
+}
+function renderListView() {
+  if (!listOpen) return;
+  const q = document.getElementById("lvFilter").value.trim().toLowerCase();
+  const sort = document.getElementById("lvSort").value;
+  let items = nodes.filter((n) => !n.venue);
+  if (genreFilterActive()) items = items.filter((n) => !genreMissNode(n)); // gleicher Filter wie die Karte
+  if (q) items = items.filter((n) => n.name.toLowerCase().includes(q) || (n.genres || []).some((g) => g.toLowerCase().includes(q)));
+  items.sort(sort === "pop" ? (a, b) => (b.listeners || 0) - (a.listeners || 0)
+    : sort === "deg" ? (a, b) => (b.deg || 0) - (a.deg || 0)
+    : (a, b) => a.name.localeCompare(b.name, "de"));
+  const ul = document.getElementById("lvList");
+  ul.innerHTML = items.map((n) => {
+    const sub = [
+      (n.genres || []).slice(0, 3).join(" · "),
+      n.listeners != null && CFG.popularity ? `${fmtListeners(n.listeners)} ${CFG.popularity.label}` : "",
+      n.deg ? tf(n.deg === 1 ? "{N} Verbindung" : "{N} Verbindungen", { N: n.deg }) : "",
+    ].filter(Boolean).map(esc).join("  ·  ");
+    const dot = n.status ? `<span class="lv-dot" style="background:${esc(STATUS_COLOR[n.status] || "#999")}" title="${esc(STATUS_LABEL[n.status] || "")}"></span>` : "";
+    return `<li><button data-id="${esc(n.id)}" class="${selected && selected.id === n.id ? "sel" : ""}"><b>${esc(n.name)}</b><span class="lv-sub">${sub}</span>${dot}</button></li>`;
+  }).join("");
+  ul.querySelectorAll("button").forEach((b) => b.onclick = () => {
+    const n = nodeById.get(b.dataset.id);
+    if (n) { selectNode(n); centerOn(n); renderListView(); }
+  });
+}
+document.getElementById("segList").onclick = () => toggleListView();
+document.getElementById("lvClose").onclick = () => toggleListView(false);
+document.getElementById("lvFilter").addEventListener("input", renderListView);
+document.getElementById("lvSort").addEventListener("change", renderListView);
 
 // ---- Radar (Geheimtipp-Score 2.0) ----
 const radarEl = document.getElementById("radarbox");
@@ -4643,7 +4999,7 @@ function renderAcct() {
     box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>`;
     box.querySelector("#acctLogout").onclick = doLogout;
   } else {
-    box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button><div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigener, temporärer View (nur in diesem Tab). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
+    box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button><div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigene Karte auf diesem Gerät (nach 30 Tagen Inaktivität aufgeräumt). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
     box.querySelector("#acctLogin").onclick = () => { closeMore(); openAuth("login"); };
   }
 }
@@ -4690,7 +5046,7 @@ async function doAuthSubmit() {
   if (r.recovery) alert(t("Dein Recovery-Code — JETZT sicher aufbewahren!\nNur damit kannst du dein Passwort zurücksetzen:\n\n") + r.recovery);
   // Der Server hat die aktuelle (anonyme) Karte bereits in den Account übernommen.
   // Kein Reload: der aktuelle Screen bleibt erhalten, künftige Änderungen landen im Konto.
-  try { sessionStorage.removeItem("like_anon"); } catch {}
+  try { localStorage.removeItem("like_anon"); sessionStorage.removeItem("like_anon"); } catch {}
   window.LIKE_USER = r.user;
   authModal.classList.remove("show");
   renderAcct();
@@ -4700,7 +5056,7 @@ async function doAuthSubmit() {
 }
 document.getElementById("authSubmit").onclick = doAuthSubmit;
 ["authPw", "authRec", "authUser"].forEach((id) => document.getElementById(id).addEventListener("keydown", (e) => { if (e.key === "Enter") doAuthSubmit(); }));
-async function doLogout() { try { await POST("/api/auth/logout", {}); } catch {} try { sessionStorage.removeItem("like_anon"); } catch {} location.reload(); }
+async function doLogout() { try { await POST("/api/auth/logout", {}); } catch {} try { localStorage.removeItem("like_anon"); sessionStorage.removeItem("like_anon"); } catch {} location.reload(); }
 renderAcct();
 refreshLoginHint();
 
@@ -4881,6 +5237,7 @@ document.getElementById("importFile").onchange = async (e) => {
     const data = JSON.parse(await file.text());
     const res = await API.import(data);
     if (res.error) { toast("Fehler: " + res.error); return; }
+    endDemo(false); // Backup ersetzt die Beispiel-Karte
     graph = res.graph; rebuild(); fitAll();
     toast(`Importiert: ${res.artists} Acts`);
   } catch { toast("Datei ist kein gültiger Graph-Export"); }
@@ -4911,7 +5268,7 @@ addEventListener("keydown", (e) => {
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
-  else if (e.key === "Escape") { hideCtx(); if (moreEl.classList.contains("show")) moreEl.classList.remove("show"); else if (discoverEl.classList.contains("show")) discoverEl.classList.remove("show"); else if (radarEl.classList.contains("show")) closeRadar(); else if (helpEl.classList.contains("show")) toggleHelp(); else if (bridgeFrom || bridge) clearBridge(); else if (bridgeSet.size) clearBridges(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
+  else if (e.key === "Escape") { hideCtx(); if (moreEl.classList.contains("show")) moreEl.classList.remove("show"); else if (listOpen) toggleListView(false); else if (discoverEl.classList.contains("show")) discoverEl.classList.remove("show"); else if (radarEl.classList.contains("show")) closeRadar(); else if (helpEl.classList.contains("show")) toggleHelp(); else if (bridgeFrom || bridge) clearBridge(); else if (bridgeSet.size) clearBridges(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
   else if (e.key === "e" && selected && !selected.venue) exploreByName(selected.name);
   else if (e.key === "f" && selected) toggleFocus(selected);
   else if (e.key === "b" && selected) toggleBasket(selected);
@@ -4919,6 +5276,7 @@ addEventListener("keydown", (e) => {
   else if (e.key === "+" || e.key === "=") zoomBy(1.3);
   else if (e.key === "-") zoomBy(1 / 1.3);
   else if (e.key === "0") fitAll();
+  else if (e.key === "l") { e.preventDefault(); toggleListView(); } // W15 (preventDefault: sonst tippt das "l" ins fokussierte Filterfeld)
   else if (e.key === "?") toggleHelp();
 });
 
@@ -5100,6 +5458,26 @@ function maybeShowIntro() {
   // bleibt schwarz. Stattdessen leer starten + Hinweis; der Rest (loop, Intro …) läuft weiter.
   try { graph = await API.graph(); }
   catch { graph = { artists: {}, edges: [] }; try { toast("Server nicht erreichbar — leer gestartet. Später neu laden."); } catch {} }
+  // E9: einmalige Übernahme des alten localStorage-Korbs in den Graphen (serverseitig) —
+  // vorher ging der Korb bei der Anon-zu-Konto-Migration und beim Gerätewechsel verloren.
+  if (!STATIC) {
+    try {
+      const old = JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]");
+      if (old.length) {
+        for (const id of old) if (graph.artists[id]) { graph.artists[id].basket = true; API.artist({ id, basket: true }).catch(() => {}); }
+        localStorage.removeItem(LSK("like_basket"));
+      }
+    } catch {}
+  }
+  // E1: Erstbesuch mit leerer Karte -> kuratierte Beispiel-Karte zeigen (nie gespeichert;
+  // die erste eigene Suche oder das × am Hinweisband ersetzt sie). Wer sie einmal
+  // weggeklickt/ersetzt hat, bekommt sie nicht erneut (like_demo_off).
+  if (!STATIC && !Object.keys(graph.artists || {}).length) {
+    let off = false; try { off = localStorage.getItem("like_demo_off") === "1"; } catch {}
+    if (!off) {
+      try { const d = await API.demo(); if (d?.ok && Object.keys(d.graph.artists || {}).length) { graph = d.graph; demoMode = true; } } catch {}
+    }
+  }
   rebuild();
   // Layout VOR dem ersten Zeichnen fertig ausrechnen (bis es ruhig ist) — so wackelt beim
   // Anzeigen nichts mehr (kein sichtbares Zappeln direkt nach dem Start). Deckel als Notbremse.
@@ -5107,8 +5485,9 @@ function maybeShowIntro() {
   // Gemerkte Ansicht (Pan/Zoom) wiederherstellen, falls vorhanden und plausibel — sonst wie
   // gehabt alles einpassen und zentrieren, so weit rauszoomen, dass der ganze Graph sichtbar ist.
   const savedView = loadView();
-  if (savedView && nodes.length) { view.k = savedView.k; view.x = savedView.x; view.y = savedView.y; requestDraw(); }
+  if (savedView && nodes.length && !demoMode) { view.k = savedView.k; view.x = savedView.x; view.y = savedView.y; requestDraw(); }
   else fitAll();
+  if (demoMode) showDemoBar();
   loop();
   checkKey();
   startupTasks();
@@ -5139,13 +5518,60 @@ function loadView() {
 addEventListener("beforeunload", saveView);
 addEventListener("visibilitychange", () => { if (document.hidden) saveView(); });
 
+// E7: Mobile-Suche — Lupe in der Topbar öffnet ein Vollbild-Suchfeld mit Autofokus und
+// denselben Vorschlägen wie die Desktop-Suche (statt zwei Taps ins generische ⋯-Menü).
+(function () {
+  const btn = document.getElementById("mSearchBtn"), ov = document.getElementById("mSearchOverlay"),
+        mq = document.getElementById("mq"), cancel = document.getElementById("mqCancel");
+  if (!btn || !ov || !mq) return;
+  const closeOv = () => { ov.classList.remove("show"); mq.value = ""; };
+  const run = (name) => { closeOv(); if (name) exploreByName(name); };
+  btn.onclick = () => {
+    mq.placeholder = document.getElementById("q")?.placeholder || t("Suchen…");
+    ov.classList.add("show");
+    setTimeout(() => mq.focus(), 30); // nach dem Einblenden, sonst schluckt iOS den Fokus
+  };
+  cancel.textContent = t("Abbrechen");
+  cancel.onclick = closeOv;
+  attachSuggest(mq, document.getElementById("mSuggest"), (n) => run(n), () => { const v = mq.value.trim(); if (v) run(v); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && ov.classList.contains("show")) closeOv(); });
+})();
+
 // Zentrale Suchleiste im leeren Zustand (nur eine Leiste, sonst nichts)
 (function () {
   const q2 = document.getElementById("q2"), go2 = document.getElementById("go2");
   if (!q2 || !go2) return;
   const run2 = () => { const v = q2.value.trim(); if (v) { q2.value = ""; exploreByName(v); } };
   go2.addEventListener("click", run2);
-  q2.addEventListener("keydown", (e) => { if (e.key === "Enter") run2(); });
+  // E8: Autocomplete + Enter-Handling über den gemeinsamen Baustein — die allererste Suche
+  // eines Neulings soll an einem Tippfehler nicht mehr scheitern.
+  attachSuggest(q2, document.getElementById("suggest2"), (n) => exploreByName(n), run2);
+  // E8: klickbare Beispiel-Chips ("Blank-Page"-Hilfe) — kuratierte Startpunkte des Packs.
+  const chipsEl = document.getElementById("seedChips");
+  const seeds = (CFG.seedChips || [CFG.exampleSeed]).filter(Boolean).slice(0, 3);
+  if (chipsEl && seeds.length && !STATIC) {
+    chipsEl.innerHTML = `<span>${t("Probier mal:")}</span>` + seeds.map((s) => `<button type="button" data-n="${esc(s)}">${esc(s)}</button>`).join("");
+    chipsEl.querySelectorAll("button").forEach((b) => b.onclick = () => exploreByName(b.dataset.n));
+  }
+  // E13: Last.fm-Kaltstart — Nutzername genügt, die Top-Künstler kommen als fertige Karte.
+  const lfm = document.getElementById("lfmImport");
+  if (lfm && CFG.id === "music" && !STATIC) {
+    lfm.style.display = "";
+    lfm.addEventListener("click", async () => {
+      const user = prompt(t("Dein Last.fm-Nutzername (öffentliches Profil genügt, kein Passwort):"));
+      if (!user || !user.trim()) return;
+      lfm.disabled = true; const label = lfm.textContent; lfm.textContent = t("↧ Importiere …");
+      try {
+        const res = await API.lastfmImport(user.trim());
+        if (!res.ok) { toast("Fehler: " + (res.error || "?")); return; }
+        endDemo(false);
+        graph = res.graph; rebuild(); fitAll();
+        fillSizes(); fillGenres(); // Hörerzahlen/Genres für die frischen Knoten nachladen
+        toast(tf("{N} Künstler importiert — Doppelklick lädt Nachbarn", { N: res.imported }));
+      } catch (e) { toast("Fehler: " + e.message); }
+      finally { lfm.disabled = false; lfm.textContent = label; }
+    });
+  }
   // „Überrasch mich": zufälliger, eher unbekannter Act vom Server -> direkt reinstolpern.
   const sBtn = document.getElementById("surpriseBtn");
   if (sBtn) {

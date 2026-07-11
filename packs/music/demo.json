@@ -125,6 +125,26 @@
       "type": "together",
       "weight": 3,
       "source": "demo"
+    },
+    {
+      "from": "bonobo",
+      "to": "jon hopkins",
+      "type": "together",
+      "weight": 2,
+      "shows": [
+        {
+          "event": "Melt Festival",
+          "date": "2019-07-19",
+          "venue": null,
+          "city": "Ferropolis"
+        },
+        {
+          "event": "Dekmantel",
+          "date": "2018-08-04",
+          "venue": null,
+          "city": "Amsterdam"
+        }
+      ]
     }
   ]
 }

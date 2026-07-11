@@ -36,10 +36,12 @@ async function searchPodcast(name) {
 
 // Beliebte Podcasts desselben Genres: Apples Top-Charts-RSS (echte Popularität,
 // keine Wortsuche). Fallback auf die normale Suche, falls das RSS-Format kippt.
-async function byGenre(genreId, { limit = 14 } = {}) {
-  return cached("pod-genre", genreId + "|" + limit, 7 * 864e5, async () => {
+// E14: Storefront folgt der UI-Sprache (de/us) — vorher bekamen EN-Nutzer hartkodiert
+// die deutschen Charts.
+async function byGenre(genreId, { limit = 14, store = "de" } = {}) {
+  return cached("pod-genre", store + "|" + genreId + "|" + limit, 7 * 864e5, async () => {
     try {
-      const j = await jfetch(`${ITUNES}/de/rss/toppodcasts/genre=${genreId}/limit=${limit}/json`);
+      const j = await jfetch(`${ITUNES}/${store}/rss/toppodcasts/genre=${genreId}/limit=${limit}/json`);
       let entries = j.feed?.entry || [];
       if (!Array.isArray(entries)) entries = [entries];
       const out = entries
@@ -185,7 +187,7 @@ export default {
         const k = t.name.toLowerCase();
         if (seen.has(k)) continue;
         seen.add(k);
-        similar.push({ name: t.name, url: null, match: 0.75 });
+        similar.push({ name: t.name, url: null, match: 0.5 });
       }
     } catch {}
     return { canonical, similar: similar.slice(0, limit) };
@@ -194,7 +196,7 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, der UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
-  async explore(name) {
+  async explore(name, { lang } = {}) {
     const hit = await searchPodcast(name);
     if (!hit) throw new Error(`„${name}" nicht bei Apple Podcasts gefunden`);
     const canonical = hit.collectionName;
@@ -204,7 +206,7 @@ export default {
     const similar = [], seen = new Set([canonical.toLowerCase()]);
     if (hit.primaryGenreId || hit.genreIds?.[0]) {
       try {
-        for (const p of await byGenre(hit.primaryGenreId || hit.genreIds[0])) {
+        for (const p of await byGenre(hit.primaryGenreId || hit.genreIds[0], { store: lang === "en" ? "us" : "de" })) {
           const k = (p.collectionName || "").toLowerCase();
           if (!k || seen.has(k)) continue;
           seen.add(k);
@@ -217,7 +219,7 @@ export default {
         const k = t.name.toLowerCase();
         if (seen.has(k)) continue;
         seen.add(k);
-        similar.push({ name: t.name, url: null, match: 0.75 });
+        similar.push({ name: t.name, url: null, match: 0.5 });
       }
     } catch {}
 

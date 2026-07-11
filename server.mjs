@@ -17,21 +17,24 @@
 //   POST /api/bridge/stop  { session } -> Suche abbrechen (Sitzung entsorgen)
 
 import { createServer } from "node:http";
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from "node:zlib";
 import { createHash, timingSafeEqual, randomUUID } from "node:crypto";
 // Konstantzeit-Vergleich (gegen Timing-Angriffe aufs Unlock-Passwort); längenverschieden -> false.
 const timingEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && timingSafeEqual(A, B); };
-import { readFile, writeFile, access, rename, mkdir } from "node:fs/promises";
+import { readFile, writeFile, access, rename, mkdir, readdir, rm, stat } from "node:fs/promises";
 // JSON atomar schreiben (tmp+rename) — kein zerhacktes digest.json bei Absturz/voller Platte.
 const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await writeFile(tmp, JSON.stringify(obj), "utf8"); await rename(tmp, path); };
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist } from "./lib/store.mjs";
+import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist, slug } from "./lib/store.mjs";
+import { getUserTopArtists, getSimilar } from "./lib/lastfm.mjs"; // E13: Kaltstart-Import (nur Musik-Pack)
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
-import { hasPushover, sendFeedback } from "./lib/pushover.mjs";
+import { hasPushover, sendFeedback, notifyQuiet } from "./lib/pushover.mjs";
+import { initUsage, countUsage, usageSnapshot } from "./lib/usage.mjs";
 import { landingHtml } from "./lib/landing.mjs";
-import { initAuth, register, verify, resetPassword, makeSession, userFromCookie } from "./lib/auth.mjs";
+import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount } from "./lib/auth.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -128,15 +131,25 @@ const PWA_ASSETS = {
   "/icons/apple-touch-icon.png": { file: "icons/apple-touch-icon.png", type: "image/png", cache: "public, max-age=604800" },
 };
 
-function landingPage(unlocked) {
+function landingPage(unlocked, req) {
   return landingHtml(LANDING_CARDS, {
     hrefFor: (id) => `/?pack=${encodeURIComponent(id)}`,
     pageTitle: "like — Übersicht",
+    headExtra: metaTags({
+      title: "like — die Landkarte für Entdeckungen",
+      desc: "Spotify sagt dir, was du hören sollst. like zeigt dir die Landkarte: ähnliche Acts, Filme, Bücher & mehr als interaktives Netz — ohne Feed, ohne Werbung, ohne Tracking.",
+      path: "/", base: publicBase(req),
+    }),
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
-    gated: GATING_ON && !unlocked,   // gesperrte Karten: „coming soon" + Passwort-Prompt statt Link
-    lockLabel: "Coming soon",
+    gated: GATING_ON && !unlocked,   // gesperrte Karten: „Labs" + Passwort-Prompt statt Link
+    lockLabel: "Labs",
+    heroId: "music",                 // E3: Musik ist das Produkt — als Hero hervorheben
+    tagline: {
+      h: `Spotify sagt dir, was du hören sollst. <b>like</b> zeigt dir die Landkarte.`,
+      p: `Kleine Acts, echte Verbindungen — ähnlicher Sound und „zusammen aufgetreten“ als begehbares Netz. Ohne Feed, ohne Werbung, ohne Tracking.`,
+    },
   });
 }
 
@@ -207,14 +220,16 @@ function datenschutzPage() {
   <p>Die App läuft bei einem Hosting-Anbieter (Render). Beim Aufruf entstehen technisch notwendige Server-Logs (u. a. IP-Adresse, Zeitpunkt, angeforderte Ressource) zur Auslieferung und Sicherheit der Seite. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Der Anbieter kann Server außerhalb der EU betreiben; entsprechende Übermittlungen erfolgen ggf. auf Grundlage geeigneter Garantien.</p>
   <h2>Cookies &amp; lokale Speicherung</h2>
   <ul>
-    <li><b>sessionStorage</b> (anonyme Tab-Kennung): hält deine Karte innerhalb eines Browser-Tabs zusammen. Keine dauerhafte Speicherung, kein Cookie.</li>
+    <li><b>localStorage</b> (anonyme Geräte-Kennung): hält deine Karte auf diesem Gerät zusammen, damit sie das Schließen des Tabs überlebt. Kein Cookie, keine Weitergabe; die zugehörige Karte wird serverseitig nach <b>30 Tagen ohne Besuch automatisch gelöscht</b>. Du kannst die Kennung jederzeit selbst entfernen (Browser-Speicher leeren).</li>
     <li><b>localStorage</b> (Theme, Ansicht, gemerkter Kartenausschnitt): reine Komfort-Einstellungen, verbleiben auf deinem Gerät.</li>
     <li><b>Login-Cookie</b>: nur wenn du dir freiwillig ein Konto anlegst — hält dich angemeldet.</li>
   </ul>
   <h2>Konto (optional)</h2>
-  <p>Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an einen anonymen, temporären Tab gebunden.</p>
+  <p>Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an eine anonyme Geräte-Kennung gebunden und verfällt nach 30 Tagen Inaktivität.</p>
   <h2>Deine Karte</h2>
-  <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Tab-Kennung.</p>
+  <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Geräte-Kennung (Letztere wird nach 30 Tagen ohne Besuch automatisch gelöscht).</p>
+  <h2>Anonyme Nutzungszähler</h2>
+  <p>Der Server zählt, wie oft Funktionen insgesamt genutzt werden (z. B. „Suche wurde heute 12-mal verwendet") — als reine Tagessummen, <b>ohne</b> IP-Adressen, Kennungen, Profile oder Reihenfolgen. Ein Rückschluss auf einzelne Personen ist damit nicht möglich; die Zahlen dienen allein dazu, die Weiterentwicklung sinnvoll zu priorisieren. Es sind keinerlei Analyse- oder Werbedienste Dritter eingebunden.</p>
   <h2>Externe Dienste</h2>
   <p>Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
   <h2>Deine Rechte</h2>
@@ -232,6 +247,7 @@ const RADAR_TTL = 10 * 60 * 1000;
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
 const FEEDBACK_ON = await hasPushover();
 await initAuth(DATA_DIR); // Accounts (optional): Nutzer-Store + Session-Secret laden
+await initUsage(DATA_DIR); // W7: anonyme, rein aggregierte Tageszähler (siehe Datenschutzseite)
 // Datei-Cache beschränken: beim Start + täglich alte Einträge löschen (sonst füllt er die Platte).
 import("./lib/cache.mjs").then(({ pruneCache }) => {
   pruneCache().catch(() => {});
@@ -297,10 +313,34 @@ async function notifyVisitMaybe(req, pack) {
   sendFeedback({ title: "like — neuer Besuch", message: msg }).catch(() => {}); // best effort, blockiert die Seite nicht
 }
 
-function send(res, code, body, type = "application/json") {
-  const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  const headers = { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" };
+// Nur Text-Formate komprimieren — Bilder/Binärformate sind schon komprimiert.
+const COMPRESSIBLE = /^(application\/(json|manifest\+json|xml)|text\/|image\/svg)/;
+function send(res, code, body, type = "application/json", cacheControl = "no-store") {
+  let data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
+  const headers = {
+    "content-type": type, "cache-control": cacheControl, "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  };
   if (type.startsWith("text/html")) headers["x-frame-options"] = "SAMEORIGIN"; // Clickjacking-Schutz für die Seiten
+  // HSTS nur hinter dem HTTPS-Proxy (Render) — lokal/Electron (http://localhost) wäre es falsch.
+  if (res.req?.headers["x-forwarded-proto"] === "https") headers["strict-transport-security"] = "max-age=31536000";
+  // Antwort-Kompression (W2): brotli bevorzugt, gzip als Fallback. Sync ist hier okay —
+  // gzip/brotli(q4) brauchen für die ~370-KB-Shell einstellige Millisekunden, und die
+  // großen Antworten (HTML-Shell, Graph-JSON) dominieren die Übertragungszeit bei weitem.
+  const ae = String(res.req?.headers["accept-encoding"] || "");
+  if (code === 200 && data.length > 1024 && COMPRESSIBLE.test(type)) {
+    try {
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      if (/\bbr\b/.test(ae)) {
+        data = brotliCompressSync(buf, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 } });
+        headers["content-encoding"] = "br"; headers["vary"] = "accept-encoding";
+      } else if (/\bgzip\b/.test(ae)) {
+        data = gzipSync(buf);
+        headers["content-encoding"] = "gzip"; headers["vary"] = "accept-encoding";
+      }
+    } catch {} // im Zweifel unkomprimiert ausliefern
+  }
   res.writeHead(code, headers);
   res.end(data);
 }
@@ -351,9 +391,10 @@ function reqPackId(url, req) {
 }
 
 // Datenraum pro Request: eingeloggt -> eigener dauerhafter Namensraum; anonym -> eigener
-// temporärer Namensraum pro Tab (Client schickt x-like-anon aus dem sessionStorage);
-// ganz ohne Kennung -> gemeinsamer Fallback (z. B. Desktop/lokal). So teilt sich niemand
-// unbeabsichtigt eine Karte, und anonyme Views sind vergänglich.
+// Namensraum pro GERÄT (E2: Client schickt x-like-anon aus dem localStorage — die Karte
+// überlebt das Tab-Schließen, wird aber serverseitig nach 30 Tagen Inaktivität aufgeräumt,
+// s. sweepAnon + Datenschutzseite); ganz ohne Kennung -> gemeinsamer Fallback (Desktop/lokal).
+// So teilt sich niemand unbeabsichtigt eine Karte, und verlassene Karten verfallen trotzdem.
 const sanitizeId = (s) => String(s || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
 function dataRootFor(req, authUser) {
   if (authUser) return join(DATA_DIR, "users", sanitizeId(authUser));
@@ -361,6 +402,34 @@ function dataRootFor(req, authUser) {
   if (anon) return join(DATA_DIR, "anon", anon);
   return DATA_DIR;
 }
+
+// Anonyme Namensräume aufräumen (E2): ein Anon-Ordner gilt als inaktiv, wenn KEINE Datei
+// darin jünger als LIKE_ANON_TTL_DAYS (Default 30, 0 = aus) ist — dann wird er gelöscht.
+// Läuft beim Start und danach alle 12 h; Fehler sind unkritisch (nächster Lauf räumt nach).
+const ANON_TTL_DAYS = Math.max(0, Number(process.env.LIKE_ANON_TTL_DAYS ?? 30) || 0);
+async function sweepAnon() {
+  if (!ANON_TTL_DAYS) return;
+  const cutoff = Date.now() - ANON_TTL_DAYS * 864e5;
+  const base = join(DATA_DIR, "anon");
+  let dirs = [];
+  try { dirs = await readdir(base, { withFileTypes: true }); } catch { return; } // noch keine Anon-Daten
+  for (const d of dirs) {
+    if (!d.isDirectory()) continue;
+    const root = join(base, d.name);
+    let newest = 0;
+    try {
+      // zwei Ebenen reichen: anon/<id>/<pack>/graph.json
+      for (const p of await readdir(root, { withFileTypes: true })) {
+        const pp = join(root, p.name);
+        if (p.isFile()) { newest = Math.max(newest, (await stat(pp)).mtimeMs); continue; }
+        for (const f of await readdir(pp)) newest = Math.max(newest, (await stat(join(pp, f))).mtimeMs);
+      }
+      if (newest && newest < cutoff) await rm(root, { recursive: true, force: true });
+    } catch {}
+  }
+}
+sweepAnon().catch(() => {});
+setInterval(() => sweepAnon().catch(() => {}), 12 * 3600e3).unref();
 
 // Zwei Graphen verlustfrei vereinen (Union): fehlende Acts/Kanten übernehmen, vorhandene
 // nur mit fehlenden Feldern ergänzen. So gehen weder die aktuelle Karte noch bereits im
@@ -428,9 +497,68 @@ function normalizeDonateUrl(u) {
 }
 const DONATE = process.env.LIKE_DONATE_URL ? { url: normalizeDonateUrl(process.env.LIKE_DONATE_URL) } : null;
 
-// Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
-async function indexHtml(pack, unlocked, user) {
+// Öffentliche Basis-URL für canonical/OG-Links: bevorzugt ENV LIKE_PUBLIC_URL, sonst aus dem
+// Request (Render setzt x-forwarded-proto/-host). Ohne Host-Header -> leer, dann keine URL-Tags.
+function publicBase(req) {
+  const env = (process.env.LIKE_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+  if (env) return env;
+  const host = req?.headers["x-forwarded-host"] || req?.headers.host;
+  if (!host) return "";
+  const proto = req.headers["x-forwarded-proto"] || "http";
+  return `${proto}://${String(host).split(",")[0].trim()}`;
+}
+
+// SEO/Share-Metadaten (W1): description + OG/Twitter-Karten pro Pack, canonical wenn Basis-URL
+// bekannt. og:image nutzt das vorhandene 512er-App-Icon (kein eigener Renderer nötig).
+const escAttr = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function metaTags({ title, desc, path, base }) {
+  const url = base && path != null ? `${base}${path}` : "";
+  return [
+    `<meta name="description" content="${escAttr(desc)}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="like" />`,
+    `<meta property="og:title" content="${escAttr(title)}" />`,
+    `<meta property="og:description" content="${escAttr(desc)}" />`,
+    base ? `<meta property="og:image" content="${base}/icons/icon-512.png" />` : "",
+    url ? `<meta property="og:url" content="${escAttr(url)}" />` : "",
+    url ? `<link rel="canonical" href="${escAttr(url)}" />` : "",
+    `<meta name="twitter:card" content="summary" />`,
+  ].filter(Boolean).join("\n");
+}
+function packMeta(pack) {
+  const plur = pack.config.item?.plur || "Einträge";
+  return {
+    title: `${pack.config.title} — like`,
+    desc: pack.id === "music"
+      ? `Entdecke kleine, spannende Acts als interaktive Landkarte: ähnlicher Sound und „zusammen aufgetreten" als Verbindungen — plus Booking-Werkzeuge für Veranstalter:innen.`
+      : `${pack.config.title}: Entdecke ähnliche ${plur} als interaktive Landkarte — klick dich von Punkt zu Punkt durch die Nachbarschaft, ganz ohne Feed und Werbung.`,
+    path: `/?pack=${encodeURIComponent(pack.id)}`,
+  };
+}
+
+// W8: Statik-Split — der große, unveränderliche Teil der App (Haupt-Script ~270 KB und
+// Styles ~80 KB) wird als versionierte, ein Jahr lang cachebare Dateien ausgeliefert
+// (/app.<hash>.js, /app.<hash>.css). Nur die kleine HTML-Hülle mit der pro Request
+// injizierten Config (LIKE_CFG/LIKE_USER/…) bleibt dynamisch (no-store). Der Hash ändert
+// sich mit dem Inhalt -> neue Version wird sofort geladen, alte bleibt nie hängen.
+// (Einmal beim Start gelesen; im Dev-Betrieb nach Änderungen an index.html Server neu starten.)
+const APP_SPLIT = await (async () => {
   const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+  const main = scripts.reduce((a, m) => (m[1].length > (a ? a[1].length : 0) ? m : a), null);
+  const style = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)][0] || null;
+  const js = main ? main[1] : "", css = style ? style[1] : "";
+  const h = (s) => createHash("sha256").update(s).digest("hex").slice(0, 12);
+  const jsPath = `/app.${h(js)}.js`, cssPath = `/app.${h(css)}.css`;
+  let shell = html;
+  if (main) shell = shell.replace(main[0], `<script src="${jsPath}"></script>`);
+  if (style) shell = shell.replace(style[0], `<link rel="stylesheet" href="${cssPath}">`);
+  return { shell, js, css, jsPath, cssPath };
+})();
+
+// Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
+async function indexHtml(pack, unlocked, user, req) {
+  const html = APP_SPLIT.shell;
   const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
   const u = JSON.stringify(user || null).replace(/</g, "\\u003c");
@@ -439,7 +567,11 @@ async function indexHtml(pack, unlocked, user) {
   let support = null;
   if (user) { try { support = JSON.parse(await readFile(join(DATA_DIR, "users", sanitizeId(user), "support.json"), "utf8")); } catch {} }
   const sup = JSON.stringify(support).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};\nwindow.LIKE_DONATE = ${d};\nwindow.LIKE_SUPPORT = ${sup};</script>\n<script>`);
+  // Titel + SEO/Share-Metadaten pro Pack (W1) — der statische <title>Like</title> bleibt als
+  // Fallback-Muster erhalten und wird hier pro Request ersetzt.
+  const m = packMeta(pack);
+  const withMeta = html.replace("<title>Like</title>", `<title>${escAttr(m.title)}</title>\n${metaTags({ ...m, base: publicBase(req) })}`);
+  return withMeta.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};\nwindow.LIKE_DONATE = ${d};\nwindow.LIKE_SUPPORT = ${sup};</script>\n<script>`);
 }
 
 async function hasApiKey(pack) {
@@ -591,6 +723,8 @@ const server = createServer(async (req, res) => {
       const b = await readBody(req).catch(() => ({}));
       const r = await register(b.username, b.password);
       if (r.error) return send(res, 400, { ok: false, error: r.error });
+      // Betreiber-Hinweis (nur wenn Pushover eingerichtet ist); bewusst nicht awaited.
+      notifyQuiet({ title: "like — neuer Nutzer", message: `„${r.user}" hat sich registriert (Konto Nr. ${userCount()}).` });
       await migrateAnonToUser(req, r.user);
       setCookie(res, "like_session", makeSession(r.user), req);
       return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
@@ -621,7 +755,7 @@ const server = createServer(async (req, res) => {
     // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
-      return send(res, 200, landingPage(isUnlocked(req)), "text/html; charset=utf-8");
+      return send(res, 200, landingPage(isUnlocked(req), req), "text/html; charset=utf-8");
     }
 
     // Impressum (öffentlich, ohne Pack/Login).
@@ -648,6 +782,58 @@ const server = createServer(async (req, res) => {
         return res.end(JSON.stringify({ ok: true }));
       }
       return send(res, 401, { ok: false, error: "falsches Passwort" });
+    }
+
+    // W7: aggregierte Nutzungszähler — NUR für den Betreiber (like_owner-Cookie, s. ?owner=).
+    if (req.method === "GET" && url.pathname === "/api/usage") {
+      if (!OWNER_SECRET || !isOwnerReq(req)) return send(res, 404, { error: "not found" });
+      return send(res, 200, { ok: true, days: usageSnapshot() });
+    }
+
+    // SEO-Grundgerüst (W1): robots.txt, sitemap.xml, llms.txt — alles aus Bordmitteln.
+    if (req.method === "GET" && url.pathname === "/robots.txt") {
+      const base = publicBase(req);
+      const body = `User-agent: *\nAllow: /\nDisallow: /api/\n${base ? `\nSitemap: ${base}/sitemap.xml\n` : ""}`;
+      return send(res, 200, body, "text/plain; charset=utf-8");
+    }
+    if (req.method === "GET" && url.pathname === "/sitemap.xml") {
+      const base = publicBase(req);
+      if (!base) return send(res, 404, { error: "keine Basis-URL bekannt" });
+      // Nur öffentlich erreichbare Seiten listen: Landing, entsperrte Packs, Rechtsseiten.
+      const paths = ["/", ...PACK_LIST.filter((p) => !p.locked).map((p) => `/?pack=${encodeURIComponent(p.id)}`), "/impressum", "/datenschutz"];
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((p) => `  <url><loc>${escAttr(base + p)}</loc></url>`).join("\n")}\n</urlset>\n`;
+      return send(res, 200, xml, "application/xml; charset=utf-8");
+    }
+    if (req.method === "GET" && url.pathname === "/llms.txt") {
+      const base = publicBase(req);
+      const open = PACK_LIST.filter((p) => !p.locked).map((p) => `- ${p.title}${base ? ` (${base}/?pack=${encodeURIComponent(p.id)})` : ""}`).join("\n");
+      const body = `# like\n\n> Interaktive Landkarte für Entdeckungen: ähnliche Acts/Filme/Bücher u. a. als Force-Graph.\n> Open Source (AGPL-3.0), ohne Tracking und Werbung. Für Musik zusätzlich Booking-Werkzeuge\n> (Status, Notizen, CSV-Export) und die Besonderheit „zusammen aufgetreten"-Verbindungen.\n\n## Offene Bereiche\n${open}\n\n## Rechtliches\n- Impressum: ${base}/impressum\n- Datenschutz: ${base}/datenschutz\n`;
+      return send(res, 200, body, "text/plain; charset=utf-8");
+    }
+
+    // W14: Read-Only-Ansicht eines geteilten Karten-Snapshots (STATIC-Modus des Frontends).
+    if (req.method === "GET" && /^\/s\/[a-f0-9]{12}$/.test(url.pathname)) {
+      const sid = url.pathname.slice(3);
+      let shared;
+      try { shared = JSON.parse(await readFile(join(DATA_DIR, "shares", sid + ".json"), "utf8")); }
+      catch { return send(res, 404, "Diesen geteilten Link gibt es nicht (mehr).", "text/plain; charset=utf-8"); }
+      const sPack = PACKS.get(shared.meta?.pack) || PACKS.get(DEFAULT_PACK);
+      const esc2 = (s) => JSON.stringify(s).replace(/</g, "\\u003c");
+      const n = Object.keys(shared.artists || {}).length;
+      const m = { title: `Geteilte Karte (${n} ${sPack.config.item?.plur || "Einträge"}) — like`, desc: `Eine kuratierte ${sPack.config.title}-Nachbarschaft auf like — schau dir das Netz an und bau deine eigene Karte.`, path: `/s/${sid}` };
+      const withMeta = APP_SPLIT.shell.replace("<title>Like</title>", `<title>${escAttr(m.title)}</title>\n${metaTags({ ...m, base: publicBase(req) })}`);
+      // STATIC-Modus: LIKE_GRAPH macht das Frontend read-only (Banner, keine Schreib-Aktionen).
+      const html = withMeta.replace("<script>", `<script>window.LIKE_CFG = ${esc2(sPack.config)};\nwindow.LIKE_PACKS = ${esc2(PACK_LIST)};\nwindow.LIKE_GRAPH = ${esc2(materialize(shared))};</script>\n<script>`);
+      return send(res, 200, html, "text/html; charset=utf-8", "public, max-age=300");
+    }
+
+    // W8: versionierte App-Statik (Haupt-Script/Styles) — unbegrenzt cachebar, weil der
+    // Dateiname den Inhalts-Hash trägt. send() komprimiert wie üblich.
+    if (req.method === "GET" && url.pathname === APP_SPLIT.jsPath) {
+      return send(res, 200, APP_SPLIT.js, "text/javascript; charset=utf-8", "public, max-age=31536000, immutable");
+    }
+    if (req.method === "GET" && url.pathname === APP_SPLIT.cssPath) {
+      return send(res, 200, APP_SPLIT.css, "text/css; charset=utf-8", "public, max-age=31536000, immutable");
     }
 
     // PWA-Assets (Manifest, Service-Worker, Icons) — statisch aus public/, ohne Pack-Kontext.
@@ -747,7 +933,8 @@ const server = createServer(async (req, res) => {
         res.writeHead(302, { location: "/" }); return res.end();
       }
       notifyVisitMaybe(req, pack); // Besuch melden (nur Fremde, gedrosselt) — läuft nebenher
-      return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser), "text/html; charset=utf-8");
+      countUsage("view", pack.id); // W7: aggregierter Tageszähler, kein Personenbezug
+      return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser, req), "text/html; charset=utf-8");
     }
 
     // Heimatort-Eingabe (Like Travel) zu Koordinaten auflösen — fürs geräteübergreifende „Zuhause".
@@ -836,6 +1023,16 @@ const server = createServer(async (req, res) => {
       return send(res, 200, materialize(g));
     }
 
+    // E1: kuratierte Beispiel-Karte des Packs (rein lesend, wird NIE in den Nutzer-Graphen
+    // gemischt) — der Client zeigt sie beim leeren Erstbesuch, die erste eigene Suche ersetzt sie.
+    if (req.method === "GET" && url.pathname === "/api/demo") {
+      try {
+        const g = JSON.parse(await readFile(join(ROOT, "packs", pack.id, "demo.json"), "utf8"));
+        if (!Object.keys(g.artists || {}).length) return send(res, 200, { ok: false });
+        return send(res, 200, { ok: true, graph: materialize(g) });
+      } catch { return send(res, 200, { ok: false }); }
+    }
+
     // Vorwärmen: die (langsamen) Ähnlich-/Zusammen-Fetches eines Namens schon mal in den Cache
     // holen, OHNE den Graphen zu ändern. Wird beim Hovern ausgelöst -> der spätere Ausbau ist
     // dann ein Cache-Hit und fühlt sich flott an. Nebenläufig, Antwort kommt sofort.
@@ -849,9 +1046,11 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && (url.pathname === "/api/explore" || url.pathname === "/api/expand")) {
       const { name } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
+      countUsage(url.pathname === "/api/expand" ? "expand" : "explore", pack.id);
       let r;
       // Netz-Aufruf BEWUSST außerhalb des Graph-Locks (langsame I/O soll den Mutex nicht halten).
-      try { r = await pack.explore(name, { home: reqHome(req) }); }
+      // lang: einzelne Packs richten Anbieter-Storefronts an der UI-Sprache aus (E14, Podcasts).
+      try { r = await pack.explore(name, { home: reqHome(req), lang: req.headers["x-like-lang"] === "en" ? "en" : "de" }); }
       catch (err) { return send(res, 502, { error: err.message }); }
       return withGraphLock(GRAPH, async () => {
         const g = await loadGraph(GRAPH);
@@ -883,6 +1082,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/bridge") {
       const { from, to } = await readBody(req);
       if (!from || !to) return send(res, 400, { error: "from/to fehlt" });
+      countUsage("bridge", pack.id);
       try {
         sweepBridges();
         const [ra, rb] = await Promise.all([neighborsFor(pack, from, 60), neighborsFor(pack, to, 60)]);
@@ -988,6 +1188,64 @@ const server = createServer(async (req, res) => {
       });
     }
 
+    // W14: Karten-Snapshot teilen — unveränderliche Kopie des eigenen Graphen unter
+    // zufälliger ID. Private Felder (Notizen, Status, Gagen, Korb) werden entfernt;
+    // der Link (/s/<id>) zeigt eine Read-Only-Ansicht.
+    if (req.method === "POST" && url.pathname === "/api/share") {
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      const g = await loadGraph(GRAPH);
+      const names = Object.keys(g.artists || {});
+      if (!names.length) return send(res, 400, { ok: false, error: "Die Karte ist noch leer." });
+      if (names.length > 800) return send(res, 400, { ok: false, error: "Karte zu groß zum Teilen (max. 800 Einträge)." });
+      const pub = { meta: { shared: true, pack: pack.id, created: new Date().toISOString() }, artists: {}, edges: g.edges };
+      for (const [id, a] of Object.entries(g.artists)) {
+        const { note, fee, status, statusChangedAt, basket, known, ...rest } = a; // privates bleibt privat
+        pub.artists[id] = rest;
+      }
+      const sid = randomUUID().replace(/-/g, "").slice(0, 12);
+      const dir = join(DATA_DIR, "shares");
+      await mkdir(dir, { recursive: true });
+      await writeJsonAtomic(join(dir, sid + ".json"), pub);
+      countUsage("share", pack.id);
+      const base = publicBase(req);
+      return send(res, 200, { ok: true, id: sid, url: `${base || ""}/s/${sid}` });
+    }
+
+    // E13: Kaltstart-Import — Last.fm-Nutzername -> Top-Künstler als fertige Start-Karte.
+    // Bewusst schlank gegen API-Lastspikes: EIN user.getTopArtists-Aufruf + getSimilar nur
+    // für die Top-12 (lfetch drosselt ohnehin), Kanten NUR innerhalb der Import-Menge.
+    // Ausbauen können die Knoten danach ganz normal per Doppelklick.
+    if (req.method === "POST" && url.pathname === "/api/lastfm-import") {
+      if (pack.id !== "music") return send(res, 400, { ok: false, error: "Nur im Musik-Pack verfügbar." });
+      const { user } = await readBody(req);
+      const uname = String(user || "").trim();
+      if (!/^[A-Za-z0-9_.-]{2,32}$/.test(uname)) return send(res, 400, { ok: false, error: "Ungültiger Last.fm-Nutzername." });
+      countUsage("lastfmImport", pack.id);
+      let top;
+      try { top = (await getUserTopArtists(uname, { limit: 30 })).filter((a) => a.name); }
+      catch (err) { return send(res, 502, { ok: false, error: err.message }); }
+      if (!top.length) return send(res, 404, { ok: false, error: "Keine Künstler gefunden — Profil privat oder leer?" });
+      const inSet = new Map(top.map((a) => [slug(a.name), a]));
+      // Ähnlichkeits-Kanten INNERHALB der Import-Menge einsammeln (Netz statt loser Punkte).
+      const pairs = [];
+      for (const a of top.slice(0, 12)) {
+        try {
+          const r = await getSimilar(a.name, { limit: 60 });
+          for (const s of r.similar || []) {
+            const sid = slug(s.name);
+            if (inSet.has(sid) && sid !== slug(a.name)) pairs.push({ from: slug(a.name), to: sid, match: s.match || 0.5 });
+          }
+        } catch {} // einzelner Ausfall egal — dann fehlt halt eine Kante
+      }
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        for (const a of top) upsertArtist(g, { name: a.name, mbid: a.mbid, url: a.url, seed: true });
+        for (const p2 of pairs) addEdge(g, p2.from, p2.to, "similar", p2.match, "lastfm");
+        await persist(g);
+        return send(res, 200, { ok: true, imported: top.length, edges: pairs.length, graph: materialize(g) });
+      });
+    }
+
     // Ganzen Graphen importieren (Backup wiederherstellen / auf anderen Rechner mitnehmen).
     if (req.method === "POST" && url.pathname === "/api/import") {
       const body = await readBody(req);
@@ -1017,14 +1275,21 @@ const server = createServer(async (req, res) => {
     // Servers direkt gegen graph.json).
 
     if (req.method === "POST" && url.pathname === "/api/artist") {
-      const { id, known, note, status } = await readBody(req);
+      const { id, known, note, status, fee, basket } = await readBody(req);
       return withGraphLock(GRAPH, async () => {
         const g = await loadGraph(GRAPH);
         const a = g.artists[id];
         if (!a) return send(res, 404, { error: "Eintrag unbekannt" });
         if (typeof known === "boolean") a.known = known;
         if (typeof note === "string") a.note = note;
-        if (typeof status === "string") { a.status = status; a.known = status !== ""; } // known bleibt abgeleitet
+        if (typeof status === "string") {
+          if (a.status !== status) a.statusChangedAt = Date.now(); // E9: wann zuletzt bewegt?
+          a.status = status; a.known = status !== ""; // known bleibt abgeleitet
+        }
+        // E9: Gage (Freitext, Zahlen werden clientseitig summiert) + Lineup-Korb serverseitig —
+        // der Korb lebte nur in localStorage und ging bei der Anon-zu-Konto-Migration verloren.
+        if (typeof fee === "string") { const f = fee.trim().slice(0, 40); if (f) a.fee = f; else delete a.fee; }
+        if (typeof basket === "boolean") { if (basket) a.basket = true; else delete a.basket; }
         await persist(g);
         return send(res, 200, { ok: true, artist: a });
       });
@@ -1064,6 +1329,7 @@ const server = createServer(async (req, res) => {
       const { name, listeners } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
       if (!pack.preview) return send(res, 200, { ok: false });
+      countUsage("preview", pack.id);
       let p = null;
       try { p = await pack.preview(name, { listeners: typeof listeners === "number" ? listeners : null }); } catch {}
       if (!p?.url) return send(res, 200, { ok: false });
@@ -1087,6 +1353,7 @@ const server = createServer(async (req, res) => {
 
     // Radar: Geheimtipp-Score — kleine Einträge nah an deinen Likes, mit Begründung.
     if (req.method === "POST" && url.pathname === "/api/radar") {
+      countUsage("radar", pack.id);
       const { limit = 10, extraLikes = [], visible = null, force = false } = await readBody(req);
       // Sprache des Clients (x-like-lang): Begründungen/Fehltexte auf Englisch, wenn gewünscht.
       // Pack-eigene Labels laufen über das en-Overlay der Pack-Config (exakter String -> EN).
@@ -1353,6 +1620,7 @@ const server = createServer(async (req, res) => {
     // „Überrasch mich" (leere Seite): ein zufälliger, eher unbekannter Eintrag zum Reinstolpern.
     if (req.method === "GET" && url.pathname === "/api/surprise") {
       if (!pack.surprise) return send(res, 200, { ok: false });
+      countUsage("surprise", pack.id);
       let name = null;
       try { name = await pack.surprise(); } catch {}
       return name ? send(res, 200, { ok: true, name }) : send(res, 200, { ok: false });

@@ -40,6 +40,12 @@ gespeichert (`similar` / `together`).
 
 Sind Key/app_id hinterlegt, werden diese Quellen automatisch mit RA zusammengeführt.
 
+**Empfehlung für die Produktivinstanz:** mindestens einen der optionalen Keys (Songkick/
+Bandsintown/Setlist.fm) hinterlegen — die „zusammen aufgetreten"-Kante ist das
+Alleinstellungsmerkmal und hängt sonst allein an der inoffiziellen RA-API. Fällt RA aus,
+meldet sich der Server per Pushover (sofern eingerichtet) nach 5 Fehlschlägen in Folge,
+statt still zu degradieren.
+
 *(Die früheren Wikipedia-/Auto-Lineup-Funktionen sind noch im Code (`scrape.mjs`,
 `auto.mjs`), aber aus der Oberfläche genommen.)*
 
