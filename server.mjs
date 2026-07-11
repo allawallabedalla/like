@@ -17,6 +17,7 @@
 //   POST /api/bridge/stop  { session } -> Suche abbrechen (Sitzung entsorgen)
 
 import { createServer } from "node:http";
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from "node:zlib";
 import { createHash, timingSafeEqual, randomUUID } from "node:crypto";
 // Konstantzeit-Vergleich (gegen Timing-Angriffe aufs Unlock-Passwort); längenverschieden -> false.
 const timingEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && timingSafeEqual(A, B); };
@@ -128,10 +129,15 @@ const PWA_ASSETS = {
   "/icons/apple-touch-icon.png": { file: "icons/apple-touch-icon.png", type: "image/png", cache: "public, max-age=604800" },
 };
 
-function landingPage(unlocked) {
+function landingPage(unlocked, req) {
   return landingHtml(LANDING_CARDS, {
     hrefFor: (id) => `/?pack=${encodeURIComponent(id)}`,
     pageTitle: "like — Übersicht",
+    headExtra: metaTags({
+      title: "like — die Landkarte für Entdeckungen",
+      desc: "Spotify sagt dir, was du hören sollst. like zeigt dir die Landkarte: ähnliche Acts, Filme, Bücher & mehr als interaktives Netz — ohne Feed, ohne Werbung, ohne Tracking.",
+      path: "/", base: publicBase(req),
+    }),
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
     footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
@@ -297,10 +303,34 @@ async function notifyVisitMaybe(req, pack) {
   sendFeedback({ title: "like — neuer Besuch", message: msg }).catch(() => {}); // best effort, blockiert die Seite nicht
 }
 
+// Nur Text-Formate komprimieren — Bilder/Binärformate sind schon komprimiert.
+const COMPRESSIBLE = /^(application\/(json|manifest\+json|xml)|text\/|image\/svg)/;
 function send(res, code, body, type = "application/json") {
-  const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  const headers = { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" };
+  let data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
+  const headers = {
+    "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  };
   if (type.startsWith("text/html")) headers["x-frame-options"] = "SAMEORIGIN"; // Clickjacking-Schutz für die Seiten
+  // HSTS nur hinter dem HTTPS-Proxy (Render) — lokal/Electron (http://localhost) wäre es falsch.
+  if (res.req?.headers["x-forwarded-proto"] === "https") headers["strict-transport-security"] = "max-age=31536000";
+  // Antwort-Kompression (W2): brotli bevorzugt, gzip als Fallback. Sync ist hier okay —
+  // gzip/brotli(q4) brauchen für die ~370-KB-Shell einstellige Millisekunden, und die
+  // großen Antworten (HTML-Shell, Graph-JSON) dominieren die Übertragungszeit bei weitem.
+  const ae = String(res.req?.headers["accept-encoding"] || "");
+  if (code === 200 && data.length > 1024 && COMPRESSIBLE.test(type)) {
+    try {
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      if (/\bbr\b/.test(ae)) {
+        data = brotliCompressSync(buf, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 } });
+        headers["content-encoding"] = "br"; headers["vary"] = "accept-encoding";
+      } else if (/\bgzip\b/.test(ae)) {
+        data = gzipSync(buf);
+        headers["content-encoding"] = "gzip"; headers["vary"] = "accept-encoding";
+      }
+    } catch {} // im Zweifel unkomprimiert ausliefern
+  }
   res.writeHead(code, headers);
   res.end(data);
 }
@@ -428,8 +458,47 @@ function normalizeDonateUrl(u) {
 }
 const DONATE = process.env.LIKE_DONATE_URL ? { url: normalizeDonateUrl(process.env.LIKE_DONATE_URL) } : null;
 
+// Öffentliche Basis-URL für canonical/OG-Links: bevorzugt ENV LIKE_PUBLIC_URL, sonst aus dem
+// Request (Render setzt x-forwarded-proto/-host). Ohne Host-Header -> leer, dann keine URL-Tags.
+function publicBase(req) {
+  const env = (process.env.LIKE_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+  if (env) return env;
+  const host = req?.headers["x-forwarded-host"] || req?.headers.host;
+  if (!host) return "";
+  const proto = req.headers["x-forwarded-proto"] || "http";
+  return `${proto}://${String(host).split(",")[0].trim()}`;
+}
+
+// SEO/Share-Metadaten (W1): description + OG/Twitter-Karten pro Pack, canonical wenn Basis-URL
+// bekannt. og:image nutzt das vorhandene 512er-App-Icon (kein eigener Renderer nötig).
+const escAttr = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function metaTags({ title, desc, path, base }) {
+  const url = base && path != null ? `${base}${path}` : "";
+  return [
+    `<meta name="description" content="${escAttr(desc)}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="like" />`,
+    `<meta property="og:title" content="${escAttr(title)}" />`,
+    `<meta property="og:description" content="${escAttr(desc)}" />`,
+    base ? `<meta property="og:image" content="${base}/icons/icon-512.png" />` : "",
+    url ? `<meta property="og:url" content="${escAttr(url)}" />` : "",
+    url ? `<link rel="canonical" href="${escAttr(url)}" />` : "",
+    `<meta name="twitter:card" content="summary" />`,
+  ].filter(Boolean).join("\n");
+}
+function packMeta(pack) {
+  const plur = pack.config.item?.plur || "Einträge";
+  return {
+    title: `${pack.config.title} — like`,
+    desc: pack.id === "music"
+      ? `Entdecke kleine, spannende Acts als interaktive Landkarte: ähnlicher Sound und „zusammen aufgetreten" als Verbindungen — plus Booking-Werkzeuge für Veranstalter:innen.`
+      : `${pack.config.title}: Entdecke ähnliche ${plur} als interaktive Landkarte — klick dich von Punkt zu Punkt durch die Nachbarschaft, ganz ohne Feed und Werbung.`,
+    path: `/?pack=${encodeURIComponent(pack.id)}`,
+  };
+}
+
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
-async function indexHtml(pack, unlocked, user) {
+async function indexHtml(pack, unlocked, user, req) {
   const html = await readFile(join(ROOT, "public", "index.html"), "utf8");
   const cfg = JSON.stringify(pack.config).replace(/</g, "\\u003c");
   const list = JSON.stringify(PACK_LIST).replace(/</g, "\\u003c");
@@ -439,7 +508,11 @@ async function indexHtml(pack, unlocked, user) {
   let support = null;
   if (user) { try { support = JSON.parse(await readFile(join(DATA_DIR, "users", sanitizeId(user), "support.json"), "utf8")); } catch {} }
   const sup = JSON.stringify(support).replace(/</g, "\\u003c");
-  return html.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};\nwindow.LIKE_DONATE = ${d};\nwindow.LIKE_SUPPORT = ${sup};</script>\n<script>`);
+  // Titel + SEO/Share-Metadaten pro Pack (W1) — der statische <title>Like</title> bleibt als
+  // Fallback-Muster erhalten und wird hier pro Request ersetzt.
+  const m = packMeta(pack);
+  const withMeta = html.replace("<title>Like</title>", `<title>${escAttr(m.title)}</title>\n${metaTags({ ...m, base: publicBase(req) })}`);
+  return withMeta.replace("<script>", `<script>window.LIKE_CFG = ${cfg};\nwindow.LIKE_PACKS = ${list};\nwindow.LIKE_UNLOCKED = ${unlocked ? "true" : "false"};\nwindow.LIKE_USER = ${u};\nwindow.LIKE_DONATE = ${d};\nwindow.LIKE_SUPPORT = ${sup};</script>\n<script>`);
 }
 
 async function hasApiKey(pack) {
@@ -623,7 +696,7 @@ const server = createServer(async (req, res) => {
     // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
-      return send(res, 200, landingPage(isUnlocked(req)), "text/html; charset=utf-8");
+      return send(res, 200, landingPage(isUnlocked(req), req), "text/html; charset=utf-8");
     }
 
     // Impressum (öffentlich, ohne Pack/Login).
@@ -650,6 +723,27 @@ const server = createServer(async (req, res) => {
         return res.end(JSON.stringify({ ok: true }));
       }
       return send(res, 401, { ok: false, error: "falsches Passwort" });
+    }
+
+    // SEO-Grundgerüst (W1): robots.txt, sitemap.xml, llms.txt — alles aus Bordmitteln.
+    if (req.method === "GET" && url.pathname === "/robots.txt") {
+      const base = publicBase(req);
+      const body = `User-agent: *\nAllow: /\nDisallow: /api/\n${base ? `\nSitemap: ${base}/sitemap.xml\n` : ""}`;
+      return send(res, 200, body, "text/plain; charset=utf-8");
+    }
+    if (req.method === "GET" && url.pathname === "/sitemap.xml") {
+      const base = publicBase(req);
+      if (!base) return send(res, 404, { error: "keine Basis-URL bekannt" });
+      // Nur öffentlich erreichbare Seiten listen: Landing, entsperrte Packs, Rechtsseiten.
+      const paths = ["/", ...PACK_LIST.filter((p) => !p.locked).map((p) => `/?pack=${encodeURIComponent(p.id)}`), "/impressum", "/datenschutz"];
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((p) => `  <url><loc>${escAttr(base + p)}</loc></url>`).join("\n")}\n</urlset>\n`;
+      return send(res, 200, xml, "application/xml; charset=utf-8");
+    }
+    if (req.method === "GET" && url.pathname === "/llms.txt") {
+      const base = publicBase(req);
+      const open = PACK_LIST.filter((p) => !p.locked).map((p) => `- ${p.title}${base ? ` (${base}/?pack=${encodeURIComponent(p.id)})` : ""}`).join("\n");
+      const body = `# like\n\n> Interaktive Landkarte für Entdeckungen: ähnliche Acts/Filme/Bücher u. a. als Force-Graph.\n> Open Source (AGPL-3.0), ohne Tracking und Werbung. Für Musik zusätzlich Booking-Werkzeuge\n> (Status, Notizen, CSV-Export) und die Besonderheit „zusammen aufgetreten"-Verbindungen.\n\n## Offene Bereiche\n${open}\n\n## Rechtliches\n- Impressum: ${base}/impressum\n- Datenschutz: ${base}/datenschutz\n`;
+      return send(res, 200, body, "text/plain; charset=utf-8");
     }
 
     // PWA-Assets (Manifest, Service-Worker, Icons) — statisch aus public/, ohne Pack-Kontext.
@@ -749,7 +843,7 @@ const server = createServer(async (req, res) => {
         res.writeHead(302, { location: "/" }); return res.end();
       }
       notifyVisitMaybe(req, pack); // Besuch melden (nur Fremde, gedrosselt) — läuft nebenher
-      return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser), "text/html; charset=utf-8");
+      return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser, req), "text/html; charset=utf-8");
     }
 
     // Heimatort-Eingabe (Like Travel) zu Koordinaten auflösen — fürs geräteübergreifende „Zuhause".
