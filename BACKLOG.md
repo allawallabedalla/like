@@ -642,3 +642,33 @@ RA-Kanten nachladen) · Negativ-Cache ≤15 min für RA-Störungen · Queue-Pref
 RA-Requests), Delta-Antworten (doppelte Merge-Semantik), Long-Poll-Explore (Serverzustand),
 Tap-Prefetch (30 Panels = 60 RA-Requests), Prioritäts-Gates (Prämisse hielt Code-Prüfung
 nicht stand).
+
+
+---
+
+## Runde 14 — Zweiphasiger Ausbau (Progressive Reveal) (2026-07-11) — ✅ ERLEDIGT
+
+Umsetzung des Mittelfristig-Punkts aus Runde 13 (client-getriebene Zwei-Request-Variante,
+Taskforce-Konsens). Der ＋-Klick zeigt jetzt nach **~0,7 s** die ähnlichen Acts; die
+„zusammen aufgetreten"-Kanten + Booking trudeln ~2 s später nach.
+
+- **Pack (Musik):** `exploreFast()` (Last.fm: Identität + ähnlich + Tags) und
+  `exploreTogether()` (RA-Kette + kuratierte Genres + Booking); `explore()` bleibt für
+  Prefetch/Brücke/Cross-Pack unverändert und wärmt beide Phasen-Caches.
+- **Server:** `/api/explore` mit `staged:true` antwortet nach Phase 1 (`pending:true`);
+  neuer `POST /api/explore2` merged Phase 2 unter dem Graph-Lock nach (RA-Genres VOR die
+  Tags gemischt — identische Chips wie einphasig). `explored` wird erst in Phase 2 gesetzt:
+  ein halb geladener Act gilt nicht als fertig, ein Fehlschlag wird beim nächsten ＋
+  automatisch erneut versucht. Packs ohne Staged-Support laufen unverändert einphasig.
+- **Client:** ehrlicher Zwischen-Toast („3 ähnlich · suche gemeinsame Auftritte …"),
+  ruhig weiterpulsierender Ring (`togetherPending`) bis Phase 2 da ist, Abschluss-Toast
+  („N verbunden" / „keine gemeinsamen Auftritte gefunden"), Fehler SICHTBAR per Toast
+  (nie still). Läuft beim Eintreffen von Phase 2 bereits ein neuer Ausbau, wird der Graph
+  nicht angefasst (Server-Stand kommt mit dessen reload ohnehin mit) — kein Doppel-Merge-
+  Risiko im Client. Panel wird aufgefrischt, wenn der Act noch ausgewählt ist.
+- **Verifiziert:** Benchmark (bench-explore.mjs, neues staged-Szenario): Phase 1 **624 ms**
+  (Ziel <1 s ✓), Phase 2 +2005 ms nachlaufend, weiterhin exakt 4 externe Requests.
+  End-to-End im Browser gegen den echten Server mit gemocktem Außen-Netz: Phase 1 nach
+  706 ms sichtbar (4 Knoten, pending-Ring, explored=false), Phase 2 nach 2,7 s (together-
+  Kante, explored=true, RA-Genres vor Tags, Booking inkl. kommender Auftritte am Knoten).
+  `npm run check` grün, Suite 73 passed / 0 failed.

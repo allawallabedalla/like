@@ -57,8 +57,15 @@ const hoverClick = await ms(() => pack.explore("Bonobo"));
 await prefetch;
 const hoverFetches = fetches;
 
+// 4) R14: zweiphasiger Ausbau — Phase 1 = gefühlte Latenz, Phase 2 = Nachladen der RA-Kanten
+await wipe(); fetches = 0;
+const p1 = await ms(() => pack.exploreFast("Bonobo"));
+const p2 = await ms(() => pack.exploreTogether("Bonobo"));
+const stagedFetches = fetches;
+
 console.log(JSON.stringify({
   kalt_ms: cold, kalt_fetches: coldFetches,
   warm_ms: warm, warm_fetches: warmFetches,
   hoverKlick_ms: hoverClick, hoverKlick_fetches_gesamt: hoverFetches,
+  staged_phase1_ms: p1, staged_phase2_ms: p2, staged_fetches: stagedFetches,
 }, null, 2));

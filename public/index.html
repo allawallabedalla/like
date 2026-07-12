@@ -1380,6 +1380,9 @@ const T = LANG !== "en" ? null : {
   "heute geändert": "changed today",
   "vor {N} Tag geändert": "changed {N} day ago", "vor {N} Tagen geändert": "changed {N} days ago",
   "↧ Last.fm-Künstler als Start-Karte importieren": "↧ Import your Last.fm artists as a starter map",
+  "suche gemeinsame Auftritte …": "looking for shared shows …",
+  "{N}: keine gemeinsamen Auftritte gefunden": "{N}: no shared shows found",
+  "{N}: „{L}\" gerade nicht ladbar — der nächste Ausbau versucht es erneut": "{N}: \"{L}\" unavailable right now — the next expand will retry",
   "Dein Last.fm-Nutzername (öffentliches Profil genügt, kein Passwort):": "Your Last.fm username (public profile is enough, no password):",
   "↧ Importiere …": "↧ Importing …",
   "{N} Künstler importiert — Doppelklick lädt Nachbarn": "{N} artists imported — double-click loads neighbors",
@@ -1825,7 +1828,8 @@ const GET = (path) => fetch(path, { headers: reqHeaders() }).then(parseRes);
 const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(parseRes);
 const API = {
   graph: () => STATIC ? Promise.resolve(window.LIKE_GRAPH) : GET("/api/graph"),
-  explore: (name) => POST("/api/explore", { name }),
+  explore: (name) => POST("/api/explore", { name, staged: true }), // R14: Packs ohne Staged-Support ignorieren das Flag
+  exploreTogether: (name) => POST("/api/explore2", { name }),
   prefetch: (name) => POST("/api/prefetch", { name }), // Cache vorwärmen (Hover) -> flotter Ausbau
   reset: (scope) => POST("/api/reset", { scope }),
   remove: (id) => POST("/api/delete", { id }),
@@ -2842,8 +2846,11 @@ function draw() {
       ctx.font = `${12 / view.k}px ${CANVAS_FONT}`; ctx.textAlign = "center";
       ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
     }
-    if (busyId === n.id || expandPulse.has(n.id)) {
-      const pulse = 0.4 + 0.4 * Math.sin(Date.now() / 150);
+    if (busyId === n.id || expandPulse.has(n.id) || togetherPending.has(n.id)) {
+      // togetherPending (R14): Phase 2 lädt noch — der Ring pulsiert ruhiger weiter,
+      // damit sichtbar bleibt, dass die "zusammen"-Kanten noch unterwegs sind.
+      const slow = togetherPending.has(n.id) && busyId !== n.id && !expandPulse.has(n.id);
+      const pulse = slow ? 0.25 + 0.25 * Math.sin(Date.now() / 260) : 0.4 + 0.4 * Math.sin(Date.now() / 150);
       ctx.globalAlpha = pulse; ctx.lineWidth = 2 / view.k; ctx.strokeStyle = getCss("--edge-together");
       ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / view.k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
     }
@@ -3099,7 +3106,7 @@ function loop() {
   }
   const anims = stepNodeAnims();
   const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || anims || moonsLive || sizing || npPlaying;
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || togetherPending.size || anims || moonsLive || sizing || npPlaying;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -3902,7 +3909,13 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
     addTrail(res.name);
     fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
     fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift
-    toast(`${res.name}: ${res.similar} ${CFG.edges.similar.count || "ähnlich"} · ${res.together} ${CFG.edges.together.count || "verbunden"}`);
+    if (res.pending) {
+      // R14: Phase 1 ist da (ähnlich + Tags) — die "zusammen"-Kanten trudeln gleich nach.
+      toast(`${res.name}: ${res.similar} ${CFG.edges.similar.count || "ähnlich"} · ${t("suche gemeinsame Auftritte …")}`);
+      finishExplore(res.name); // bewusst nicht awaited: der Klick ist ab hier fertig
+    } else {
+      toast(`${res.name}: ${res.similar} ${CFG.edges.similar.count || "ähnlich"} · ${res.together} ${CFG.edges.together.count || "verbunden"}`);
+    }
   } catch (e) {
     // Fehlender Key -> direkt den Einrichtungs-Dialog zeigen statt nur Fehlertext. API.explore()
     // liefert Server-Fehler als HTTP-Fehlerstatus (parseRes() wirft dann), NIE als {error} in
@@ -3911,6 +3924,32 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
     if (/API-Key/i.test(e.message) && CFG.key) { openKeyModal(); toast(`Erst den ${CFG.key.name} einrichten`); }
     else toast("Fehler: " + e.message);
   } finally { busy = false; busyId = null; }
+}
+
+// R14 — Phase 2 des zweiphasigen Ausbaus: läuft NACH der Erstantwort im Hintergrund und
+// merged die "zusammen aufgetreten"-Kanten + Booking nach. Grundsätze: (1) der Knoten
+// pulsiert weiter (togetherPending), bis Phase 2 durch ist; (2) Fehler degradieren SICHTBAR
+// per Toast, nie still; (3) läuft inzwischen ein NEUER Ausbau (busy), wird der Graph nicht
+// angefasst — der Stand liegt serverseitig sicher und kommt mit dessen reload() ohnehin mit.
+const togetherPending = new Set(); // ids, deren "zusammen"-Kanten noch unterwegs sind
+async function finishExplore(name) {
+  const k = slugify(name);
+  togetherPending.add(k); requestDraw();
+  try {
+    const r2 = await API.exploreTogether(name);
+    togetherPending.delete(k);
+    if (!busy) {
+      await reload(null, { reheatAmt: 0.35, graph: r2.graph }); // sanfter Nach-Reheat für die neuen Kanten
+      if (selected && selected.id === k) { const n = nodeById.get(k); if (n) selectNode(n); } // Panel (Booking/„tritt auf") auffrischen
+    }
+    if (r2.together) toast(`${r2.name || name}: ${r2.together} ${CFG.edges.together.count || "verbunden"}`);
+    else toast(tf(`{N}: keine gemeinsamen Auftritte gefunden`, { N: r2.name || name }));
+  } catch (e) {
+    togetherPending.delete(k); requestDraw();
+    // ehrlich statt still: der Act bleibt als "nicht fertig ausgebaut" markiert (explored
+    // wird erst in Phase 2 gesetzt) — der nächste ＋ auf dem Knoten versucht es erneut.
+    toast(tf(`{N}: „{L}" gerade nicht ladbar — der nächste Ausbau versucht es erneut`, { N: name, L: CFG.togetherLabel || CFG.edges.together.label }));
+  }
 }
 
 // ＋ auf einem Mond: in die Warteschlange stellen. Sofort pulsiert der Knoten (Blink-Ring),

@@ -1044,18 +1044,27 @@ const server = createServer(async (req, res) => {
 
     // Haupt-Flow: einen Eintrag erkunden -> ähnlich + zusammen + Genres (via Pack).
     if (req.method === "POST" && (url.pathname === "/api/explore" || url.pathname === "/api/expand")) {
-      const { name } = await readBody(req);
+      const { name, staged } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
       countUsage(url.pathname === "/api/expand" ? "expand" : "explore", pack.id);
+      // R14 — zweiphasiger Ausbau: Kann das Pack staged (nur Musik) und wünscht der Client
+      // es, antwortet Phase 1 schon nach dem schnellen Last.fm-Teil (pending:true); der
+      // Client holt die RA-Kanten danach über /api/explore2 nach. `explored` wird erst in
+      // Phase 2 gesetzt — ein halb geladener Act gilt nicht als fertig.
+      const usesStaged = !!(staged && pack.exploreFast && pack.exploreTogether);
       let r;
       // Netz-Aufruf BEWUSST außerhalb des Graph-Locks (langsame I/O soll den Mutex nicht halten).
       // lang: einzelne Packs richten Anbieter-Storefronts an der UI-Sprache aus (E14, Podcasts).
-      try { r = await pack.explore(name, { home: reqHome(req), lang: req.headers["x-like-lang"] === "en" ? "en" : "de" }); }
+      try {
+        r = usesStaged
+          ? await pack.exploreFast(name)
+          : await pack.explore(name, { home: reqHome(req), lang: req.headers["x-like-lang"] === "en" ? "en" : "de" });
+      }
       catch (err) { return send(res, 502, { error: err.message }); }
       return withGraphLock(GRAPH, async () => {
         const g = await loadGraph(GRAPH);
         const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, seed: true });
-        src.explored = true;
+        if (!usesStaged) src.explored = true;
         if (r.genres?.length) src.genres = r.genres.slice(0, 6);
         if (r.meta) { src.booking = r.meta; }
         if (r.active !== undefined) src.active = r.active;
@@ -1070,8 +1079,41 @@ const server = createServer(async (req, res) => {
         await persist(g);
         return send(res, 200, {
           ok: true, name: src.name, similar: (r.similar || []).length, together: (r.together || []).length,
-          sources: r.sources || [], graph: materialize(g),
+          sources: r.sources || [], pending: usesStaged, graph: materialize(g),
         });
+      });
+    }
+
+    // R14 — Phase 2 des zweiphasigen Ausbaus: "zusammen aufgetreten" + kuratierte Genres +
+    // Booking nachmergen. `name` ist das canonical aus der Phase-1-Antwort. Fehler kommen
+    // als 502 zum Client (SICHTBARE Degradierung); da coAppearances-Fehler nicht gecacht
+    // werden, versucht es der nächste Ausbau automatisch erneut.
+    if (req.method === "POST" && url.pathname === "/api/explore2") {
+      const { name } = await readBody(req);
+      if (!name) return send(res, 400, { error: "name fehlt" });
+      if (!pack.exploreTogether) return send(res, 400, { error: "nicht unterstützt" });
+      let r2;
+      try { r2 = await pack.exploreTogether(name); }
+      catch (err) { return send(res, 502, { error: err.message }); }
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const src = upsertArtist(g, { name, seed: true });
+        src.explored = true; // jetzt ist der Ausbau wirklich komplett
+        // kuratierte RA-Genres VOR die Phase-1-Tags mischen — gleiche Reihenfolge wie der
+        // einphasige Pfad (raGenres zuerst), damit die Genre-Chips identisch ausfallen.
+        if (r2.genres?.length) {
+          const seenG = new Set(), merged = [];
+          for (const x of [...r2.genres, ...(src.genres || [])]) { const k = x.toLowerCase(); if (!seenG.has(k)) { seenG.add(k); merged.push(x); } }
+          src.genres = merged.slice(0, 6);
+        }
+        if (r2.meta) src.booking = r2.meta;
+        if (r2.active !== undefined) src.active = r2.active;
+        for (const c of (r2.together || []).slice(0, 25)) {
+          const t = upsertArtist(g, { name: c.name, url: c.url });
+          addEdge(g, src.id, t.id, "together", c.weight || 1, r2.togetherSource || pack.id, c.shows);
+        }
+        await persist(g);
+        return send(res, 200, { ok: true, name: src.name, together: (r2.together || []).length, sources: r2.sources || [], graph: materialize(g) });
       });
     }
 

@@ -128,6 +128,35 @@ export default {
     return { canonical: r.sourceName, similar: r.similar.map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })) };
   },
 
+  // R14 — zweiphasiger Ausbau: Phase 1 (schnell, ~0,7-1 s) liefert Last.fm-Identität +
+  // ähnlichen Stil + Tags; Phase 2 (langsam, RA-Kette) reicht "zusammen aufgetreten" +
+  // kuratierte Genres + Booking nach. pack.explore() bleibt unverändert für Prefetch/
+  // Brücke/Cross-Pack — und wärmt über cached() BEIDE Phasen vor.
+  async exploreFast(name) {
+    let canonical = name, similar = [], tags = [];
+    try { const r = await getSimilar(name, { limit: 30 }); canonical = r.sourceName; similar = r.similar; }
+    catch (e) { if (/API-Key/i.test(e.message)) throw e; /* sonst: nicht bei Last.fm */ }
+    try { tags = await getTopTags(canonical); } catch {}
+    return {
+      canonical,
+      genres: tags.slice(0, 6), // vorläufig nur Tags — Phase 2 mischt RA-Genres davor
+      similarSource: "lastfm",
+      similar: similar.slice(0, 25).map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })),
+      together: [],
+    };
+  },
+  async exploreTogether(canonical) {
+    const ca = await coAppearances(canonical); // degradiert bei Quellen-Fehlern selbst (sources leer)
+    return {
+      together: ca.coacts.slice(0, 25).map((c) => ({ name: c.name, weight: c.weight, shows: c.shows })),
+      togetherSource: ca.sources.join("+") || "ra",
+      genres: ca.genres.slice(0, 6), // kuratierte RA-Genres — der Server mischt sie VOR die Tags
+      meta: ca.booking || null,
+      active: ca.booking ? ca.booking.upcoming > 0 : undefined,
+      sources: ca.sources,
+    };
+  },
+
   // Haupt-Flow: Last.fm bestimmt Identität + ähnlichen Stil, RA (+ optionale Quellen)
   // liefert "zusammen aufgetreten" + kuratierte Genres + Booking-Steckbrief.
   async explore(name) {
