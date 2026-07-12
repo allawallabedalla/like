@@ -301,6 +301,9 @@ async function notifyVisitMaybe(req, pack) {
   if (!(await hasPushover())) return;
   const ip = clientIp(req), now = Date.now();
   const ua = String(req.headers["user-agent"] || "").slice(0, 140);
+  // Crawler/Link-Preview-Bots nicht melden — seit dem SEO-Ausbau (W1) kommen die regelmäßig
+  // und würden das "neuer Besuch"-Signal entwerten.
+  if (/bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|curl|wget|python|headless|lighthouse/i.test(ua)) return;
   // Dedupe pro GERÄT (IP + Browser), nicht nur pro IP — zwei Rechner im selben Netz (gleiche
   // öffentliche IP) melden so getrennt. Fenster 2 h, damit Reloads nicht spammen.
   const key = ip + "|" + ua;
@@ -308,7 +311,7 @@ async function notifyVisitMaybe(req, pack) {
   visitNotified.set(key, now);
   if (visitNotified.size > 800) for (const [k, t] of visitNotified) if (now - t > 24 * 3600e3) visitNotified.delete(k);
   const ref = String(req.headers["referer"] || "").slice(0, 140);
-  const where = pack.id !== "music" ? ` (${pack.id})` : "";
+  const where = !pack ? " (Startseite)" : pack.id !== "music" ? ` (${pack.id})` : "";
   const msg = `Jemand hat „like"${where} geöffnet.\nRegion: ${maskIp(ip)}${ua ? `\n${ua}` : ""}${ref ? `\nvon: ${ref}` : ""}`;
   sendFeedback({ title: "like — neuer Besuch", message: msg }).catch(() => {}); // best effort, blockiert die Seite nicht
 }
@@ -755,6 +758,12 @@ const server = createServer(async (req, res) => {
     // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
+      // Owner-Abmeldung funktioniert auch direkt auf der Startseite (?owner=<secret>).
+      if (OWNER_SECRET && url.searchParams.get("owner") === OWNER_SECRET) {
+        setCookie(res, "like_owner", "1", req);
+        res.writeHead(302, { location: "/" }); return res.end();
+      }
+      notifyVisitMaybe(req, null); // Besuch der Startseite melden (nur Fremde, gedrosselt, keine Bots)
       return send(res, 200, landingPage(isUnlocked(req), req), "text/html; charset=utf-8");
     }
 
