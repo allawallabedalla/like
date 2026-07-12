@@ -754,3 +754,20 @@ Bindung). Die 2-Hop+-Ringe folgen weiter über die Federn.
 **Gemessen (Hub 219 px gezogen, 1-Hop-Nachbar):** Flat 0.35 → 0.90 (nahe an Space 1.00);
 Space unverändert. Verifiziert: F7-Regressionstest grün (verbundener Nachbar folgt, fremder
 nicht), `npm run check` grün, Bildserie bestätigt den zusammenhängenden Stern beim Ziehen.
+
+
+---
+
+## Runde 18 — Such-Seed spawnt nicht mehr auf einen Bestandsknoten (2026-07-12)  — ✅ ERLEDIGT
+
+Nutzerfeedback (mit Screenshot): ein per Suche neu geladener Act landet manchmal sehr nah an
+einem schon vorhandenen (zwei Hubs fast überlappend). Ursache: ein einzeln gesuchter Seed
+wurde EXAKT in die Bildmitte (W/2,H/2) gesetzt — saß dort schon ein Knoten (typisch: ein
+vorher gesuchter Hub, der zur Mitte gravitiert), spawnte der neue direkt darauf. R16s
+Freie-Sektoren-Fix galt nur für Anker-Kinder, nicht für Seeds.
+
+Fix (rebuild-Platzierung): Zielpunkt eines neuen Seeds = Schwerpunkt seiner bereits
+platzierten Nachbarn (dorthin gehört er), sonst die Mitte; dann per Fermat-Spirale
+(Goldwinkel) hinausrücken, bis kein Bestandsknoten mehr im Kollisionsabstand liegt.
+Gemessen: unverbundener Zweit-Seed 723 px Abstand, verbundener Seed 198 px (Bedarf 73) —
+vorher 0 (deckungsgleich). `npm run check` grün, Interactions/Pages 19 passed.

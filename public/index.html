@@ -2260,9 +2260,31 @@ function rebuild(prev, reheatAmt = 1) {
   // alle (inkl. Seed) zufällig weit gestreut werden (E3).
   const newSeeds = [];
   for (const id of isNew) { const n = nodeById.get(id); if (n && n.seed && !n.venue) newSeeds.push(n); }
+  // R18 — freien Startplatz suchen: ein neuer Such-Act landete bisher EXAKT in der Bildmitte
+  // (W/2,H/2). Saß dort schon ein Knoten (z. B. ein vorher gesuchter Hub), spawnte der neue
+  // direkt darauf -> „manchmal sehr nahe". Jetzt: Zielpunkt = Schwerpunkt der schon
+  // platzierten Nachbarn (der Act gehört dort hin), sonst die Mitte; dann spiralförmig
+  // hinausrücken, bis kein Bestandsknoten mehr überlappt.
+  const placedSeedIds = new Set(); // Seeds, die in DIESEM Rebuild schon einen Platz haben
+  const freeSpot = (tx, ty, selfR) => {
+    const others = nodes.filter((m) => !m.venue && m.x != null && (!isNew.has(m.id) || placedSeedIds.has(m.id)));
+    const clash = (x, y) => others.some((m) => { const need = selfR + radius(m) + COLLIDE_PAD; return (m.x - x) ** 2 + (m.y - y) ** 2 < need * need; });
+    if (!clash(tx, ty)) return { x: tx, y: ty };
+    for (let step = 1; step <= 40; step++) {                 // Fermat-Spirale: dicht & gleichmäßig
+      const ang = step * 2.399963, r = 26 * Math.sqrt(step); // ~137,5° Goldwinkel
+      const x = tx + Math.cos(ang) * r, y = ty + Math.sin(ang) * r;
+      if (!clash(x, y)) return { x, y };
+    }
+    return { x: tx, y: ty }; // Notnagel (sehr dichte Karte): Kollision räumt später auf
+  };
   newSeeds.forEach((n, i) => {
-    const R = newSeeds.length > 1 ? 150 : 0, ang = (i / newSeeds.length) * Math.PI * 2;
-    n.x = W / 2 + Math.cos(ang) * R; n.y = H / 2 + Math.sin(ang) * R; // einzelner Seed: exakt Mitte
+    // Schwerpunkt der bereits platzierten (bestehenden) Nachbarn dieses Seeds …
+    let sx = 0, sy = 0, cnt = 0;
+    for (const nb of (adj.get(n.id) || [])) { const m = nodeById.get(nb); if (m && m.x != null && !isNew.has(m.id)) { sx += m.x; sy += m.y; cnt++; } }
+    const tx = cnt ? sx / cnt : W / 2, ty = cnt ? sy / cnt : (H + 52) / 2;
+    const pos = freeSpot(tx, ty, radius(n));
+    n.x = pos.x; n.y = pos.y;
+    placedSeedIds.add(n.id);
   });
   const placedNew = new Set(newSeeds.map((n) => n.id)); // gelten jetzt als Anker
   const childrenOf = new Map(), orphans = [];
