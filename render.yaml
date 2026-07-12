@@ -45,9 +45,13 @@ services:
         sync: false
       - key: TASTEDIVE_KEY     # optional: „mochten auch" für Bücher/Podcasts/Games
         sync: false
-      - key: PUSHOVER_TOKEN    # optional: Feedback-Knopf + Push bei jeder Neu-Registrierung
+      - key: PUSHOVER_TOKEN    # optional: Feedback-Knopf + Push bei jeder Neu-Registrierung + RA-Störungs-Alarm
         sync: false
       - key: PUSHOVER_USER
+        sync: false
+      # Zweitquelle für „zusammen aufgetreten" (Setlist.fm, Gratis-Key) — zweites Standbein
+      # neben der inoffiziellen RA-API; ohne Key ist das Feature einfach aus.
+      - key: SETLISTFM_KEY
         sync: false
     # Persistente Platte, damit gebaute Karten einen Neustart überleben.
     # (Braucht einen bezahlten Instance-Type wie „starter" — auf „free" sind keine Disks erlaubt.)
