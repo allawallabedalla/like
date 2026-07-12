@@ -1791,6 +1791,7 @@ function applyCfg() {
 }
 // Jeder API-Call trägt das aktive Pack als Header — so bedient EIN Server alle Domänen.
 const PACK_HEADERS = CFG.id ? { "x-like-pack": CFG.id } : {};
+let _anonId = null; // stabile Anon-ID für die Tab-Sitzung (In-Memory-Fallback, falls Storage blockiert)
 // Header pro Request bauen — inkl. optionalem Heimatort (Like Travel), damit die
 // Heimat-Distanz geräteübergreifend aus der Nutzer-Wahl statt aus der Server-ENV kommt.
 function reqHeaders(extra) {
@@ -1800,13 +1801,16 @@ function reqHeaders(extra) {
   // einmalig übernommen, damit laufende Sitzungen ihre Karte behalten.
   // Eingeloggt: Server nutzt den Account-Namensraum, keine Anon-ID nötig.
   if (!window.LIKE_USER) {
-    try {
-      let a = localStorage.getItem("like_anon") || sessionStorage.getItem("like_anon");
-      if (!a) a = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
-      localStorage.setItem("like_anon", a);
-      try { sessionStorage.removeItem("like_anon"); } catch {}
-      h["x-like-anon"] = a;
-    } catch {}
+    // WICHTIG (privater Modus / iOS): Wirft der Storage (Safari Private wirft bei setItem), darf die
+    // Anon-ID NICHT wegfallen — sonst kippt jeder Request in den GEMEINSAMEN Fallback-Datenraum und
+    // das Netz „springt"/verschwindet. Darum eine In-Memory-ID, die für die Tab-Lebensdauer stabil
+    // bleibt, auch wenn nichts persistiert werden kann.
+    let a = _anonId;
+    if (!a) { try { a = localStorage.getItem("like_anon") || sessionStorage.getItem("like_anon"); } catch {} }
+    if (!a) a = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+    try { localStorage.setItem("like_anon", a); sessionStorage.removeItem("like_anon"); } catch {}
+    _anonId = a;                 // ab jetzt für die ganze Tab-Sitzung stabil (storage-unabhängig)
+    h["x-like-anon"] = a;
   }
   if (CFG.id === "travel") {
     try { const home = JSON.parse(localStorage.getItem("like_travel_home") || "null");
@@ -1821,11 +1825,27 @@ async function parseRes(r) {
   const txt = await r.text();
   let data = null;
   if (txt) { try { data = JSON.parse(txt); } catch { /* kein JSON (z. B. „Not Found") */ } }
-  if (!r.ok) throw new Error((data && (data.error || data.message)) || (txt || "").trim() || (r.status + " " + r.statusText));
+  if (!r.ok) {
+    // Lesbare, KURZE Meldung: bevorzugt error/message aus JSON (unser Server liefert das). Rohtext
+    // — v. a. lange HTML-Fehlerseiten von Plattform/Proxy bei Timeout — NIE ungefiltert als Fehler
+    // durchreichen (sonst „langer kryptischer Code" im Toast). Nur kurzer, unverdächtiger Text.
+    let m = data && (data.error || data.message);
+    if (!m) { const t = (txt || "").trim(); m = (t && t.length <= 100 && !/[<>]/.test(t)) ? t : ("Server-Fehler (" + r.status + ")"); }
+    const e = new Error(m); e.status = r.status; e.bodySnippet = (txt || "").slice(0, 200); throw e; // Status/Body fürs Debugging anhängen
+  }
   return data;
 }
 const GET = (path) => fetch(path, { headers: reqHeaders() }).then(parseRes);
 const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(parseRes);
+// Client-Fehler (z. B. Brücke fehlgeschlagen) an den Betreiber melden -> serverseitig Pushover.
+// Best effort, blockiert nichts; nur live (nicht im STATIC-Preview). Der Server sendet nur, wenn
+// Pushover eingerichtet ist, und drosselt gegen Spam.
+function reportClientError(kind, info) {
+  if (STATIC) return;
+  try {
+    fetch("/api/clienterror", { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify({ kind, info }) }).catch(() => {});
+  } catch {}
+}
 const API = {
   graph: () => STATIC ? Promise.resolve(window.LIKE_GRAPH) : GET("/api/graph"),
   explore: (name) => POST("/api/explore", { name, staged: true }), // R14: Packs ohne Staged-Support ignorieren das Flag
@@ -2127,9 +2147,13 @@ function updateGenreLegend() {
 
 function toast(msg) {
   const el = document.getElementById("toast");
-  el.textContent = t(msg); el.classList.add("show"); // t(): Literal-Meldungen laufen durchs Wörterbuch
+  // Sicherheitsnetz: nie eine Textwand zeigen (z. B. ein durchgereichter Fehler-Body). Kürzen,
+  // vollständige Meldung für die Fehlersuche in die Konsole.
+  let s = String(t(msg) ?? ""); // t(): Literal-Meldungen laufen durchs Wörterbuch
+  if (s.length > 160) { console.warn("toast (gekürzt):", s); s = s.slice(0, 157) + "…"; }
+  el.textContent = s; el.classList.add("show");
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 1800);
-  announce(t(msg)); // W4: Toasts auch an Screenreader
+  announce(s); // W4: Toasts auch an Screenreader
 }
 // W4: Text in die (unsichtbare) aria-live-Region schreiben — kurz leeren, damit auch
 // identische Folgemeldungen erneut vorgelesen werden.
@@ -4423,14 +4447,35 @@ function pickGhost(sx, sy) {
 async function addBridge(i) {
   const ranked = bridgeRanked(); const c = ranked[i]; if (!c) return;
   const a = bridge.a, b = bridge.b, via = c.via.map((v) => v.name);
+  const bmode = bridge.mode || "?"; // vor clearBridge sichern (für den Debug-Bericht)
   clearBridge();
   toast(tf(`Setze Brücke: {V} …`, { V: via.join(" → ") }));
+  // Gemeinsame Debug-Basis für einen etwaigen Pushover-Fehlerbericht (möglichst viel Kontext).
+  const dbg = (stage, extra) => ({
+    stage, mode: bmode, from: a?.name, to: b?.name, via: via.join(" → "),
+    fromId: a?.id, toId: b?.id, pack: CFG.id, view: planetMode ? "space" : "flat",
+    nodes: nodes.length, edges: links.length, zoom: +view.k.toFixed(2),
+    online: navigator.onLine, screen: `${innerWidth}x${innerHeight}`, ua: navigator.userAgent,
+    url: location.href, when: new Date().toISOString(), ...extra,
+  });
+  const t0 = performance.now();
   try {
     const res = await API.bridgeAdd(a.name, b.name, via, a.id, b.id);
-    if (res.error) { toast("Fehler: " + res.error); return; }
+    if (res && res.error) {
+      toast("Brücke ließ sich nicht setzen: " + res.error);
+      reportClientError("Brücke", dbg("bridgeAdd:response", { error: res.error, ms: Math.round(performance.now() - t0) }));
+      return;
+    }
     await reload(via[0]);
     toast(`„${via.join(" → ")}" verbindet jetzt ${a.name} und ${b.name}`);
-  } catch (e) { toast("Fehler: " + e.message); }
+  } catch (e) {
+    console.warn("Brücke fehlgeschlagen:", e);
+    toast("Brücke ließ sich nicht setzen: " + e.message);
+    reportClientError("Brücke", dbg("bridgeAdd/reload:exception", {
+      error: e && e.message, status: (e && e.status) || "", body: (e && e.bodySnippet) || "",
+      name: e && e.name, ms: Math.round(performance.now() - t0),
+    }));
+  }
 }
 function showBridgeBar() {
   const bar = document.getElementById("bridgebar");

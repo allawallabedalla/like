@@ -995,6 +995,30 @@ const server = createServer(async (req, res) => {
       }
     }
 
+    // Client-Fehlerbericht (z. B. Brücke fehlgeschlagen) -> Pushover an den Betreiber, mit möglichst
+    // viel Debug-Kontext. Nur wenn Pushover eingerichtet ist; sonst still (200, sent:false). Gleiche
+    // Drossel wie Feedback, damit ein hängender Client keine Nachrichtenflut auslöst.
+    if (req.method === "POST" && url.pathname === "/api/clienterror") {
+      if (!FEEDBACK_ON) return send(res, 200, { ok: true, sent: false });
+      const now = Date.now();
+      fbHits = fbHits.filter((t) => now - t < 5 * 60 * 1000);
+      if (fbHits.length >= 6) return send(res, 200, { ok: true, sent: false }); // still gedrosselt, kein Spam
+      fbHits.push(now);
+      const body = await readBody(req).catch(() => ({}));
+      const kind = String(body.kind || "Client").slice(0, 40);
+      const info = (body.info && typeof body.info === "object") ? body.info : {};
+      // grobe IP-Maskierung (letztes Oktett / letzte v6-Gruppe raus), damit nichts Volles im Push landet
+      const ipRaw = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket?.remoteAddress || "";
+      const ip = ipRaw.replace(/\.\d+$/, ".x").replace(/:[0-9a-f]+$/i, ":x") || "?";
+      const lines = [
+        `Pack ${pack.id} · v${APP_VERSION} · build ${BUILD_REF}`,
+        `IP~ ${ip}`,
+        ...Object.entries(info).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`),
+      ].join("\n");
+      sendFeedback({ title: `like — ${kind}-Fehler`, message: lines.slice(0, 1024) }).catch(() => {}); // best effort
+      return send(res, 200, { ok: true, sent: true });
+    }
+
     // Quellen-Diagnose: alle Datenquellen des Packs live anpingen.
     if (req.method === "POST" && url.pathname === "/api/diag") {
       const probes = pack.diag ? await pack.diag() : [];
