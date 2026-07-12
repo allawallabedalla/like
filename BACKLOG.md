@@ -697,3 +697,40 @@ Verifiziert: beide Logik-Tests grün, `npm run check` grün, Suite 73 passed / 0
 **Nicht umgesetzt (bewusst):** Retry-Kappung 4→2 — seit R14 laufen die Retries im
 Hintergrund und blockieren keinen Klick mehr; die Abkühlphase deckelt den Störungsfall.
 Damit ist der Latenz-Komplex (R13-R15) abgeschlossen.
+
+
+---
+
+## Runde 16 — Spawn-Physik: Wackeln/Zappeln beim Nachladen (2026-07-12) — ✅ ERLEDIGT
+
+Kundenfeedback: „Physik der Kugeln beim Laden eines neuen Acts wackelt/zappelt." Bearbeitet
+von einer 6-Kopf-Taskforce (Empiriker, Energie, Spawn, Integrator, Choreograf, UX) mit
+Messungen statt Raten; Challenge-Runde einstimmig. Kernbefund: **~75 % des gefühlten
+Zappelns war die KAMERA, nicht die Physik** (Screen- vs. Welt-Pixel getrennt gemessen).
+
+Sechs Maßnahmen, alle am echten Mock-Server-Setup gemessen:
+- **Kamera sanft statt Hard-Cut (größter Hebel):** Follow mit Deadzone (60 px) + Ease
+  (~350 ms) statt Frame-Hardlock; `followNode` nach jedem rebuild aufs frische Objekt
+  remappen (behob einen Stale-Object-Freeze nach R14-Phase-2); beim ＋ auf einen bereits
+  sichtbaren Knoten wird gar nicht mehr hart re-zentriert.
+- **Space-Fix:** `_moonAng/_moonSpeed/_moonTie/_rDraw` über `rebuild()` retten; neue Monde
+  ihren Startwinkel aus der Ist-Position (atan2) ableiten statt aus dem Ring-Slot — die
+  gemessenen 180-390-px-Mond-Teleports pro Frame verschwinden.
+- **R14-Doppelwelle entschärft:** Phase-2-Reheat an die tatsächliche Änderung gekoppelt
+  (neue Knoten 0.2, nur neue Kanten 0.08, nichts Neues = kein Reheat) — vorher zündete
+  reload(0.35) sogar bei leerem Ergebnis.
+- **Reheat harmonisiert:** Default von 1 auf 0.4 gesenkt (Suche/Doppelklick/„Weiter
+  erkunden" liefen mit 5× der Energie des ＋-Badges).
+- **Spawn in freie Sektoren:** neue Knoten in die größten Winkellücken um den Anker statt
+  auf feste Ring-Winkel (verhindert Frame-0-Überlappungen = alpha-unabhängige Kollisions-Snaps).
+- **alpha-adaptive Dämpfung** `DAMP = 0.86 − 0.18·alpha`: dämpft die frische Aufheizwelle
+  (ζ von 0.45 auf ~1.0), lässt den ruhigen Ausklang lebendig.
+
+**Gemessen (Bystander-Screen-Pixel-Bewegung pro ＋-Ausbau, scripts/bench-spawn-physik.cjs):**
+Flat netto 161→108 px (−33 %), Space 307→207 px (−33 %); **Einzel-Frame-Ruckler (das
+sichtbare „Zappeln") Flat 149→29 px, Space 307→42 px** — die physikalisch unmöglichen
+Sprünge (Kamera-/Mond-Snaps) sind weg. Jitter-Verhältnis (Weg/Netto) 1.95→~1.07.
+Verifiziert: F7-Drag-Test grün, Space-Monde kreisen weiter, `npm run check` grün, Suite
+73 passed / 0 failed. **Verworfen** (per A/B falsifiziert): Kollisionsradius mit `appear`
+einwachsen lassen — verschiebt die Bewegung nur zeitlich, Summe identisch (der Empiriker
+zog die eigene Idee zurück).

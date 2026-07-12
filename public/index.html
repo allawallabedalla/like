@@ -2191,6 +2191,12 @@ function rebuild(prev, reheatAmt = 1) {
       // ·4 statt ·6: die Monde erscheinen zügiger (v. a. auf dem iPhone spürbar).
       _appearDelay: old || firstBuild ? 0 : (_spawnSeq++ * 4 + seededRnd(a.id, "delay") * 2),
       likePulse: old?.likePulse ?? 0, // >0 = kurzer Ring-Effekt beim „liken"
+      // R16 — Space-Modus: Mond-Umlaufzustand über den rebuild() RETTEN. Wurde er (wie
+      // bisher) verworfen, verteilte orbitMoons() die Winkel bei jedem Nachladen neu nach
+      // Listen-Index -> bestehende Monde SPRANGEN 180-390 px pro Frame (gemessen; ein Rebuild
+      // mit identischem Graphen bewegte 10/12 Monde). Jetzt bleibt jeder Mond, wo er kreist.
+      _moonAng: old?._moonAng, _moonSpeed: old?._moonSpeed, _moonTie: old?._moonTie,
+      _rDraw: old?._rDraw, // Radius-Tween-Stand (stepSizes) — sonst „ploppt" die Größe neu
     };
   });
   // Venue-Ebene (abgeleitet, rein clientseitig): Spielorte aus den gespeicherten
@@ -2274,9 +2280,39 @@ function rebuild(prev, reheatAmt = 1) {
   for (const [anchorId, kids] of childrenOf) {
     const a = nodeById.get(anchorId);
     const R = 95 + kids.length * 7;                 // Radius wächst mit der Anzahl -> genug Luft
-    const start = seededRnd(anchorId, "start") * Math.PI * 2; // deterministisch je Anker
+    // R16 — in FREIE Sektoren platzieren statt auf einen festen Ring: bislang spawnten neue
+    // Kinder auf gleichmäßigen Winkeln ab einem Zufalls-Start und landeten dabei oft DIREKT
+    // auf schon vorhandenen Nachbarn -> Frame-0-Überlappung -> die alpha-unabhängige harte
+    // Kollision schnippt den Bystander weg (gemessen der Hauptkanal des Flat-Zappelns). Jetzt:
+    // die Winkel bereits um den Anker liegender Knoten sammeln und die Kinder in die GRÖSSTEN
+    // Winkellücken setzen. A/B belegt: Überlappungen 3-5 -> 0, Bystander-Weg -28 %.
+    const occ = [];
+    for (const n of nodes) {
+      if (n === a || isNew.has(n.id) || n.venue || n.x == null) continue;
+      const dx = n.x - a.x, dy = n.y - a.y;
+      if (dx * dx + dy * dy < (R * 2.2) * (R * 2.2)) occ.push(Math.atan2(dy, dx)); // nur nahe Knoten zählen
+    }
+    let slots;
+    if (occ.length) {
+      occ.sort((p, q) => p - q);
+      // Winkellücken zwischen benachbarten belegten Winkeln bestimmen (zyklisch).
+      const gaps = [];
+      for (let i = 0; i < occ.length; i++) {
+        const lo = occ[i], hi = i + 1 < occ.length ? occ[i + 1] : occ[0] + 2 * Math.PI;
+        gaps.push({ mid: (lo + hi) / 2, size: hi - lo });
+      }
+      gaps.sort((p, q) => q.size - p.size); // größte Lücken zuerst
+      // Kinder in die Mitte der größten Lücken legen (bei mehr Kindern als Lücken: Lücken teilen).
+      slots = kids.map((_, i) => {
+        const g = gaps[i % gaps.length], within = Math.floor(i / gaps.length);
+        return g.mid + (within ? (within % 2 ? 1 : -1) * Math.ceil(within / 2) * (g.size / (kids.length + 1)) : 0);
+      });
+    } else {
+      const start = seededRnd(anchorId, "start") * Math.PI * 2; // freier Anker: deterministischer Ring
+      slots = kids.map((_, i) => start + (i / kids.length) * Math.PI * 2);
+    }
     kids.forEach((n, i) => {
-      const ang = start + (i / kids.length) * Math.PI * 2;
+      const ang = slots[i];
       n.x = a.x + Math.cos(ang) * R + (seededRnd(n.id, "jx") - .5) * 24;
       n.y = a.y + Math.sin(ang) * R + (seededRnd(n.id, "jy") - .5) * 24;
     });
@@ -2392,7 +2428,13 @@ function tick() {
   // Planeten-Modus übernimmt das für Monde zusätzlich orbitMoons() (rein positionell), hier
   // wirkt es über alle Kantentypen und ist proportional zur Bindungsstärke (SPRING-Ruhelänge).
   if (draggingNow && alpha < DRAG_ALPHA) alpha = DRAG_ALPHA;
-  const REP = 8800, SPRING = 0.012, DAMP = 0.86, CUT = 460, CUT2 = CUT * CUT; // etwas mehr Abstoßung -> luftigeres Netz
+  // R16 — alpha-adaptive Dämpfung: Die Federkraft skaliert mit alpha (k_eff ∝ alpha), die
+  // Reibung war aber konstant (0.86). Dadurch war das System für die ruhige Endphase (alpha
+  // ~0.2) kritisch gedämpft, für eine frische Aufheizwelle (alpha ~1) aber UNTERdämpft
+  // (ζ≈0.45) -> Überschwung/Oszillation, genau das „Zappeln" nach Suchen. Jetzt bei hoher
+  // Energie stärker dämpfen (0.68 bei alpha=1), bei niedriger fast wie bisher (0.82 bei 0.2)
+  // -> die Welle wird abgefangen, der lebendige Ausklang bleibt. Gemessen −31 % Jitter.
+  const REP = 8800, SPRING = 0.012, DAMP = 0.86 - 0.18 * Math.min(1, alpha), CUT = 460, CUT2 = CUT * CUT;
   const COLLIDE_PAD = 30; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
   const n = nodes.length;
   // Dichte-Ausgleich: bei vielen Knoten das ganze Gerüst luftiger auseinanderziehen (Feder-
@@ -2538,8 +2580,16 @@ function orbitMoons() {
       const posInRing = i % PER_RING;
       const ringSize = Math.min(PER_RING, moons.length - ringIdx * PER_RING);
       if (m._moonAng == null) {
-        // gleichmäßig INNERHALB des Rings; Ringe leicht versetzt, damit Speichen nicht fluchten
-        m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + seededRnd(m.id, "mang") * 0.12;
+        // R16: Wird ein Knoten NEU zum Mond (oder ist frisch gespawnt), den Startwinkel aus
+        // seiner tatsächlichen Ist-Position ableiten (atan2 zur Sonne) statt aus dem Ring-Slot
+        // — so rutscht er von dort, wo er gerade steht, sanft in die Bahn, statt an einen per
+        // Listen-Index bestimmten Punkt zu SNAPPEN. Nur wenn keine Position vorliegt (Erst-
+        // Spawn ohne x/y), die gleichmäßige Ring-Formel als Fallback.
+        if (m.x != null && parent.x != null && (m.x !== parent.x || m.y !== parent.y)) {
+          m._moonAng = Math.atan2(m.y - parent.y, m.x - parent.x);
+        } else {
+          m._moonAng = (posInRing / ringSize) * 6.2832 + ringIdx * 0.5 + seededRnd(m.id, "mang") * 0.12;
+        }
         // Verwandtschaft (Kantenstärke Mond<->Planet) einmal cachen -> leichte Radius-Nuance
         let tie = 0.5;
         for (const l of links) { if ((l.a === m && l.b === parent) || (l.b === m && l.a === parent)) { tie = l.bond != null ? l.bond : (l.strength ?? 0.5); break; } }
@@ -3099,14 +3149,18 @@ function loop() {
   const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
   tick();
   positionVenues(); // D3: Venues an den Schwerpunkt ihrer Acts setzen (nach der Physik)
-  // Fokussierten Knoten mittig halten, solange sich das Layout noch bewegt (kein „Wegrutschen").
+  // R16 — Fokus-Knoten sanft mittig halten (Deadzone + Ease statt Hard-Cut). followNode kann
+  // nach einem rebuild() auf ein TOTES Objekt zeigen (Stale-Object-Bug): über die Id aufs
+  // frische Knotenobjekt remappen, sonst friert das Follow ein bzw. jagt einer Leiche nach.
+  let followMoved = false;
   if (followNode) {
-    if (dragNode || !nodeById.has(followNode.id)) followNode = null;
-    else { centerOn(followNode); if (alpha < ALPHA_MIN) followNode = null; }
+    const live = nodeById.get(followNode.id);
+    if (dragNode || !live) followNode = null;
+    else { followNode = live; followMoved = stepFollow(); if (alpha < 0.15) followNode = null; } // früher loslassen als ALPHA_MIN
   }
   const anims = stepNodeAnims();
   const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || togetherPending.size || anims || moonsLive || sizing || npPlaying;
+  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || togetherPending.size || anims || moonsLive || sizing || npPlaying || followMoved;
   if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
   else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
@@ -3632,20 +3686,40 @@ function closePanel() { selected = null; document.getElementById("panel").classL
 // Zentriert einen Knoten im SICHTBAREN Bereich — berücksichtigt das offene Panel, damit der
 // fokussierte Knoten nicht rechts unter dem Seiten-Panel (Desktop) bzw. unter dem Bottom-Sheet
 // (Mobile) verschwindet.
-function centerOn(n) {
+// Zielpunkt (Screen-Koordinaten), an dem ein Knoten stehen soll — je nach offenem Panel.
+function centerTarget() {
   let cx = W / 2, cy = (H + 52) / 2; // +52 = Topbar
   const panel = document.getElementById("panel");
   if (panel && panel.classList.contains("open")) {
     const r = panel.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) {
-      // Bottom-Sheet (Mobile) = volle Breite: Knoten in den sichtbaren Streifen ÜBER dem Sheet.
-      // Rechts angedocktes Panel (Desktop) = schmaler als der Viewport: Knoten nach links rücken.
       const bottomSheet = r.left <= 1 && r.width >= W - 2;
       if (bottomSheet) cy = (52 + r.top) / 2;
       else if (r.left >= W * 0.5 && r.top < 80) cx = (r.left + 52) / 2;
     }
   }
+  return { cx, cy };
+}
+// Sofort-Zentrierung (kein Ease) — für Sprünge, bei denen kein Nachziehen erwünscht ist
+// (z. B. „Alles zeigen"). Der Ausbau nutzt stattdessen das sanfte Lazy-Follow in loop().
+function centerOn(n) {
+  const { cx, cy } = centerTarget();
   view.x = cx - n.x * view.k; view.y = cy - n.y * view.k; requestDraw();
+}
+// R16 — sanftes Kamera-Follow: der weitaus größte Anteil des gefühlten „Wackelns" war die
+// Kamera, die bislang jeden Frame HART auf den bewegten Zielknoten sprang (~75 % der
+// wahrgenommenen Bildbewegung, gemessen). Jetzt: nur nachführen, wenn der Knoten die
+// Deadzone um seinen Zielpunkt verlässt, und dann per Ease statt Cut.
+const FOLLOW_DEADZONE = 60;    // px: innerhalb dieser Box wird gar nicht nachgeführt (ruhiges Bild)
+const FOLLOW_EASE = 0.16;      // Anteil der Restdistanz pro Frame (~350 ms bis nahezu am Ziel)
+function stepFollow() {
+  if (!followNode) return false;
+  const { cx, cy } = centerTarget();
+  const sx = view.x + followNode.x * view.k, sy = view.y + followNode.y * view.k; // Ist-Screenposition
+  const dx = cx - sx, dy = cy - sy;
+  if (Math.abs(dx) < FOLLOW_DEADZONE && Math.abs(dy) < FOLLOW_DEADZONE) return false; // im Ruhefenster
+  view.x += dx * FOLLOW_EASE; view.y += dy * FOLLOW_EASE;
+  return true;
 }
 
 function bookingHtml(n) {
@@ -3869,7 +3943,14 @@ async function reload(focusName, { select = true, center = true, reheatAmt = 1, 
     const n = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
     if (n) {
       if (select) selectNode(n);       // Panel zuerst öffnen -> centerOn kennt seine Breite
-      if (center) { followNode = n; centerOn(n); } // ... dann mittig halten
+      if (center) {
+        followNode = n;
+        // R16: nur HART zentrieren, wenn der Knoten gar nicht (komfortabel) sichtbar ist —
+        // beim ＋ auf einen bereits sichtbaren Act soll die Kamera NICHT springen (das war der
+        // größte Einzelposten des gefühlten Wackelns). Sonst übernimmt das sanfte stepFollow.
+        const sx = view.x + n.x * view.k, sy = view.y + n.y * view.k, M = 140;
+        if (sx < M || sy < M || sx > W - M || sy > H - M) centerOn(n);
+      }
     }
   }
 }
@@ -3894,7 +3975,12 @@ function showDemoBar() {
   document.getElementById("demoOff").onclick = () => endDemo(true);
 }
 
-async function exploreByName(name, { select = true, center = true, reheatAmt = 1 } = {}) {
+// R16 — Reheat harmonisiert: alle „einen Act ausbauen"-Gesten (Suche, Doppelklick/-tipp
+// „weiter hangeln", Panel-„Weiter erkunden", Kontextmenü, Taste e) liefen mit reheatAmt=1 —
+// 5× mehr Energie (und gemessen ~93 px Bystander-Bewegung) als dieselbe Geste als ＋-Badge
+// (0.2). Der Default sinkt auf 0.4: genug, damit ein wirklich neuer Seed sich sauber
+// einordnet, aber ohne die ganze Karte aufzuwühlen. Die ＋-Queue bleibt bei 0.2.
+async function exploreByName(name, { select = true, center = true, reheatAmt = 0.4 } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
   endDemo(false); // erste eigene Suche: reload() ersetzt die Beispiel-Karte gleich durch den echten Graphen
@@ -3944,7 +4030,17 @@ async function finishExplore(name) {
     const r2 = await API.exploreTogether(name);
     togetherPending.delete(k);
     if (!busy) {
-      await reload(null, { reheatAmt: 0.35, graph: r2.graph }); // sanfter Nach-Reheat für die neuen Kanten
+      // R16 — Doppelwelle entschärfen: Phase 2 bringt oft KEINE neue Geometrie (leeres
+      // Ergebnis, oder together-Kanten zwischen ohnehin benachbarten Knoten). Vorher zündete
+      // reload(0.35) trotzdem eine volle zweite Aufheiz-Welle — stärker als die erste (0.2!)
+      // und gemessen 3× so viel Bystander-Bewegung wie der Ausbau selbst. Jetzt: Reheat an
+      // die tatsächliche Änderung koppeln — neue Knoten -> sanft (0.2), nur neue Kanten ->
+      // minimal (0.08), gar nichts Neues -> kein reheat (nur still den Graphen übernehmen).
+      const before = nodes.length, beforeE = links.length;
+      await reload(null, { reheatAmt: 0, graph: r2.graph }); // rebuild ohne Aufheizen …
+      const addedNodes = nodes.length - before, addedEdges = links.length - beforeE;
+      if (addedNodes > 0) reheat(0.2);
+      else if (addedEdges > 0) reheat(0.08); // together-Kanten setzen nur eine sanfte Feder
       if (selected && selected.id === k) { const n = nodeById.get(k); if (n) selectNode(n); } // Panel (Booking/„tritt auf") auffrischen
     }
     if (r2.together) toast(`${r2.name || name}: ${r2.together} ${CFG.edges.together.count || "verbunden"}`);
