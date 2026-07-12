@@ -672,3 +672,28 @@ Taskforce-Konsens). Der ＋-Klick zeigt jetzt nach **~0,7 s** die ähnlichen Act
   706 ms sichtbar (4 Knoten, pending-Ring, explored=false), Phase 2 nach 2,7 s (together-
   Kante, explored=true, RA-Genres vor Tags, Booking inkl. kommender Auftritte am Knoten).
   `npm run check` grün, Suite 73 passed / 0 failed.
+
+
+---
+
+## Runde 15 — Latenz-Feinschliff: die letzten drei Konsens-Punkte (2026-07-11) — ✅ ERLEDIGT
+
+Die verbliebenen kleinen Punkte aus dem Taskforce-Konsens (Runde 13, Mittelfristig):
+
+- **RA-Abkühlphase (Negativ-Cache):** Ab 2 gql-Fehlschlägen in Folge überspringt
+  coappearByName die RA-Quelle für 10 Minuten (wirft sofort, wird nicht gecacht, Erfolg
+  hebt die Sperre auf). Vorher zahlte während einer RA-Störung JEDER Ausbau erneut die
+  volle Retry-Kaskade. Test: nach 2 Fehlern löst der 3. Aufruf 0 Requests aus.
+- **Queue-Prefetch:** ＋-Warteschlangen-Einträge werden beim Einreihen sofort per
+  /api/prefetch vorgewärmt — sie werden ohnehin garantiert exploriert, und der
+  Single-Flight-Cache (R13) dedupliziert mit dem späteren Explore. Test: Prefetch +
+  zweiphasiger Ausbau = exakt 4 externe Requests (ohne Dedup wären es 8); Phase 1
+  antwortet auf dem laufenden Prefetch reitend in ~370 ms.
+- **Nachlade-Batches nachrangig:** fillSizes/fillGenres starten erst, wenn die
+  ＋-Warteschlange leer ist — Folge-Klicks warten nicht mehr hinter popfill-Requests
+  im Last.fm-Gate.
+
+Verifiziert: beide Logik-Tests grün, `npm run check` grün, Suite 73 passed / 0 failed.
+**Nicht umgesetzt (bewusst):** Retry-Kappung 4→2 — seit R14 laufen die Retries im
+Hintergrund und blockieren keinen Klick mehr; die Abkühlphase deckelt den Störungsfall.
+Damit ist der Latenz-Komplex (R13-R15) abgeschlossen.

@@ -3907,8 +3907,13 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 1
     const res = await API.explore(name);
     await reload(res.name, { select, center, reheatAmt, graph: res.graph }); // res.graph: kein zweiter Roundtrip (R13)
     addTrail(res.name);
-    fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
-    fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift
+    // R15: Nachlade-Batches (Hörerzahlen/Genres) teilen sich das Last.fm-Gate mit dem
+    // nächsten Ausbau — bei gefüllter ＋-Warteschlange erst NACH dem letzten Eintrag
+    // starten, damit Folge-Klicks nicht hinter popfill-Requests warten.
+    if (!expandQueue.length) {
+      fillSizes(); // neue Nachbarn -> Hörerzahlen nachladen, damit die Größen stimmen
+      fillGenres(); // ... und Genres, damit der Genre-Filter auch ungeöffnete Nachbarn greift
+    }
     if (res.pending) {
       // R14: Phase 1 ist da (ähnlich + Tags) — die "zusammen"-Kanten trudeln gleich nach.
       toast(`${res.name}: ${res.similar} ${CFG.edges.similar.count || "ähnlich"} · ${t("suche gemeinsame Auftritte …")}`);
@@ -3959,6 +3964,10 @@ async function finishExplore(name) {
 function queueExpand(node) {
   if (STATIC) { exploreByName(node.name, { select: false, center: true, reheatAmt: 0.2 }); return; }
   expandQueue.push({ name: node.name, id: node.id });
+  // R15 — Queue-Prefetch: eingereihte Knoten werden ohnehin garantiert exploriert, also
+  // sofort vorwärmen (null Zusatzvolumen: der Single-Flight-Cache dedupliziert mit dem
+  // späteren Explore). Pipelinet die Wartezeit über aufeinanderfolgende Ausbauten hinweg.
+  API.prefetch(node.name).catch(() => {});
   expandPulse.add(node.id);
   requestDraw();
   drainExpandQueue();
