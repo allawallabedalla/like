@@ -3425,11 +3425,30 @@ addEventListener("mousemove", (e) => {
   if (dragNode) {
     if (!moved) return; // reines Klicken darf den Knoten nicht schon verschieben/aufheizen
     const w = world(p);
+    const ddx = w.x - dragNode.x, ddy = w.y - dragNode.y; // Zieh-Bewegung DIESES Frames
     dragNode.x = w.x; dragNode.y = w.y; dragNode.vx = 0; dragNode.vy = 0;
-    // Kein reheat() hier (der würde alpha auf 0.7 hochreißen und ruckartig wirken) — tick()
-    // hält alpha während des Ziehens selbst auf DRAG_ALPHA, sodass Nachbarn über ihre Kanten-
-    // Feder sanft und proportional zur Bindungsstärke folgen (F7). Im Planeten-Modus folgen
-    // Monde zusätzlich (und primär) über orbitMoons(). Kollisionen lösen sich alpha-unabhängig weiter auf.
+    // R17 — direkte Nachbarn sichtbar MITZIEHEN, damit sich im Flat-Modus die Nachbarschaft
+    // wie die Monde am Planeten im Space-Modus mitbewegt (F7s reine Federn folgten zu zaghaft).
+    // Verschiebung proportional zur Bindungsstärke: starke Bindung folgt fast starr, schwache
+    // trailt hinterher (organisch, KEIN starres Gruppen-Verschieben). Gepinnte/gezogene und
+    // Monde (die im Space über orbitMoons() folgen) sind ausgenommen; pro Nachbar nur einmal
+    // (bei similar+together zwischen demselben Paar zählt die stärkste Bindung).
+    if (ddx || ddy) {
+      const pull = new Map(); // neighbor -> max bond
+      for (const l of links) {
+        if (l.type === "venue") continue;
+        const other = l.a === dragNode ? l.b : l.b === dragNode ? l.a : null;
+        if (!other || other.pinned || other._moon || other.venue) continue;
+        const bond = l.bond ?? l.strength ?? 0.5;
+        if (!(pull.get(other) >= bond)) pull.set(other, bond);
+      }
+      for (const [m, bond] of pull) {
+        const k = 0.5 + 0.45 * bond;     // 0.5 (lose) … 0.95 (fest verbunden)
+        m.x += ddx * k; m.y += ddy * k; m.vx = 0; m.vy = 0;
+      }
+    }
+    // tick() hält alpha auf DRAG_ALPHA -> die weiteren Ringe (2-Hop+) folgen weiter über die
+    // Federn, und die Kollision löst sich alpha-unabhängig sanft auf.
     requestDraw();
   } else {
     view.x = dragStart.vx + dx; view.y = dragStart.vy + dy; requestDraw(); // Verschieben

@@ -734,3 +734,23 @@ Verifiziert: F7-Drag-Test grün, Space-Monde kreisen weiter, `npm run check` gr�
 73 passed / 0 failed. **Verworfen** (per A/B falsifiziert): Kollisionsradius mit `appear`
 einwachsen lassen — verschiebt die Bewegung nur zeitlich, Summe identisch (der Empiriker
 zog die eigene Idee zurück).
+
+
+---
+
+## Runde 17 — Flat-Drag: Nachbarn sichtbar mitziehen (2026-07-12) — ✅ ERLEDIGT
+
+Nutzerfeedback: Im Space-Modus folgen die Monde beim Verschieben des Planeten, im Flat-Modus
+zog es die Nachbarn kaum mit. Ursache: F7 (Runde 6) ließ die Nachbarn nur über die weichen
+Kanten-Federn folgen (bei DRAG_ALPHA=0.28) — gemessen folgte ein starker 1-Hop-Nachbar nur
+zu 35 % der Zieh-Strecke, mit deutlichem Nachlauf.
+
+Fix: Beim Ziehen werden die DIREKTEN Nachbarn zusätzlich um das Frame-Delta mitverschoben,
+proportional zur Bindungsstärke (`0.5 + 0.45·bond`, 0.5 lose … 0.95 fest) — starke Bindungen
+folgen fast starr wie ein Mond, schwache trailen organisch nach (kein starres
+Gruppen-Verschieben; Monde/gepinnte/gezogene ausgenommen, pro Nachbar nur die stärkste
+Bindung). Die 2-Hop+-Ringe folgen weiter über die Federn.
+
+**Gemessen (Hub 219 px gezogen, 1-Hop-Nachbar):** Flat 0.35 → 0.90 (nahe an Space 1.00);
+Space unverändert. Verifiziert: F7-Regressionstest grün (verbundener Nachbar folgt, fremder
+nicht), `npm run check` grün, Bildserie bestätigt den zusammenhängenden Stern beim Ziehen.
