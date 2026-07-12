@@ -3945,10 +3945,12 @@ async function reload(focusName, { select = true, center = true, reheatAmt = 1, 
       if (select) selectNode(n);       // Panel zuerst öffnen -> centerOn kennt seine Breite
       if (center) {
         followNode = n;
-        // R16: nur HART zentrieren, wenn der Knoten gar nicht (komfortabel) sichtbar ist —
-        // beim ＋ auf einen bereits sichtbaren Act soll die Kamera NICHT springen (das war der
-        // größte Einzelposten des gefühlten Wackelns). Sonst übernimmt das sanfte stepFollow.
-        const sx = view.x + n.x * view.k, sy = view.y + n.y * view.k, M = 140;
+        // R16: nur HART zentrieren, wenn der Knoten WIRKLICH außerhalb des sichtbaren
+        // Bereichs liegt (dann muss die Kamera ihn holen). Ist er auf dem Schirm — auch nahe
+        // am Rand — übernimmt das sanfte stepFollow (Deadzone + Ease) und zieht ihn behutsam
+        // rein, statt zu springen. Der frühere feste 140-px-Rand feuerte auf schmalen
+        // Handy-Screens fast immer und machte Flat dort schlechter (gemessen).
+        const sx = view.x + n.x * view.k, sy = view.y + n.y * view.k, M = 24; // nur echter Off-Screen-Puffer
         if (sx < M || sy < M || sx > W - M || sy > H - M) centerOn(n);
       }
     }
