@@ -268,8 +268,41 @@
   .statusrow .shareicon { flex: none; }
   /* like! = Hauptaktion: orange wie der Marken-Punkt, klar erkennbar */
   #basketBtn { background: var(--edge-together); border-color: var(--edge-together); color: #fff; font-weight: 600; }
-  #basketBtn:hover { background: #e65f00; }
-  #basketBtn.inlineup { background: var(--bg); color: var(--edge-together); border: 1px solid var(--edge-together); }
+  #basketBtn:hover { filter: brightness(.92); }
+  #basketBtn.inlineup { background: var(--bg); }
+  /* like! + ▾ als zusammenhängende Gruppe; ▾ öffnet den Listen-Picker */
+  .likegroup { display: flex; flex: 1 1 0; min-width: 0; }
+  .likegroup #basketBtn { flex: 1 1 0; min-width: 0; border-right: none; }
+  #likeMore { flex: none; width: 30px; padding: 0; border-left: 1px solid var(--line-soft);
+    background: var(--bg); color: var(--edge-together); border-color: var(--edge-together); font-weight: 600; }
+  #likeMore:hover { background: var(--panel); }
+  /* Listen-Umschalter im Korb-Kopf */
+  .basket .listswitch { background: none; border: none; padding: 0; margin: 0; font: inherit; color: var(--text);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .basket .listswitch:hover { color: var(--muted); }
+  .basket .listswitch b { font-weight: 600; }
+  .ldot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  /* Schwebende Menüs (Umschalter/Picker) */
+  .floatmenu { position: fixed; z-index: 45; background: var(--bg); border: 1px solid var(--line);
+    min-width: 190px; max-width: 260px; box-shadow: 0 8px 30px rgba(0,0,0,.22); font-size: 13px; padding: 4px 0; }
+  .floatmenu .fmhead { padding: 6px 12px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .floatmenu .fmrow { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; }
+  .floatmenu .fmrow:hover { background: var(--panel); }
+  .floatmenu .fmrow.on { font-weight: 600; }
+  .floatmenu .fmrow b { flex: 1 1 auto; font-weight: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .floatmenu .fmrow small { color: var(--muted); }
+  .floatmenu .fmrow.add { color: var(--muted); border-top: 1px solid var(--line-soft); }
+  .floatmenu .fmrow.add:hover { color: var(--text); }
+  .floatmenu .fmsep { border-top: 1px solid var(--line-soft); margin: 2px 0; }
+  .floatmenu .fmswatches { display: flex; gap: 6px; padding: 8px 12px 4px; flex-wrap: wrap; }
+  .floatmenu .sw { width: 16px; height: 16px; border-radius: 50%; cursor: pointer; border: 1px solid rgba(0,0,0,.15); }
+  .floatmenu .sw:hover { transform: scale(1.15); }
+  .floatmenu .fmact { display: flex; gap: 12px; padding: 4px 12px 8px; }
+  .floatmenu .fmact a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+  .floatmenu .fmact a:hover { color: var(--text); }
+  .floatmenu .fmcheck { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; }
+  .floatmenu .fmcheck:hover { background: var(--panel); }
+  .floatmenu .fmcheck input { flex: none; }
   .close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text);
     font-size: 20px; cursor: pointer; padding: 4px; }
   .neighbors { margin-top: 10px; }
@@ -1160,7 +1193,7 @@
       <button id="focusBtn" title="Nur diesen Act + direkte Nachbarn zeigen (Taste f)">Fokus</button>
     </div>
     <div class="row" style="margin-top:8px">
-      <button id="basketBtn" title="In dein Lineup aufnehmen (Taste b)">like!</button>
+      <div class="likegroup"><button id="basketBtn" title="In die aktive Liste aufnehmen (Taste b)">like!</button><button id="likeMore" title="In welche Liste? — mehrere möglich">▾</button></div>
       <button id="bridgeBtn" class="workonly" title="Welcher Eintrag verbindet diesen mit einem anderen? Hier klicken, dann Ziel wählen">Brücke bauen…</button>
     </div>
     <div class="field workonly">
@@ -1425,6 +1458,22 @@ const T = LANG !== "en" ? null : {
   "Auf {S} suchen": "Search on {S}",
   "Verbindung": "connection", "Verbindungen_pl": "connections",
   "Rückgängig": "Undo",
+  "andere Liste": "other list",
+  "Zu": "To",
+  "Listen": "Lists", "Neue Liste": "New list", "Umbenennen": "Rename", "Löschen": "Delete",
+  "Liste wechseln, umbenennen, neu anlegen": "Switch, rename or create a list",
+  "Farbe der aktiven Liste": "Colour of the active list",
+  "Name der neuen Liste?": "Name of the new list?", "Neuer Name?": "New name?",
+  "Aus dieser Liste nehmen": "Remove from this list",
+  "Liste als CSV exportieren": "Export list as CSV", "Diese Liste leeren": "Clear this list",
+  "Noch leer — mit {L} oder Taste b füllen.": "Still empty — fill it with {L} or key b.",
+  'Aus „{L}" entfernt': 'Removed from „{L}"',
+  'Aus „{L}" nehmen (Taste b)': 'Remove from „{L}" (key b)',
+  'Zu „{L}" hinzufügen (Taste b) · ▾ = andere Liste': 'Add to „{L}" (key b) · ▾ = other list',
+  'Liste „{L}" löschen? Die Acts bleiben auf der Karte.': 'Delete list „{L}"? The acts stay on the map.',
+  "In „{B}“ — klick zum Entfernen": "In „{B}“ — click to remove",
+  "{L} — in „{B}“": "{L} — into „{B}“",
+  'Lade „{N}" für „{B}" …': 'Loading „{N}" for „{B}" …',
   "Kein Umfeld gefunden.": "No context found.",
   "Umfeld konnte nicht geladen werden.": "Context could not be loaded.",
   "Suche in deinen anderen Domänen …": "Searching your other domains …",
@@ -1853,6 +1902,7 @@ const API = {
   taste: () => GET("/api/taste"),
   crossbridge: (name) => POST("/api/crossbridge", { name }),
   artist: (body) => POST("/api/artist", body),
+  lists: (body) => POST("/api/lists", body), // v2.6: Like-Listen anlegen/umbenennen/umfärben/löschen
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
   demo: () => GET("/api/demo"),
   lastfmImport: (user) => POST("/api/lastfm-import", { user }),
@@ -2055,8 +2105,54 @@ let trail = [];                  // Breadcrumb der erkundeten Acts
 let bridgeFrom = null;           // Start-Eintrag für "Brücke bauen…" (Ziel wird als Nächstes geklickt)
 let bridge = null;               // aktive Brücken-Session: { a, b, cands:[{via,strength}], sort }
 const adj = new Map();           // Adjazenz id -> Set(nachbar-id)
-let basket = new Set();          // Lineup-Korb (ids) — Quelle: a.basket im Graphen (E9); STATIC: localStorage
-try { if (STATIC) basket = new Set(JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]")); } catch {}
+let basket = new Set();          // ids in der AKTIVEN Like-Liste — abgeleitet aus a.lists (v2.6). Der Name
+                                 // bleibt „basket", damit die bestehende Korb-/★-/CSV-Logik unverändert weiterläuft.
+// ---- Like-Listen (v2.6) ----
+// „klein": Listen sind benannte Sammel-Buckets. Es gibt IMMER genau eine aktive Liste — dorthin
+// landet „like!". Mitgliedschaft steht je Artist in a.lists[]; die Listen-Definitionen in graph.lists.
+let lists = [];                  // [{id,name,color,auto?}]
+let activeList = "default";
+try { const s = localStorage.getItem(LSK("like_activelist")); if (s) activeList = s; } catch {}
+const listById = (id) => lists.find((l) => l.id === id) || null;
+const activeListObj = () => listById(activeList) || lists[0] || null;
+// Default-Liste lokalisiert anzeigen (auto = noch nie umbenannt): „Favoriten"/„Lineup" statt „Meine Likes".
+const listName = (l) => !l ? (CFG.basketLabel || "Lineup") : (l.auto && l.id === "default" ? (CFG.basketLabel || "Lineup") : l.name);
+const listColor = (l) => (l && l.color) || "#ff6a00";
+// Listen-Definitionen + Mitgliedschaften aus dem Graphen übernehmen (STATIC: aus localStorage überlagern).
+function syncLists() {
+  lists = Array.isArray(graph.lists) ? graph.lists.map((l) => ({ ...l })) : [];
+  if (STATIC) { try { const s = JSON.parse(localStorage.getItem(LSK("like_lists")) || "null"); if (Array.isArray(s) && s.length) lists = s; } catch {} }
+  if (!lists.some((l) => l.id === "default")) lists.unshift({ id: "default", name: "Meine Likes", color: "#ff6a00", auto: true });
+  if (!lists.some((l) => l.id === activeList)) activeList = "default";
+  if (STATIC) {
+    // Mitgliedschaften: eigener localStorage-Stand überlagert den eingebetteten Graphen;
+    // fehlt er, wird der alte Einzel-Korb (like_basket) einmalig in die Default-Liste übernommen.
+    try {
+      let m = JSON.parse(localStorage.getItem(LSK("like_members")) || "null");
+      if (!m) { const old = JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]"); if (old.length) { m = {}; for (const id of old) m[id] = ["default"]; } }
+      if (m && typeof m === "object") for (const a of Object.values(graph.artists)) { const ls = m[a.id]; if (ls && ls.length) a.lists = [...ls]; else delete a.lists; }
+    } catch {}
+  }
+}
+// STATIC: alle Mitgliedschaften als {id:[listId]} sichern (Server-Modus persistiert je Aktion via API).
+function persistMembersStatic() {
+  if (!STATIC) return;
+  const m = {};
+  for (const a of Object.values(graph.artists)) if (a.lists && a.lists.length) m[a.id] = [...a.lists];
+  try { localStorage.setItem(LSK("like_members"), JSON.stringify(m)); } catch {}
+}
+// Eine Mitgliedschaft setzen (im Graphen + persistieren). Kein Re-Render hier — Aufrufer entscheidet.
+function setMembership(id, listId, add) {
+  const a = graph.artists[id]; if (!a) return;
+  a.lists = Array.isArray(a.lists) ? a.lists.slice() : [];
+  const has = a.lists.includes(listId);
+  if (add && !has) a.lists.push(listId);
+  else if (!add && has) a.lists = a.lists.filter((x) => x !== listId);
+  if (!a.lists.length) delete a.lists;
+  if (STATIC) persistMembersStatic();
+  else API.artist({ id, list: listId, inList: add }).catch(() => {});
+}
+function inList(id, listId) { return !!graph.artists[id]?.lists?.includes(listId); }
 // Status-Farben/-Labels kommen aus der Pack-Config (Musik: Shortlist/angefragt/…)
 const STATUS_COLOR = Object.fromEntries(CFG.statuses.map((s) => [s.value, s.color]));
 const STATUS_LABEL = { "": "—", ...Object.fromEntries(CFG.statuses.map((s) => [s.value, s.label])) };
@@ -2158,9 +2254,9 @@ const seededRnd = (id, salt = "") => seededUnit(id + "|" + salt);
 
 function rebuild(prev, reheatAmt = 1) {
   const arts = Object.values(graph.artists);
-  // E9: Korb aus dem Graphen ableiten (a.basket, serverseitig persistiert) — nicht in STATIC,
-  // dort bleibt der localStorage-Korb.
-  if (!STATIC) basket = new Set(arts.filter(a => a.basket).map(a => a.id));
+  // v2.6: Listen-Definitionen übernehmen + „basket" = Mitglieder der AKTIVEN Liste ableiten.
+  syncLists();
+  basket = new Set(arts.filter(a => (a.lists || []).includes(activeList)).map(a => a.id));
   const deg = {};
   for (const e of graph.edges) { deg[e.from] = (deg[e.from] || 0) + 1; deg[e.to] = (deg[e.to] || 0) + 1; }
   const isNew = new Set();
@@ -2895,6 +2991,18 @@ function draw() {
       ctx.globalAlpha = (faded ? 0.2 : 1) * ap; ctx.fillStyle = getCss("--text");
       ctx.font = `${12 / view.k}px ${CANVAS_FONT}`; ctx.textAlign = "center";
       ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
+    }
+    // v2.6: Listen-Zugehörigkeit als farbige Punkte unter dem Knoten — so sieht man auf einen Blick,
+    // in welchen Listen ein Act steckt (nicht nur in der gerade aktiven). Max. 5, sonst „+n".
+    const memberOf = graph.artists[n.id]?.lists;
+    if (memberOf && memberOf.length && !n.venue) {
+      const shown = memberOf.slice(0, 5), dr = 2.4 / view.k, gap = 6 / view.k;
+      let bx = n.x - ((shown.length - 1) * gap) / 2, by = n.y + r + 6 / view.k;
+      ctx.globalAlpha = (faded ? 0.25 : 1) * ap;
+      for (const lid of shown) {
+        ctx.beginPath(); ctx.arc(bx, by, dr, 0, 7); ctx.fillStyle = listColor(listById(lid)); ctx.fill();
+        bx += gap;
+      }
     }
     if (busyId === n.id || expandPulse.has(n.id) || togetherPending.has(n.id)) {
       // togetherPending (R14): Phase 2 lädt noch — der Ring pulsiert ruhiger weiter,
@@ -4212,7 +4320,7 @@ function updateTooltip(n, e) {
 const ctxEl = document.getElementById("ctxmenu");
 function hideCtx() { ctxEl.classList.remove("show"); }
 function showCtx(n, x, y) {
-  const bl = CFG.basketLabel || "Lineup";
+  const bl = listName(activeListObj());
   const likeItem = [basket.has(n.id) ? tf(`Aus „{B}" entfernen`, { B: bl }) : `${CFG.likeLabel || "like!"} → ${bl}`, () => toggleBasket(n)];
   const items = n.venue ? [
     ["Details öffnen", () => selectNode(n)],
@@ -4465,43 +4573,144 @@ function renderTrail() {
   });
 }
 
-// ---- Lineup-Korb ----
-// E9: Der Korb lebt jetzt im Graphen (a.basket, serverseitig) — er überlebt damit Reload,
-// Gerätewechsel und die Anon-zu-Konto-Migration. localStorage bleibt nur als STATIC-Fallback
-// und wird beim ersten Laden einmalig in den Server übernommen (s. Boot-IIFE).
-function saveBasket(id, add) {
-  if (STATIC) { try { localStorage.setItem(LSK("like_basket"), JSON.stringify([...basket])); } catch {} return; }
-  if (id) API.artist({ id, basket: add }).catch(() => {}); // fire-and-forget, UI ist schon aktuell
+// ---- Like-Listen (v2.6) ----
+// „like!" schaltet die Mitgliedschaft in der AKTIVEN Liste. Der Set `basket` spiegelt genau diese
+// aktive Liste — dadurch bleibt die bestehende Korb-/★-/CSV-/Gagen-Logik unverändert nutzbar.
+function toggleBasket(n, listId = activeList, opts = {}) {
+  if (n.venue) return;
+  const add = !inList(n.id, listId);
+  setMembership(n.id, listId, add);
+  if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; }
+  if (listId === activeList) { if (add) basket.add(n.id); else basket.delete(n.id); }
+  renderBasket(); refreshLikeBtn(); requestDraw();
+  if (opts.toast !== false) { if (add) toastLiked(n, listId); else toast(tf('Aus „{L}" entfernt', { L: listName(listById(listId)) })); }
 }
-function toggleBasket(n) { if (n.venue) return; const add = !basket.has(n.id); add ? basket.add(n.id) : basket.delete(n.id); if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; } const a = graph.artists[n.id]; if (a) { if (add) a.basket = true; else delete a.basket; } saveBasket(n.id, add); renderBasket(); refreshLikeBtn(); requestDraw(); }
-// like!-Button spiegelt, ob der gewählte Act schon im Lineup ist
+// Bestätigung mit Listennamen + zwei Korrekturen: Rückgängig und „andere Liste" (öffnet den Picker).
+function toastLiked(n, listId) {
+  const el = document.getElementById("toast");
+  el.innerHTML = `${t("Zu")} <b>${esc(listName(listById(listId)))}</b> · ` +
+    `<a href="#" id="tlUndo" style="color:var(--on-accent);text-decoration:underline">${t("Rückgängig")}</a> · ` +
+    `<a href="#" id="tlOther" style="color:var(--on-accent);text-decoration:underline">${t("andere Liste")}</a>`;
+  el.classList.add("show"); clearTimeout(el._t);
+  document.getElementById("tlUndo").onclick = (e) => { e.preventDefault(); el.classList.remove("show"); toggleBasket(n, listId, { toast: false }); };
+  document.getElementById("tlOther").onclick = (e) => { e.preventDefault(); el.classList.remove("show"); openListPicker(n); };
+  el._t = setTimeout(() => el.classList.remove("show"), 6000);
+  announce(`${n.name} → ${listName(listById(listId))}`);
+}
+// like!-Button spiegelt die aktive Liste: Farbe = Listenfarbe, Text = ob der Act schon drin ist.
 function refreshLikeBtn() {
   if (!selected) return;
-  const bl = CFG.basketLabel || "Lineup";
+  const lo = activeListObj(), col = listColor(lo), nm = listName(lo);
   const b = document.getElementById("basketBtn");
   const inL = basket.has(selected.id);
-  b.textContent = inL ? `✓ im ${bl}` : (CFG.likeLabel || "like!");
-  b.title = inL ? tf("Wieder aus dem {B} nehmen (Taste b)", { B: bl }) : tf("In dein {B} aufnehmen (Taste b)", { B: bl });
+  b.textContent = inL ? `✓ ${nm}` : (CFG.likeLabel || "like!");
+  b.title = inL ? tf('Aus „{L}" nehmen (Taste b)', { L: nm }) : tf('Zu „{L}" hinzufügen (Taste b) · ▾ = andere Liste', { L: nm });
   b.classList.toggle("inlineup", inL);
+  // Farbe der aktiven Liste tragen: gefüllt (noch nicht drin) bzw. Outline (schon drin).
+  b.style.background = inL ? "" : col;
+  b.style.borderColor = col;
+  b.style.color = inL ? col : "#fff";
+  const more = document.getElementById("likeMore");
+  if (more) { more.style.borderColor = col; more.style.color = col; }
 }
 function renderBasket() {
   const el = document.getElementById("basket");
+  const lo = activeListObj();
   const items = [...basket].map(id => graph.artists[id]).filter(Boolean);
-  if (!items.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
-  const bl = CFG.basketLabel || "Lineup";
-  // E9: Gagen-Summe über den Korb — nur Zahlen-Anteile zählen ("1.5k" bleibt außen vor, ehrlich einfach).
+  const dot = `<span class="ldot" style="background:${listColor(lo)}"></span>`;
+  // Kopf mit Listen-Umschalter ist IMMER sichtbar (auch bei leerer Liste) — so weiß man, wohin „like" geht.
+  const head = `<h3><button id="listSwitch" class="listswitch" title="${t("Liste wechseln, umbenennen, neu anlegen")}">${dot}<b>${esc(listName(lo))}</b> ▾</button><span>${items.length}</span></h3>`;
+  if (!items.length) {
+    el.innerHTML = head + `<div style="padding:8px 10px;color:var(--muted);font-size:11px">${tf("Noch leer — mit {L} oder Taste b füllen.", { L: CFG.likeLabel || "like!" })}</div>`;
+    el.classList.add("show"); wireBasket(el); return;
+  }
   const feeSum = items.reduce((s, a) => { const v = parseFloat(String(a.fee || "").replace(/[^\d,.\-]/g, "").replace(",", ".")); return s + (Number.isFinite(v) ? v : 0); }, 0);
   const feeRow = FEAT.booking && feeSum > 0 ? `<div style="padding:6px 10px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--muted)">Σ ${t("Gagen")}: <b style="color:var(--text)">${feeSum.toLocaleString(LANG === "en" ? "en-US" : "de-DE")}</b></div>` : "";
-  el.innerHTML = `<h3 title="${tf("Dein {B}-Korb — mit {L} oder Taste b füllen", { B: bl, L: CFG.likeLabel || "like!" })}">${bl} <span>${items.length}</span></h3><ul>` +
-    items.map(a => `<li data-id="${esc(a.id)}" title="${t("Klick: hinspringen")}"><b>${esc(a.name)}${a.fee ? ` <span style="color:var(--muted)">· ${esc(a.fee)}</span>` : ""}</b><a data-rm="${esc(a.id)}" title="${tf("Aus dem {B} nehmen", { B: bl })}">✕</a></li>`).join("") +
-    `</ul>${feeRow}<div class="actions"><button id="bExport" title="${tf("{B} als CSV exportieren", { B: bl })}">CSV</button><button id="bClear" title="${tf("{B}-Korb leeren", { B: bl })}">${t("Leeren")}</button></div>`;
+  el.innerHTML = head + `<ul>` +
+    items.map(a => `<li data-id="${esc(a.id)}" title="${t("Klick: hinspringen")}"><b>${esc(a.name)}${a.fee ? ` <span style="color:var(--muted)">· ${esc(a.fee)}</span>` : ""}</b><a data-rm="${esc(a.id)}" title="${t("Aus dieser Liste nehmen")}">✕</a></li>`).join("") +
+    `</ul>${feeRow}<div class="actions"><button id="bExport" title="${t("Liste als CSV exportieren")}">CSV</button><button id="bClear" title="${t("Diese Liste leeren")}">${t("Leeren")}</button></div>`;
   el.classList.add("show");
+  wireBasket(el);
   el.querySelectorAll("li").forEach(li => li.onclick = (e) => {
-    if (e.target.dataset.rm) { const rid = e.target.dataset.rm; basket.delete(rid); const a = graph.artists[rid]; if (a) delete a.basket; saveBasket(rid, false); renderBasket(); return; }
+    if (e.target.dataset.rm) { const rid = e.target.dataset.rm; setMembership(rid, activeList, false); basket.delete(rid); renderBasket(); refreshLikeBtn(); requestDraw(); return; }
     const node = nodeById.get(li.dataset.id); if (node) { centerOn(node); selectNode(node); }
   });
-  document.getElementById("bClear").onclick = () => { for (const id of basket) { const a = graph.artists[id]; if (a) delete a.basket; saveBasket(id, false); } basket.clear(); renderBasket(); };
+  document.getElementById("bClear").onclick = () => { for (const id of [...basket]) setMembership(id, activeList, false); basket.clear(); renderBasket(); refreshLikeBtn(); requestDraw(); };
   document.getElementById("bExport").onclick = exportBasketCsv;
+}
+function wireBasket(el) { const sw = el.querySelector("#listSwitch"); if (sw) sw.onclick = (e) => { e.stopPropagation(); openListMenu(sw); }; }
+
+// ---- Liste wechseln ----
+function setActiveList(id) {
+  if (!listById(id)) return;
+  activeList = id; try { localStorage.setItem(LSK("like_activelist"), id); } catch {}
+  basket = new Set(Object.values(graph.artists).filter(a => (a.lists || []).includes(id)).map(a => a.id));
+  renderBasket(); refreshLikeBtn(); requestDraw();
+}
+// ---- Listen-CRUD (Server-Modus via API, STATIC via localStorage) ----
+async function createList(name, color) {
+  const col = color || CLUSTER_PALETTE[lists.length % CLUSTER_PALETTE.length];
+  if (STATIC) { const id = "l" + Math.abs(hashStr(name + Date.now())).toString(36); lists.push({ id, name: name.slice(0, 60) || "Liste", color: col }); try { localStorage.setItem(LSK("like_lists"), JSON.stringify(lists)); } catch {} return id; }
+  try { const r = await API.lists({ action: "create", name, color: col }); if (r?.lists) { lists = r.lists; graph.lists = r.lists; } return r?.list?.id || null; } catch { return null; }
+}
+async function mutateList(action, id, extra = {}) {
+  if (STATIC) {
+    const l = listById(id); if (!l) return;
+    if (action === "rename" && extra.name) { l.name = extra.name.slice(0, 60); delete l.auto; }
+    else if (action === "recolor" && extra.color) { l.color = extra.color; }
+    else if (action === "delete") { if (id === "default") return; lists = lists.filter(x => x.id !== id); for (const a of Object.values(graph.artists)) if (a.lists?.includes(id)) { a.lists = a.lists.filter(x => x !== id); if (!a.lists.length) delete a.lists; } persistMembersStatic(); if (activeList === id) setActiveList("default"); }
+    try { localStorage.setItem(LSK("like_lists"), JSON.stringify(lists)); } catch {}
+    return;
+  }
+  try { const r = await API.lists({ action, id, ...extra }); if (r?.lists) { lists = r.lists; graph.lists = r.lists; if (action === "delete" && activeList === id) setActiveList("default"); } } catch {}
+}
+function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; } return h; }
+// ---- Schwebende Menüs (Listen-Umschalter + Listen-Picker) ----
+let floatMenu = null;
+function closeFloat() { if (floatMenu) { floatMenu.remove(); floatMenu = null; document.removeEventListener("pointerdown", onFloatOutside, true); } }
+function onFloatOutside(e) { if (floatMenu && !floatMenu.contains(e.target)) closeFloat(); }
+function openFloat(anchor, html, wire) {
+  closeFloat();
+  const m = document.createElement("div"); m.className = "floatmenu"; m.innerHTML = html;
+  document.body.appendChild(m); floatMenu = m;
+  const r = anchor.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
+  let left = Math.max(8, Math.min(r.left, innerWidth - mw - 8));
+  let top = r.bottom + 6; if (top + mh > innerHeight - 8) top = Math.max(8, r.top - mh - 6);
+  m.style.left = left + "px"; m.style.top = top + "px";
+  wire && wire(m);
+  setTimeout(() => document.addEventListener("pointerdown", onFloatOutside, true), 0);
+}
+// Umschalter: aktive Liste wählen, umfärben, umbenennen, löschen, neu anlegen.
+function openListMenu(anchor) {
+  const counts = {}; for (const a of Object.values(graph.artists)) for (const id of (a.lists || [])) counts[id] = (counts[id] || 0) + 1;
+  const rows = lists.map(l => `<div class="fmrow${l.id === activeList ? " on" : ""}" data-pick="${esc(l.id)}"><span class="ldot" style="background:${listColor(l)}"></span><b>${esc(listName(l))}</b><small>${counts[l.id] || 0}</small></div>`).join("");
+  const lo = activeListObj();
+  const palette = CLUSTER_PALETTE.map(c => `<span class="sw" data-col="${c}" title="${t("Farbe der aktiven Liste")}" style="background:${c}"></span>`).join("");
+  const manage = `<div class="fmsep"></div><div class="fmswatches">${palette}</div>` +
+    `<div class="fmact"><a data-act="rename">${t("Umbenennen")}</a>${lo && lo.id !== "default" ? `<a data-act="delete">${t("Löschen")}</a>` : ""}</div>`;
+  openFloat(anchor, `<div class="fmhead">${t("Listen")}</div>${rows}<div class="fmrow add" data-new="1">＋ ${t("Neue Liste")}</div>${manage}`, (m) => {
+    m.querySelectorAll("[data-pick]").forEach(d => d.onclick = () => { setActiveList(d.dataset.pick); closeFloat(); });
+    m.querySelector("[data-new]").onclick = async () => { const nm = prompt(t("Name der neuen Liste?")); if (nm && nm.trim()) { const id = await createList(nm.trim()); closeFloat(); if (id) setActiveList(id); } };
+    m.querySelectorAll(".sw").forEach(s => s.onclick = async () => { await mutateList("recolor", activeList, { color: s.dataset.col }); closeFloat(); renderBasket(); refreshLikeBtn(); requestDraw(); });
+    const rn = m.querySelector('[data-act="rename"]'); if (rn) rn.onclick = async () => { const nm = prompt(t("Neuer Name?"), listName(activeListObj())); if (nm && nm.trim()) { await mutateList("rename", activeList, { name: nm.trim() }); closeFloat(); renderBasket(); refreshLikeBtn(); } };
+    const del = m.querySelector('[data-act="delete"]'); if (del) del.onclick = async () => { if (confirm(tf('Liste „{L}" löschen? Die Acts bleiben auf der Karte.', { L: listName(activeListObj()) }))) { await mutateList("delete", activeList); closeFloat(); renderBasket(); refreshLikeBtn(); requestDraw(); } };
+  });
+}
+// Hybrid-Picker: einen Act bewusst in mehrere Listen legen (Mehrfachauswahl) + neue Liste anlegen.
+function openListPicker(n) {
+  if (!n || n.venue) return;
+  const anchor = document.getElementById("likeMore") || document.getElementById("basketBtn") || document.body;
+  const rows = lists.map(l => `<label class="fmcheck"><input type="checkbox" data-l="${esc(l.id)}"${inList(n.id, l.id) ? " checked" : ""}><span class="ldot" style="background:${listColor(l)}"></span>${esc(listName(l))}</label>`).join("");
+  openFloat(anchor, `<div class="fmhead">${esc(n.name)} → ${t("Listen")}</div>${rows}<div class="fmrow add" data-new="1">＋ ${t("Neue Liste")}</div>`, (m) => {
+    m.querySelectorAll("input[data-l]").forEach(cb => cb.onchange = () => {
+      const listId = cb.dataset.l, add = cb.checked;
+      setMembership(n.id, listId, add);
+      if (add) { const nd = nodeById.get(n.id); if (nd) nd.likePulse = 1; }
+      if (listId === activeList) { add ? basket.add(n.id) : basket.delete(n.id); }
+      renderBasket(); refreshLikeBtn(); requestDraw();
+    });
+    m.querySelector("[data-new]").onclick = async () => { const nm = prompt(t("Name der neuen Liste?")); if (nm && nm.trim()) { const id = await createList(nm.trim()); if (id) { setMembership(n.id, id, true); renderBasket(); refreshLikeBtn(); requestDraw(); openListPicker(n); } } };
+  });
 }
 function exportBasketCsv() {
   const rows = [FEAT.booking
@@ -4513,12 +4722,19 @@ function exportBasketCsv() {
       : [a.name, a.status || "", (a.genres || []).join("; "), a.note || "", a.url || ""]); }
   const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
   const blob = new Blob([csv], { type: "text/csv" }), u = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = u; a.download = "like-lineup.csv"; a.click(); URL.revokeObjectURL(u);
+  const fn = "like-" + (listName(activeListObj()) || "liste").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".csv";
+  const a = document.createElement("a"); a.href = u; a.download = fn; a.click(); URL.revokeObjectURL(u);
 }
 
 // Panel-Buttons (Fokus/Korb/Pfad)
 document.getElementById("focusBtn").onclick = () => { if (selected) toggleFocus(selected); };
-document.getElementById("basketBtn").onclick = () => { if (selected) toggleBasket(selected); };
+document.getElementById("basketBtn").onclick = () => { if (selected && !likeLongPressed) toggleBasket(selected); likeLongPressed = false; };
+// Hybrid: kurz „like!" → aktive Liste; ▾ oder langes Drücken → Picker (mehrere Listen wählen).
+document.getElementById("likeMore").onclick = (e) => { e.stopPropagation(); if (selected) openListPicker(selected); };
+let likeLongPressed = false, likePressTimer = null;
+const basketBtnEl = document.getElementById("basketBtn");
+basketBtnEl.addEventListener("pointerdown", () => { likeLongPressed = false; clearTimeout(likePressTimer); likePressTimer = setTimeout(() => { likeLongPressed = true; if (selected) openListPicker(selected); }, 500); });
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => basketBtnEl.addEventListener(ev, () => clearTimeout(likePressTimer)));
 document.getElementById("bridgeBtn").onclick = () => { if (selected) startBridge(selected); };
 document.getElementById("bridgeClose").onclick = clearBridge;
 document.getElementById("bridgeSlider").oninput = (e) => { if (bridge) { bridge.sort = e.target.value / 100; requestDraw(); } };
@@ -4686,18 +4902,19 @@ async function runRadar(force) {
       const name = decodeURIComponent(b.dataset.like);
       // in-graph: direkt liken und NUR diesen Button umschalten (Liste stabil halten —
       // sonst fiele der Act als frischer "Like" sofort aus den Kandidaten und verschwände)
+      const bl = listName(activeListObj());
       if (b.dataset.id && nodeById.has(b.dataset.id)) {
         const n = nodeById.get(b.dataset.id);
-        toggleBasket(n);
+        toggleBasket(n, activeList, { toast: false }); // Radar gibt eigenes Button-Feedback
         const on = basket.has(n.id);
-        b.classList.toggle("liked", on); b.textContent = on ? `✓ ${CFG.basketLabel || "Lineup"}` : (CFG.likeLabel || "like!");
-        b.title = on ? tf("Im {B} — klick zum Entfernen", { B: CFG.basketLabel || "Lineup" }) : tf("{L} — in dein {B}", { L: CFG.likeLabel || "like!", B: CFG.basketLabel || "Lineup" });
+        b.classList.toggle("liked", on); b.textContent = on ? `✓ ${bl}` : (CFG.likeLabel || "like!");
+        b.title = on ? tf("In „{B}“ — klick zum Entfernen", { B: bl }) : tf("{L} — in „{B}“", { L: CFG.likeLabel || "like!", B: bl });
       } else {
         // noch nicht auf der Karte: erst laden, dann liken (Graph ändert sich ohnehin)
-        toast(tf(`Lade „{N}" fürs {B} …`, { N: name, B: CFG.basketLabel || "Lineup" }));
+        toast(tf(`Lade „{N}" für „{B}" …`, { N: name, B: bl }));
         await exploreByName(name);
         const k = slugify(name); const n = nodeById.get(k) || nodes.find((x) => slugify(x.name) === k);
-        if (n) { if (!basket.has(n.id)) toggleBasket(n); b.classList.add("liked"); b.textContent = `✓ ${CFG.basketLabel || "Lineup"}`; toast(`„${n.name}" ist im ${CFG.basketLabel || "Lineup"}`); }
+        if (n) { if (!basket.has(n.id)) toggleBasket(n, activeList, { toast: false }); b.classList.add("liked"); b.textContent = `✓ ${bl}`; toast(`„${n.name}" → ${bl}`); }
       }
     });
   } catch (e) {
@@ -5631,7 +5848,8 @@ function maybeShowIntro() {
     try {
       const old = JSON.parse(localStorage.getItem(LSK("like_basket")) || "[]");
       if (old.length) {
-        for (const id of old) if (graph.artists[id]) { graph.artists[id].basket = true; API.artist({ id, basket: true }).catch(() => {}); }
+        // v2.6: alter Einzel-Korb → Default-Liste (statt a.basket); serverseitig persistiert.
+        for (const id of old) if (graph.artists[id]) { const a = graph.artists[id]; a.lists = [...new Set([...(a.lists || []), "default"])]; API.artist({ id, list: "default", inList: true }).catch(() => {}); }
         localStorage.removeItem(LSK("like_basket"));
       }
     } catch {}
