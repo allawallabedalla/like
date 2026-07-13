@@ -5,7 +5,7 @@
 // Kategorien = „Genres", Seitenaufrufe = Popularität. Frei & ohne Key (Wikipedia).
 
 import {
-  resolve, suggest as wikiSuggest, morelike, mutualLinks,
+  resolve, suggest as wikiSuggest, morelike, mutualLinks, pageLinks,
   pageInfo, categoryMembers, wikiUrl,
 } from "../../lib/wiki.mjs";
 import { surpriseFrom } from "../../lib/surprise.mjs";
@@ -116,6 +116,26 @@ export default {
     if (!hit) return { canonical: name, similar: [] };
     const sim = await morelike(hit.lang, hit.title, { limit: Math.min(limit, 20) });
     return { canonical: hit.title, similar: sim.map((t, i) => ({ name: t, url: wikiUrl(hit.lang, t), match: Math.max(0.35, 0.75 - i * 0.025) })) };
+  },
+
+  // BREITE Nachbarschaft NUR für die Brücke: morelike (thematisch ähnlich) PLUS die
+  // ausgehenden Artikel-Links (worauf das Thema verweist). morelike allein bleibt fast
+  // immer im selben Typ (Fußballer → Fußballer, Stadt → Stadt); die Links überbrücken die
+  // Typgrenze (Person → Verein/Ort → andere Person). Erst so findet die Suche
+  // „Mario Basler ↔ Istanbul" — und robuster auch „Beckenbauer ↔ Basler" (gemeinsame
+  // Vereins-/Nationalelf-Links), wenn sich ihre morelike-Listen nicht überschneiden.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    const hit = await resolve(name);
+    if (!hit) return { canonical: name, list: [] };
+    const [sim, links] = await Promise.all([
+      morelike(hit.lang, hit.title, { limit: 20 }),
+      pageLinks(hit.lang, hit.title, { limit }),
+    ]);
+    const out = [], seen = new Set([hit.title.toLowerCase()]);
+    const add = (t, match) => { const k = t.toLowerCase(); if (seen.has(k)) return; seen.add(k); out.push({ name: t, url: wikiUrl(hit.lang, t), match }); };
+    sim.forEach((t, i) => add(t, Math.max(0.4, 0.75 - i * 0.02)));   // „ähnlich" wiegt etwas mehr
+    links.forEach((t, i) => add(t, Math.max(0.25, 0.5 - i * 0.008))); // Links als zweite Straße
+    return { canonical: hit.title, list: out };
   },
 
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, der UNBEKANNTESTE gewinnt.
