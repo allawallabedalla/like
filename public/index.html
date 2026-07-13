@@ -3202,24 +3202,31 @@ function stepSizes() {
   return live;
 }
 function loop() {
-  const sizing = stepSizes();     // Kugelgrößen sanft an ihr Ziel führen (organisch, kein Plopp)
-  const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
-  tick();
-  positionVenues(); // D3: Venues an den Schwerpunkt ihrer Acts setzen (nach der Physik)
-  // R16 — Fokus-Knoten sanft mittig halten (Deadzone + Ease statt Hard-Cut). followNode kann
-  // nach einem rebuild() auf ein TOTES Objekt zeigen (Stale-Object-Bug): über die Id aufs
-  // frische Knotenobjekt remappen, sonst friert das Follow ein bzw. jagt einer Leiche nach.
-  let followMoved = false;
-  if (followNode) {
-    const live = nodeById.get(followNode.id);
-    if (dragNode || !live) followNode = null;
-    else { followNode = live; followMoved = stepFollow(); if (alpha < 0.15) followNode = null; } // früher loslassen als ALPHA_MIN
+  // Ein einzelner Fehler in Physik/Draw (z. B. ein stale Objekt nach einem Hintergrund-Rebuild
+  // während der Tab abwesend war) darf die rAF-Kette NIE dauerhaft killen — sonst bleibt das Netz
+  // weg, obwohl die Hover-Handler noch laufen. Darum: Loop-Körper kapseln, immer neu terminieren.
+  try {
+    const sizing = stepSizes();     // Kugelgrößen sanft an ihr Ziel führen (organisch, kein Plopp)
+    const moonsLive = orbitMoons(); // Monde positionieren, bevor die Physik läuft
+    tick();
+    positionVenues(); // D3: Venues an den Schwerpunkt ihrer Acts setzen (nach der Physik)
+    // R16 — Fokus-Knoten sanft mittig halten (Deadzone + Ease statt Hard-Cut). followNode kann
+    // nach einem rebuild() auf ein TOTES Objekt zeigen (Stale-Object-Bug): über die Id aufs
+    // frische Knotenobjekt remappen, sonst friert das Follow ein bzw. jagt einer Leiche nach.
+    let followMoved = false;
+    if (followNode) {
+      const live = nodeById.get(followNode.id);
+      if (dragNode || !live) followNode = null;
+      else { followNode = live; followMoved = stepFollow(); if (alpha < 0.15) followNode = null; } // früher loslassen als ALPHA_MIN
+    }
+    const anims = stepNodeAnims();
+    const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
+    const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || togetherPending.size || anims || moonsLive || sizing || npPlaying || followMoved;
+    if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
+    else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
+  } catch (e) {
+    console.warn("render loop:", e); dirty = true; // beim nächsten Frame erneut versuchen
   }
-  const anims = stepNodeAnims();
-  const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
-  const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || togetherPending.size || anims || moonsLive || sizing || npPlaying || followMoved;
-  if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
-  else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   requestAnimationFrame(loop);
 }
 
@@ -5757,7 +5764,12 @@ function loadView() {
   return null;
 }
 addEventListener("beforeunload", saveView);
-addEventListener("visibilitychange", () => { if (document.hidden) saveView(); });
+addEventListener("visibilitychange", () => {
+  if (document.hidden) saveView();
+  // Zurück im Tab: rAF war pausiert und mancher Browser leert/verkleinert das Canvas im Hintergrund
+  // -> Canvas-Maße sichern und neu zeichnen, damit das Netz nicht „weg" bleibt.
+  else { resize(); requestDraw(); }
+});
 
 // E7: Mobile-Suche — Lupe in der Topbar öffnet ein Vollbild-Suchfeld mit Autofokus und
 // denselben Vorschlägen wie die Desktop-Suche (statt zwei Taps ins generische ⋯-Menü).
