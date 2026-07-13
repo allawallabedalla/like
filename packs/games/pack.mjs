@@ -234,6 +234,26 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): geteilte Tags (+ TasteDive)
+  // PLUS weitere Spiele desselben Entwicklers. Die Katalog-Straße ist dünner, erweitert
+  // aber die Reichweite („A —selber Entwickler— A2 —ähnlich— B"). Best effort. Naben
+  // (Riesen-Studios mit großem Katalog) beim Ranking über die Besitzer-Schätzung gedämpft.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let hit; try { hit = await searchGame(name); } catch { return { canonical: name, list: [] }; }
+    if (!hit) return { canonical: name, list: [] };
+    const seen = new Set([hit.name.toLowerCase()]), out = [];
+    const add = (nm, url, match) => { const k = String(nm || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: nm, url: url || null, match }); };
+    const s = await spy(hit.id).catch(() => null);
+    const dev = s?.developer || null;
+    const [sim, byDev] = await Promise.all([
+      this.similar(name, { limit: 18 }).catch(() => ({ similar: [] })),
+      dev ? byDeveloper(dev).catch(() => []) : Promise.resolve([]),
+    ]);
+    for (const x of sim.similar || []) add(x.name, x.url, x.match || 0.5);                        // geteilte Tags
+    for (const g of byDev) add(g.name, `https://store.steampowered.com/app/${g.id}`, 0.5);       // selber Entwickler
+    return { canonical: hit.name, list: out };
+  },
+
   async explore(name) {
     const hit = await searchGame(name);
     if (!hit) throw new Error(`„${name}" nicht bei Steam gefunden`);

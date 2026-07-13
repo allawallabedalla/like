@@ -165,6 +165,29 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): ähnlicher Reisestil (blau)
+  // PLUS geografische Nähe (orange). Travel trennt bewusst Stil und Nähe — die Brücke nur
+  // über Stil laufen zu lassen verschenkt die halbe Idee. Über Nähe beantwortet sie
+  // „welches Ziel liegt zwischen A und B?". Beide Straßen best effort. Naben (große
+  // Metropolen im Umkreis) werden beim Ranking über die Seitenaufrufe gedämpft.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let hit; try { hit = await resolveTitle(name); } catch { return { canonical: name, list: [] }; }
+    if (!hit) return { canonical: name, list: [] };
+    const art = await article(hit.lang, hit.title).catch(() => null);
+    if (!art) return { canonical: hit.title, list: [] };
+    const { tags } = styleTags(art.wikitext);
+    const coord = await coordFor(art, hit.title).catch(() => null);
+    const [peers, near] = await Promise.all([
+      styleSimilar(hit.lang, tags, hit.title, { limit: 14 }).catch(() => []),
+      coord ? geoNearby(hit.lang, coord, hit.title, { limit: 14 }).catch(() => []) : Promise.resolve([]),
+    ]);
+    const seen = new Set([hit.title.toLowerCase()]), out = [];
+    const add = (nm, url, match) => { const k = String(nm || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: nm, url: url || null, match }); };
+    peers.forEach((p, i) => add(p.title, voyUrl(p.lang, p.title), Math.max(0.35, 0.75 - i * 0.03)));                     // Reisestil
+    near.forEach((n) => add(n.title, voyUrl(n.lang, n.title), n.km <= 20 ? 0.7 : n.km <= 50 ? 0.6 : n.km <= 90 ? 0.5 : 0.4)); // Nähe (näher = stärker)
+    return { canonical: hit.title, list: out };
+  },
+
   async explore(name, ctx) {
     const hit = await resolveTitle(name);
     if (!hit) throw new Error(`„${name}" nicht bei Wikivoyage gefunden (Reiseziele)`);

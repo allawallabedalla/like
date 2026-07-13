@@ -251,6 +251,27 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): Gattungs-Geschwister
+  // (Taxonomie) PLUS Ko-Okkurrenz am selben Standort (Ökologie). Die Taxonomie bleibt in
+  // der Verwandtschaft; Ko-Okkurrenz verbindet botanisch Unverwandtes, das zusammen wächst
+  // — eine ganz andere Achse. Beide Straßen best effort. Naben (Kosmopoliten wie Löwenzahn,
+  // die überall mitwachsen) werden beim Ranking über die Beobachtungszahl gedämpft.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let hit; try { hit = await searchTaxon(name); } catch { return { canonical: name, list: [] }; }
+    if (!hit) return { canonical: name, list: [] };
+    const taxon = (await taxonById(hit.id).catch(() => null)) || hit;
+    const [sibs, co] = await Promise.all([
+      genusSiblings(taxon, { limit: 15 }).catch(() => []),
+      sameHabitat(taxon).catch(() => []),
+    ]);
+    const canonical = display(taxon);
+    const seen = new Set([canonical.toLowerCase()]), out = [];
+    const add = (nm, url, match) => { const k = String(nm || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: nm, url: url || null, match }); };
+    sibs.forEach((t) => add(display(t), `https://www.inaturalist.org/taxa/${t.id}`, 0.6));                              // Taxonomie
+    co.forEach(({ taxon: t, count }) => add(display(t), `https://www.inaturalist.org/taxa/${t.id}`, Math.min(0.7, 0.4 + 0.03 * (count || 1)))); // Ko-Okkurrenz
+    return { canonical, list: out };
+  },
+
   async explore(name) {
     const hit = await searchTaxon(name);
     if (!hit) throw new Error(`„${name}" nicht bei iNaturalist gefunden (Pflanzen)`);

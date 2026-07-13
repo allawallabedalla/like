@@ -863,17 +863,17 @@ Die orange Relation zerfällt in zwei Klassen. **Verhaltens-/Netzwerk-Achse** (e
 zweite Dimension, verbindet quer durch die „ähnlich"-Cluster) — hier lohnt es am
 meisten:
 
-- [ ] **M2 — Movies: „Leute schauten auch" (TMDB `recommendations`).** Verhaltens-
+- [x] **M2 — Movies: „Leute schauten auch" (TMDB `recommendations`).** ✅ umgesetzt. Verhaltens-
   basiert statt genre-ähnlich → überbrückt Genregrenzen (Arthouse ↔ Blockbuster, die
   dasselbe Publikum teilen). Stärkste zweite Straße nach Music. Naben-Strafe:
   vote_count (`popularity.big` = 5000).
-- [ ] **M3 — Papers: Ko-Autorschaft (OpenAlex).** Kollaborations-Netzwerk statt
+- [x] **M3 — Papers: Ko-Autorschaft (OpenAlex).** ✅ umgesetzt. Kollaborations-Netzwerk statt
   thematischer Nähe → verbindet Felder über gemeinsame Autor:innen (genau wie Auftritte
   bei Music). Naben-Strafe: hyper-produktive Autor:innen / Mega-Kollaborationen dämpfen.
-- [ ] **M4 — Plants: Ko-Okkurrenz am selben Standort (iNaturalist).** Ökologische
+- [x] **M4 — Plants: Ko-Okkurrenz am selben Standort (iNaturalist).** ✅ umgesetzt. Ökologische
   Nachbarschaft statt Taxonomie → verbindet botanisch Unverwandtes, das zusammen
   wächst. Naben-Strafe: Kosmopoliten (Löwenzahn & Co.) über Beobachtungszahl dämpfen.
-- [ ] **M5 — Travel: geografische Nähe (Wikivoyage-Geosuche).** Travel trennt bewusst
+- [x] **M5 — Travel: geografische Nähe (Wikivoyage-Geosuche).** ✅ umgesetzt. Travel trennt bewusst
   *Stil* (blau) und *Nähe* (orange) — die Brücke nur über Stil laufen zu lassen
   verschenkt die halbe Idee. Über Nähe: „welches Ziel liegt zwischen A und B?" Naben-
   Strafe: große Metropolen im Umkreis dämpfen.
@@ -883,7 +883,7 @@ Person/Firma; als Brücken-Straße schwächer, hilft aber via „A —selber Aut
 —ähnlich— B"). Zusätzlich steckt das Verhaltenssignal hier oft schon halb in `similar()`
 (optionaler TasteDive-Key):
 
-- [ ] **M6 — Books (selber Autor), Games (selber Entwickler), Boardgames (selber
+- [x] **M6 — Books (selber Autor), Games (selber Entwickler), Boardgames (selber
   Designer/Verlag), Podcasts (selber Anbieter).** Zweite Straße dünner, aber je
   ein `bridgeNeighbors()` = similar + together erweitert die Reichweite messbar.
   Naben-Strafe: Mega-Verlag/-Studio/-Netzwerk mit riesigem Katalog über die

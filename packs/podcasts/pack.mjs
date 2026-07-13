@@ -196,6 +196,25 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, der UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): Genre-Nachbarn (+ TasteDive)
+  // PLUS weitere Podcasts desselben Anbieters/Netzwerks. Die Katalog-Straße ist dünner,
+  // erweitert aber die Reichweite („A —selber Anbieter— A2 —ähnlich— B"). Best effort. Naben
+  // (Groß-Netzwerke mit riesigem Katalog) beim Ranking über die Episodenzahl gedämpft.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let hit; try { hit = await searchPodcast(name); } catch { return { canonical: name, list: [] }; }
+    if (!hit) return { canonical: name, list: [] };
+    const canonical = hit.collectionName;
+    const seen = new Set([String(canonical || "").toLowerCase()]), out = [];
+    const add = (n, url, match) => { const k = String(n || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: n, url: url || null, match }); };
+    const [sim, byProv] = await Promise.all([
+      this.similar(name, { limit: 18 }).catch(() => ({ similar: [] })),
+      hit.artistName ? byProvider(hit.artistName).catch(() => []) : Promise.resolve([]),
+    ]);
+    for (const s of sim.similar || []) add(s.name, s.url, s.match || 0.5);                  // Genre
+    for (const p of byProv) add(p.collectionName, p.collectionViewUrl || null, 0.5);        // selber Anbieter
+    return { canonical, list: out };
+  },
+
   async explore(name, { lang } = {}) {
     const hit = await searchPodcast(name);
     if (!hit) throw new Error(`„${name}" nicht bei Apple Podcasts gefunden`);

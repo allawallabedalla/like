@@ -150,6 +150,28 @@ export default {
     };
   },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): inhaltlich ähnlich (/similar,
+  // Genre/Keywords) PLUS „Leute schauten auch" (/recommendations, VERHALTENSbasiert). Die
+  // /similar-Straße bleibt fast immer im Genre; /recommendations kommt aus echtem
+  // Nutzerverhalten und überbrückt Genregrenzen (Arthouse ↔ Blockbuster, die dasselbe
+  // Publikum teilen) — genau die Verbindungen, die reine Genre-Ähnlichkeit nie zeigt.
+  // Beide TMDB-Endpunkte, best effort (fällt bei Ausfall sauber auf die andere Straße
+  // zurück). Naben (Blockbuster, die überall empfohlen werden) werden nicht hier, sondern
+  // beim Ranking über vote_count (`popularity.big`) + „klein/spannend"-Regler gedämpft.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let hit; try { hit = await searchMovie(name); } catch { return { canonical: name, list: [] }; }
+    if (!hit) return { canonical: name, list: [] };
+    const [sim, recs] = await Promise.all([
+      cached("tmdb-sim", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}/similar`)).catch(() => null),
+      cached("tmdb-rec", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}/recommendations`)).catch(() => null),
+    ]);
+    const out = [], seen = new Set([display(hit).toLowerCase()]);
+    const add = (m, match) => { const nm = display(m); const k = nm.toLowerCase(); if (seen.has(k)) return; seen.add(k); out.push({ name: nm, url: `https://www.themoviedb.org/movie/${m.id}`, match }); };
+    (sim?.results || []).slice(0, limit).forEach((m, i) => add(m, Math.max(0.3, 0.8 - i * 0.03)));   // Genre-ähnlich
+    (recs?.results || []).slice(0, 20).forEach((m, i) => add(m, Math.max(0.4, 0.75 - i * 0.02)));     // Verhalten (crosst Genres)
+    return { canonical: display(hit), list: out };
+  },
+
   async explore(name) {
     const hit = await searchMovie(name);
     if (!hit) throw new Error(`„${name}" nicht bei TMDB gefunden`);
