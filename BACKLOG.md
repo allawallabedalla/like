@@ -863,7 +863,7 @@ Die orange Relation zerfällt in zwei Klassen. **Verhaltens-/Netzwerk-Achse** (e
 zweite Dimension, verbindet quer durch die „ähnlich"-Cluster) — hier lohnt es am
 meisten:
 
-- [ ] **M2 — Movies: „Leute schauten auch" (TMDB `recommendations`).** Verhaltens-
+- [x] **M2 — Movies: „Leute schauten auch" (TMDB `recommendations`).** ✅ umgesetzt. Verhaltens-
   basiert statt genre-ähnlich → überbrückt Genregrenzen (Arthouse ↔ Blockbuster, die
   dasselbe Publikum teilen). Stärkste zweite Straße nach Music. Naben-Strafe:
   vote_count (`popularity.big` = 5000).
