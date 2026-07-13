@@ -2840,19 +2840,23 @@ function draw() {
     else { base = Math.min(3.4, 1 + (l.weight - 1) * 0.5); aBase = 0.6; }         // „zusammen": Gewicht = Anzahl
     ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe || bridgeActive) ? 0.06 : aBase)) * ea * linkFade;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
-    ctx.beginPath();
-    ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y);
-    ctx.stroke();
-    // Doppel-Verknüpfung (ähnlich UND zusammen): dieselbe Gerade zusätzlich GESTRICHELT in der
-    // „zusammen"-Farbe drüberlegen — liest sich als „gestrichelt über voll" auf EINER Linie.
     if (l._par === 1) {
-      ctx.save();
-      ctx.strokeStyle = onPath ? getCss("--text") : cTog;
-      ctx.globalAlpha = (hot ? 1 : (selected || hi || pe || bridgeActive) ? 0.06 : 0.62) * ea * linkFade;
-      ctx.setLineDash([7 / view.k, 5 / view.k]);
-      ctx.lineWidth = (hot ? 2.6 : 1.9) / view.k;
+      // Doppel-Verknüpfung (ähnlich UND zusammen): EINE etwas kräftigere Linie mit ABWECHSELND
+      // blau/orange Segmenten — auf einen Blick erkennbar, dass beide Relationen bestehen. Zwei
+      // versetzte Dash-Läufe (blau bei Offset 0, orange in die Lücken). onPath -> beide in Textfarbe.
+      const dash = 9 / view.k;
+      ctx.globalAlpha = (hot ? 1 : (selected || hi || pe || bridgeActive) ? 0.06 : 0.92) * ea * linkFade;
+      ctx.lineWidth = (hot ? 3.6 : 2.7) / view.k;
+      ctx.setLineDash([dash, dash]);
+      ctx.strokeStyle = onPath ? getCss("--text") : cSim; ctx.lineDashOffset = 0;
       ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
-      ctx.restore();
+      ctx.strokeStyle = onPath ? getCss("--text") : cTog; ctx.lineDashOffset = dash;
+      ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y);
+      ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
