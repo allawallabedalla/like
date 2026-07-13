@@ -845,7 +845,7 @@ orange** mischt; Routenplaner-Kern bleibt (kürzeste Route zuerst), Naben werden
 Kleinheits-Begriff `config.popularity.big` mit). Ergebnis: Brücken-Ketten dürfen
 unterwegs zwischen den Achsen wechseln (A —blau— X —orange— B).
 
-- [ ] **M1 — Music: „zusammen aufgetreten" als zweite Brücken-Straße (Leitfall).**
+- [x] **M1 — Music: „zusammen aufgetreten" als zweite Brücken-Straße (Leitfall).** ✅ umgesetzt.
   Heute fragt die Music-Brücke nur „was klingt dazwischen?" (Last.fm-Stil). Die
   orange Relation (`coAppearances`: RA/Songkick/Setlist.fm — geteilte Bühnen) ist
   aber das Booking-Alleinstellungsmerkmal und verbindet Acts, die *nie ähnlich

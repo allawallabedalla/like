@@ -203,11 +203,16 @@ Suchtiefe); nach 5 Sekunden fragt ein Dialog **„Weitersuchen?"**, danach wiede
 bricht aber nie unbemerkt in eine Endlos-Suche aus. Die Kandidaten schweben als helle
 **Geister-Kugeln** zwischen den beiden (kürzeste Route zuerst); ein Regler mischt von
 **naheliegend** (kürzeste, stärkste Verbindung) zu **klein/spannend** (Geheimtipp). Klick
-auf einen Geist fügt die ganze Kette samt Kanten ein. Funktioniert in allen Packs (bei
-Musik z.B. „welche:r kleine Act verbindet zwei Szenen?"). Bei **Like Anything** sucht die
-Brücke zusätzlich über die **Artikel-Links** (nicht nur „thematisch ähnlich") — so werden
-auch typübergreifende Verbindungen gefunden (z.B. „Mario Basler ↔ Istanbul" über gemeinsam
-verlinkte Themen), die die reine Ähnlichkeitssuche nie zusammenbringen würde.
+auf einen Geist fügt die ganze Kette samt Kanten ein. Funktioniert in allen Packs.
+Wo eine Domäne eine zweite Beziehung besitzt, sucht die Brücke über **beide Straßen**:
+- **Like Music** verbindet nicht nur über ähnlichen **Stil**, sondern auch über
+  **zusammen aufgetreten** (geteilte Bühnen/Festivals) — so wird „welcher kleine Act
+  verbindet zwei Szenen über gemeinsame Auftritte?" findbar, was reine Klangähnlichkeit
+  nie zeigt (Ketten wie „A —spielte mit— X —ähnlich— B").
+- **Like Anything** sucht zusätzlich über die **Artikel-Links** (nicht nur „thematisch
+  ähnlich") — so werden typübergreifende Verbindungen gefunden (z.B. „Mario Basler ↔
+  Istanbul" über gemeinsam verlinkte Themen), die die reine Ähnlichkeitssuche nie
+  zusammenbringen würde.
 
 ## Feedback-Knopf (Pushover, optional)
 Ist ein **Pushover**-Zugang hinterlegt, erscheint oben ein **✉-Knopf**: Testuser können dir
