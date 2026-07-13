@@ -808,12 +808,17 @@ weniger.
   schnellerer Fund) — Ebenen nie überspringen, damit „kürzeste zuerst" erhalten
   bleibt. Score = Nähe zum Gegenziel (geteilte Links/Kategorien).
 
-- [ ] **B4 — Lokaler Merkmalsvektor-Index („Embeddings ohne ML").** Pro geladenem
-  Artikel einen gewichteten Bag-of-Features (Titel-Tokens + Kategorien + Top-Links,
-  IDF-gewichtet) im Datei-Cache ablegen; Cosinus-Ähnlichkeit liefert eine semantische
-  Nähe ohne Key/Modell. Speist B3s Heuristik und bewertet fertige Brücken nach
-  **Kohärenz** (aufeinanderfolgende Knoten semantisch nah = besser lesbarer Pfad).
-  Wächst über die Zeit zu einem echten Index der erkundeten Nachbarschaft.
+- [~] **B4 — Lokaler Merkmalsvektor-Index („Embeddings ohne ML").** ✅ Erste Stufe
+  umgesetzt: `lib/vector.mjs` (Merkmalsliste → dünner Häufigkeitsvektor, Cosinus-
+  Ähnlichkeit, key-/dependency-frei) + **Kohärenz-Bonus** in der Brücken-Bewertung —
+  bevorzugt bei GLEICHER Länge Kandidaten, deren Zwischen-Einträge thematisch (Genres)
+  zu BEIDEN Enden passen. Sanfter ≤15%-Faktor, ändert die via.length-Reihenfolge nie
+  (Routenplaner bleibt), abschaltbar via `LIKE_BRIDGE_COHERENCE=0`. Offline verifiziert
+  (Vektor-Mathematik-Unittests + Server-Reihung mit/ohne Flag).
+  **Offen (spätere Stufen):** Vektoren im Datei-Cache persistieren; reichere Merkmale
+  (Kategorien/Links/Titel-Tokens, IDF-gewichtet) statt nur Genres; die Vektoren auch B3s
+  Frontier-Heuristik speisen (Nähe zum Gegenziel); Pfad-Kohärenz *zwischen aufeinander-
+  folgenden* Knoten statt nur zu den Enden.
 
 - [ ] **B5 — Personalisierung + „Warum".** Brücken, die durch Knoten *nahe deinen
   Likes* laufen, höher ranken (Teleport-Bias wie beim Radar). Und: den Treffpunkt

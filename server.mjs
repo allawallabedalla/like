@@ -27,6 +27,7 @@ const writeJsonAtomic = async (path, obj) => { const tmp = path + ".tmp"; await 
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadGraph, saveGraph, materialize, emptyGraph, upsertArtist, slug } from "./lib/store.mjs";
+import { featureVec, cosine } from "./lib/vector.mjs"; // B4: Kohärenz-Bewertung der Brücken-Kandidaten
 import { getUserTopArtists, getSimilar } from "./lib/lastfm.mjs"; // E13: Kaltstart-Import (nur Musik-Pack)
 import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.mjs";
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
@@ -611,6 +612,7 @@ const BRIDGE_TTL = 10 * 60 * 1000; // verwaiste Sitzungen (Client weg) nach 10 m
 const BRIDGE_DEPTH_MAX = 4;        // Suchtiefe pro Seite -> Verbindungen mit bis zu 7 Zwischenstationen
 const BRIDGE_FANOUT = 40;          // Nachbarn pro Quell-Abfrage
 const BRIDGE_STEP_CALLS = 6;       // Quell-Abfragen pro /step (parallel) — ein „Suchpaket"
+const BRIDGE_COHERENCE = process.env.LIKE_BRIDGE_COHERENCE !== "0"; // B4: Kohärenz-Bonus (an, abschaltbar)
 
 const bkey = (s) => String(s).toLowerCase();
 function sweepBridges() { const now = Date.now(); for (const [id, s] of bridgeSessions) if (now - s.ts > BRIDGE_TTL) bridgeSessions.delete(id); }
@@ -724,7 +726,8 @@ async function bridgeResult(pack, s) {
   cands = cands.filter((c) => { const key = c.via.map((v) => v.name.toLowerCase()).join("|"); if (seenVia.has(key)) return false; seenVia.add(key); return true; });
   cands = cands.slice(0, 20);
 
-  const names = [...new Set(cands.flatMap((c) => c.via.map((v) => v.name)))];
+  // via-Namen anreichern (Genres + Popularität) — plus die beiden Endpunkte für die Kohärenz.
+  const names = [...new Set([s.from, s.to, ...cands.flatMap((c) => c.via.map((v) => v.name))])];
   const meta = {};
   await Promise.all(names.map(async (n) => {
     try {
@@ -734,6 +737,24 @@ async function bridgeResult(pack, s) {
     } catch { meta[n] = { genres: [], listeners: null }; }
   }));
   for (const c of cands) for (const v of c.via) { const m = meta[v.name]; if (m) { v.listeners = m.listeners; v.genres = m.genres; } }
+
+  // B4 — Kohärenz-Bonus: bevorzugt (bei GLEICHER Länge) Brücken, deren Zwischen-Einträge
+  // thematisch zu BEIDEN Enden passen. Merkmalsvektor aus den Genres, Cosinus-Ähnlichkeit
+  // zum Genre-Profil der Endpunkte. Sanfter ≤15%-Faktor auf strength -> ändert die
+  // via.length-Reihenfolge (Routenplaner!) NIE, nur die Reihung gleich langer Kandidaten.
+  // Abschaltbar via ENV LIKE_BRIDGE_COHERENCE=0.
+  if (BRIDGE_COHERENCE) {
+    const endVec = featureVec([...(meta[s.from]?.genres || []), ...(meta[s.to]?.genres || [])]);
+    if (endVec.size) {
+      for (const c of cands) {
+        let sum = 0, n = 0;
+        for (const v of c.via) { const g = v.genres || []; if (g.length) { sum += cosine(featureVec(g), endVec); n++; } }
+        c.coherence = n ? sum / n : 0;
+        c.strength = c.strength * (0.85 + 0.15 * c.coherence);
+      }
+      cands.sort((x, y) => x.via.length - y.via.length || y.strength - x.strength);
+    }
+  }
 
   const shortest = cands[0]?.via.length || 0;
   const mode = shortest <= 1 ? "direct" : shortest === 2 ? "two" : shortest === 3 ? "three" : "n";
