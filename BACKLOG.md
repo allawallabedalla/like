@@ -827,3 +827,77 @@ weniger.
 
 **Reihenfolge/Wirkung:** B1 (größter Qualitätssprung, kleinstes Risiko) → B2/B3
 (Präzision + Tempo) → B4 (das „eigene Suchmaschine"-Herz) → B5/B6 (Politur).
+
+---
+
+## Runde 20 — Brücke über die ZWEITE Relation je Domäne (2026-07-13)
+
+**Kontext:** Seit PR #40 fährt die Brücke bei **Anything** über zwei „Straßen"
+(morelike + Artikel-Links). Bei allen anderen Domänen läuft sie weiterhin nur über
+die **blaue** „ähnlich"-Relation (`pack.similar()`) — die **orange** „zusammen"-
+Relation, die jedes Pack ohnehin schon berechnet (`explore().together`), bleibt für
+die Brücke ungenutzt. Dabei ist die orange Relation oft die *eigentlich
+interessante* Verbindung: eine ganz andere Achse als Klang/Thema.
+
+**Leitprinzip (wie bei Anything):** je Domäne ein `bridgeNeighbors()`, das **blau +
+orange** mischt; Routenplaner-Kern bleibt (kürzeste Route zuerst), Naben werden
+**abgewertet, nie gelöscht** (die Domäne bringt dafür ihren Popularitäts-/
+Kleinheits-Begriff `config.popularity.big` mit). Ergebnis: Brücken-Ketten dürfen
+unterwegs zwischen den Achsen wechseln (A —blau— X —orange— B).
+
+- [x] **M1 — Music: „zusammen aufgetreten" als zweite Brücken-Straße (Leitfall).** ✅ umgesetzt.
+  Heute fragt die Music-Brücke nur „was klingt dazwischen?" (Last.fm-Stil). Die
+  orange Relation (`coAppearances`: RA/Songkick/Setlist.fm — geteilte Bühnen) ist
+  aber das Booking-Alleinstellungsmerkmal und verbindet Acts, die *nie ähnlich
+  klingen*, aber dieselben Clubs/Festivals/Label-Nächte bespielen. `bridgeNeighbors()`
+  = `getSimilar` (Stil) **+** `coAppearances` (Auftritte), sodass Ketten wie „A —spielte
+  mit— X —ähnlich— B" möglich werden. **Naben-Strafe:** Mega-Headliner/Festivals, mit
+  denen *jeder* gespielt hat, abwerten — Musics vorhandenes „Große dämpfen" (≥20k
+  Hörer) als IDF-Analogon nutzen, damit die Brücke durch KLEINE, spezifische
+  Bühnenpartner routet. Vorbehalt: RA & Co. sind langsamer/wackliger als Last.fm →
+  die orange Straße gewichtet/begrenzt dazunehmen, damit die Suche nicht ausbremst.
+
+**Analyse der übrigen Domänen — wie stark ist die zweite Straße?**
+
+Die orange Relation zerfällt in zwei Klassen. **Verhaltens-/Netzwerk-Achse** (echte
+zweite Dimension, verbindet quer durch die „ähnlich"-Cluster) — hier lohnt es am
+meisten:
+
+- [ ] **M2 — Movies: „Leute schauten auch" (TMDB `recommendations`).** Verhaltens-
+  basiert statt genre-ähnlich → überbrückt Genregrenzen (Arthouse ↔ Blockbuster, die
+  dasselbe Publikum teilen). Stärkste zweite Straße nach Music. Naben-Strafe:
+  vote_count (`popularity.big` = 5000).
+- [ ] **M3 — Papers: Ko-Autorschaft (OpenAlex).** Kollaborations-Netzwerk statt
+  thematischer Nähe → verbindet Felder über gemeinsame Autor:innen (genau wie Auftritte
+  bei Music). Naben-Strafe: hyper-produktive Autor:innen / Mega-Kollaborationen dämpfen.
+- [ ] **M4 — Plants: Ko-Okkurrenz am selben Standort (iNaturalist).** Ökologische
+  Nachbarschaft statt Taxonomie → verbindet botanisch Unverwandtes, das zusammen
+  wächst. Naben-Strafe: Kosmopoliten (Löwenzahn & Co.) über Beobachtungszahl dämpfen.
+- [ ] **M5 — Travel: geografische Nähe (Wikivoyage-Geosuche).** Travel trennt bewusst
+  *Stil* (blau) und *Nähe* (orange) — die Brücke nur über Stil laufen zu lassen
+  verschenkt die halbe Idee. Über Nähe: „welches Ziel liegt zwischen A und B?" Naben-
+  Strafe: große Metropolen im Umkreis dämpfen.
+
+**Katalog-Achse** (orange = „vom selben Ersteller" — bündelt nur den Katalog *einer*
+Person/Firma; als Brücken-Straße schwächer, hilft aber via „A —selber Autor— A2
+—ähnlich— B"). Zusätzlich steckt das Verhaltenssignal hier oft schon halb in `similar()`
+(optionaler TasteDive-Key):
+
+- [ ] **M6 — Books (selber Autor), Games (selber Entwickler), Boardgames (selber
+  Designer/Verlag), Podcasts (selber Anbieter).** Zweite Straße dünner, aber je
+  ein `bridgeNeighbors()` = similar + together erweitert die Reichweite messbar.
+  Naben-Strafe: Mega-Verlag/-Studio/-Netzwerk mit riesigem Katalog über die
+  Popularitätszahl dämpfen. Für Boardgames zusätzlich prüfen, ob BGGs „Fans Also Like"
+  (Backlog Q1) die bessere zweite Straße wäre als die Designer-Relation.
+
+**Sekundär — Cache-Vergiftung gegenprüfen (Lehre aus PR #40):** Music/Deezer/
+MusicBrainz sind sauber (werfen bei Netzfehlern aus `cached()` heraus, cachen nur
+echte Leerergebnisse). Für die übrigen Domänen-Libs (`itunes`, `tastedive`, sowie die
+jfetch-Aufrufe in movies/books/games/boardgames/papers/podcasts) kurz bestätigen, dass
+kein `catch → return leer` *innerhalb* von `cached()` steht — sonst denselben Fix wie in
+`wiki.mjs`/`travel.mjs` anwenden.
+
+**Reihenfolge/Wirkung:** M1 (Music, größter Produktwert) → M2–M5 (starke zweite
+Straße) → M6 (Katalog-Achse, geringerer Hebel). Jede Domäne isoliert testbar; der
+Server nutzt `bridgeNeighbors()` bereits automatisch (`neighborsFor()`), sobald ein
+Pack es anbietet — kein Server-Umbau nötig.

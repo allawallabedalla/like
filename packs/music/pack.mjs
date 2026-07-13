@@ -128,6 +128,38 @@ export default {
     return { canonical: r.sourceName, similar: r.similar.map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })) };
   },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): ähnlicher Stil (Last.fm)
+  // PLUS „zusammen aufgetreten" (RA/Songkick/Setlist.fm). Erst dadurch findet die Brücke
+  // Verbindungen über GETEILTE BÜHNEN statt nur über Klang — das Booking-Signal von Like
+  // Music: Ketten wie „A —spielte mit— X —ähnlich— B" werden möglich, die reine Stil-
+  // Ähnlichkeit nie zusammenbringt. Die Auftritts-Quelle ist langsamer/wackliger als
+  // Last.fm, kommt darum „best effort" dazu und fällt bei Störung sauber auf reine
+  // Stil-Nachbarn zurück (kein Ausbremsen der Suche). Naben (Mega-Acts/Festivals, mit
+  // denen fast jeder gespielt hat) werden NICHT hier, sondern beim RANKING gedämpft:
+  // bridgeResult reichert die Kandidaten mit `listeners` an, und der „klein/spannend"-
+  // Regler (bridgeRanked) wertet Große ab — so bleibt die Suche billig (keine Extra-
+  // Hörer-Abfrage pro expandiertem Knoten).
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    const [simR, coR] = await Promise.all([
+      getSimilar(name, { limit: Math.min(limit, 50) }).catch(() => null),
+      coAppearances(name).catch(() => null),
+    ]);
+    const out = [], seen = new Set([name.toLowerCase()]);
+    const add = (nm, url, match) => { const k = String(nm || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: nm, url: url || null, match }); };
+    let canonical = name;
+    if (simR) {
+      canonical = simR.sourceName || name; seen.add(canonical.toLowerCase());
+      for (const s of simR.similar) add(s.name, s.url, s.match || 0.5); // Last.fm-Match 0..1
+    }
+    // Auftritts-Nachbarn: mehr geteilte Shows = stärkere Verbindung. Solide gewichtet,
+    // knapp unter perfekter Stil-Ähnlichkeit, damit beide Straßen fair zusammenspielen.
+    for (const c of (coR?.coacts || []).slice(0, 25)) {
+      const shows = Array.isArray(c.shows) ? c.shows.length : (c.weight || 1);
+      add(c.name, null, Math.min(0.85, 0.5 + 0.1 * shows));
+    }
+    return { canonical, list: out };
+  },
+
   // R14 — zweiphasiger Ausbau: Phase 1 (schnell, ~0,7-1 s) liefert Last.fm-Identität +
   // ähnlichen Stil + Tags; Phase 2 (langsam, RA-Kette) reicht "zusammen aufgetreten" +
   // kuratierte Genres + Booking nach. pack.explore() bleibt unverändert für Prefetch/
