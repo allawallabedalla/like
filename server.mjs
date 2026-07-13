@@ -1274,7 +1274,7 @@ const server = createServer(async (req, res) => {
       if (names.length > 800) return send(res, 400, { ok: false, error: "Karte zu groß zum Teilen (max. 800 Einträge)." });
       const pub = { meta: { shared: true, pack: pack.id, created: new Date().toISOString() }, artists: {}, edges: g.edges };
       for (const [id, a] of Object.entries(g.artists)) {
-        const { note, fee, status, statusChangedAt, basket, known, ...rest } = a; // privates bleibt privat
+        const { note, fee, status, statusChangedAt, basket, known, lists, ...rest } = a; // privates bleibt privat (inkl. Listen-Zugehörigkeit)
         pub.artists[id] = rest;
       }
       const sid = randomUUID().replace(/-/g, "").slice(0, 12);
@@ -1334,7 +1334,7 @@ const server = createServer(async (req, res) => {
           await writeFile(dataFile(dataRoot, pack.id, "graph.bak.json"), cur, "utf8");
         } catch { /* noch kein Graph vorhanden -> nichts zu sichern */ }
         const g = { meta: incoming.meta || { version: 1 }, artists: incoming.artists, edges: incoming.edges,
-          events: incoming.events || [], sources: incoming.sources || [] };
+          events: incoming.events || [], sources: incoming.sources || [], lists: Array.isArray(incoming.lists) ? incoming.lists : [] };
         await persist(g);
         const loaded = await loadGraph(GRAPH); // durch Migration/Bereinigung schicken
         return send(res, 200, { ok: true, artists: Object.keys(loaded.artists).length, graph: materialize(loaded) });
@@ -1350,7 +1350,7 @@ const server = createServer(async (req, res) => {
     // Servers direkt gegen graph.json).
 
     if (req.method === "POST" && url.pathname === "/api/artist") {
-      const { id, known, note, status, fee, basket } = await readBody(req);
+      const { id, known, note, status, fee, basket, list, inList } = await readBody(req);
       return withGraphLock(GRAPH, async () => {
         const g = await loadGraph(GRAPH);
         const a = g.artists[id];
@@ -1365,8 +1365,49 @@ const server = createServer(async (req, res) => {
         // der Korb lebte nur in localStorage und ging bei der Anon-zu-Konto-Migration verloren.
         if (typeof fee === "string") { const f = fee.trim().slice(0, 40); if (f) a.fee = f; else delete a.fee; }
         if (typeof basket === "boolean") { if (basket) a.basket = true; else delete a.basket; }
+        // v2.6: Like-Listen — Mitgliedschaft in einer benannten Liste setzen (ersetzt den Einzel-Korb).
+        if (typeof list === "string" && typeof inList === "boolean" && g.lists?.some((l) => l.id === list)) {
+          a.lists = Array.isArray(a.lists) ? a.lists.filter((x) => g.lists.some((l) => l.id === x)) : [];
+          if (inList) { if (!a.lists.includes(list)) a.lists.push(list); }
+          else a.lists = a.lists.filter((x) => x !== list);
+          if (!a.lists.length) delete a.lists;
+        }
         await persist(g);
         return send(res, 200, { ok: true, artist: a });
+      });
+    }
+
+    // v2.6: Like-Listen verwalten (anlegen / umbenennen / umfärben / löschen). Die Default-Liste
+    // ist geschützt (immer Ziel für „like"): sie lässt sich umbenennen/umfärben, aber nicht löschen.
+    if (req.method === "POST" && url.pathname === "/api/lists") {
+      const body = await readBody(req);
+      const action = String(body.action || "");
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        g.lists ??= [];
+        const okColor = (c) => /^#[0-9a-fA-F]{6}$/.test(String(c || ""));
+        if (action === "create") {
+          const name = String(body.name || "").trim().slice(0, 60) || "Liste";
+          const color = okColor(body.color) ? body.color : "#ff6a00";
+          const id = "l" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+          const list = { id, name, color, created: Date.now() };
+          g.lists.push(list);
+          await persist(g);
+          return send(res, 200, { ok: true, list, lists: g.lists });
+        }
+        const l = g.lists.find((x) => x.id === body.id);
+        if (!l) return send(res, 404, { error: "Liste unbekannt" });
+        if (action === "rename") { const nm = String(body.name || "").trim().slice(0, 60); if (nm) { l.name = nm; delete l.auto; } }
+        else if (action === "recolor") { if (okColor(body.color)) l.color = body.color; }
+        else if (action === "delete") {
+          if (l.id === "default") return send(res, 400, { error: "Default-Liste ist geschützt" });
+          g.lists = g.lists.filter((x) => x.id !== l.id);
+          for (const a of Object.values(g.artists)) { // Mitgliedschaften mit aufräumen
+            if (Array.isArray(a.lists) && a.lists.includes(l.id)) { a.lists = a.lists.filter((x) => x !== l.id); if (!a.lists.length) delete a.lists; }
+          }
+        } else return send(res, 400, { error: "unbekannte Aktion" });
+        await persist(g);
+        return send(res, 200, { ok: true, lists: g.lists });
       });
     }
 

@@ -16,6 +16,13 @@ z. B. E14) zusammen mit der Freischaltung angegangen.
 ---
 
 ## ✅ Erledigt (autonom, ohne Keys/Kosten)
+- **v2.6: Like-Listen** — mehrere benannte Sammel-Listen statt einem Einzel-Korb. Es gibt immer
+  genau eine *aktive* Liste (Umschalter im Korb-Kopf, Farbe am „like!"-Button) — dorthin landet
+  „like!"; das ▾ am Button bzw. langes Drücken öffnet einen Picker, um einen Act bewusst in
+  mehrere Listen zu legen. Listen-Zugehörigkeit als farbige Punkte am Knoten. Der alte Korb
+  (`a.basket`) wandert verlustfrei in die Default-Liste (Server-Migration + localStorage-Übernahme).
+  Datenmodell „klein": Mitgliedschaft je Act in `a.lists[]`, Listen-Definitionen in `graph.lists`;
+  Status/Gage/Notiz bleiben global (Pro-Liste-Status wäre die spätere Ausbaustufe).
 - Brücke als **Routenplaner**: bidirektionale Breitensuche mit Server-Sitzung
   (/api/bridge + /step + /stop) — kürzeste Verbindung zuerst, bis zu 7 Zwischenstationen;
   Fortschrittsbalken in der Brückenleiste, „Weitersuchen?"-Dialog nach 5/10/15/… Sekunden
