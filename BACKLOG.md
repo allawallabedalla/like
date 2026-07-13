@@ -802,7 +802,7 @@ weniger.
   und `1/log(backlinks)` als Feinschliff ins Ranking geben. Wenige Extra-Calls, nur
   dort, wo es zählt — die Suche selbst bleibt bei der billigen Heuristik aus B1.
 
-- [ ] **B3 — Best-first *innerhalb* der Ebene (A\*, Tempo).** Frontier von FIFO auf
+- [x] **B3 — Best-first *innerhalb* der Ebene (A\*, Tempo).** ✅ umgesetzt. Frontier von FIFO auf
   Prioritäts-Queue mit Schlüssel `(Tiefe zuerst, Score danach)` umstellen: innerhalb
   einer Tiefe die vielversprechenden Knoten zuerst expandieren (weniger API-Calls,
   schnellerer Fund) — Ebenen nie überspringen, damit „kürzeste zuerst" erhalten
