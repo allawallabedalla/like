@@ -127,9 +127,19 @@ export default {
   async bridgeNeighbors(name, { limit = 40 } = {}) {
     const hit = await resolve(name);
     if (!hit) return { canonical: name, list: [] };
+    // Wichtig: viele Links einbeziehen (nicht nur `limit`). `prop=links` liefert ALPHABETISCH
+    // sortiert — die ersten 40 sind ein zufälliger A–D-Ausschnitt, in dem der verbindende
+    // Nabe-Link (Land/Stadt) oft fehlt -> gar kein Treffpunkt (z. B. „Basler ↔ Bauhaus").
+    // Der Fetch holt ohnehin bis zu 500; wir schneiden großzügig. hubPenalty hält das Ranking
+    // sauber (Naben nur, wenn sie die einzige kurze Verbindung sind). Der eine Endpunkt-Fetch
+    // reicht so, um gemeinsame Naben sofort beim Start zu treffen.
+    // Endpunkte (Server ruft mit limit≈60): voller Link-Satz (bis 500) — die gemeinsame Nabe
+    // wird so schon beim Start getroffen. Tiefe Expansions-Knoten (limit≈40): moderater
+    // Deckel, damit die Frontier nicht explodiert.
+    const linkCap = limit >= 50 ? 500 : 150;
     const [sim, links] = await Promise.all([
       morelike(hit.lang, hit.title, { limit: 20 }),
-      pageLinks(hit.lang, hit.title, { limit }),
+      pageLinks(hit.lang, hit.title, { limit: linkCap }),
     ]);
     const out = [], seen = new Set([hit.title.toLowerCase()]);
     const add = (t, match) => { const k = t.toLowerCase(); if (seen.has(k)) return; seen.add(k); out.push({ name: t, url: wikiUrl(hit.lang, t), match }); };
