@@ -45,7 +45,7 @@ jobs:
       # alle Pack-Previews + Landing nach docs/ exportieren.
       - run: node scripts/gen-demos.mjs
       - run: node export-static.mjs --all
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
 
