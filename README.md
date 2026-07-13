@@ -204,7 +204,10 @@ bricht aber nie unbemerkt in eine Endlos-Suche aus. Die Kandidaten schweben als 
 **Geister-Kugeln** zwischen den beiden (kürzeste Route zuerst); ein Regler mischt von
 **naheliegend** (kürzeste, stärkste Verbindung) zu **klein/spannend** (Geheimtipp). Klick
 auf einen Geist fügt die ganze Kette samt Kanten ein. Funktioniert in allen Packs (bei
-Musik z.B. „welche:r kleine Act verbindet zwei Szenen?").
+Musik z.B. „welche:r kleine Act verbindet zwei Szenen?"). Bei **Like Anything** sucht die
+Brücke zusätzlich über die **Artikel-Links** (nicht nur „thematisch ähnlich") — so werden
+auch typübergreifende Verbindungen gefunden (z.B. „Mario Basler ↔ Istanbul" über gemeinsam
+verlinkte Themen), die die reine Ähnlichkeitssuche nie zusammenbringen würde.
 
 ## Feedback-Knopf (Pushover, optional)
 Ist ein **Pushover**-Zugang hinterlegt, erscheint oben ein **✉-Knopf**: Testuser können dir

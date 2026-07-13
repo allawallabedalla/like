@@ -771,3 +771,59 @@ platzierten Nachbarn (dorthin gehört er), sonst die Mitte; dann per Fermat-Spir
 (Goldwinkel) hinausrücken, bis kein Bestandsknoten mehr im Kollisionsabstand liegt.
 Gemessen: unverbundener Zweit-Seed 723 px Abstand, verbundener Seed 198 px (Bedarf 73) —
 vorher 0 (deckungsgleich). `npm run check` grün, Interactions/Pages 19 passed.
+## Runde 19 — Brücke als semantische Suchmaschine (2026-07-13)
+
+**Kontext:** Die Routenplaner-Brücke sucht bidirektional die kürzeste Verbindung
+und nutzt bei Anything seit PR #40 zwei „Straßen" (morelike + Artikel-Links).
+Nächster Schritt: die Verlinkungslogik wie eine **eigene kleine Suchmaschine**
+ranken — seltene, spezifische Verbindungen bevorzugen statt generischer Naben —
+**ohne** den Routenplaner-Kern zu brechen.
+
+**Leitprinzip (Routenplaner bleibt intakt):** „Wenigste Stationen" bleibt die
+**primäre** Sortierung; alle folgenden Signale wirken nur **sekundär** (welche der
+gleich-kurzen Routen ist die beste) bzw. steuern die **Expansionsreihenfolge
+innerhalb einer Tiefen-Ebene** (Tempo). Nie greedy quer über Ebenen. Naben werden
+**abgewertet, nie hart gelöscht** — ein Hub darf Brücke sein, wenn er *wirklich* die
+einzige kurze Verbindung ist, landet dann nur unten im Ranking. Das ist genau, wie
+ein echtes Navi (Dijkstra/A\* mit Kantenkosten) arbeitet — mehr Routenplaner, nicht
+weniger.
+
+- [x] **B1 — IDF-/Hub-Gewichtung der Links (weiches Abwerten).** Umgesetzt in PR
+  (siehe unten): generische Naben (Länder, Kontinente, Jahre/Zahlen, „Mensch",
+  „Sprache" …) über eine Stoppliste + Heuristik als Brückenknoten abwerten statt
+  entfernen. morelike wiegt am meisten, spezifische Links mittel, Hubs minimal. Das
+  bestehende Pfad-`strength`-Mittel rankt sinnvolle Brücken über Hub-Brücken —
+  während `via.length` (Stationen) die primäre Sortierung bleibt. Verhindert
+  „Basler ↔ Istanbul über *Deutschland*", ohne je eine kürzere Route zu verschweigen.
+
+- [ ] **B2 — Echte IDF nur an den Treffpunkten (billig, exakt).** Statt die Rarität
+  jedes Links zu schätzen: für die *wenigen* Kandidaten-Zwischenknoten am Ende die
+  echte Rückverlinkungszahl ziehen (`list=backlinks&bltitle=…&bllimit=max`, gecacht)
+  und `1/log(backlinks)` als Feinschliff ins Ranking geben. Wenige Extra-Calls, nur
+  dort, wo es zählt — die Suche selbst bleibt bei der billigen Heuristik aus B1.
+
+- [ ] **B3 — Best-first *innerhalb* der Ebene (A\*, Tempo).** Frontier von FIFO auf
+  Prioritäts-Queue mit Schlüssel `(Tiefe zuerst, Score danach)` umstellen: innerhalb
+  einer Tiefe die vielversprechenden Knoten zuerst expandieren (weniger API-Calls,
+  schnellerer Fund) — Ebenen nie überspringen, damit „kürzeste zuerst" erhalten
+  bleibt. Score = Nähe zum Gegenziel (geteilte Links/Kategorien).
+
+- [ ] **B4 — Lokaler Merkmalsvektor-Index („Embeddings ohne ML").** Pro geladenem
+  Artikel einen gewichteten Bag-of-Features (Titel-Tokens + Kategorien + Top-Links,
+  IDF-gewichtet) im Datei-Cache ablegen; Cosinus-Ähnlichkeit liefert eine semantische
+  Nähe ohne Key/Modell. Speist B3s Heuristik und bewertet fertige Brücken nach
+  **Kohärenz** (aufeinanderfolgende Knoten semantisch nah = besser lesbarer Pfad).
+  Wächst über die Zeit zu einem echten Index der erkundeten Nachbarschaft.
+
+- [ ] **B5 — Personalisierung + „Warum".** Brücken, die durch Knoten *nahe deinen
+  Likes* laufen, höher ranken (Teleport-Bias wie beim Radar). Und: den Treffpunkt
+  begründen — „Basler ↔ Istanbul verbindet: **Türkei** (Land) · **Galatasaray**
+  (Verein)", Typ aus der Kategorie abgeleitet. Reines Ranking/Anzeige — ändert die
+  Pfadlänge nie.
+
+- [ ] **B6 — Anchor-/Abschnitts-Kontext.** Links nach ihrem Wikitext-Abschnitt
+  gewichten (Karriere/Werk > Weblinks/Einzelnachweise). `travel.mjs` parst Abschnitte
+  bereits — dieselbe Technik für `pageLinks()` in `wiki.mjs`.
+
+**Reihenfolge/Wirkung:** B1 (größter Qualitätssprung, kleinstes Risiko) → B2/B3
+(Präzision + Tempo) → B4 (das „eigene Suchmaschine"-Herz) → B5/B6 (Politur).

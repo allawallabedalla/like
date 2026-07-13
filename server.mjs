@@ -588,8 +588,14 @@ async function hasApiKey(pack) {
   return false;
 }
 
-// "Ähnlich"-Nachbarn für die Brücke: nutzt das leichte pack.similar(), sonst explore().similar.
+// Nachbarn für die Brücke. Reihenfolge der Präferenz:
+//   1. pack.bridgeNeighbors() — BREITE Nachbarschaft eigens für die Brücke: neben „ähnlich"
+//      auch die Verknüpfungs-Relation der Domäne (bei Anything: Artikel-Links). Erst dadurch
+//      treffen sich getrennte „ähnlich"-Welten (Person ↔ Ort etc.).
+//   2. pack.similar() — leichte „ähnlich"-Liste
+//   3. explore().similar — Fallback
 async function neighborsFor(pack, name, limit) {
+  if (pack.bridgeNeighbors) { const r = await pack.bridgeNeighbors(name, { limit }); return { canonical: r.canonical || name, list: r.list || [] }; }
   if (pack.similar) { const r = await pack.similar(name, { limit }); return { canonical: r.canonical || name, list: r.similar || [] }; }
   const r = await pack.explore(name); return { canonical: r.canonical || name, list: (r.similar || []).slice(0, limit) };
 }
