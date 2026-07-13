@@ -618,8 +618,23 @@ function sweepBridges() { const now = Date.now(); for (const [id, s] of bridgeSe
 // Eine Suchfront: seen = alles Erreichte (mit Elternzeiger für die Pfad-Rekonstruktion),
 // queue = noch zu expandierende Einträge in BFS-Reihenfolge (nur Schlüssel).
 function bridgeSide(rootName) {
-  const seen = new Map([[bkey(rootName), { name: rootName, url: null, match: 1, parent: null, depth: 0 }]]);
+  const seen = new Map([[bkey(rootName), { name: rootName, url: null, match: 1, parent: null, depth: 0, str: 1 }]]);
   return { root: bkey(rootName), seen, queue: [] };
+}
+
+// B3 — A* INNERHALB der Tiefen-Ebene: Index des als Nächstes zu expandierenden Knotens der
+// Front. Primär die FLACHSTE Tiefe (Routenplaner-Garantie: kürzeste Route zuerst, nie eine
+// flachere Ebene überspringen), sekundär die stärkste kumulative Pfadstärke `str` (stärker
+// verknüpfte Zweige zuerst → die Suchfronten treffen sich mit weniger Abfragen). Reines
+// Umsortieren gleicher Tiefe — die Menge der erreichbaren Treffpunkte ändert sich nicht.
+function bridgeBestIndex(side) {
+  if (!side.queue.length) return -1;
+  let bi = 0, bn = side.seen.get(side.queue[0]);
+  for (let i = 1; i < side.queue.length; i++) {
+    const n = side.seen.get(side.queue[i]);
+    if (n.depth < bn.depth || (n.depth === bn.depth && n.str > bn.str)) { bi = i; bn = n; }
+  }
+  return bi;
 }
 
 // Nachbarliste eines expandierten Knotens in eine Seite einarbeiten; Begegnungen mit der
@@ -630,7 +645,8 @@ function bridgeAbsorb(s, side, fromNode, list) {
     const k = bkey(nb.name);
     if (s.skip.has(k)) continue;
     if (!side.seen.has(k)) {
-      side.seen.set(k, { name: nb.name, url: nb.url || null, match: nb.match || 0.5, parent: bkey(fromNode.name), depth: fromNode.depth + 1 });
+      const match = nb.match || 0.5;
+      side.seen.set(k, { name: nb.name, url: nb.url || null, match, parent: bkey(fromNode.name), depth: fromNode.depth + 1, str: fromNode.str * match });
       if (fromNode.depth + 1 < BRIDGE_DEPTH_MAX) side.queue.push(k);
     }
     if (other.seen.has(k)) s.meets.add(k);
@@ -662,11 +678,14 @@ function bridgeCandidate(s, key) {
 async function bridgeRunStep(pack, s) {
   const picks = [];
   for (let i = 0; i < BRIDGE_STEP_CALLS; i++) {
-    const da = s.A.queue.length ? s.A.seen.get(s.A.queue[0]).depth : Infinity;
-    const db = s.B.queue.length ? s.B.seen.get(s.B.queue[0]).depth : Infinity;
+    const ia = bridgeBestIndex(s.A), ib = bridgeBestIndex(s.B);
+    const da = ia < 0 ? Infinity : s.A.seen.get(s.A.queue[ia]).depth;
+    const db = ib < 0 ? Infinity : s.B.seen.get(s.B.queue[ib]).depth;
     if (da === Infinity && db === Infinity) break;
-    const side = da <= db ? s.A : s.B;
-    picks.push({ side, node: side.seen.get(side.queue.shift()) });
+    // flachere Front zuerst (Balance beider Suchtiefen); innerhalb der Ebene der stärkste Zweig
+    const side = da <= db ? s.A : s.B, idx = da <= db ? ia : ib;
+    const key = side.queue.splice(idx, 1)[0];
+    picks.push({ side, node: side.seen.get(key) });
   }
   await Promise.all(picks.map(async ({ side, node }) => {
     s.checked++;
@@ -679,7 +698,8 @@ async function bridgeRunStep(pack, s) {
 // (Genres + Popularität, wie bisher) und die Sitzung beendet.
 async function bridgeResult(pack, s) {
   const frontDepth = (side) => {
-    if (side.queue.length) return side.seen.get(side.queue[0]).depth;
+    // aktuelle Front = flachste noch offene Tiefe (queue ist seit B3 nicht mehr FIFO-sortiert)
+    if (side.queue.length) { let d = Infinity; for (const k of side.queue) { const dd = side.seen.get(k).depth; if (dd < d) d = dd; } return d; }
     let d = 0; for (const n of side.seen.values()) if (n.depth > d) d = n.depth;
     return Math.min(BRIDGE_DEPTH_MAX, d);
   };
@@ -694,9 +714,14 @@ async function bridgeResult(pack, s) {
   if (!done) return { ok: true, session: s.id, from: s.from, to: s.to, done: false, candidates: [], progress };
 
   bridgeSessions.delete(s.id);
-  let cands = [...s.meets].map((k) => bridgeCandidate(s, k)).filter(Boolean);
   // kürzeste zuerst (Routenplaner!), bei gleicher Länge die stärkste Verbindung
-  cands.sort((x, y) => x.via.length - y.via.length || y.strength - x.strength);
+  let cands = [...s.meets].map((k) => bridgeCandidate(s, k)).filter(Boolean)
+    .sort((x, y) => x.via.length - y.via.length || y.strength - x.strength);
+  // Dieselbe Kette kann über zwei Treffpunkte (beide Enden EINER Kante) doppelt auftauchen —
+  // nach Namensfolge deduplizieren, damit keine identischen Geister erscheinen. Dank Sortierung
+  // bleibt je Kette die kürzeste/stärkste Variante erhalten.
+  const seenVia = new Set();
+  cands = cands.filter((c) => { const key = c.via.map((v) => v.name.toLowerCase()).join("|"); if (seenVia.has(key)) return false; seenVia.add(key); return true; });
   cands = cands.slice(0, 20);
 
   const names = [...new Set(cands.flatMap((c) => c.via.map((v) => v.name)))];
