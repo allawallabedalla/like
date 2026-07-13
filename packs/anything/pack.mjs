@@ -5,7 +5,7 @@
 // Kategorien = „Genres", Seitenaufrufe = Popularität. Frei & ohne Key (Wikipedia).
 
 import {
-  resolve, suggest as wikiSuggest, morelike, mutualLinks, pageLinks,
+  resolve, suggest as wikiSuggest, morelike, mutualLinks, pageLinks, hubPenalty,
   pageInfo, categoryMembers, wikiUrl,
 } from "../../lib/wiki.mjs";
 import { surpriseFrom } from "../../lib/surprise.mjs";
@@ -134,7 +134,10 @@ export default {
     const out = [], seen = new Set([hit.title.toLowerCase()]);
     const add = (t, match) => { const k = t.toLowerCase(); if (seen.has(k)) return; seen.add(k); out.push({ name: t, url: wikiUrl(hit.lang, t), match }); };
     sim.forEach((t, i) => add(t, Math.max(0.4, 0.75 - i * 0.02)));   // „ähnlich" wiegt etwas mehr
-    links.forEach((t, i) => add(t, Math.max(0.25, 0.5 - i * 0.008))); // Links als zweite Straße
+    // Links als zweite Straße — aber generische Naben (Land/Jahr/Grundbegriff) per hubPenalty
+    // ABWERTEN (nicht entfernen): so ranken spezifische Brücken oben, ohne dass eine Nabe je
+    // als kürzeste Verbindung verschwiegen würde. Die Tiefe (Stationen) bleibt primär.
+    links.forEach((t, i) => add(t, Math.max(0.25, 0.5 - i * 0.008) * hubPenalty(t)));
     return { canonical: hit.title, list: out };
   },
 
