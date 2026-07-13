@@ -35,6 +35,22 @@ jobs:
       - name: Smoke (Config valide + Server-Boot je Pack)
         run: npm run check
 
+      # Playwright-Browser cachen: der ~150-MB-Chromium-Download vom Playwright-CDN lief bei
+      # JEDEM Lauf und stallte gelegentlich bis zum 20-Min-Timeout. Mit Cache (gekeyed auf die
+      # installierte Playwright-Version) entfällt der Download bei Cache-Hits komplett.
+      - name: Playwright-Version ermitteln
+        id: pwver
+        run: echo "v=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Playwright-Browser cachen
+        id: pwcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pwver.outputs.v }}
+
+      # Bei Cache-Hit ist Chromium schon da -> playwright install überspringt den Download,
+      # nur die System-Deps (apt) laufen kurz. Bei Miss: voller Download, der Cache füllt sich.
       - name: Playwright-Browser (Chromium) installieren
         run: npx playwright install --with-deps chromium
 
