@@ -190,6 +190,28 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): inhaltlich verwandt (S2/
+  // related_works) PLUS Ko-Autorschaft. Thematische Nähe bleibt im Feld; Ko-Autorschaft ist
+  // ein Kollaborations-Netzwerk, das Felder über gemeinsame Autor:innen verbindet (wie
+  // geteilte Bühnen bei Music). Beide Straßen best effort. Naben (hyper-produktive
+  // Autor:innen / Mega-Kollaborationen) werden beim Ranking über cited_by_count gedämpft.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let hit; try { hit = await searchWork(name); } catch { return { canonical: name, list: [] }; }
+    if (!hit) return { canonical: name, list: [] };
+    const canonical = display(hit);
+    const seen = new Set([canonical.toLowerCase()]), out = [];
+    const add = (nm, url, match) => { const k = String(nm || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: nm, url: url || null, match }); };
+    const authorIds = (hit.authorships || []).slice(0, 2).map((a) => shortId(a.author?.id)).filter(Boolean);
+    const [sim, coResults] = await Promise.all([
+      this.similar(name, { limit: 15 }).catch(() => ({ similar: [] })),
+      Promise.all(authorIds.map((aid) =>
+        cached("oa-authorworks", aid + "|8", 14 * 864e5, () => oa("/works", { filter: `author.id:${aid}`, sort: "cited_by_count:desc", "per-page": "8" })).catch(() => null))),
+    ]);
+    for (const s of sim.similar || []) add(s.name, s.url, s.match || 0.6);                 // inhaltlich verwandt
+    for (const j of coResults) for (const w of j?.results || []) add(display(w), w.id, 0.6); // Ko-Autorschaft
+    return { canonical, list: out };
+  },
+
   async explore(name) {
     const hit = await searchWork(name);
     if (!hit) throw new Error(`„${name}" nicht bei OpenAlex gefunden`);
