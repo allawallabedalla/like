@@ -5542,7 +5542,10 @@ async function doAuthSubmit() {
   if (authMode === "reset" && !recovery) { setAuthMsg(t("Bitte den Recovery-Code eingeben.")); return; }
   const path = authMode === "register" ? "/api/auth/register" : authMode === "reset" ? "/api/auth/reset" : "/api/auth/login";
   setAuthMsg("…", true);
-  let r; try { r = await POST(path, { username, password, recovery }); } catch { setAuthMsg(t("Netzwerkfehler.")); return; }
+  // parseRes() wirft bei jedem non-2xx (401 falsches Passwort, 429 gedrosselt, 4xx/5xx) — dann die
+  // ECHTE Servermeldung zeigen; nur ein tatsächlicher Verbindungsabbruch (ohne HTTP-Status) ist „Netzwerkfehler".
+  let r; try { r = await POST(path, { username, password, recovery }); }
+  catch (e) { setAuthMsg(e && e.status ? (e.message || t("Fehlgeschlagen.")) : t("Netzwerkfehler.")); return; }
   if (!r || !r.ok) { setAuthMsg((r && r.error) || t("Fehlgeschlagen.")); return; }
   if (r.recovery) alert(t("Dein Recovery-Code — JETZT sicher aufbewahren!\nNur damit kannst du dein Passwort zurücksetzen:\n\n") + r.recovery);
   // Der Server hat die aktuelle (anonyme) Karte bereits in den Account übernommen.
