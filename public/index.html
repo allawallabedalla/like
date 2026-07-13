@@ -5963,16 +5963,19 @@ function maybeShowIntro() {
 // ---- Spenden-Popup (freiwillig) ----
 // Aktiv NUR, wenn der Server eine Spenden-URL injiziert (window.LIKE_DONATE aus
 // LIKE_DONATE_URL, z. B. ein PayPal.me-Link) — lokal/Desktop/Static bleibt alles aus.
-// Ganz niedrigschwellig und freiwillig: nach jeweils 10 Minuten AKTIVER Nutzung erscheint
-// ein wegdrückbares Spenden-Popup mit transparenter Kostenliste. „Spenden"-Klick = 72
-// Stunden Ruhe; „Später"/✕ = in 10 Nutzungs-Minuten wieder. KEINE Sperre, nichts
+// Ganz niedrigschwellig und freiwillig: HÖCHSTENS EINMAL PRO SESSION (E12) — nach ein paar
+// Minuten aktiver Nutzung erscheint EINMAL ein wegdrückbares Spenden-Popup mit transparenter
+// Kostenliste; danach in dieser Session nie wieder (früher alle 10 Minuten -> zu penetrant).
+// „Spenden"-Klick = 72 Stunden Ruhe (geräteübergreifend bei eingeloggtem Konto); „Später"/✕
+// = weg für den Rest der Session, beim nächsten Besuch evtl. wieder. KEINE Sperre, nichts
 // Verpflichtendes — like bleibt immer voll nutzbar. „Aktiv" = Tab sichtbar und Eingabe in
-// den letzten 90 s. Zustand in localStorage („like_support").
+// den letzten 90 s. 72-h-Ruhe in localStorage („like_support"); das Einmal-pro-Session hält
+// eine In-Memory-Flag (kein localStorage nötig — eine neue Session = neuer Seitenaufruf).
 (function () {
   const D = window.LIKE_DONATE;
   if (!D || !D.url) return;
-  const NAG_EVERY = 10 * 60e3, QUIET_FOR = 72 * 3600e3, TICK = 30e3;
-  let S = { used: 0, lastNag: 0, quietUntil: 0 };
+  const SHOW_AFTER = 4 * 60e3, QUIET_FOR = 72 * 3600e3, TICK = 30e3; // E12: 1× pro Session nach ~4 aktiven Min
+  let S = { quietUntil: 0 };
   try { S = { ...S, ...JSON.parse(localStorage.getItem("like_support") || "{}") }; } catch {}
   const save = () => { try { localStorage.setItem("like_support", JSON.stringify(S)); } catch {} };
   // Konto-Kopplung: eingeloggt injiziert der Server den Spendenstatus (window.LIKE_SUPPORT) —
@@ -6011,13 +6014,14 @@ function maybeShowIntro() {
   modal.addEventListener("mousedown", (e) => { if (e.target === modal) hide(); });
   let lastAct = Date.now();
   ["pointerdown", "keydown", "wheel", "touchstart"].forEach((ev) => addEventListener(ev, () => { lastAct = Date.now(); }, { passive: true }));
+  let shownThisSession = false, sessionActive = 0; // In-Memory: reicht für „1× pro Session"
   function tick(ms) {
-    if (S.quietUntil > Date.now()) return;                        // gespendet -> Ruhe
+    if (shownThisSession) return;                                 // E12: pro Session nur einmal
+    if (S.quietUntil > Date.now()) return;                        // gespendet -> 72 h Ruhe
     if (document.hidden || Date.now() - lastAct > 90e3) return;   // inaktiv zählt nicht
     if (document.getElementById("intro").classList.contains("show")) return; // Erst-Tour nicht stören
-    S.used += ms;
-    if (S.used - S.lastNag >= NAG_EVERY) { S.lastNag = S.used; show(); }
-    save();
+    sessionActive += ms;
+    if (sessionActive >= SHOW_AFTER) { shownThisSession = true; show(); }
   }
   setInterval(() => tick(TICK), TICK);
   if (new URLSearchParams(location.search).get("e2e") === "1") window.__support = { tick, state: () => S, set: (v) => { S = { ...S, ...v }; save(); } };
