@@ -1,0 +1,35 @@
+# CodeQL (W3): statische Security-Analyse des JavaScript-/HTML-Codes. Eigener Workflow,
+# damit er den schnellen „test"-Job nicht ausbremst. Ergebnisse landen im Security-Tab
+# (öffentliches Repo -> Code Scanning ist kostenlos).
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 1" # wöchentlich, Montag früh
+
+jobs:
+  analyze:
+    name: Analyze (javascript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CodeQL initialisieren
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      # Reines JS/HTML -> kein Build nötig; init+analyze reicht.
+      - name: CodeQL-Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
