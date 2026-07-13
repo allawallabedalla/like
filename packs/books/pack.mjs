@@ -211,6 +211,26 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): thematisch ähnlich (Subjects/
+  // TasteDive) PLUS weitere Werke desselben Autors. Die Katalog-Straße ist dünner (bündelt
+  // nur ein Autor-Werk), erweitert aber die Reichweite („A —selber Autor— A2 —ähnlich— B").
+  // Best effort. Naben (Vielschreiber:innen) beim Ranking über die Merklisten-Zahl gedämpft.
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let doc; try { doc = await searchDoc(name); } catch { return { canonical: name, list: [] }; }
+    if (!doc) return { canonical: name, list: [] };
+    const canonical = display(doc);
+    const seen = new Set([canonical.toLowerCase()]), out = [];
+    const add = (nm, url, match) => { const k = String(nm || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: nm, url: url || null, match }); };
+    const author = doc.author_name?.[0];
+    const [sim, byAuthor] = await Promise.all([
+      this.similar(name, { limit: 20 }).catch(() => ({ similar: [] })),
+      author ? worksByAuthor(author, { limit: 10 }).catch(() => []) : Promise.resolve([]),
+    ]);
+    for (const s of sim.similar || []) add(s.name, s.url, s.match || 0.5);              // thematisch
+    for (const d of byAuthor) add(display(d), d.key ? OL + d.key : null, 0.5);          // selber Autor
+    return { canonical, list: out };
+  },
+
   async explore(name) {
     const doc = await searchDoc(name);
     if (!doc) throw new Error(`„${name}" nicht bei Open Library gefunden`);

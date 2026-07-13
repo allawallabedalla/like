@@ -187,6 +187,29 @@ export default {
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, das UNBEKANNTESTE gewinnt.
   async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
 
+  // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): BGG-Familie (Serie/Thema)
+  // PLUS weitere Spiele desselben Designers. Die Katalog-Straße ist dünner, erweitert aber
+  // die Reichweite („A —selber Designer— A2 —ähnlich— B"). Best effort. Naben (Vielschreiber-
+  // Designer) beim Ranking über die Bewertungszahl gedämpft. (Q1: „Fans Also Like" wäre die
+  // bessere zweite Straße — offen.)
+  async bridgeNeighbors(name, { limit = 40 } = {}) {
+    let id; try { id = await searchGame(name); } catch { return { canonical: name, list: [] }; }
+    if (!id) return { canonical: name, list: [] };
+    const item = await thing(id).catch(() => null);
+    if (!item) return { canonical: name, list: [] };
+    const nm = primaryName(item);
+    const seen = new Set([nm.toLowerCase()]), out = [];
+    const add = (n, url, match) => { const k = String(n || "").toLowerCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ name: n, url: url || null, match }); };
+    const designer = linksOf(item, "boardgamedesigner")[0];
+    const [sim, byDesigner] = await Promise.all([
+      this.similar(name, { limit: 20 }).catch(() => ({ similar: [] })),
+      designer ? gamesByDesigner(designer.id, { limit: 12 }).catch(() => []) : Promise.resolve([]),
+    ]);
+    for (const s of sim.similar || []) add(s.name, s.url, s.match || 0.6);                         // Familie
+    for (const g of byDesigner) add(g.name, `https://boardgamegeek.com/boardgame/${g.id}`, 0.5);   // selber Designer
+    return { canonical: display(nm, yearOf(item)), list: out };
+  },
+
   async explore(name) {
     const id = await searchGame(name);
     if (!id) throw new Error(`„${name}" nicht bei BoardGameGeek gefunden`);

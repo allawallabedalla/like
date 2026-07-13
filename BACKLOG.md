@@ -883,7 +883,7 @@ Person/Firma; als Brücken-Straße schwächer, hilft aber via „A —selber Aut
 —ähnlich— B"). Zusätzlich steckt das Verhaltenssignal hier oft schon halb in `similar()`
 (optionaler TasteDive-Key):
 
-- [ ] **M6 — Books (selber Autor), Games (selber Entwickler), Boardgames (selber
+- [x] **M6 — Books (selber Autor), Games (selber Entwickler), Boardgames (selber
   Designer/Verlag), Podcasts (selber Anbieter).** Zweite Straße dünner, aber je
   ein `bridgeNeighbors()` = similar + together erweitert die Reichweite messbar.
   Naben-Strafe: Mega-Verlag/-Studio/-Netzwerk mit riesigem Katalog über die
