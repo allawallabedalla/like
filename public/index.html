@@ -276,6 +276,9 @@
   .neighbors .nb { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line-soft);
     cursor: pointer; }
   .neighbors .nb:hover { color: var(--muted); }
+  /* „+K weitere laden" — dezenter Akzent-Link unter der Ähnlich-Liste */
+  .neighbors .nb.morelink { justify-content: flex-start; color: var(--accent); font-size: 12px; }
+  .neighbors .nb.morelink:hover { color: var(--accent); text-decoration: underline; }
   .neighbors .nb small { color: var(--muted); }
   .neighbors .nb small.wo { cursor: pointer; white-space: nowrap; }
   .neighbors .nb small.wo:hover { color: var(--text); }
@@ -1449,6 +1452,8 @@ const T = LANG !== "en" ? null : {
   "„{N}\" entfernt": "\"{N}\" removed",
   "Keine Klangprobe für „{N}\" gefunden": "No preview found for \"{N}\"",
   "noch nichts geladen": "nothing loaded yet",
+  "{K} weitere laden": "load {K} more", "＋ {K} weitere laden": "＋ load {K} more",
+  "Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang": "Show more saved similar acts — no fresh loading",
   "Lade …": "Loading …", "Konnte nicht laden.": "Couldn't load.",
   "Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.": "No likes yet — explore and mark a few entries, then your cross-domain profile appears here.",
   "Themen, die deine Welten <b>verbinden</b>:": "Themes that <b>connect</b> your worlds:",
@@ -1873,6 +1878,7 @@ const API = {
   taste: () => GET("/api/taste"),
   crossbridge: (name) => POST("/api/crossbridge", { name }),
   artist: (body) => POST("/api/artist", body),
+  reveal: (id) => POST("/api/reveal", { id }), // „+K laden": geparkte Nachbarn eines Acts nachholen
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
   demo: () => GET("/api/demo"),
   lastfmImport: (user) => POST("/api/lastfm-import", { user }),
@@ -2201,6 +2207,7 @@ function rebuild(prev, reheatAmt = 1) {
       status: a.status || "", statusChangedAt: a.statusChangedAt || null, fee: a.fee || "",
       booking: a.booking || null, active: !!a.active,
       genres: a.genres || [], explored: !!a.explored,
+      pending: a.pending?.length || 0, // Warteliste: noch nicht gezeigte „ähnlich"-Nachbarn (Fan-out-Deckel)
       listeners: a.listeners ?? null, bcLocation: a.bcLocation || null,
       deg: deg[a.id] || 0,
       x: old?.x ?? null, y: old?.y ?? null, // neue Knoten werden unten platziert
@@ -2952,6 +2959,19 @@ function draw() {
       ctx.globalAlpha = (faded ? 0.2 : 1) * ap; ctx.fillStyle = getCss("--text");
       ctx.font = `${12 / view.k}px ${CANVAS_FONT}`; ctx.textAlign = "center";
       ctx.fillText("★", n.x - r * 0.9, n.y - r * 0.7);
+    }
+    // „+K": geparkte Nachbarn (Fan-out-Deckel) — kleiner Akzent-Punkt unten rechts, mit „+K"-Zahl
+    // daneben, sobald genug herangezoomt (sonst nur der Punkt, damit die Übersicht ruhig bleibt).
+    if (n.pending && !n.venue) {
+      const bx = n.x + r * 0.78, by = n.y + r * 0.78;
+      ctx.globalAlpha = (faded ? 0.3 : 1) * ap; ctx.fillStyle = getCss("--accent");
+      ctx.beginPath(); ctx.arc(bx, by, 2.6 / view.k, 0, 7); ctx.fill();
+      if (view.k > 0.6) {
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.font = `600 ${9 / view.k}px ${CANVAS_FONT}`;
+        ctx.fillText("+" + n.pending, bx + 4 / view.k, by);
+        ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      }
     }
     if (busyId === n.id || expandPulse.has(n.id) || togetherPending.has(n.id)) {
       // togetherPending (R14): Phase 2 lädt noch — der Ring pulsiert ruhiger weiter,
@@ -3723,7 +3743,28 @@ function selectNode(n) {
   const rows = links.filter(l => l.a.id === n.id || l.b.id === n.id)
     .map(l => ({ other: l.a.id === n.id ? l.b : l.a, w: l.weight, type: l.type, shows: l.shows || [] }));
   fillNeighbors("nbSimilar", rows.filter(r => r.type === "similar").sort((a, b) => b.w - a.w), r => `${(r.w * 100 | 0)}%`);
+  appendRevealBtn(n); // „+K weitere ähnliche laden", falls beim Ausbau Nachbarn geparkt wurden
   fillTogether(rows.filter(r => r.type !== "similar").sort((a, b) => b.w - a.w));
+}
+// Warteliste-Button unter die „Ähnlicher Stil"-Liste hängen (nur wenn es geparkte Nachbarn gibt).
+function appendRevealBtn(n) {
+  const el = document.getElementById("nbSimilar");
+  if (!el || !n.pending || STATIC) return;
+  const b = document.createElement("div");
+  b.className = "nb morelink";
+  b.innerHTML = `<span>＋ ${tf("{K} weitere laden", { K: n.pending })}</span>`;
+  b.title = t("Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang");
+  b.onclick = () => revealMore(n);
+  el.appendChild(b);
+}
+// Geparkte Nachbarn eines Acts in die Karte holen (server-seitig gemergt, kein Netz-Aufruf).
+async function revealMore(n) {
+  if (!n || !n.pending || STATIC) return;
+  const live = nodeById.get(n.id); if (live) live.pending = 0; // sofort entschärfen (kein Doppelklick)
+  try {
+    const r = await API.reveal(n.id);
+    if (r?.graph) reload(n.name, { graph: r.graph, center: false, reheatAmt: 0.7 });
+  } catch { toast(t("Konnte nicht laden.")); }
 }
 function fillNeighbors(id, rows, tag) {
   const el = document.getElementById(id);
@@ -4277,11 +4318,13 @@ function showCtx(n, x, y) {
     // Fixieren) bleiben dem Booking-Modus vorbehalten.
     ["Weiter erkunden", () => exploreByName(n.name)],
     ["Details öffnen", () => selectNode(n)],
+    ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
     likeItem,
     ["Entfernen", () => removeNode(n)],
   ] : [
     ["Weiter erkunden", () => exploreByName(n.name)],
     ["Details öffnen", () => selectNode(n)],
+    ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
     likeItem,
     [compareSet.has(n.id) ? "Aus Vergleich" : "Zum Vergleich", () => toggleCompare(n)],

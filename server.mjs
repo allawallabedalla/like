@@ -64,6 +64,9 @@ function mergeShows(a = [], b = []) {
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.LIKE_DATA_DIR || ROOT;
+// Fan-out je ＋-Ausbau: so viele „ähnlich"-Nachbarn kommen sofort in die Karte; der Rest wartet
+// als Warteliste (a.pending) und wird per „+K laden" nachgeholt. Klein halten hält die Karte lesbar.
+const EXPLORE_SHOW = Math.max(1, Number(process.env.LIKE_EXPLORE_SHOW) || 10);
 const PORT = process.env.PORT || 5173;
 // Bind-Host: lokal/Desktop = loopback (Server + eingebetteter Key nicht im LAN sichtbar).
 // Gehostet (Docker/Render) HOST=0.0.0.0 setzen, damit der Plattform-Proxy den Container erreicht.
@@ -1101,10 +1104,20 @@ const server = createServer(async (req, res) => {
         if (r.genres?.length) src.genres = r.genres.slice(0, 6);
         if (r.meta) { src.booking = r.meta; }
         if (r.active !== undefined) src.active = r.active;
-        for (const s of (r.similar || []).slice(0, 25)) {
+        // Fan-out drosseln: nur die Top-N stärksten „ähnlich"-Nachbarn kommen sofort in die
+        // Karte, der Rest (bis zum bisherigen 25er-Deckel) wird als Warteliste am Act geparkt
+        // und per „+K laden" (/api/reveal) nachgeholt — ohne erneuten Netz-Aufruf. Verhindert
+        // das Zumüllen der Karte pro ＋, ohne Information zu verlieren. „zusammen aufgetreten"
+        // bleibt voll (weniger Knoten, und die orange Kante ist das Alleinstellungsmerkmal).
+        const sims = (r.similar || []);
+        for (const s of sims.slice(0, EXPLORE_SHOW)) {
           const t = upsertArtist(g, { name: s.name, url: s.url, mbid: s.mbid || null });
           addEdge(g, src.id, t.id, "similar", s.match || 0.5, r.similarSource || pack.id);
         }
+        const rest = sims.slice(EXPLORE_SHOW, 25)
+          .filter((s) => { const tid = slug(s.name); return tid && tid !== src.id && !g.edges.some((e) => e.from === src.id && e.to === tid && e.type === "similar"); });
+        if (rest.length) { src.pending = rest.map((s) => ({ name: s.name, url: s.url || null, mbid: s.mbid || null, match: s.match || 0.5 })); src.pendingSource = r.similarSource || pack.id; }
+        else { delete src.pending; delete src.pendingSource; }
         for (const c of (r.together || []).slice(0, 25)) {
           const t = upsertArtist(g, { name: c.name, url: c.url });
           addEdge(g, src.id, t.id, "together", c.weight || 1, r.togetherSource || pack.id, c.shows);
@@ -1147,6 +1160,26 @@ const server = createServer(async (req, res) => {
         }
         await persist(g);
         return send(res, 200, { ok: true, name: src.name, together: (r2.together || []).length, sources: r2.sources || [], graph: materialize(g) });
+      });
+    }
+
+    // „+K laden": die beim Ausbau geparkte Warteliste (a.pending) eines Acts in die Karte holen.
+    // Rein aus gespeicherten Daten gemergt — KEIN Netz-Aufruf, sofort da.
+    if (req.method === "POST" && url.pathname === "/api/reveal") {
+      const { id } = await readBody(req);
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const src = g.artists[id];
+        if (!src) return send(res, 404, { error: "Eintrag unbekannt" });
+        const pend = Array.isArray(src.pending) ? src.pending : [];
+        const source = src.pendingSource || pack.id;
+        for (const s of pend) {
+          const t = upsertArtist(g, { name: s.name, url: s.url || null, mbid: s.mbid || null });
+          addEdge(g, src.id, t.id, "similar", s.match || 0.5, source);
+        }
+        delete src.pending; delete src.pendingSource;
+        await persist(g);
+        return send(res, 200, { ok: true, revealed: pend.length, graph: materialize(g) });
       });
     }
 
@@ -1274,7 +1307,7 @@ const server = createServer(async (req, res) => {
       if (names.length > 800) return send(res, 400, { ok: false, error: "Karte zu groß zum Teilen (max. 800 Einträge)." });
       const pub = { meta: { shared: true, pack: pack.id, created: new Date().toISOString() }, artists: {}, edges: g.edges };
       for (const [id, a] of Object.entries(g.artists)) {
-        const { note, fee, status, statusChangedAt, basket, known, ...rest } = a; // privates bleibt privat
+        const { note, fee, status, statusChangedAt, basket, known, pending, pendingSource, ...rest } = a; // privates + Warteliste bleiben draußen
         pub.artists[id] = rest;
       }
       const sid = randomUUID().replace(/-/g, "").slice(0, 12);
