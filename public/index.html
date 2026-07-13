@@ -2297,6 +2297,11 @@ function seededUnit(str) {
 }
 const seededRnd = (id, salt = "") => seededUnit(id + "|" + salt);
 
+// Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label). Global, weil sowohl die
+// Spawn-Platzsuche (freeSpot in rebuild) als auch die Layout-Kollision (tick) sie brauchen —
+// vorher nur lokal in tick() definiert -> „COLLIDE_PAD is not defined" beim Spawnen (R18).
+const COLLIDE_PAD = 30;
+
 function rebuild(prev, reheatAmt = 1) {
   const arts = Object.values(graph.artists);
   // v2.6: Listen-Definitionen übernehmen + „basket" = Mitglieder der AKTIVEN Liste ableiten.
@@ -2599,8 +2604,7 @@ function tick() {
   // Energie stärker dämpfen (0.68 bei alpha=1), bei niedriger fast wie bisher (0.82 bei 0.2)
   // -> die Welle wird abgefangen, der lebendige Ausklang bleibt. Gemessen −31 % Jitter.
   const REP = 8800, SPRING = 0.012, DAMP = 0.86 - 0.18 * Math.min(1, alpha), CUT = 460, CUT2 = CUT * CUT;
-  const COLLIDE_PAD = 30; // Mindestluft zwischen zwei Kugeln (Radien + Puffer fürs Label)
-  const n = nodes.length;
+  const n = nodes.length; // COLLIDE_PAD ist jetzt global (siehe oben)
   // Dichte-Ausgleich: bei vielen Knoten das ganze Gerüst luftiger auseinanderziehen (Feder-
   // Ruhelängen länger, Zentrums-Sog schwächer) — sonst klumpen die Sonnen mit ihren Halos zu
   // einem wilden Knäuel. ~sqrt(n), damit die Fläche ungefähr mit der Knotenzahl mitwächst.
