@@ -407,6 +407,10 @@
   .bridgebar .blabels { display: flex; justify-content: space-between; font-size: 10px;
     letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   .bridgebar .bhint { font-size: 11px; color: var(--muted); }
+  /* B5 „Warum": erklärt die aktuell oberste Verbindung (Treffpunkt + gemeinsames Thema) */
+  .bridgebar .bwhy { font-size: 11px; color: var(--text); line-height: 1.4; }
+  .bridgebar .bwhy:empty { display: none; }
+  .bridgebar .bwhy b { font-weight: 600; }
   /* Fortschrittsbalken der Routenplaner-Suche (Balken füllt sich bis zur nächsten Nachfrage) */
   .bridgebar .bprog { width: 100%; height: 5px; background: var(--line-soft); border-radius: 3px; overflow: hidden; }
   .bridgebar .bprog i { display: block; height: 100%; width: 0%; background: var(--accent); transition: width .15s linear; }
@@ -907,6 +911,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <div class="bprog" id="bridgeProg" style="display:none"><i id="bridgeProgFill"></i></div>
     <input type="range" id="bridgeSlider" min="0" max="100" value="50" title="Reihenfolge der Brücken-Kandidaten">
     <div class="blabels"><span>naheliegend</span><span id="bridgeSpicy">spannend</span></div>
+    <div class="bwhy" id="bridgeWhy"></div>
     <div class="bhint" id="bridgeHint">Klick einen der hellen Kandidaten, um ihn einzufügen.</div>
   </div>
 
@@ -1373,6 +1378,8 @@ const T = LANG !== "en" ? null : {
   // Brücke
   "Brücke": "Bridge", "naheliegend": "obvious", "spannend": "adventurous", "Abbrechen": "Cancel",
   "Reihenfolge der Brücken-Kandidaten": "Order of bridge candidates",
+  "Verbindet {A} und {B} über {V}": "Connects {A} and {B} via {V}",
+  "gemeinsam: {G}": "shared: {G}",
   "Klick einen der hellen Kandidaten, um ihn einzufügen.": "Click one of the bright candidates to insert it.",
   "Suche Route: {A} ↔ {B}": "Finding route: {A} ↔ {B}",
   "Suche von beiden Enden gleichzeitig — die erste Begegnung ist die kürzeste Verbindung.": "Searching from both ends at once — the first meeting point is the shortest connection.",
@@ -4617,6 +4624,7 @@ function showBridgeSearching() {
   document.getElementById("bridgeProgFill").style.width = "0%";
   document.getElementById("bridgeSlider").style.display = "none";
   bar.querySelector(".blabels").style.display = "none";
+  document.getElementById("bridgeWhy").innerHTML = ""; // „Warum" erst im Ergebnis-Modus
   document.getElementById("bridgeHint").textContent = t("Suche von beiden Enden gleichzeitig — die erste Begegnung ist die kürzeste Verbindung.");
   bar.classList.add("show");
 }
@@ -4725,7 +4733,26 @@ function showBridgeBar() {
   // "spannend" heißt klein — beim Musik-Pack "Hörer", sonst der Popularitätsbegriff des Packs
   document.getElementById("bridgeSpicy").textContent = t(CFG.popularity ? "klein" : "spannend");
   const sl = document.getElementById("bridgeSlider"); sl.value = Math.round(bridge.sort * 100);
+  updateBridgeWhy();
   bar.classList.add("show");
+}
+// B5 „Warum": erklärt die aktuell OBERSTE Verbindung — worüber sie läuft und (falls
+// bekannt) das gemeinsame Thema mit beiden Enden. Aktualisiert sich mit dem Regler.
+function updateBridgeWhy() {
+  const el = document.getElementById("bridgeWhy"); if (!el) return;
+  if (!bridge || !bridge.cands || !bridge.cands.length) { el.innerHTML = ""; return; }
+  const c = bridgeRanked()[0]; if (!c) { el.innerHTML = ""; return; }
+  const overVia = `<b>${c.via.map((v) => esc(v.name)).join(" → ")}</b>`;
+  // gemeinsames Thema: Genres der Zwischen-Einträge, die auch an einem Endpunkt vorkommen
+  const endG = new Set([...(bridge.a.genres || []), ...(bridge.b.genres || [])].map((g) => String(g).toLowerCase()));
+  const shared = [], seenG = new Set();
+  for (const v of c.via) for (const g of (v.genres || [])) {
+    const k = String(g).toLowerCase();
+    if (endG.has(k) && !seenG.has(k)) { seenG.add(k); shared.push(g); }
+  }
+  let txt = tf("Verbindet {A} und {B} über {V}", { A: esc(bridge.a.name), B: esc(bridge.b.name), V: overVia });
+  if (shared.length) txt += " · " + tf("gemeinsam: {G}", { G: esc(shared.slice(0, 3).join(", ")) });
+  el.innerHTML = txt;
 }
 // A und B (und die Geister dazwischen) sichtbar machen, falls sie weit auseinanderliegen
 function fitBridgeIntoView() {
@@ -4933,7 +4960,7 @@ basketBtnEl.addEventListener("pointerdown", () => { likeLongPressed = false; cle
 ["pointerup", "pointerleave", "pointercancel"].forEach(ev => basketBtnEl.addEventListener(ev, () => clearTimeout(likePressTimer)));
 document.getElementById("bridgeBtn").onclick = () => { if (selected) startBridge(selected); };
 document.getElementById("bridgeClose").onclick = clearBridge;
-document.getElementById("bridgeSlider").oninput = (e) => { if (bridge) { bridge.sort = e.target.value / 100; requestDraw(); } };
+document.getElementById("bridgeSlider").oninput = (e) => { if (bridge) { bridge.sort = e.target.value / 100; updateBridgeWhy(); requestDraw(); } };
 function removeNode(n) { selected = n; document.getElementById("removeAct").click(); }
 
 // ---- Autocomplete ----
