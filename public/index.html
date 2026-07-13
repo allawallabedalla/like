@@ -2821,6 +2821,9 @@ function draw() {
   if (showEdges) for (const l of links) {
     if (!edgeInView(l)) continue; // W12: Kanten-Bounding-Box komplett außerhalb -> nicht zeichnen
     if (hidden(l.a.id) || hidden(l.b.id)) continue;
+    // Doppel-Verknüpfung (ähnlich UND zusammen): die „zusammen"-Kante NICHT eigenständig zeichnen —
+    // sie wird beim „ähnlich"-Partner als gestrichelte Linie ÜBER die volle gelegt (s. u.).
+    if (l._par === -1) continue;
     const key = l.a.id < l.b.id ? l.a.id + "|" + l.b.id : l.b.id + "|" + l.a.id;
     const onPath = pe && pe.has(key);
     const hot = onPath || (selected && (l.a.id === selected.id || l.b.id === selected.id));
@@ -2838,15 +2841,19 @@ function draw() {
     ctx.globalAlpha = (hot ? 1 : ((selected || hi || pe || bridgeActive) ? 0.06 : aBase)) * ea * linkFade;
     ctx.lineWidth = (hot ? base + 1.4 : base) / view.k;
     ctx.beginPath();
-    if (l._par) {
-      // E10: gegenläufig gebogene Kurven für Parallelkanten — Versatz senkrecht zur Achse,
-      // proportional zur Distanz (gedeckelt), im Weltraum, zoomt also natürlich mit.
-      const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, d = Math.hypot(dx, dy) || 1;
-      const off = Math.min(26, d * 0.16) * l._par;
-      ctx.moveTo(l.a.x, l.a.y);
-      ctx.quadraticCurveTo((l.a.x + l.b.x) / 2 - dy / d * off, (l.a.y + l.b.y) / 2 + dx / d * off, l.b.x, l.b.y);
-    } else { ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); }
+    ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y);
     ctx.stroke();
+    // Doppel-Verknüpfung (ähnlich UND zusammen): dieselbe Gerade zusätzlich GESTRICHELT in der
+    // „zusammen"-Farbe drüberlegen — liest sich als „gestrichelt über voll" auf EINER Linie.
+    if (l._par === 1) {
+      ctx.save();
+      ctx.strokeStyle = onPath ? getCss("--text") : cTog;
+      ctx.globalAlpha = (hot ? 1 : (selected || hi || pe || bridgeActive) ? 0.06 : 0.62) * ea * linkFade;
+      ctx.setLineDash([7 / view.k, 5 / view.k]);
+      ctx.lineWidth = (hot ? 2.6 : 1.9) / view.k;
+      ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke();
+      ctx.restore();
+    }
   }
   ctx.globalAlpha = 1;
 
@@ -4208,11 +4215,7 @@ function edgeAt(p) {
     const len2 = dx * dx + dy * dy || 1, dlen = Math.sqrt(len2);
     let tt = ((wm.x - ax) * dx + (wm.y - ay) * dy) / len2;
     if (tt < 0.1 || tt > 0.9) continue;
-    let px2 = ax + dx * tt, py2 = ay + dy * tt;
-    if (l._par) { // Abweichung der Quadratic-Kurve von der Geraden: 2t(1−t)·off, senkrecht
-      const dev = Math.min(26, dlen * 0.16) * l._par * 2 * tt * (1 - tt);
-      px2 -= dy / dlen * dev; py2 += dx / dlen * dev;
-    }
+    const px2 = ax + dx * tt, py2 = ay + dy * tt; // Kanten sind gerade (Doppel-Paare liegen aufeinander) -> kein Kurven-Versatz
     const dd = Math.hypot(wm.x - px2, wm.y - py2);
     if (dd < bestD) { bestD = dd; best = l; }
   }
