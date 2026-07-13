@@ -27,6 +27,13 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
+      # Security-Audit (W3): informativ, nicht blockierend. Das Produkt ist zero-dependency;
+      # hier geht es um die Build-/Test-devDeps. High/Critical erscheinen im Log, blocken aber
+      # keinen Produkt-Merge (Dependabot liefert die eigentlichen Update-PRs).
+      - name: Sicherheits-Audit (npm)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
       - name: Syntax-Check (alle .mjs)
         run: |
           find server.mjs lib packs scripts -name '*.mjs' -print0 \
