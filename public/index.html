@@ -2,9 +2,12 @@
 <html lang="de">
 <head>
 <meta charset="utf-8" />
-<!-- Kein maximum-scale/user-scalable=no: die Karte selbst handhabt Pinch/Pan schon per JS
-     (#cv hat touch-action:none), die Sperre blockierte nur unnötig das Zoomen der Text-Panels. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<!-- Seiten-Zoom gesperrt (maximum-scale=1, user-scalable=no): #cv handhabt Pinch/Pan der
+     KARTE selbst per JS (touch-action:none). Ohne die Sperre zoomt aber ein Pinch AUSSERHALB
+     des Canvas (Topbar, Panels, leere Flächen) die ganze Seite — dann verrutschen die fixierten
+     Panels und die Topbar wird oben abgeschnitten (Mobile-Layout bricht). Karte hat eigenen
+     Zoom (+/−/Fit); wer Text vergrößern will, nutzt die System-Zoom-Funktion. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Like</title>
 <!-- PWA / iPhone: installierbar über „Zum Home-Bildschirm", Vollbild ohne Browser-Leiste -->
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -3780,6 +3783,16 @@ cv.addEventListener("wheel", (e) => {
 
 // ---- Touch (iPhone/iPad/Android) ----
 // Ein Finger: schieben / Knoten ziehen / Tippen = wählen / Doppeltipp = erkunden /
+// Seiten-Pinch-Zoom auf iOS unterbinden: das Viewport-Meta (user-scalable=no) reicht auf
+// iOS Safari NICHT — Safari erlaubt Pinch aus Barrierefreiheits-Gründen trotzdem. Ein Pinch
+// AUSSERHALB der Karte (Topbar/Panels/leere Fläche) zoomt dann die ganze Seite, wodurch die
+// fixierten Panels verrutschen und die Topbar oben abgeschnitten wird (Mobile-Layout bricht).
+// Die iOS-eigenen gesture*-Events global abzufangen blockt genau diesen Seiten-Zoom; die
+// Karte selbst nutzt Touch-Events (nicht gesture*), ihr Pinch/Pan bleibt also unberührt.
+// (System-Zoom von iOS bleibt möglich — reine Barrierefreiheit auf OS-Ebene.)
+["gesturestart", "gesturechange", "gestureend"].forEach((ev) =>
+  document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+
 // langes Drücken = Kontextmenü. Zwei Finger: Pinch-Zoom + gleichzeitiges Schieben.
 // preventDefault schon bei touchstart -> wir besitzen die Geste komplett (kein Seiten-Scroll,
 // kein Doppeltipp-Browser-Zoom, keine Maus-Emulation, die die Maus-Handler doppelt auslöst).
