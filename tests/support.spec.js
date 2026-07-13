@@ -1,8 +1,9 @@
-// Spenden-Popup (freiwillig): erscheint nach 10 Minuten AKTIVER Nutzung, ist wegdrückbar
-// („Später" -> nach weiteren 10 Minuten wieder), „Spenden"-Klick schafft 72 Stunden Ruhe.
-// Aktiv nur mit injizierter Spenden-URL (window.LIKE_DONATE) — ohne sie existiert das Modul
-// nicht (Desktop/lokal/Static bleiben unberührt). Läuft im STATIC-Modus mit Zeit-Hooks
-// (window.__support bei ?e2e=1), damit keine echten 10 Minuten vergehen müssen.
+// Spenden-Popup (freiwillig): erscheint HÖCHSTENS EINMAL PRO SESSION nach ein paar Minuten
+// AKTIVER Nutzung (E12), ist wegdrückbar und kommt in derselben Session NICHT wieder;
+// „Spenden"-Klick schafft 72 Stunden Ruhe. Aktiv nur mit injizierter Spenden-URL
+// (window.LIKE_DONATE) — ohne sie existiert das Modul nicht (Desktop/lokal/Static bleiben
+// unberührt). Läuft im STATIC-Modus mit Zeit-Hooks (window.__support bei ?e2e=1), damit
+// keine echten Minuten vergehen müssen.
 const { test, expect } = require("@playwright/test");
 const { pathToFileURL } = require("node:url");
 const path = require("node:path");
@@ -22,16 +23,22 @@ async function openApp(page, withDonate) {
 const useMinutes = (page, min) => page.evaluate((m) => { for (let i = 0; i < m * 2; i++) window.__support.tick(30e3); }, min);
 
 test.describe("Spenden-Popup (freiwillig)", () => {
-  test("nach 10 Nutzungs-Minuten da; Später -> 10 Min später wieder; Spenden -> 72 Std Ruhe", async ({ page }) => {
+  test("einmal pro Session nach ein paar aktiven Minuten; Später -> bleibt für die Session weg", async ({ page }) => {
     await openApp(page, true);
     await expect(page.locator("#supportModal")).not.toHaveClass(/show/); // Start: kein Popup
-    await useMinutes(page, 10);
+    await useMinutes(page, 5);                                           // > SHOW_AFTER (4 Min)
     await expect(page.locator("#supportModal")).toHaveClass(/show/);
     await expect(page.locator("#supportDonate")).toHaveAttribute("href", /paypal\.me/);
-    // Später -> zu, nach weiteren 10 Minuten wieder da
+    // Später -> zu, und in DIESER Session NICHT wieder (E12: nur 1× pro Session)
     await page.locator("#supportLater").click();
     await expect(page.locator("#supportModal")).not.toHaveClass(/show/);
-    await useMinutes(page, 10);
+    await useMinutes(page, 20);
+    await expect(page.locator("#supportModal")).not.toHaveClass(/show/);
+  });
+
+  test("Spenden-Klick beim ersten Zeigen -> 72 Std Ruhe", async ({ page }) => {
+    await openApp(page, true);
+    await useMinutes(page, 5);
     await expect(page.locator("#supportModal")).toHaveClass(/show/);
     // Spenden-Klick (Navigation unterdrückt) -> zu + 72 Std Ruhe
     await page.evaluate(() => {
