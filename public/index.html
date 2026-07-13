@@ -785,9 +785,24 @@
   html[lang="en"] body.funmode #helpBtn::after { content: "Help"; }
   html[lang="en"] body.funmode #moreBtn::after { content: "Menu"; }
   html[lang="en"] body.funmode #tidyBtn::after { content: "Tidy up"; }
+  /* Ladescreen: liegt sofort beim Öffnen über allem, bis das Netz gerechnet & gezeichnet ist —
+     so kann man nicht ins noch-leere Netz suchen und läuft nicht in Init-Fehler. Blendet weich aus. */
+  .boot { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); transition: opacity .35s ease; }
+  .boot.done { opacity: 0; pointer-events: none; }
+  .bootin { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .bootlogo { font: 700 30px "Space Grotesk", system-ui, -apple-system, sans-serif; color: var(--text); letter-spacing: .3px; }
+  .bootlogo b { color: var(--edge-together); }
+  .bootspin { width: 26px; height: 26px; border: 3px solid var(--line-soft); border-top-color: var(--edge-together);
+    border-radius: 50%; animation: bootspin .8s linear infinite; }
+  @keyframes bootspin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .bootspin { animation: none; } }
 </style>
 </head>
 <body>
+<div id="boot" class="boot" aria-hidden="true"><div class="bootin"><span class="bootlogo">like<b>.</b></span><span class="bootspin"></span></div></div>
+<script>/* Failsafe: bricht die Init irgendwo ab, darf der Ladescreen NICHT ewig liegen bleiben. */
+setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.contains("done")){b.classList.add("done");setTimeout(function(){b.remove();},450);}},9000);</script>
 <div id="app">
   <canvas id="cv"></canvas>
 
@@ -6001,6 +6016,9 @@ function maybeShowIntro() {
   else fitAll();
   if (demoMode) showDemoBar();
   loop();
+  // App ist bereit -> Ladescreen ausblenden. Ein Frame Vorlauf, damit das Netz schon gezeichnet
+  // ist, bevor der Screen weicht (kein Aufblitzen eines leeren Canvas).
+  requestAnimationFrame(() => { const b = document.getElementById("boot"); if (b) { b.classList.add("done"); setTimeout(() => b.remove(), 450); } });
   checkKey();
   startupTasks();
   // Cross-Pack-Brücke: mit ?q=<Name> gelandet -> Eintrag direkt erkunden (einmalig,
