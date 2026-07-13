@@ -3083,16 +3083,25 @@ function draw() {
         bx += gap;
       }
     }
-    // „+K": geparkte Nachbarn (Fan-out-Deckel) — kleiner Akzent-Punkt unten rechts, mit „+K"-Zahl
-    // daneben, sobald genug herangezoomt (sonst nur der Punkt, damit die Übersicht ruhig bleibt).
+    // „+K": geparkte Nachbarn (Fan-out-Deckel) — unten rechts an der Kugel. Früher nur ein winziger
+    // Punkt (+ Zahl beim Reinzoomen); Nutzer haben aber intuitiv drauf getippt, um mehr einzublenden,
+    // ohne dass etwas passierte. Jetzt ein echter, antippbarer Chip (Akzent-Kreis mit „+K"), der beim
+    // Annähern/Hovern wächst und ein weiches Halo bekommt — so ist klar: hier gibt es was einzublenden.
     if (n.pending && !n.venue) {
-      const bx = n.x + r * 0.78, by = n.y + r * 0.78;
-      ctx.globalAlpha = (faded ? 0.3 : 1) * ap; ctx.fillStyle = getCss("--accent");
-      ctx.beginPath(); ctx.arc(bx, by, 2.6 / view.k, 0, 7); ctx.fill();
-      if (view.k > 0.6) {
-        ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ctx.font = `600 ${9 / view.k}px ${CANVAS_FONT}`;
-        ctx.fillText("+" + n.pending, bx + 4 / view.k, by);
+      const b = pendingBadge(n), near = pendingNear(n) || n === hover;
+      const R = (near ? 10.5 : 7.5) / view.k;
+      // Halo beim Annähern, damit der Chip „aufwacht" und als Ziel erkennbar wird.
+      if (near) {
+        ctx.globalAlpha = 0.16 * ap; ctx.fillStyle = getCss("--accent");
+        ctx.beginPath(); ctx.arc(b.x, b.y, R + 5 / view.k, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = (faded ? 0.35 : 1) * ap; ctx.fillStyle = getCss("--accent");
+      ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, 7); ctx.fill();
+      // „+K"-Zahl im Chip, sobald genug herangezoomt oder beim Annähern (sonst bleibt die Übersicht ruhig).
+      if (view.k > 0.5 || near) {
+        ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.font = `700 ${(near ? 9.5 : 8) / view.k}px ${CANVAS_FONT}`;
+        ctx.fillText("+" + n.pending, b.x, b.y + 0.5 / view.k);
         ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
       }
     }
@@ -3571,6 +3580,29 @@ function onPlayBtn(px, py) {
   return gd <= R + 6 / view.k ? g : null; // Treffer im ▶-Kreis
 }
 
+// „+K"-Chip (geparkte Nachbarn): Position unten rechts an der Kugel — bewusst der Griff, den
+// Nutzer ohnehin schon zum „mehr einblenden" antippen. Ein Tipp darauf ruft revealMore(n).
+function pendingBadge(n) {
+  const rr = radius(n);
+  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: 8 / view.k };
+}
+// Zeiger/Finger nahe am „+K"-Chip? -> Chip vergrößern und Trefferfläche aufziehen (fingerfreundlich).
+// mouseWorld ist nur bei Maus gesetzt; auf Touch trägt COARSE ohnehin die größere Basis-Trefferfläche.
+function pendingNear(n) {
+  if (!n || !n.pending || n.venue || !mouseWorld) return false;
+  const b = pendingBadge(n), near = (COARSE ? 44 : 32) / view.k;
+  return (b.x - mouseWorld.x) ** 2 + (b.y - mouseWorld.y) ** 2 < near * near;
+}
+// Treffer auf den „+K"-Chip -> geparkte Nachbarn einblenden (revealMore, kein Netz-Aufruf). Große,
+// fingerfreundliche Trefferfläche (Touch ~26px), die beim Annähern noch etwas wächst.
+function onPendingBadge(n, px, py) {
+  if (!n || !n.pending || n.venue || STATIC) return false;
+  const w = world({ x: px, y: py }), b = pendingBadge(n);
+  const grow = pendingNear(n) ? (COARSE ? 30 : 24) : (COARSE ? 26 : 18);
+  const hit = Math.max(b.r + 6 / view.k, grow / view.k);
+  return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
+}
+
 // ---- Maus ----
 // Einheitliche Canvas-Koordinaten (offsetX/Y wären relativ zum Element unter dem Cursor).
 function canvasXY(e) {
@@ -3611,6 +3643,7 @@ addEventListener("mousemove", (e) => {
     const onX = !n && hover && overCanvas && onDeleteBadge(hover, p.x, p.y);
     const onMoonB = !n && hover && overCanvas && onMoonBadge(hover, p.x, p.y);
     const onSeedI = !n && hover && overCanvas && onSeedInfo(hover, p.x, p.y);
+    const onPend = hover && overCanvas && onPendingBadge(hover, p.x, p.y); // „+K"-Chip (auch wenn n==hover, um nah zu vergrößern)
     if (onX || onMoonB || onSeedI) n = hover; // Badges zählen zum Hover, sonst verschwänden sie beim Anpeilen
     // Sanfte Halte-Zone: solange die Maus im Hof des gehoverten Knotens (inkl. seiner ＋/ⓘ/×-Badges)
     // bleibt, den Hover NICHT fallenlassen — sonst flackern die Badges beim Anpeilen weg (B8).
@@ -3619,11 +3652,12 @@ addEventListener("mousemove", (e) => {
       if ((hover.x - wm.x) ** 2 + (hover.y - wm.y) ** 2 < holdR * holdR) n = hover;
     }
     if (n !== hover) { hover = n; schedulePrefetch(n); requestDraw(); }
-    else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons mitziehen (beide Modi)
-    cv.style.cursor = (onX || onMoonB || onSeedI) ? "pointer" : (n ? "pointer" : "grab");
+    else if (mouseWorld) requestDraw(); // proximity-Fade des Play-Buttons + „+K"-Chip mitziehen (beide Modi)
+    cv.style.cursor = (onX || onMoonB || onSeedI || onPend) ? "pointer" : (n ? "pointer" : "grab");
     // E10: kein Knoten unterm Zeiger -> liegt eine Kante darunter? Dann ihre Belege zeigen.
     const edgeHover = (!n && overCanvas) ? edgeAt(p) : null;
-    if (edgeHover) updateEdgeTooltip(edgeHover, e);
+    if (onPend) showPendingTip(hover, e);          // „Antippen zum Einblenden" — Affordanz sichtbar machen
+    else if (edgeHover) updateEdgeTooltip(edgeHover, e);
     else updateTooltip((onX || onMoonB || onSeedI) ? null : n, e);
     return;
   }
@@ -3671,6 +3705,13 @@ addEventListener("mouseup", (e) => {
       const victim = hover; hover = null;
       dragging = false; dragNode = null; cv.classList.remove("grabbing");
       removeNode(victim); requestDraw(); return;
+    }
+    // Klick auf den „+K"-Chip -> geparkte Nachbarn einblenden (revealMore, kein Netz-Aufruf).
+    // Bewusst VOR den Mond-Badges: an Nicht-Seed-Knoten liegt das Entfernen-× auch unten rechts —
+    // beim „mehr zeigen"-Griff soll das Einblenden gewinnen (Entfernen bleibt im Rechtsklick-Menü).
+    if (hover && onPendingBadge(hover, p.x, p.y)) {
+      const m = hover; hover = null; dragging = false; dragNode = null; cv.classList.remove("grabbing");
+      revealMore(m); requestDraw(); return;
     }
     // Klick auf ＋/ⓘ am gehoverten Mond -> ausbauen bzw. Info öffnen (kein Play)
     const mb = hover && onMoonBadge(hover, p.x, p.y);
@@ -3795,6 +3836,9 @@ cv.addEventListener("touchend", (e) => {
       const n = touch.node || pick(p.x, p.y);
       if (n) {
         const now = Date.now();
+        // Tipp auf den „+K"-Chip (unten rechts) -> geparkte Nachbarn einblenden. Auch auf dem iPhone
+        // gut treffbar: der Chip wächst und trägt eine großzügige (COARSE-)Trefferfläche.
+        if (onPendingBadge(n, p.x, p.y)) { revealMore(n); lastTapT = now; lastTapNode = n; touch = null; return; }
         if (bridgeFrom) finishBridge(n);
         else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppeltipp
         else { selectNode(n); } // Tipp = nur Info-Karte öffnen; Abspielen über den ▶ im Panel
@@ -4427,6 +4471,15 @@ function updateTooltip(n, e) {
   tipEl.innerHTML = parts.join("<br>");
   tipEl.classList.add("show");
   // erst rendern, dann messen: Tooltip darf nicht aus dem Fenster laufen
+  const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tw - 8) + "px";
+  tipEl.style.top = Math.min(e.clientY + 14, innerHeight - th - 8) + "px";
+}
+// Hinweis am „+K"-Chip: macht die Antipp-Affordanz sichtbar („mehr einblenden, kein Ladevorgang").
+function showPendingTip(n, e) {
+  tipEl.innerHTML = `<b>＋ ${tf("{K} weitere laden", { K: n.pending })}</b><br>` +
+    `<span class="g">${t("Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang")}</span>`;
+  tipEl.classList.add("show");
   const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
   tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tw - 8) + "px";
   tipEl.style.top = Math.min(e.clientY + 14, innerHeight - th - 8) + "px";
