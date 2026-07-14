@@ -906,3 +906,36 @@ kein `catch → return leer` *innerhalb* von `cached()` steht — sonst denselbe
 Straße) → M6 (Katalog-Achse, geringerer Hebel). Jede Domäne isoliert testbar; der
 Server nutzt `bridgeNeighbors()` bereits automatisch (`neighborsFor()`), sobald ein
 Pack es anbietet — kein Server-Umbau nötig.
+
+---
+
+## Runde 21 — Desktop-Schriftgrößen: allgemein etwas klein (2026-07-14)
+
+**Kontext:** Nutzer-Feedback aus dem Live-Betrieb: „Ich finde die Schrift am Desktop
+allgemein recht klein." Betrifft die UI-Chrome (Panels, Nachbarlisten, Chips, Leisten),
+NICHT die Canvas-Beschriftungen der Knoten/Geister (die skalieren mit dem Zoom und wurden
+separat schon vergrößert). Die Beobachtung ist plausibel: die Basis steht auf `14px/1.45`
+(`html, body`, index.html:70), und viele Bausteine liegen deutlich darunter —
+`.panel .sub`/`.field label`/`.genres`/`.booking`/`.legend` bei 11–12 px, `.neighbors .shows`
+und `.svc a` bei 11 px, die Brückenleiste (`.bwhy`/`.bhint`) bei 11 px. Auf großen Desktop-
+Displays wirkt das gedrängt.
+
+- [ ] **T1 — Basisschrift anheben + px-Größen auditieren (empfohlen).** Basis von `14px`
+  auf `15–16px` heben und die vielen festen `font-size`-px-Werte gegenprüfen: die harten
+  11-px-Stellen (Nachbar-Untertitel, Genres-Chips, Service-Links, Brücken-Hinweis/Warum)
+  auf ~12–12.5 px, 12-px-Stellen auf ~13 px. **Wichtig:** Mobile darf NICHT größer/gedrängter
+  werden — Änderungen entweder nur ab einem Breakpoint (z. B. `@media (min-width: 700px)`)
+  oder per moderatem `clamp()` einführen, damit die enge Topbar auf dem iPhone nicht
+  überläuft (Responsive-Test `tests/responsive.spec.js` „Topbar ohne Überlauf" muss grün
+  bleiben). Risiko gering, rein kosmetisch; nach der Umstellung die Playwright-Suite laufen
+  lassen, weil einige Tests auf Sichtbarkeit/Layout prüfen.
+
+- [ ] **T2 — Optional: Textgrößen-Umschalter (A/A+) im ⋯-Menü.** Statt einer festen Anhebung
+  eine kleine Nutzer-Einstellung (Normal/Groß), die einen Skalierungsfaktor auf die
+  UI-Chrome legt (z. B. `--ui-scale` als Multiplikator vor `rem`-basierten Größen) und in
+  `localStorage` merkt. Voraussetzung wäre, die festen px-Werte vorher auf `rem`/eine
+  CSS-Variable umzustellen (Teil von T1). Mehr Aufwand, aber barrierefreundlich und löst die
+  Frage dauerhaft für alle Empfindlichkeiten. Erst nach T1 sinnvoll.
+
+**Reihenfolge/Wirkung:** T1 zuerst (schneller, deckt das Feedback direkt ab), T2 nur, falls
+die feste Anhebung nicht genügt oder wir A11y-Punkte (vgl. W5/axe-core) mitnehmen wollen.
