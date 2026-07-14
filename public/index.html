@@ -4674,13 +4674,25 @@ const BRIDGE_SHOWN = 6; // wie viele Geister gleichzeitig sichtbar sind
 // Kandidaten nach Regler mischen: 0 = naheliegend (Verbindungsstärke), 1 = spannend (klein)
 function bridgeRanked() {
   const cs = bridge.cands, t = bridge.sort;
+  // Routenplaner-Logik: kürzere Ketten gelten als „naheliegender" — milder Malus pro Extra-Station
+  const lenBoost = (c) => 1 / (1 + 0.15 * (c.via.length - 1));
+  // „Naheliegend" = Verbindungsstärke × Ketten-Bonus, auf 0..1 normiert (fürs faire Mischen).
+  const near = (c) => c.strength * lenBoost(c);
+  const nears = cs.map(near);
+  const nlo = nears.length ? Math.min(...nears) : 0, nhi = nears.length ? Math.max(...nears) : 1;
+  const nearN = (c) => (nhi <= nlo ? 0.5 : (near(c) - nlo) / (nhi - nlo));
+  // „Klein/spannend": primär nach Wikipedia-Aufrufen (bekannt = groß). Fehlen die Zahlen
+  // (z. B. noch nicht geladen / gedrosselt) oder sind sie überall gleich, greift ein Fallback:
+  // die WENIGER naheliegende Route gilt als die spannendere — so bewegt der Regler IMMER etwas.
   const listOf = (c) => { const li = c.via.map((v) => v.listeners).filter((x) => x != null); return li.length ? Math.max(...li) : null; };
   const logs = cs.map(listOf).filter((x) => x != null).map((l) => Math.log10(Math.max(1, l)));
   const lo = logs.length ? Math.min(...logs) : 0, hi = logs.length ? Math.max(...logs) : 1;
-  const smallness = (c) => { const l = listOf(c); if (l == null) return 0.5; if (hi <= lo) return 0.5; return 1 - (Math.log10(Math.max(1, l)) - lo) / (hi - lo); };
-  // Routenplaner-Logik: kürzere Ketten gelten als „naheliegender" — milder Malus pro Extra-Station
-  const lenBoost = (c) => 1 / (1 + 0.15 * (c.via.length - 1));
-  return cs.map((c) => ({ ...c, score: (1 - t) * c.strength * lenBoost(c) + t * smallness(c) }))
+  const havePop = logs.length >= 2 && hi > lo;
+  const smallness = (c) => {
+    if (havePop) { const l = listOf(c); if (l == null) return 0.5; return 1 - (Math.log10(Math.max(1, l)) - lo) / (hi - lo); }
+    return 1 - nearN(c); // Fallback: invers zur Naheliegend-Wertung
+  };
+  return cs.map((c) => ({ ...c, score: (1 - t) * nearN(c) + t * smallness(c) }))
     .sort((x, y) => y.score - x.score).slice(0, BRIDGE_SHOWN);
 }
 // Position eines Geists: senkrecht zur A–B-Achse aufgefächert, bester Kandidat mittig
