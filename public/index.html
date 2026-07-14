@@ -3273,22 +3273,23 @@ function draw() {
 
   // Brücken-Kandidaten als helle "Geister" zwischen A und B (noch nicht Teil des Graphen)
   if (bridge && bridge.cands && bridge.cands.length) {
-    const ranked = bridgeRanked();
+    const shown = bridgeShown(), bestIdx = bridgeBest();
     const acc = getCss("--edge-together");
     const popLabel = CFG.popularity?.label || "";
-    for (let i = 0; i < ranked.length; i++) {
-      const g = ghostGeom(i, ranked.length);
-      const c = ranked[i], best = i === 0;
-      // gestrichelte Verbindung A — Geist — B
+    for (let i = 0; i < shown.length; i++) {
+      const g = ghostGeom(i, shown.length);
+      const c = shown[i], best = i === bestIdx;
+      const wr = Math.max(g.r, 13 / view.k); // Mindest-Bildschirmgröße: Kugeln bleiben groß genug
+      // gestrichelte Verbindung A — Geist — B (beste Route kräftig, springt mit dem Regler)
       ctx.setLineDash([5 / view.k, 4 / view.k]);
-      ctx.strokeStyle = acc; ctx.globalAlpha = best ? 0.5 : 0.22; ctx.lineWidth = (best ? 1.6 : 1) / view.k;
+      ctx.strokeStyle = acc; ctx.globalAlpha = best ? 0.6 : 0.18; ctx.lineWidth = (best ? 2.4 : 1) / view.k;
       ctx.beginPath(); ctx.moveTo(bridge.a.x, bridge.a.y); ctx.lineTo(g.x, g.y); ctx.lineTo(bridge.b.x, bridge.b.y); ctx.stroke();
       ctx.setLineDash([]);
       // Geister-Knoten (hohl, gestrichelt) — signalisiert "Vorschlag, noch nicht gesetzt"
-      ctx.globalAlpha = best ? 1 : 0.72;
-      ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, 7);
+      ctx.globalAlpha = best ? 1 : 0.68;
+      ctx.beginPath(); ctx.arc(g.x, g.y, wr, 0, 7);
       ctx.fillStyle = getCss("--panel"); ctx.fill();
-      ctx.setLineDash([4 / view.k, 3 / view.k]); ctx.lineWidth = (best ? 2.4 : 1.6) / view.k; ctx.strokeStyle = acc;
+      ctx.setLineDash([4 / view.k, 3 / view.k]); ctx.lineWidth = (best ? 3 : 1.6) / view.k; ctx.strokeStyle = acc;
       ctx.stroke(); ctx.setLineDash([]);
       // Beschriftung: Name (+ evtl. Zwischenstationen), Genres und Popularität des Packs
       const label = c.via.map((v) => v.name).join(" → ");
@@ -3298,19 +3299,19 @@ function draw() {
       const genLine = gens.slice(0, 3).join(" · ");
       const small = (li.length && popLabel) ? fmtListeners(Math.max(...li)) + " " + popLabel : "";
       ctx.textAlign = "center"; ctx.lineJoin = "round"; ctx.strokeStyle = getCss("--bg");
-      ctx.font = `${11.5 / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3.5 / view.k;
-      const ly = g.y + g.r + 12 / view.k;
+      ctx.font = `${(best ? 13.5 : 12.5) / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3.5 / view.k;
+      const ly = g.y + wr + 13 / view.k;
       ctx.globalAlpha = 1; ctx.strokeText(label, g.x, ly);
       ctx.fillStyle = getCss("--text"); ctx.fillText(label, g.x, ly);
-      let oy = ly + 12 / view.k;
+      let oy = ly + 13 / view.k;
       if (genLine) { // Genres der Brücken-Kandidaten (wie an den Knoten)
-        ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3 / view.k;
+        ctx.font = `${10.5 / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3 / view.k;
         ctx.strokeText(genLine, g.x, oy);
         ctx.fillStyle = getCss("--muted"); ctx.fillText(genLine, g.x, oy);
-        oy += 11 / view.k;
+        oy += 12 / view.k;
       }
       if (small) {
-        ctx.font = `${9.5 / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3 / view.k;
+        ctx.font = `${10.5 / view.k}px ${CANVAS_FONT}`; ctx.lineWidth = 3 / view.k;
         ctx.strokeText(small, g.x, oy);
         ctx.fillStyle = getCss("--muted"); ctx.fillText(small, g.x, oy);
       }
@@ -4671,29 +4672,37 @@ function clearBridge() {
   updateModebar(); requestDraw();
 }
 const BRIDGE_SHOWN = 6; // wie viele Geister gleichzeitig sichtbar sind
-// Kandidaten nach Regler mischen: 0 = naheliegend (Verbindungsstärke), 1 = spannend (klein)
-function bridgeRanked() {
-  const cs = bridge.cands, t = bridge.sort;
-  // Routenplaner-Logik: kürzere Ketten gelten als „naheliegender" — milder Malus pro Extra-Station
-  const lenBoost = (c) => 1 / (1 + 0.15 * (c.via.length - 1));
-  // „Naheliegend" = Verbindungsstärke × Ketten-Bonus, auf 0..1 normiert (fürs faire Mischen).
-  const near = (c) => c.strength * lenBoost(c);
-  const nears = cs.map(near);
-  const nlo = nears.length ? Math.min(...nears) : 0, nhi = nears.length ? Math.max(...nears) : 1;
-  const nearN = (c) => (nhi <= nlo ? 0.5 : (near(c) - nlo) / (nhi - nlo));
-  // „Klein/spannend": primär nach Wikipedia-Aufrufen (bekannt = groß). Fehlen die Zahlen
-  // (z. B. noch nicht geladen / gedrosselt) oder sind sie überall gleich, greift ein Fallback:
-  // die WENIGER naheliegende Route gilt als die spannendere — so bewegt der Regler IMMER etwas.
+// Routenplaner-Logik: kürzere Ketten gelten als „naheliegender" — milder Malus pro Extra-Station
+function bridgeLenBoost(c) { return 1 / (1 + 0.15 * (c.via.length - 1)); }
+// Feste Fächer-Reihenfolge — REGLERUNABHÄNGIG: nach Verbindungsstärke (naheliegend),
+// die Stärkste in die Mitte. Dadurch bleiben die Geisterkugeln beim Schieben an ihrem
+// Platz; NUR die hervorgehobene Route (die kräftige Linie) springt. Zeigt die Top-N.
+function bridgeShown() {
+  const cs = (bridge && bridge.cands) || [];
+  return cs.map((c) => ({ c, n: c.strength * bridgeLenBoost(c) }))
+    .sort((x, y) => y.n - x.n).slice(0, BRIDGE_SHOWN).map((o) => o.c);
+}
+// Welche der angezeigten Routen der Regler gerade bevorzugt (Index in bridgeShown):
+// 0 = naheliegend (Stärke), 1 = klein/spannend (wenig Aufrufe). Fehlen die Aufrufzahlen
+// oder sind sie überall gleich, gilt als Fallback die WENIGER naheliegende Route als die
+// spannendere — so wählt der Regler IMMER sichtbar eine andere Route.
+function bridgeBest() {
+  const shown = bridgeShown(); if (!shown.length) return -1;
+  const t = (bridge && bridge.sort) || 0;
+  const nears = shown.map((c) => c.strength * bridgeLenBoost(c));
+  const nlo = Math.min(...nears), nhi = Math.max(...nears);
+  const nearN = (i) => (nhi <= nlo ? 0.5 : (nears[i] - nlo) / (nhi - nlo));
   const listOf = (c) => { const li = c.via.map((v) => v.listeners).filter((x) => x != null); return li.length ? Math.max(...li) : null; };
-  const logs = cs.map(listOf).filter((x) => x != null).map((l) => Math.log10(Math.max(1, l)));
+  const logs = shown.map(listOf).filter((x) => x != null).map((l) => Math.log10(Math.max(1, l)));
   const lo = logs.length ? Math.min(...logs) : 0, hi = logs.length ? Math.max(...logs) : 1;
   const havePop = logs.length >= 2 && hi > lo;
-  const smallness = (c) => {
+  const smallness = (c, i) => {
     if (havePop) { const l = listOf(c); if (l == null) return 0.5; return 1 - (Math.log10(Math.max(1, l)) - lo) / (hi - lo); }
-    return 1 - nearN(c); // Fallback: invers zur Naheliegend-Wertung
+    return 1 - nearN(i); // Fallback: invers zur Naheliegend-Wertung
   };
-  return cs.map((c) => ({ ...c, score: (1 - t) * nearN(c) + t * smallness(c) }))
-    .sort((x, y) => y.score - x.score).slice(0, BRIDGE_SHOWN);
+  let bi = 0, bs = -Infinity;
+  shown.forEach((c, i) => { const s = (1 - t) * nearN(i) + t * smallness(c, i); if (s > bs) { bs = s; bi = i; } });
+  return bi;
 }
 // Position eines Geists: senkrecht zur A–B-Achse aufgefächert, bester Kandidat mittig
 function ghostGeom(i, k) {
@@ -4702,20 +4711,20 @@ function ghostGeom(i, k) {
   let dx = b.x - a.x, dy = b.y - a.y; const len = Math.hypot(dx, dy) || 1;
   const px = -dy / len, py = dx / len; // Senkrechte
   const s = Math.ceil(i / 2), sign = i % 2 === 1 ? 1 : -1;
-  const off = sign * s * 66;
-  return { x: mx + px * off, y: my + py * off, r: 11 };
+  const off = sign * s * 78;
+  return { x: mx + px * off, y: my + py * off, r: 15 };
 }
 function pickGhost(sx, sy) {
   if (!bridge || !bridge.cands.length) return -1;
-  const w = world({ x: sx, y: sy }), k = bridgeRanked().length;
+  const w = world({ x: sx, y: sy }), k = bridgeShown().length;
   for (let i = 0; i < k; i++) {
-    const g = ghostGeom(i, k), r = Math.max(g.r + 4, 14 / view.k);
+    const g = ghostGeom(i, k), r = Math.max(g.r + 6, 18 / view.k);
     if ((g.x - w.x) ** 2 + (g.y - w.y) ** 2 < r * r) return i;
   }
   return -1;
 }
 async function addBridge(i) {
-  const ranked = bridgeRanked(); const c = ranked[i]; if (!c) return;
+  const shown = bridgeShown(); const c = shown[i]; if (!c) return;
   const a = bridge.a, b = bridge.b, via = c.via.map((v) => v.name);
   const bmode = bridge.mode || "?"; // vor clearBridge sichern (für den Debug-Bericht)
   clearBridge();
@@ -4766,7 +4775,7 @@ function showBridgeBar() {
 function updateBridgeWhy() {
   const el = document.getElementById("bridgeWhy"); if (!el) return;
   if (!bridge || !bridge.cands || !bridge.cands.length) { el.innerHTML = ""; return; }
-  const c = bridgeRanked()[0]; if (!c) { el.innerHTML = ""; return; }
+  const shown = bridgeShown(); const c = shown[bridgeBest()]; if (!c) { el.innerHTML = ""; return; }
   const overVia = `<b>${c.via.map((v) => esc(v.name)).join(" → ")}</b>`;
   // gemeinsames Thema: Genres der Zwischen-Einträge, die auch an einem Endpunkt vorkommen
   const endG = new Set([...(bridge.a.genres || []), ...(bridge.b.genres || [])].map((g) => String(g).toLowerCase()));
@@ -4781,10 +4790,16 @@ function updateBridgeWhy() {
 }
 // A und B (und die Geister dazwischen) sichtbar machen, falls sie weit auseinanderliegen
 function fitBridgeIntoView() {
-  const a = bridge.a, b = bridge.b, pad = 180;
-  const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x), minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y);
+  const a = bridge.a, b = bridge.b, pad = 110;
+  // Auch das Geister-Fächer mitrahmen: es reicht senkrecht zur A–B-Achse bis ~fanReach
+  // um den Mittelpunkt — konservativ als Kreis um die Mitte einbezogen (+ Label-Platz).
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  const fanReach = Math.ceil(BRIDGE_SHOWN / 2) * 78 + 50;
+  const minX = Math.min(a.x, b.x, mx - fanReach), maxX = Math.max(a.x, b.x, mx + fanReach);
+  const minY = Math.min(a.y, b.y, my - fanReach), maxY = Math.max(a.y, b.y, my + fanReach);
   const bw = Math.max(maxX - minX, 60), bh = Math.max(maxY - minY, 60);
-  const k = Math.max(0.2, Math.min((W - pad * 2) / bw, (H - 52 - pad * 2) / bh, 1.1));
+  // Etwas näher heran (Cap 1.5 statt 1.1) und weniger Rand — das Werkzeug wirkt so weniger winzig.
+  const k = Math.max(0.2, Math.min((W - pad * 2) / bw, (H - 52 - pad * 2) / bh, 1.5));
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   view.k = k; view.x = W / 2 - cx * k; view.y = (H + 52) / 2 - cy * k; requestDraw();
 }
