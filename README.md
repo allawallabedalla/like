@@ -230,7 +230,14 @@ Default `allawallabedalla/like`). Dann legt der Server pro Feedback ein **anonym
 mit Label `feedback` an — **nur Text + Pack + Version, keine IP/Konto/Session**. Die offenen
 `feedback`-Issues sind die Backlog-Rohliste: daraus werden `BACKLOG.md`-Einträge, danach schließt
 man sie. Nichts landet in der Git-History; Redigieren/Löschen bleibt trivial. Beide Senken sind
-unabhängig — der ✉-Knopf erscheint, sobald **eine** aktiv ist.
+unabhängig — der ✉-Knopf erscheint, sobald **eine** aktiv ist. Der Feedback-Dialog weist Nutzer
+darauf hin, keine personenbezogenen Daten einzugeben; die Datenschutzseite beschreibt die
+Speicherung (anonym, berechtigtes Interesse).
+
+**Gesammeltes Feedback ansehen** (ohne GitHub zu öffnen): ist `LIKE_OWNER_SECRET` gesetzt, liefert
+`GET /api/feedback/log?secret=<LIKE_OWNER_SECRET>` die `feedback`-Issues als JSON (Parameter:
+`state=open|closed|all`, `limit=1..100`). Ohne gesetztes Secret gibt es den Endpunkt nicht (404),
+bei falschem Secret 403. Es ist ein reiner Read-Through auf dieselben GitHub-Issues.
 
 ## Musik-Erweiterung: Venues einblenden
 Im Musik-Pack lässt sich über den **Venues**-Schalter (Topbar) eine zusätzliche Ebene
