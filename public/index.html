@@ -1449,6 +1449,7 @@ const T = LANG !== "en" ? null : {
   "Verbindet {A} und {B} über {V}": "Connects {A} and {B} via {V}",
   "gemeinsam: {G}": "shared: {G}",
   "Klick einen der hellen Kandidaten, um ihn einzufügen.": "Click one of the bright candidates to insert it.",
+  "Andere Acts sind kurz abgeblendet, damit der Weg sichtbar ist — klick einen der hellen Kandidaten, um ihn einzufügen.": "Other acts are dimmed for a moment so the path stands out — click one of the bright candidates to insert it.",
   "Suche Route: {A} ↔ {B}": "Finding route: {A} ↔ {B}",
   "Suche von beiden Enden gleichzeitig — die erste Begegnung ist die kürzeste Verbindung.": "Searching from both ends at once — the first meeting point is the shortest connection.",
   "{N} Einträge erreicht · {Q} Abfragen · Suchtiefe {DA}+{DB}": "{N} entries reached · {Q} lookups · search depth {DA}+{DB}",
@@ -3154,7 +3155,10 @@ function draw() {
     const sel = selected && n.id === selected.id;
     const glow = hi && hi.has(n.id);
     const faded = !sel && !glow && dimNode(n);
-    const baseA = (faded ? 0.15 : 1) * ap * lodA;
+    // FB12/#78: Im Brücke-Modus die Nicht-Kandidaten nicht fast unsichtbar machen (0.15),
+    // sondern schwach sichtbar lassen (0.28) — so bleibt der Kontext erhalten und es wirkt
+    // weniger, als würden „ganz viele Acts ausgeblendet". Andere Dimm-Modi bleiben bei 0.15.
+    const baseA = (faded ? (bridgeActive ? 0.28 : 0.15) : 1) * ap * lodA;
     // weicher Hover-Schein hinter dem Knoten (nur der eine gehoverte — günstig)
     if (hovG && n.id === hovG.id && !faded && ap >= 1) {
       ctx.globalAlpha = 1; ctx.shadowColor = getCss("--edge-together"); ctx.shadowBlur = 16;
@@ -4972,7 +4976,7 @@ function showBridgeBar() {
   document.getElementById("bridgeProg").style.display = "none";
   document.getElementById("bridgeSlider").style.display = "";
   bar.querySelector(".blabels").style.display = "";
-  document.getElementById("bridgeHint").textContent = t("Klick einen der hellen Kandidaten, um ihn einzufügen.");
+  document.getElementById("bridgeHint").textContent = t("Andere Acts sind kurz abgeblendet, damit der Weg sichtbar ist — klick einen der hellen Kandidaten, um ihn einzufügen.");
   document.getElementById("bridgeTitle").textContent = tf("Brücke: {A} → {B}", { A: bridge.a.name, B: bridge.b.name });
   // "spannend" heißt klein — beim Musik-Pack "Hörer", sonst der Popularitätsbegriff des Packs
   document.getElementById("bridgeSpicy").textContent = t(CFG.popularity ? "klein" : "spannend");
@@ -5683,7 +5687,10 @@ document.getElementById("discBridges").onclick = () => { closeDiscover(); showBr
 // groß. Querverbindungen außerhalb des Baums bleiben sichtbar, sind aber wenige — die
 // wichtigste Beziehung jedes Knotens liegt ja im Baum.
 function sortLayout() {
-  const real = nodes.filter((n) => !n.venue);
+  // FB7/#80: Monde NICHT mitsortieren — sie umkreisen ihren Planeten (updateMoons setzt ihre
+  // Position pro Frame aus dem Parent). Als Baumknoten behandelt würden sie weit weggeschoben
+  // (und `_moonAng=null` unten riss sie aus der Bahn). Ausnehmen = sie bleiben am Planeten.
+  const real = nodes.filter((n) => !n.venue && !n._moon);
   if (real.length < 3) return;
   const comm = computeCommunities();
   const groups = new Map();
@@ -5827,9 +5834,20 @@ document.addEventListener("mousedown", (e) => {
 const moreEl = document.getElementById("morebox");
 document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("show"); closeDiscover(); };
 // Fun/Work-Schalter: Wahl merken und neu laden — die Feature-Gates greifen beim Start.
+// FB5/#70: Sprach-/Modus-Wechsel lädt die Seite neu — dabei bekam der Graph frische
+// Zufallspositionen und das Force-Layout ordnete das Netz sichtbar neu an. Vor dem Reload die
+// aktuellen Knotenpositionen sichern; beim Start werden sie als `prev` in rebuild() eingespielt
+// (kalt, ohne Reheat), sodass die Anordnung erhalten bleibt.
+function stashLayoutForReload() {
+  try {
+    const pos = nodes.filter((n) => n.x != null && !n.venue).map((n) => [n.id, Math.round(n.x), Math.round(n.y), n.pinned ? 1 : 0]);
+    if (pos.length) sessionStorage.setItem("like_relayout", JSON.stringify({ pack: CFG.id, pos }));
+  } catch {}
+}
 function setMode(m) {
   if (m === MODE) return;
   try { localStorage.setItem("like_mode", m); } catch {}
+  stashLayoutForReload();
   location.reload();
 }
 document.getElementById("modeFun").onclick = () => setMode("fun");
@@ -5840,6 +5858,7 @@ document.getElementById("langEn").classList.toggle("on", LANG === "en");
 function setLang(l) {
   if (l === LANG) return;
   try { localStorage.setItem("like_lang", l); } catch {}
+  stashLayoutForReload();
   location.reload();
 }
 document.getElementById("langDe").onclick = () => setLang("de");
@@ -6390,7 +6409,23 @@ function maybeShowIntro() {
       try { const d = await API.demo(); if (d?.ok && Object.keys(d.graph.artists || {}).length) { graph = d.graph; demoMode = true; } } catch {}
     }
   }
-  rebuild();
+  // FB5/#70: Nach einem Sprach-/Modus-Reload die vorher gesicherten Positionen einspielen —
+  // als `prev` in rebuild(), kalt (reheatAmt 0), damit die Anordnung EXAKT erhalten bleibt und
+  // sich das Netz nicht sichtbar neu ordnet. Nur wenn Pack passt und keine Demo-Karte läuft.
+  let _restorePrev = null;
+  if (!demoMode) {
+    try {
+      const raw = sessionStorage.getItem("like_relayout");
+      if (raw) {
+        sessionStorage.removeItem("like_relayout");
+        const s = JSON.parse(raw);
+        if (s && s.pack === CFG.id && Array.isArray(s.pos) && s.pos.length) {
+          _restorePrev = new Map(s.pos.map(([id, x, y, p]) => [id, { x, y, vx: 0, vy: 0, pinned: !!p, appear: 1 }]));
+        }
+      }
+    } catch {}
+  }
+  if (_restorePrev) rebuild(_restorePrev, 0); else rebuild();
   // Layout VOR dem ersten Zeichnen fertig ausrechnen (bis es ruhig ist) — so wackelt beim
   // Anzeigen nichts mehr (kein sichtbares Zappeln direkt nach dem Start). Deckel als Notbremse.
   { let guard = 0; do { tick(); } while (alpha >= ALPHA_MIN && ++guard < 500); }

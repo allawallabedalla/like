@@ -991,24 +991,32 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   Dopplung. Die Fehler-Toasts (keine Klangprobe / Wiedergabe blockiert) bleiben bewusst.
 
 ### Offen — klein, aber erst verifizieren/entscheiden (die „unklaren" ans Ende gestellt)
-- [ ] **FB2 — Falsches Audio gematcht (#81).** „Magnum" (Rockband) → französischer HipHop
-  („Magnüm"?). Ein Plausi-Check existiert (Hörerzahl an `API.preview`, „C6"), der Fall rutschte
-  durch → Namens-/Identitäts-Matching der Preview-Quelle nachschärfen.
-- [ ] **FB5 — Sprachwechsel ordnet das Netz neu an (#70).** `LANG` wird einmalig beim Laden
-  bestimmt; Umschalten löst offenbar Reload/Rebuild samt Force-Layout aus. Ziel: Anordnung
-  erhalten. Aufwand hängt am Umschalt-Mechanismus (erst lokalisieren).
+- [x] **FB2 — Falsches Audio gematcht (#81).** ✅ Ursache: `norm()` strippt Diakritika, also
+  faltete „Magnüm" auf „magnum" und matchte „Magnum". Fix in `lib/deezer.mjs` + `lib/itunes.mjs`:
+  **zuerst diakritik-sensitiv exakt** matchen (nur Groß-/Kleinschreibung + Leerraum egal), erst als
+  Fallback die gefaltete Variante. Am echten Modul verifiziert (Trefferliste [Magnüm, Magnum] →
+  wählt jetzt „Magnum").
+- [x] **FB5 — Sprachwechsel ordnet das Netz neu an (#70).** ✅ Ursache: `setLang`/`setMode` machen
+  `location.reload()`, danach vergab `rebuild()` frische Zufallspositionen. Fix: vor dem Reload die
+  Knotenpositionen in `sessionStorage` sichern (`stashLayoutForReload`), beim Start als `prev` in
+  `rebuild(prev, 0)` einspielen (kalt, kein Reheat) — die Anordnung bleibt erhalten. Gilt auch fürs
+  Modus-Umschalten. (Frontend-Fix, im Browser noch gegenzusehen.)
 - [ ] **FB6 — „Komischer Schatten" beim Verschieben im Flat-Modus (#76).** Vermutlich der
   Hover-Schein (`shadowBlur 16`, `--edge-together`), der beim Ziehen mitläuft. Im Flat-Modus
   prüfen/abschwächen. **Screenshot vom Nutzer würde die Diagnose absichern.**
 - [ ] **FB11 — „+N"-Badge mit dem Zoom skalieren (#68).** Unklar, welches Badge genau: das
   Mond-`＋` ist bewusst bildschirm-konstant (`/view.k`), ein numerisches „+15" fürs Nachladen
   finde ich so nicht. **Kurz zeigen, welches „+15" gemeint ist**, dann gezielt fixen.
-- [ ] **FB7 — „Aufräumen" schiebt Monde weg vom Planeten (#80).** Layout/Physik nach dem
-  Aufräumen; verwandt mit FB4 (räumliche Ordnung).
+- [x] **FB7 — „Aufräumen" schiebt Monde weg vom Planeten (#80).** ✅ `sortLayout()` behandelte
+  Monde als Baumknoten und setzte `_moonAng=null` → sie flogen aus der Umlaufbahn. Fix: Monde
+  (`_moon`) vom Sortieren ausnehmen; sie umkreisen weiter ihren Planeten (`updateMoons`).
+  (Frontend-Fix, im Browser noch gegenzusehen.)
 - [ ] **FB10 — Das „+N"-Badge erklären (#77).** Onboarding/Copy — „noch nicht selbsterklärend".
   Sinnvoll zusammen mit FB11 (dasselbe Element).
-- [ ] **FB12 — „Brücke bauen" blendet viele Acts aus (#78).** Der Fokus-Effekt wirkt
-  unerwartet — Hinweis einblenden oder sanfter ausblenden.
+- [x] **FB12 — „Brücke bauen" blendet viele Acts aus (#78).** ✅ Zweifach: Nicht-Kandidaten im
+  Brücke-Modus nicht mehr fast unsichtbar (0.15 → 0.28, Kontext bleibt), plus erklärender Hinweis
+  in der Brücken-Leiste („Andere Acts sind kurz abgeblendet, damit der Weg sichtbar ist …", DE+EN).
+  (Frontend-Fix, im Browser noch gegenzusehen.)
 - [ ] **FB9 — Profilmenü mit Konto-Infos (#75, Rest).** Playlists sind über N7 erreichbar; eine
   kleine Konto-Übersicht (Name, Status …) fehlt noch.
 
