@@ -910,6 +910,10 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <button id="export" class="workonly" title="Markierte Acts als CSV"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>CSV</button>
       <button id="exportPng" title="Karte als Bild (PNG)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>PNG</button>
     </div>
+    <!-- FB16: ganze Karte als eigenständige HTML-Datei herunterladen -->
+    <div class="mrow hideStatic">
+      <button id="exportHtml" title="Die aktuelle Karte als eigenständige HTML-Datei herunterladen — ansehen, zoomen, Infos lesen und (solange die Seite online ist) Klangproben anhören."><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>HTML</button>
+    </div>
     <!-- W14: ganze Karte als Read-Only-Link teilen -->
     <div class="mrow hideStatic">
       <button id="shareMap" title="Unveränderliche Kopie deiner Karte als öffentlichen Read-Only-Link teilen (ohne Notizen/Status/Gagen)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg><span id="shareMapLbl">Karte als Link teilen</span></button>
@@ -968,6 +972,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     </div>
     <div id="seedChips" class="seedchips hideStatic"></div>
     <button id="surpriseBtn" class="surprisebtn hideStatic" title="Zeig mir einen zufälligen, eher unbekannten Act">✦ Überrasch mich</button>
+    <input id="surpriseGenre" class="hideStatic" placeholder="Genre (optional) — z. B. Ambient" autocomplete="off" title="Optional: ein Genre eingeben, dann kommt der Zufalls-Act aus diesem Genre. Leer = egal." style="display:none;margin-top:8px;max-width:280px;width:100%;padding:7px 10px;background:var(--bg);border:1px solid var(--line-soft);border-radius:8px;font-size:13px;text-align:center" />
     <button id="loginHint" class="loginhint hideStatic" style="display:none"
       title="Anonym bleibt deine Karte auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.">
       <span class="lh-i">↗</span> Anmelden — deine Karte dauerhaft &amp; auf allen Geräten sichern
@@ -1449,6 +1454,7 @@ const T = LANG !== "en" ? null : {
   "Verbindet {A} und {B} über {V}": "Connects {A} and {B} via {V}",
   "gemeinsam: {G}": "shared: {G}",
   "Klick einen der hellen Kandidaten, um ihn einzufügen.": "Click one of the bright candidates to insert it.",
+  "Andere Acts sind kurz abgeblendet, damit der Weg sichtbar ist — klick einen der hellen Kandidaten, um ihn einzufügen.": "Other acts are dimmed for a moment so the path stands out — click one of the bright candidates to insert it.",
   "Suche Route: {A} ↔ {B}": "Finding route: {A} ↔ {B}",
   "Suche von beiden Enden gleichzeitig — die erste Begegnung ist die kürzeste Verbindung.": "Searching from both ends at once — the first meeting point is the shortest connection.",
   "{N} Einträge erreicht · {Q} Abfragen · Suchtiefe {DA}+{DB}": "{N} entries reached · {Q} lookups · search depth {DA}+{DB}",
@@ -1530,6 +1536,8 @@ const T = LANG !== "en" ? null : {
   "Heimatort: {N} — neu geladene Ziele rechnen ab hier": "Home: {N} — newly loaded destinations measure from here",
   "Heimatort: dein Standort — neu geladene Ziele rechnen ab hier": "Home: your location — newly loaded destinations measure from here",
   "Gerade keine Überraschung zur Hand": "No surprise at hand right now",
+  "Nichts fürs Genre {G} gefunden — versuch ein anderes": "Nothing found for the {G} genre — try another",
+  "HTML-Datei wird heruntergeladen …": "Downloading HTML file …",
   "Überraschung fehlgeschlagen": "Surprise failed",
   "Erst ein paar Einträge laden — dann gibt's was zu entdecken.": "Load a few entries first — then there's something to discover.",
   "Zu wenig auf der Karte — erkunde erst ein paar Einträge.": "Not enough on the map — explore a few entries first.",
@@ -1619,7 +1627,7 @@ const T = LANG !== "en" ? null : {
   "Keine Klangprobe für „{N}\" gefunden": "No preview found for \"{N}\"",
   "noch nichts geladen": "nothing loaded yet",
   "{K} weitere laden": "load {K} more", "＋ {K} weitere laden": "＋ load {K} more",
-  "Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang": "Show more saved similar acts — no fresh loading",
+  "Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)": "Similar acts hidden to keep things tidy — show them (no fresh loading)",
   "Lade …": "Loading …", "Konnte nicht laden.": "Couldn't load.",
   "Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.": "No likes yet — explore and mark a few entries, then your cross-domain profile appears here.",
   "Themen, die deine Welten <b>verbinden</b>:": "Themes that <b>connect</b> your worlds:",
@@ -2006,8 +2014,11 @@ async function parseRes(r) {
   }
   return data;
 }
-const GET = (path) => fetch(path, { headers: reqHeaders() }).then(parseRes);
-const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(parseRes);
+// FB16: im heruntergeladenen HTML-Snapshot zeigt LIKE_API_BASE auf die Live-Instanz, damit die
+// Klangprobe (einziger Server-Call im STATIC-Modus) funktioniert. Im Normalbetrieb leer = relativ.
+const API_BASE = (typeof window !== "undefined" && window.LIKE_API_BASE) || "";
+const GET = (path) => fetch(API_BASE + path, { headers: reqHeaders() }).then(parseRes);
+const POST = (path, body) => fetch(API_BASE + path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(parseRes);
 // Client-Fehler (z. B. Brücke fehlgeschlagen) an den Betreiber melden -> serverseitig Pushover.
 // Best effort, blockiert nichts; nur live (nicht im STATIC-Preview). Der Server sendet nur, wenn
 // Pushover eingerichtet ist, und drosselt gegen Spam.
@@ -2787,7 +2798,12 @@ function tick() {
   }
   for (const l of links) {
     if (l.type === "venue") continue; // D3: Venue-Kanten ziehen nicht — Venues folgen ihren Acts, nicht umgekehrt
-    let rest = (85 + (1 - (l.bond ?? l.strength)) * 90) * spread; // kombinierte Bindung (ähnlich+zusammen => näher), bei dichtem Netz luftiger
+    // FB4/#66: Ähnlichkeit RÄUMLICH stärker kodieren — „näher = ähnlicher" soll auf einen Blick
+    // lesbar sein (Liniendicke allein reicht dem Nutzer nicht). Die Ruhelänge hing schon an der
+    // kombinierten Bindung (ähnlich+zusammen), aber nur schwach; jetzt steiler gespreizt: stark
+    // gebundene Paare rücken enger, schwach gebundene deutlich weiter auseinander. Nach unten
+    // fängt der Kollisions-/Halo-Clamp unten ab, sodass nichts kollabiert.
+    let rest = (66 + Math.pow(1 - (l.bond ?? l.strength), 1.35) * 168) * spread;
     // Planeten-Modus: zwei benachbarte Planeten (beide mit Mond-Halo) brauchen Platz für ihre
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
     // Halo-Radien + Puffer anheben, damit sich die Planeten sauber auseinanderschieben.
@@ -3154,9 +3170,15 @@ function draw() {
     const sel = selected && n.id === selected.id;
     const glow = hi && hi.has(n.id);
     const faded = !sel && !glow && dimNode(n);
-    const baseA = (faded ? 0.15 : 1) * ap * lodA;
+    // FB12/#78: Im Brücke-Modus die Nicht-Kandidaten nicht fast unsichtbar machen (0.15),
+    // sondern schwach sichtbar lassen (0.28) — so bleibt der Kontext erhalten und es wirkt
+    // weniger, als würden „ganz viele Acts ausgeblendet". Andere Dimm-Modi bleiben bei 0.15.
+    const baseA = (faded ? (bridgeActive ? 0.28 : 0.15) : 1) * ap * lodA;
     // weicher Hover-Schein hinter dem Knoten (nur der eine gehoverte — günstig)
-    if (hovG && n.id === hovG.id && !faded && ap >= 1) {
+    // FB6/#76: den weichen Hover-Schein NICHT für den gerade gezogenen Knoten zeichnen. Auf Touch
+    // gibt es „Hover" nur während des Ziehens — der blurred Schein wirkte dann wie ein Schlagschatten,
+    // der beim Verschieben auf die Kugel fällt. Beim reinen Hovern (ohne Drag) bleibt der Schein.
+    if (hovG && n.id === hovG.id && !faded && ap >= 1 && n !== dragNode) {
       ctx.globalAlpha = 1; ctx.shadowColor = getCss("--edge-together"); ctx.shadowBlur = 16;
       traceNode(n, r); ctx.fillStyle = nodeColor(n); ctx.fill();
       ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
@@ -3221,7 +3243,7 @@ function draw() {
     // Annähern/Hovern wächst und ein weiches Halo bekommt — so ist klar: hier gibt es was einzublenden.
     if (n.pending && !n.venue) {
       const b = pendingBadge(n), near = pendingNear(n) || n === hover;
-      const R = (near ? 10.5 : 7.5) / view.k;
+      const R = near ? b.r * 1.4 : b.r; // b.r skaliert jetzt mit der Kugel (FB11); beim Annähern etwas größer
       // Halo beim Annähern, damit der Chip „aufwacht" und als Ziel erkennbar wird.
       if (near) {
         ctx.globalAlpha = 0.16 * ap; ctx.fillStyle = getCss("--accent");
@@ -3232,7 +3254,7 @@ function draw() {
       // „+K"-Zahl im Chip, sobald genug herangezoomt oder beim Annähern (sonst bleibt die Übersicht ruhig).
       if (view.k > 0.5 || near) {
         ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.font = `700 ${(near ? 9.5 : 8) / view.k}px ${CANVAS_FONT}`;
+        ctx.font = `700 ${R * 1.05}px ${CANVAS_FONT}`; // Schrift skaliert mit dem Chip mit
         ctx.fillText("+" + n.pending, b.x, b.y + 0.5 / view.k);
         ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
       }
@@ -3717,7 +3739,10 @@ function onPlayBtn(px, py) {
 // Nutzer ohnehin schon zum „mehr einblenden" antippen. Ein Tipp darauf ruft revealMore(n).
 function pendingBadge(n) {
   const rr = radius(n);
-  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: 8 / view.k };
+  // FB11/#68: „+K"-Chip nicht mehr rein bildschirm-konstant (winzig neben einer großen, nah
+  // herangezoomten Kugel), sondern mit dem Kugelradius mitskalieren — mit Mindestgröße, damit er
+  // beim Rauszoomen lesbar bleibt. Position + Trefferfläche (onPendingBadge) ziehen automatisch mit.
+  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: Math.max(8 / view.k, rr * 0.42) };
 }
 // Zeiger/Finger nahe am „+K"-Chip? -> Chip vergrößern und Trefferfläche aufziehen (fingerfreundlich).
 // mouseWorld ist nur bei Maus gesetzt; auf Touch trägt COARSE ohnehin die größere Basis-Trefferfläche.
@@ -4070,7 +4095,7 @@ function appendRevealBtn(n) {
   const b = document.createElement("div");
   b.className = "nb morelink";
   b.innerHTML = `<span>＋ ${tf("{K} weitere laden", { K: n.pending })}</span>`;
-  b.title = t("Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang");
+  b.title = t("Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)");
   b.onclick = () => revealMore(n);
   el.appendChild(b);
 }
@@ -4361,6 +4386,14 @@ document.getElementById("exportPng").onclick = () => {
     a.href = u; a.download = "like-map.png"; a.click();
     URL.revokeObjectURL(u);
   });
+};
+// FB16: aktuelle Karte als eigenständige HTML-Datei laden (Dateiname kommt vom Server).
+const exportHtmlBtn = document.getElementById("exportHtml");
+if (exportHtmlBtn) exportHtmlBtn.onclick = () => {
+  const a = document.createElement("a");
+  a.href = API_BASE + "/api/export.html"; a.download = "";
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(t("HTML-Datei wird heruntergeladen …"));
 };
 
 // ---- Laden / Erkunden ----
@@ -4713,7 +4746,7 @@ function updateTooltip(n, e) {
 // Hinweis am „+K"-Chip: macht die Antipp-Affordanz sichtbar („mehr einblenden, kein Ladevorgang").
 function showPendingTip(n, e) {
   tipEl.innerHTML = `<b>＋ ${tf("{K} weitere laden", { K: n.pending })}</b><br>` +
-    `<span class="g">${t("Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang")}</span>`;
+    `<span class="g">${t("Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)")}</span>`;
   tipEl.classList.add("show");
   const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
   tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tw - 8) + "px";
@@ -4972,7 +5005,7 @@ function showBridgeBar() {
   document.getElementById("bridgeProg").style.display = "none";
   document.getElementById("bridgeSlider").style.display = "";
   bar.querySelector(".blabels").style.display = "";
-  document.getElementById("bridgeHint").textContent = t("Klick einen der hellen Kandidaten, um ihn einzufügen.");
+  document.getElementById("bridgeHint").textContent = t("Andere Acts sind kurz abgeblendet, damit der Weg sichtbar ist — klick einen der hellen Kandidaten, um ihn einzufügen.");
   document.getElementById("bridgeTitle").textContent = tf("Brücke: {A} → {B}", { A: bridge.a.name, B: bridge.b.name });
   // "spannend" heißt klein — beim Musik-Pack "Hörer", sonst der Popularitätsbegriff des Packs
   document.getElementById("bridgeSpicy").textContent = t(CFG.popularity ? "klein" : "spannend");
@@ -5683,7 +5716,10 @@ document.getElementById("discBridges").onclick = () => { closeDiscover(); showBr
 // groß. Querverbindungen außerhalb des Baums bleiben sichtbar, sind aber wenige — die
 // wichtigste Beziehung jedes Knotens liegt ja im Baum.
 function sortLayout() {
-  const real = nodes.filter((n) => !n.venue);
+  // FB7/#80: Monde NICHT mitsortieren — sie umkreisen ihren Planeten (updateMoons setzt ihre
+  // Position pro Frame aus dem Parent). Als Baumknoten behandelt würden sie weit weggeschoben
+  // (und `_moonAng=null` unten riss sie aus der Bahn). Ausnehmen = sie bleiben am Planeten.
+  const real = nodes.filter((n) => !n.venue && !n._moon);
   if (real.length < 3) return;
   const comm = computeCommunities();
   const groups = new Map();
@@ -5827,9 +5863,20 @@ document.addEventListener("mousedown", (e) => {
 const moreEl = document.getElementById("morebox");
 document.getElementById("moreBtn").onclick = () => { moreEl.classList.toggle("show"); closeDiscover(); };
 // Fun/Work-Schalter: Wahl merken und neu laden — die Feature-Gates greifen beim Start.
+// FB5/#70: Sprach-/Modus-Wechsel lädt die Seite neu — dabei bekam der Graph frische
+// Zufallspositionen und das Force-Layout ordnete das Netz sichtbar neu an. Vor dem Reload die
+// aktuellen Knotenpositionen sichern; beim Start werden sie als `prev` in rebuild() eingespielt
+// (kalt, ohne Reheat), sodass die Anordnung erhalten bleibt.
+function stashLayoutForReload() {
+  try {
+    const pos = nodes.filter((n) => n.x != null && !n.venue).map((n) => [n.id, Math.round(n.x), Math.round(n.y), n.pinned ? 1 : 0]);
+    if (pos.length) sessionStorage.setItem("like_relayout", JSON.stringify({ pack: CFG.id, pos }));
+  } catch {}
+}
 function setMode(m) {
   if (m === MODE) return;
   try { localStorage.setItem("like_mode", m); } catch {}
+  stashLayoutForReload();
   location.reload();
 }
 document.getElementById("modeFun").onclick = () => setMode("fun");
@@ -5840,6 +5887,7 @@ document.getElementById("langEn").classList.toggle("on", LANG === "en");
 function setLang(l) {
   if (l === LANG) return;
   try { localStorage.setItem("like_lang", l); } catch {}
+  stashLayoutForReload();
   location.reload();
 }
 document.getElementById("langDe").onclick = () => setLang("de");
@@ -5899,11 +5947,22 @@ const authModal = document.getElementById("authModal");
 let authMode = "login";
 function renderAcct() {
   const box = document.getElementById("acctBox"); if (!box) return;
+  // FB9/#75: kleine Konto-/Karten-Übersicht — client-seitig aus dem Graphen abgeleitet
+  // (keine neue Server-Anfrage): Acts auf der Karte, davon in Listen, Anzahl Listen.
+  const L = (de, en) => LANG === "en" ? en : de;
+  const arts = Object.values((typeof graph !== "undefined" && graph?.artists) || {});
+  const onMap = arts.length;
+  const inLists = arts.filter((a) => (a.lists || []).length).length;
+  const listIds = new Set(); for (const a of arts) for (const lid of (a.lists || [])) listIds.add(lid);
+  const item = (onMap === 1 ? (CFG.item?.sing || CFG.item?.plur) : CFG.item?.plur) || "Acts";
+  const stats = onMap
+    ? `<div style="color:var(--muted);margin-top:5px;line-height:1.5">${onMap} ${item} · ${inLists} ${L("in Listen", "in lists")} · ${listIds.size} ${L("Listen", "lists")}</div>`
+    : "";
   if (window.LIKE_USER) {
-    box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>`;
+    box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>${stats}`;
     box.querySelector("#acctLogout").onclick = doLogout;
   } else {
-    box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button><div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigene Karte auf diesem Gerät (nach 30 Tagen Inaktivität aufgeräumt). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
+    box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button>${stats}<div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigene Karte auf diesem Gerät (nach 30 Tagen Inaktivität aufgeräumt). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
     box.querySelector("#acctLogin").onclick = () => { closeMore(); openAuth("login"); };
   }
 }
@@ -6390,7 +6449,23 @@ function maybeShowIntro() {
       try { const d = await API.demo(); if (d?.ok && Object.keys(d.graph.artists || {}).length) { graph = d.graph; demoMode = true; } } catch {}
     }
   }
-  rebuild();
+  // FB5/#70: Nach einem Sprach-/Modus-Reload die vorher gesicherten Positionen einspielen —
+  // als `prev` in rebuild(), kalt (reheatAmt 0), damit die Anordnung EXAKT erhalten bleibt und
+  // sich das Netz nicht sichtbar neu ordnet. Nur wenn Pack passt und keine Demo-Karte läuft.
+  let _restorePrev = null;
+  if (!demoMode) {
+    try {
+      const raw = sessionStorage.getItem("like_relayout");
+      if (raw) {
+        sessionStorage.removeItem("like_relayout");
+        const s = JSON.parse(raw);
+        if (s && s.pack === CFG.id && Array.isArray(s.pos) && s.pos.length) {
+          _restorePrev = new Map(s.pos.map(([id, x, y, p]) => [id, { x, y, vx: 0, vy: 0, pinned: !!p, appear: 1 }]));
+        }
+      }
+    } catch {}
+  }
+  if (_restorePrev) rebuild(_restorePrev, 0); else rebuild();
   // Layout VOR dem ersten Zeichnen fertig ausrechnen (bis es ruhig ist) — so wackelt beim
   // Anzeigen nichts mehr (kein sichtbares Zappeln direkt nach dem Start). Deckel als Notbremse.
   { let guard = 0; do { tick(); } while (alpha >= ALPHA_MIN && ++guard < 500); }
@@ -6464,17 +6539,24 @@ addEventListener("visibilitychange", () => {
   }
   // „Überrasch mich": zufälliger, eher unbekannter Act vom Server -> direkt reinstolpern.
   const sBtn = document.getElementById("surpriseBtn");
+  const sGenre = document.getElementById("surpriseGenre");
   if (sBtn) {
     if (STATIC || !FEAT.surprise) sBtn.style.display = "none"; // nur wo das Pack surprise() anbietet
-    sBtn.addEventListener("click", async () => {
+    // FB14/#74: optionale Genre-Eingabe nur im Musik-Pack zeigen (nur dort serverseitig unterstützt).
+    if (sGenre) sGenre.style.display = (!STATIC && FEAT.surprise && CFG.id === "music") ? "" : "none";
+    const doSurprise = async () => {
       sBtn.disabled = true; const label = sBtn.textContent; sBtn.textContent = t("✦ Suche …");
       try {
-        const r = await GET("/api/surprise");
+        const g = (sGenre?.value || "").trim();
+        const r = await GET("/api/surprise" + (g ? "?genre=" + encodeURIComponent(g) : ""));
         if (r && r.ok && r.name) await exploreByName(r.name);
-        else toast("Gerade keine Überraschung zur Hand");
+        else toast(g ? tf("Nichts fürs Genre {G} gefunden — versuch ein anderes", { G: g }) : "Gerade keine Überraschung zur Hand");
       } catch { toast("Überraschung fehlgeschlagen"); }
       finally { sBtn.disabled = false; sBtn.textContent = label; }
-    });
+    };
+    sBtn.addEventListener("click", doSurprise);
+    // Enter im Genre-Feld löst die Überraschung aus
+    if (sGenre) sGenre.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doSurprise(); } });
   }
   // Beim Öffnen der leeren Karte den Fokus auf die Leiste legen.
   if (!STATIC && !nodes.length) setTimeout(() => q2.focus(), 60);

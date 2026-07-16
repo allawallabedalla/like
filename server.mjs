@@ -567,7 +567,9 @@ const APP_SPLIT = await (async () => {
   let shell = html;
   if (main) shell = shell.replace(main[0], `<script src="${jsPath}"></script>`);
   if (style) shell = shell.replace(style[0], `<link rel="stylesheet" href="${cssPath}">`);
-  return { shell, js, css, jsPath, cssPath };
+  // raw = die voll-inline HTML (JS+CSS eingebettet) — Basis für den self-contained HTML-Export
+  // (FB16), der offline funktionieren muss und daher KEINE externen app.<hash>-Dateien nutzen darf.
+  return { shell, js, css, jsPath, cssPath, raw: html };
 })();
 
 // Pack-Config ins Frontend injizieren (+ Pack-Liste für den Umschalter).
@@ -1561,7 +1563,19 @@ const server = createServer(async (req, res) => {
     }
 
     // Vorschau/Klangprobe — nur, wenn das Pack eine liefert.
+    // FB16: Klangprobe aus dem heruntergeladenen HTML-Snapshot (anderer Origin/file://) erlauben.
+    // Bewusst NUR für /api/preview (unkritisch, kein Konto/keine Schreibaktion) — Preflight + ACAO.
+    if (url.pathname === "/api/preview" && req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": req.headers["access-control-request-headers"] || "content-type",
+        "access-control-max-age": "86400",
+      });
+      return res.end();
+    }
     if (req.method === "POST" && url.pathname === "/api/preview") {
+      res.setHeader("access-control-allow-origin", "*"); // Cross-Origin-Vorschau für HTML-Exporte (FB16)
       const { name, listeners } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
       if (!pack.preview) return send(res, 200, { ok: false });
@@ -1872,9 +1886,31 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/surprise") {
       if (!pack.surprise) return send(res, 200, { ok: false });
       countUsage("surprise", pack.id);
+      const genre = (url.searchParams.get("genre") || "").trim().slice(0, 40); // FB14: optional Genre-gefiltert
       let name = null;
-      try { name = await pack.surprise(); } catch {}
+      try { name = await pack.surprise({ genre }); } catch {}
       return name ? send(res, 200, { ok: true, name }) : send(res, 200, { ok: false });
+    }
+
+    // FB16/#69: die aktuelle Karte als EIGENSTÄNDIGE HTML-Datei herunterladen. Graph + Pack-Config
+    // voll-inline eingebettet (APP_SPLIT.raw, keine externen app.<hash>-Dateien) -> ansehen/zoomen/
+    // filtern/Infos/PNG funktionieren offline. Die Klangprobe läuft über die LIVE-Instanz
+    // (window.LIKE_API_BASE = öffentliche URL; CORS ist oben nur für /api/preview freigegeben) —
+    // funktioniert also, solange die Seite online ist. Ohne bekannte Basis-URL fällt die Vorschau
+    // still aus (relative Calls ins Leere), der Rest bleibt nutzbar.
+    if (req.method === "GET" && url.pathname === "/api/export.html") {
+      const g = materialize(await loadGraph(GRAPH));
+      const esc2 = (s) => JSON.stringify(s).replace(/</g, "\\u003c");
+      const base = publicBase(req);
+      const inject =
+        `<script>window.LIKE_CFG = ${esc2(pack.config)};\n` +
+        `window.LIKE_PACKS = ${esc2(PACK_LIST)};\n` +
+        `window.LIKE_GRAPH = ${esc2(g)};\n` +
+        `window.LIKE_API_BASE = ${JSON.stringify(base)};\n` +
+        `window.LIKE_EXPORT = true;</script>\n<script>`;
+      const html = APP_SPLIT.raw.replace("<script>", inject);
+      res.setHeader("content-disposition", `attachment; filename="like-${pack.id}.html"`);
+      return send(res, 200, html, "text/html; charset=utf-8");
     }
 
     // Markierte Einträge als CSV exportieren (Shortlist).

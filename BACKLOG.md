@@ -991,39 +991,71 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   Dopplung. Die Fehler-Toasts (keine Klangprobe / Wiedergabe blockiert) bleiben bewusst.
 
 ### Offen — klein, aber erst verifizieren/entscheiden (die „unklaren" ans Ende gestellt)
-- [ ] **FB2 — Falsches Audio gematcht (#81).** „Magnum" (Rockband) → französischer HipHop
-  („Magnüm"?). Ein Plausi-Check existiert (Hörerzahl an `API.preview`, „C6"), der Fall rutschte
-  durch → Namens-/Identitäts-Matching der Preview-Quelle nachschärfen.
-- [ ] **FB5 — Sprachwechsel ordnet das Netz neu an (#70).** `LANG` wird einmalig beim Laden
-  bestimmt; Umschalten löst offenbar Reload/Rebuild samt Force-Layout aus. Ziel: Anordnung
-  erhalten. Aufwand hängt am Umschalt-Mechanismus (erst lokalisieren).
-- [ ] **FB6 — „Komischer Schatten" beim Verschieben im Flat-Modus (#76).** Vermutlich der
-  Hover-Schein (`shadowBlur 16`, `--edge-together`), der beim Ziehen mitläuft. Im Flat-Modus
-  prüfen/abschwächen. **Screenshot vom Nutzer würde die Diagnose absichern.**
-- [ ] **FB11 — „+N"-Badge mit dem Zoom skalieren (#68).** Unklar, welches Badge genau: das
-  Mond-`＋` ist bewusst bildschirm-konstant (`/view.k`), ein numerisches „+15" fürs Nachladen
-  finde ich so nicht. **Kurz zeigen, welches „+15" gemeint ist**, dann gezielt fixen.
-- [ ] **FB7 — „Aufräumen" schiebt Monde weg vom Planeten (#80).** Layout/Physik nach dem
-  Aufräumen; verwandt mit FB4 (räumliche Ordnung).
-- [ ] **FB10 — Das „+N"-Badge erklären (#77).** Onboarding/Copy — „noch nicht selbsterklärend".
-  Sinnvoll zusammen mit FB11 (dasselbe Element).
-- [ ] **FB12 — „Brücke bauen" blendet viele Acts aus (#78).** Der Fokus-Effekt wirkt
-  unerwartet — Hinweis einblenden oder sanfter ausblenden.
-- [ ] **FB9 — Profilmenü mit Konto-Infos (#75, Rest).** Playlists sind über N7 erreichbar; eine
-  kleine Konto-Übersicht (Name, Status …) fehlt noch.
+- [x] **FB2 — Falsches Audio gematcht (#81).** ✅ Ursache: `norm()` strippt Diakritika, also
+  faltete „Magnüm" auf „magnum" und matchte „Magnum". Fix in `lib/deezer.mjs` + `lib/itunes.mjs`:
+  **zuerst diakritik-sensitiv exakt** matchen (nur Groß-/Kleinschreibung + Leerraum egal), erst als
+  Fallback die gefaltete Variante. Am echten Modul verifiziert (Trefferliste [Magnüm, Magnum] →
+  wählt jetzt „Magnum").
+- [x] **FB5 — Sprachwechsel ordnet das Netz neu an (#70).** ✅ Ursache: `setLang`/`setMode` machen
+  `location.reload()`, danach vergab `rebuild()` frische Zufallspositionen. Fix: vor dem Reload die
+  Knotenpositionen in `sessionStorage` sichern (`stashLayoutForReload`), beim Start als `prev` in
+  `rebuild(prev, 0)` einspielen (kalt, kein Reheat) — die Anordnung bleibt erhalten. Gilt auch fürs
+  Modus-Umschalten. (Frontend-Fix, im Browser noch gegenzusehen.)
+- [x] **FB6 — „Schlagschatten nach innen auf die Kugel" beim Verschieben (#76).** ✅ Nutzer
+  präzisiert: nur in Bewegung. Ursache: der weiche Hover-Schein (`shadowBlur 16`) — auf Touch gibt
+  es „Hover" nur während des Ziehens, der blurred Schein wirkte dann wie ein Schlagschatten. Fix:
+  Schein für den gerade gezogenen Knoten (`n !== dragNode`) nicht zeichnen; reines Hovern bleibt.
+- [x] **FB11 — „+N"-Indikator mit dem Zoom skalieren (#68).** ✅ Geklärt: der `n.pending`-Chip
+  („noch versteckte, zur Übersicht ausgeblendete Acts"). War bildschirm-konstant (`/view.k`) → winzig
+  neben einer nah herangezoomten Kugel. Fix: Chip-Radius (in `pendingBadge`) + Schrift skalieren mit
+  dem Kugelradius (Mindestgröße bleibt); Position & Trefferfläche ziehen automatisch mit.
+- [x] **FB7 — „Aufräumen" schiebt Monde weg vom Planeten (#80).** ✅ `sortLayout()` behandelte
+  Monde als Baumknoten und setzte `_moonAng=null` → sie flogen aus der Umlaufbahn. Fix: Monde
+  (`_moon`) vom Sortieren ausnehmen; sie umkreisen weiter ihren Planeten (`updateMoons`).
+  (Frontend-Fix, im Browser noch gegenzusehen.)
+- [x] **FB10 — Den „+N"-Indikator erklären (#77).** ✅ Der Chip-Tooltip erklärt jetzt das „warum
+  versteckt": „Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)"
+  (DE+EN); zusammen mit dem größeren Chip aus FB11 ist der Indikator klarer. (Discovery auf Touch
+  bleibt begrenzt — echter Onboarding-Hinweis wäre eine separate größere Sache.)
+- [x] **FB12 — „Brücke bauen" blendet viele Acts aus (#78).** ✅ Zweifach: Nicht-Kandidaten im
+  Brücke-Modus nicht mehr fast unsichtbar (0.15 → 0.28, Kontext bleibt), plus erklärender Hinweis
+  in der Brücken-Leiste („Andere Acts sind kurz abgeblendet, damit der Weg sichtbar ist …", DE+EN).
+  (Frontend-Fix, im Browser noch gegenzusehen.)
+- [x] **FB9 — Profilmenü mit Konto-Infos (#75, Rest).** ✅ Die Konto-Box im ⋯-Menü zeigt jetzt neben
+  „Angemeldet als …/abmelden" eine kleine Übersicht: Acts auf der Karte, davon in Listen, Anzahl
+  Listen — client-seitig aus dem Graphen, ohne neuen Endpoint (auch für anonyme Nutzer). (Playlists
+  waren über N7 schon erreichbar.)
 
 ### Offen — große Bretter (eigene Vorhaben)
-- [ ] **FB4 — Ähnlichkeit/Auftritts-Häufigkeit RÄUMLICH kodieren (#66).** „Näher = ähnlicher"
-  statt nur Liniendicke. Force-Ziellänge an den Score koppeln. Querverweis: Runde-11-Kontroverse
-  („Nähe zeigt Verwandtschaft" hält das aktuelle Layout nicht ein).
-- [ ] **FB14 — „Überrasch mich" mit Genre-Eingabe (#74).** Nach grober Suche Genre-Eingabe
-  anbieten (oder „egal"-Knopf).
-- [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** Über 1–2 „Eckverbinder"-Acts an die
-  Engine koppeln. Große Quelle (Rate-Limits, Matching). Die Idee ist in N1 bereits notiert.
-- [ ] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** Netz als eigenständige HTML-Datei inkl.
-  Vorschau/Infos. Querverweis: W14 (`/s/<id>`) und `export-static.mjs`.
+- [x] **FB4 — Ähnlichkeit/Auftritts-Häufigkeit RÄUMLICH kodieren (#66).** ✅ Die Force-Ruhelänge
+  hing schon an der kombinierten Bindung (ähnlich+zusammen), aber nur schwach. Jetzt steiler
+  gespreizt (`66 + (1-bond)^1.35 * 168`): stark gebundene Paare enger, schwach gebundene deutlich
+  weiter; Kollisions-/Halo-Clamp fängt unten ab. **Tuning-Wert — im Browser gegensehen/nachjustieren.**
+- [x] **FB14 — „Überrasch mich" mit Genre-Eingabe (#74).** ✅ Optionales Genre-Feld unter dem Button
+  (nur Musik). Mit Genre zieht der Server einen eher unbekannten Act AUS dem Genre (Last.fm
+  `tag.gettopartists`, hintere Hälfte = Geheimtipp, garantiert ladbar); leer = wie bisher. Neu:
+  `getTagArtists` (lib/lastfm.mjs), `surprise({genre})` (music-pack), `?genre=` an `/api/surprise`.
+  Am echten Modul verifiziert.
+- [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** *Analyse:* `lib/bandcamp.mjs` bietet
+  bereits `discoverTag(genre)` (kleine, neue Acts je Genre) + `searchBand` (Ort). Das Problem ist
+  nicht die Quelle, sondern die **Einbindung**: der Graph ist namensbasiert über Last.fm — Bandcamp-
+  *only*-Acts laden dort nicht (`exploreByName` findet sie nicht). Es braucht die „Eckverbinder"-
+  Logik (Bandcamp-Act → nächster über Last.fm existierender Nachbar) ODER einen eigenen Bandcamp-
+  Knotentyp im Graphen. Zusätzlich: bandcamp.mjs nutzt **inoffizielle Endpoints (ToS/Risiko)** — als
+  Live-Feature eine **Betreiber-Entscheidung**. *Nächster Schritt/Entscheidung nötig:* (a) nur als
+  Genre-Discovery-Vorschlagsliste (kein Graph-Knoten), (b) echter Bandcamp-Knotentyp, (c) vorerst aus.
+  Teil-Nutzen ist über FB14 (Genre-Surprise) schon da — nur eben via Last.fm, nicht Bandcamp.
+- [x] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** ✅ Variante **c** umgesetzt: neuer
+  Server-Endpoint `GET /api/export.html` bettet den aktuellen Nutzer-Graph + Pack-Config **voll-inline**
+  ein (`APP_SPLIT.raw`, keine externen `app.<hash>`-Dateien) → ansehen/zoomen/filtern/Infos/PNG laufen
+  **offline**. Die **Klangprobe** läuft über die Live-Instanz (`window.LIKE_API_BASE` = öffentliche URL;
+  Client-`GET/POST` nutzen die Basis), CORS ist gezielt **nur für `/api/preview`** freigegeben
+  (Preflight + `Access-Control-Allow-Origin: *`). Neuer „HTML"-Knopf im Export-Menü. End-to-end
+  verifiziert (Endpoint self-contained, absolute Basis eingebettet, CORS greift). Voll-offline mit
+  eingebetteten Vorschau-URLs (Variante b) bleibt bei Bedarf ein späterer Zusatz.
 
-**Reihenfolge/Wirkung:** FB3 ✅ erledigt. Als Nächstes die kleinen, sobald verifiziert/geklärt
-(FB6 & FB11 brauchen einen Screenshot bzw. Zeige-mich-Moment; FB2/FB5 lokalisieren), dann die
-großen Bretter (FB4/FB14/FB15/FB16). Die zugehörigen `feedback`-Issues bleiben offen und werden
-beim Abhaken geschlossen.
+**Stand (2026-07-16):** 11 von 16 umgesetzt — FB3, FB5, FB7, FB12, FB6, FB9, FB10, FB11, FB4, FB14,
+FB16 (plus FB8/FB13 via Runde 21). **Offen: nur noch FB15** (Bandcamp) — braucht eine Betreiber-/
+Scope-Entscheidung (Bandcamp-Einbindung + ToS), kein reiner Bug. Alle Frontend-/Canvas-Fixes
+(FB4/FB5/FB6/FB7/FB9/FB10/FB11/FB12/FB14-UI/FB16-Knopf) sind logik-/syntaxgeprüft, aber im Browser
+noch gegenzusehen. Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
