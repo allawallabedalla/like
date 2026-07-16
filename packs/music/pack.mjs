@@ -7,7 +7,7 @@ import { getSimilar, getTopTags, getArtistInfo, searchArtists, searchArtistsDeta
 import { coAppearances } from "../../lib/coappear.mjs";
 import { relatedArtists, topTrackPreview, trackPreviewSearch, artistByName as dzArtist } from "../../lib/deezer.mjs";
 import { previewByName } from "../../lib/itunes.mjs";
-import { labelmates, artistByName as mbArtist } from "../../lib/musicbrainz.mjs";
+import { labelmates, artistByName as mbArtist, namesakes as mbNamesakes } from "../../lib/musicbrainz.mjs";
 import { searchBand, discoverTag } from "../../lib/bandcamp.mjs";
 import { hasKey as hasSetlistKey, sharedBills } from "../../lib/setlistfm.mjs";
 
@@ -131,6 +131,24 @@ export default {
   // mehrdeutigen Namen zeigen, welcher Act gemeint ist. Fällt still auf [] zurück.
   async suggestMeta(q) { try { return await searchArtistsDetailed(q); } catch { return []; } },
 
+  // N1 (Namensvetter-Dialog): alle gleichnamigen Acts mit Unterscheidungs-Info. Genre/Herkunft/
+  // Jahre kommen aus MusicBrainz, die Hörerzahl je Identität best-effort aus Last.fm (per MBID,
+  // damit die richtige Identität gezählt wird). Nur zurückgeben, wenn es WIRKLICH mehrere sind.
+  async namesakes(name) {
+    let list = [];
+    try { list = await mbNamesakes(name); } catch { return []; }
+    if (!list || list.length < 2) return [];
+    const out = [];
+    for (const c of list) {
+      let listeners = null;
+      try { const info = await getArtistInfo(c.name, { mbid: c.mbid }); listeners = info?.listeners ?? null; } catch {}
+      out.push({ ...c, listeners });
+    }
+    // stärkste zuerst: bekannte (viele Hörer) oben, Unbekannte darunter
+    out.sort((a, b) => (b.listeners || 0) - (a.listeners || 0));
+    return out;
+  },
+
   // Leichter „ähnlich"-Zugriff für die Brücke (nur getSimilar, ohne RA/Genres).
   async similar(name, { limit = 60 } = {}) {
     const r = await getSimilar(name, { limit });
@@ -173,11 +191,11 @@ export default {
   // ähnlichen Stil + Tags; Phase 2 (langsam, RA-Kette) reicht "zusammen aufgetreten" +
   // kuratierte Genres + Booking nach. pack.explore() bleibt unverändert für Prefetch/
   // Brücke/Cross-Pack — und wärmt über cached() BEIDE Phasen vor.
-  async exploreFast(name) {
+  async exploreFast(name, { mbid } = {}) {
     let canonical = name, similar = [], tags = [];
-    try { const r = await getSimilar(name, { limit: 30 }); canonical = r.sourceName; similar = r.similar; }
+    try { const r = await getSimilar(name, { limit: 30, mbid }); canonical = r.sourceName; similar = r.similar; }
     catch (e) { if (/API-Key/i.test(e.message)) throw e; /* sonst: nicht bei Last.fm */ }
-    try { tags = await getTopTags(canonical); } catch {}
+    try { tags = await getTopTags(canonical, { mbid }); } catch {}
     return {
       canonical,
       genres: tags.slice(0, 6), // vorläufig nur Tags — Phase 2 mischt RA-Genres davor
@@ -200,16 +218,16 @@ export default {
 
   // Haupt-Flow: Last.fm bestimmt Identität + ähnlichen Stil, RA (+ optionale Quellen)
   // liefert "zusammen aufgetreten" + kuratierte Genres + Booking-Steckbrief.
-  async explore(name) {
+  async explore(name, { mbid } = {}) {
     let canonical = name, similar = [], coacts = [], raGenres = [], tags = [], sources = [];
-    try { const r = await getSimilar(name, { limit: 30 }); canonical = r.sourceName; similar = r.similar; }
+    try { const r = await getSimilar(name, { limit: 30, mbid }); canonical = r.sourceName; similar = r.similar; }
     catch (e) { if (/API-Key/i.test(e.message)) throw e; /* sonst: nicht bei Last.fm */ }
     // Tags (Last.fm) und Co-Auftritte (RA) brauchen beide nur `canonical` und treffen
     // GETRENNTE Hosts/Gates — parallel statt seriell spart ~370-500 ms pro kaltem Ausbau
     // (Taskforce R13). Schluck-Semantik wie vorher: jeder Zweig scheitert für sich still;
     // die Genre-Mischreihenfolge (RA vor Tags, unten) bleibt unverändert.
     let booking = null;
-    const [tagsR, caR] = await Promise.allSettled([getTopTags(canonical), coAppearances(canonical)]);
+    const [tagsR, caR] = await Promise.allSettled([getTopTags(canonical, { mbid }), coAppearances(canonical)]);
     if (tagsR.status === "fulfilled") tags = tagsR.value;
     if (caR.status === "fulfilled") { const ca = caR.value; coacts = ca.coacts; raGenres = ca.genres; sources = ca.sources; booking = ca.booking; }
 

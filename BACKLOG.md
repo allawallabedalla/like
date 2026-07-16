@@ -923,6 +923,15 @@ Direktes Feedback aus der Nutzung. **Alle acht Punkte umgesetzt (2026-07-16);**
   Client rendert Namen + Hinweis). Der Bandcamp-Gedanke ist als Alternative notiert — die
   Last.fm-URL ist der ehrlichere „das wird geladen"-Vorschau-Link, weil `exploreByName` über
   genau diese Identität lädt.
+  - **N1b (Nachtrag) — Namensvetter-Dialog.** ✅ Wenn es mehrere *exakt* gleichnamige Acts gibt,
+    erscheint nach der Suche ein dezenter Hinweis („Mehrere Acts heißen „X" — Auswählen"). Der
+    Dialog listet die Gleichnamigen mit **Unterscheidungs-Notiz, Genre, Herkunft, Jahren und
+    Hörerzahl** (Quelle: MusicBrainz + Last.fm-Hörer je MBID). Die Auswahl lädt gezielt **diese
+    MusicBrainz-Identität** (MBID durch die ganze Explore-Kette gereicht: `getSimilar`/
+    `exploreFast`/`explore`/`/api/explore`), statt der zusammengeführten populären Last.fm-Seite.
+    Weil der Graph namensbasiert ist, wird beim Wechsel der alte Quellknoten samt seiner losen,
+    unmarkierten Entdeckungen entfernt und die gewählte Identität frisch geladen. Ausgelöst „auf
+    Nachfrage" (kein Tempoverlust bei normalen Suchen; MusicBrainz ist auf 1 Anfrage/s gedrosselt).
 
 - [x] **N2 — Song-Preview-Pill: Scrub-Line springt nicht zurück.** ✅ Die aufgeklappte
   Spulleiste klappt jetzt automatisch zurück zur Artist-/Titel-Ansicht: bei Pause/Ende, und
