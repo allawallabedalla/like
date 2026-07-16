@@ -966,3 +966,64 @@ Direktes Feedback aus der Nutzung. **Alle acht Punkte umgesetzt (2026-07-16);**
 - [x] **N8 — Startansicht: gesamtes Netz, nur Hauptsonnen.** ✅ Der Start passt jetzt immer die
   Gesamtübersicht ein (`fitAll`); die früher gemerkte Pan/Zoom-Ansicht (F3) wird auf
   Nutzerwunsch nicht mehr wiederhergestellt (Persistenz-Code entfernt).
+
+---
+
+## Runde 22 — Testnutzer-Feedback über den ✉-Knopf (2026-07-16)
+
+**Kontext:** 16 echte Rückmeldungen aus der neuen Feedback-Sammlung (anonyme `feedback`-Issues
+**#66–#81**, Music-Pack v2.6.0). Gegen die parallel umgesetzte Runde 21 (N1–N8) abgeglichen —
+ein Teil war dort bereits erledigt (s. u.). IDs `FBn` verweisen 1:1 auf ihr Quell-Issue.
+
+**Vorbehalt:** Roh-Rückmeldungen, überwiegend **noch nicht am Live-Verhalten verifiziert**. Die
+offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt wird.
+
+### Schon durch Runde 21 abgedeckt (nur Querverweis)
+- **FB8 (#75)** Löschen-Menü neu schneiden → **N6** (Modal mit drei Umfängen). ✅
+- **FB13 (#79)** Hinweis auf temporäre Speicherung bei anonymem „like" → **N4**. ✅
+- **FB9-Teil (#75)** Playlists auffindbar/geschützt → **N7** (★ Meine Listen) + N6. Der
+  *Konto-Infos*-Teil (Profilübersicht) bleibt offen (s. FB9 unten).
+
+### In dieser Runde umgesetzt
+- [x] **FB3 — Redundanten Toast beim Vorschau-Start entfernen (#71).** ✅ Der Start-Toast
+  „▶ … (30 s)" ist raus (`public/index.html`, `playPreview`); die Now-Playing-Pill zeigt Titel +
+  Fortschritt ohnehin (über das audio-`play`-Event → `updateNowPlaying`), der Toast war reine
+  Dopplung. Die Fehler-Toasts (keine Klangprobe / Wiedergabe blockiert) bleiben bewusst.
+
+### Offen — klein, aber erst verifizieren/entscheiden (die „unklaren" ans Ende gestellt)
+- [ ] **FB2 — Falsches Audio gematcht (#81).** „Magnum" (Rockband) → französischer HipHop
+  („Magnüm"?). Ein Plausi-Check existiert (Hörerzahl an `API.preview`, „C6"), der Fall rutschte
+  durch → Namens-/Identitäts-Matching der Preview-Quelle nachschärfen.
+- [ ] **FB5 — Sprachwechsel ordnet das Netz neu an (#70).** `LANG` wird einmalig beim Laden
+  bestimmt; Umschalten löst offenbar Reload/Rebuild samt Force-Layout aus. Ziel: Anordnung
+  erhalten. Aufwand hängt am Umschalt-Mechanismus (erst lokalisieren).
+- [ ] **FB6 — „Komischer Schatten" beim Verschieben im Flat-Modus (#76).** Vermutlich der
+  Hover-Schein (`shadowBlur 16`, `--edge-together`), der beim Ziehen mitläuft. Im Flat-Modus
+  prüfen/abschwächen. **Screenshot vom Nutzer würde die Diagnose absichern.**
+- [ ] **FB11 — „+N"-Badge mit dem Zoom skalieren (#68).** Unklar, welches Badge genau: das
+  Mond-`＋` ist bewusst bildschirm-konstant (`/view.k`), ein numerisches „+15" fürs Nachladen
+  finde ich so nicht. **Kurz zeigen, welches „+15" gemeint ist**, dann gezielt fixen.
+- [ ] **FB7 — „Aufräumen" schiebt Monde weg vom Planeten (#80).** Layout/Physik nach dem
+  Aufräumen; verwandt mit FB4 (räumliche Ordnung).
+- [ ] **FB10 — Das „+N"-Badge erklären (#77).** Onboarding/Copy — „noch nicht selbsterklärend".
+  Sinnvoll zusammen mit FB11 (dasselbe Element).
+- [ ] **FB12 — „Brücke bauen" blendet viele Acts aus (#78).** Der Fokus-Effekt wirkt
+  unerwartet — Hinweis einblenden oder sanfter ausblenden.
+- [ ] **FB9 — Profilmenü mit Konto-Infos (#75, Rest).** Playlists sind über N7 erreichbar; eine
+  kleine Konto-Übersicht (Name, Status …) fehlt noch.
+
+### Offen — große Bretter (eigene Vorhaben)
+- [ ] **FB4 — Ähnlichkeit/Auftritts-Häufigkeit RÄUMLICH kodieren (#66).** „Näher = ähnlicher"
+  statt nur Liniendicke. Force-Ziellänge an den Score koppeln. Querverweis: Runde-11-Kontroverse
+  („Nähe zeigt Verwandtschaft" hält das aktuelle Layout nicht ein).
+- [ ] **FB14 — „Überrasch mich" mit Genre-Eingabe (#74).** Nach grober Suche Genre-Eingabe
+  anbieten (oder „egal"-Knopf).
+- [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** Über 1–2 „Eckverbinder"-Acts an die
+  Engine koppeln. Große Quelle (Rate-Limits, Matching). Die Idee ist in N1 bereits notiert.
+- [ ] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** Netz als eigenständige HTML-Datei inkl.
+  Vorschau/Infos. Querverweis: W14 (`/s/<id>`) und `export-static.mjs`.
+
+**Reihenfolge/Wirkung:** FB3 ✅ erledigt. Als Nächstes die kleinen, sobald verifiziert/geklärt
+(FB6 & FB11 brauchen einen Screenshot bzw. Zeige-mich-Moment; FB2/FB5 lokalisieren), dann die
+großen Bretter (FB4/FB14/FB15/FB16). Die zugehörigen `feedback`-Issues bleiben offen und werden
+beim Abhaken geschlossen.

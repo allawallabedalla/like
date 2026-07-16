@@ -2197,7 +2197,8 @@ async function togglePreview(name) {
     previewLabel = `${res.artist || name}${res.track ? " — " + res.track : ""}`;
     audio.src = res.url; audio.currentTime = 0;
     await audio.play();
-    toast(`▶ ${previewLabel} (30 s)`);
+    // Kein Start-Toast mehr (FB3/#71): die Now-Playing-Pill zeigt Titel + Fortschritt bereits an
+    // (via audio "play"-Event -> updateNowPlaying), der Toast war reine Dopplung.
   } catch {
     if (previewName !== name) return; // Fehler einer veralteten Anfrage: neueren Zustand nicht anfassen
     toast("Vorschau nicht abspielbar (Browser hat die Wiedergabe blockiert)"); previewName = null; refreshPreviewButtons(); updateNowPlaying();
