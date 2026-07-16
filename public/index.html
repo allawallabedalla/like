@@ -910,6 +910,10 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <button id="export" class="workonly" title="Markierte Acts als CSV"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>CSV</button>
       <button id="exportPng" title="Karte als Bild (PNG)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>PNG</button>
     </div>
+    <!-- FB16: ganze Karte als eigenständige HTML-Datei herunterladen -->
+    <div class="mrow hideStatic">
+      <button id="exportHtml" title="Die aktuelle Karte als eigenständige HTML-Datei herunterladen — ansehen, zoomen, Infos lesen und (solange die Seite online ist) Klangproben anhören."><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>HTML</button>
+    </div>
     <!-- W14: ganze Karte als Read-Only-Link teilen -->
     <div class="mrow hideStatic">
       <button id="shareMap" title="Unveränderliche Kopie deiner Karte als öffentlichen Read-Only-Link teilen (ohne Notizen/Status/Gagen)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg><span id="shareMapLbl">Karte als Link teilen</span></button>
@@ -1533,6 +1537,7 @@ const T = LANG !== "en" ? null : {
   "Heimatort: dein Standort — neu geladene Ziele rechnen ab hier": "Home: your location — newly loaded destinations measure from here",
   "Gerade keine Überraschung zur Hand": "No surprise at hand right now",
   "Nichts fürs Genre {G} gefunden — versuch ein anderes": "Nothing found for the {G} genre — try another",
+  "HTML-Datei wird heruntergeladen …": "Downloading HTML file …",
   "Überraschung fehlgeschlagen": "Surprise failed",
   "Erst ein paar Einträge laden — dann gibt's was zu entdecken.": "Load a few entries first — then there's something to discover.",
   "Zu wenig auf der Karte — erkunde erst ein paar Einträge.": "Not enough on the map — explore a few entries first.",
@@ -2009,8 +2014,11 @@ async function parseRes(r) {
   }
   return data;
 }
-const GET = (path) => fetch(path, { headers: reqHeaders() }).then(parseRes);
-const POST = (path, body) => fetch(path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(parseRes);
+// FB16: im heruntergeladenen HTML-Snapshot zeigt LIKE_API_BASE auf die Live-Instanz, damit die
+// Klangprobe (einziger Server-Call im STATIC-Modus) funktioniert. Im Normalbetrieb leer = relativ.
+const API_BASE = (typeof window !== "undefined" && window.LIKE_API_BASE) || "";
+const GET = (path) => fetch(API_BASE + path, { headers: reqHeaders() }).then(parseRes);
+const POST = (path, body) => fetch(API_BASE + path, { method: "POST", headers: reqHeaders({ "content-type": "application/json" }), body: JSON.stringify(body) }).then(parseRes);
 // Client-Fehler (z. B. Brücke fehlgeschlagen) an den Betreiber melden -> serverseitig Pushover.
 // Best effort, blockiert nichts; nur live (nicht im STATIC-Preview). Der Server sendet nur, wenn
 // Pushover eingerichtet ist, und drosselt gegen Spam.
@@ -4378,6 +4386,14 @@ document.getElementById("exportPng").onclick = () => {
     a.href = u; a.download = "like-map.png"; a.click();
     URL.revokeObjectURL(u);
   });
+};
+// FB16: aktuelle Karte als eigenständige HTML-Datei laden (Dateiname kommt vom Server).
+const exportHtmlBtn = document.getElementById("exportHtml");
+if (exportHtmlBtn) exportHtmlBtn.onclick = () => {
+  const a = document.createElement("a");
+  a.href = API_BASE + "/api/export.html"; a.download = "";
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(t("HTML-Datei wird heruntergeladen …"));
 };
 
 // ---- Laden / Erkunden ----

@@ -1045,18 +1045,17 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   Live-Feature eine **Betreiber-Entscheidung**. *Nächster Schritt/Entscheidung nötig:* (a) nur als
   Genre-Discovery-Vorschlagsliste (kein Graph-Knoten), (b) echter Bandcamp-Knotentyp, (c) vorerst aus.
   Teil-Nutzen ist über FB14 (Genre-Surprise) schon da — nur eben via Last.fm, nicht Bandcamp.
-- [ ] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** *Analyse:* `export-static.mjs` erzeugt
-  bereits eine self-contained HTML (Graph eingebettet, zoom/klick/filter/Infos/PNG **offline** ok) —
-  ABER der Export läuft im STATIC-Modus und alle API-Calls sind **relativ** (`/api/preview`), d. h.
-  **die Klangvorschau funktioniert in der heruntergeladenen Datei nicht** (kein Server). Genau die
-  will der Nutzer aber. *Entscheidung nötig:* (a) Offline-Snapshot **ohne** Vorschau (kleinster, sofort
-  machbar), (b) Vorschau-URLs beim Export **vorab einbetten** (voll offline, aber N gedrosselte
-  Lookups pro Export), (c) Export ruft die **Live-Instanz** absolut auf (Vorschau online, braucht
-  CORS am Server). Danach: Server-Endpoint `/api/export.html` (aktueller Nutzer-Graph) + Download-Knopf.
+- [x] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** ✅ Variante **c** umgesetzt: neuer
+  Server-Endpoint `GET /api/export.html` bettet den aktuellen Nutzer-Graph + Pack-Config **voll-inline**
+  ein (`APP_SPLIT.raw`, keine externen `app.<hash>`-Dateien) → ansehen/zoomen/filtern/Infos/PNG laufen
+  **offline**. Die **Klangprobe** läuft über die Live-Instanz (`window.LIKE_API_BASE` = öffentliche URL;
+  Client-`GET/POST` nutzen die Basis), CORS ist gezielt **nur für `/api/preview`** freigegeben
+  (Preflight + `Access-Control-Allow-Origin: *`). Neuer „HTML"-Knopf im Export-Menü. End-to-end
+  verifiziert (Endpoint self-contained, absolute Basis eingebettet, CORS greift). Voll-offline mit
+  eingebetteten Vorschau-URLs (Variante b) bleibt bei Bedarf ein späterer Zusatz.
 
-**Stand (2026-07-16):** 10 von 16 umgesetzt — FB1–FB14 bis auf zwei erledigt (FB3, FB5, FB7,
-FB12, FB6, FB9, FB10, FB11, FB4, FB14; plus FB8/FB13 via Runde 21). **Offen: FB15 + FB16** — beide
-sind keine reinen Bugs, sondern brauchen erst eine Entscheidung (s. o.: Bandcamp-Einbindung/ToS bzw.
-Export-Vorschau offline-vs-online). Alle Frontend-/Canvas-Fixes (FB4/FB5/FB6/FB7/FB9/FB10/FB11/FB12/
-FB14-UI) sind logik-/syntaxgeprüft, aber im Browser noch gegenzusehen. Die `feedback`-Issues bleiben
-offen und werden beim Abhaken geschlossen.
+**Stand (2026-07-16):** 11 von 16 umgesetzt — FB3, FB5, FB7, FB12, FB6, FB9, FB10, FB11, FB4, FB14,
+FB16 (plus FB8/FB13 via Runde 21). **Offen: nur noch FB15** (Bandcamp) — braucht eine Betreiber-/
+Scope-Entscheidung (Bandcamp-Einbindung + ToS), kein reiner Bug. Alle Frontend-/Canvas-Fixes
+(FB4/FB5/FB6/FB7/FB9/FB10/FB11/FB12/FB14-UI/FB16-Knopf) sind logik-/syntaxgeprüft, aber im Browser
+noch gegenzusehen. Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
