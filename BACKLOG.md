@@ -911,40 +911,49 @@ Pack es anbietet — kein Server-Umbau nötig.
 
 ## Runde 21 — Nutzer-Feedback (2026-07-16)
 
-Direktes Feedback aus der Nutzung — noch unbearbeitet, hier zur Aufnahme in die
-nächste Runde festgehalten.
+Direktes Feedback aus der Nutzung. **Alle acht Punkte umgesetzt (2026-07-16);**
+`npm run check` grün, Playwright-Suite grün.
 
-- [ ] **N1 — Act-Suche: Eindeutigkeit bei mehrdeutigen Namen.** Bei nicht eindeutigen
-  Act-Namen ist schwer zu erkennen, ob der richtige Act gezogen wurde. Idee: in der
-  Act-Suche zusätzliche eindeutige Hinweise anbieten — z. B. Links zu Bandcamp o. ä.,
-  damit die Auswahl eindeutig vorgegeben werden kann. (Alternative Umsetzungsideen
-  willkommen: Disambiguierung über Genre/Herkunft/Jahre, kleines Cover-Thumbnail,
-  Hörerzahl o. Ä.)
+- [x] **N1 — Act-Suche: Eindeutigkeit bei mehrdeutigen Namen.** ✅ Die Autocomplete zeigt
+  jetzt je Vorschlag die **Hörerzahl** (1.2M / 4.3k) und einen kleinen **↗-Verifizier-Link**,
+  der genau die Last.fm-Identität öffnet, die beim Klick geladen würde — so lässt sich vor
+  der Auswahl prüfen, ob es der richtige Act ist. Umsetzung ohne Zusatzlast: die schon
+  vorhandene `artist.search`-Antwort liefert Hörer + URL mit (neu `searchArtistsDetailed`
+  in `lib/lastfm.mjs`, `suggestMeta` im Music-Pack, `/api/suggest` hängt optional `meta` an;
+  Client rendert Namen + Hinweis). Der Bandcamp-Gedanke ist als Alternative notiert — die
+  Last.fm-URL ist der ehrlichere „das wird geladen"-Vorschau-Link, weil `exploreByName` über
+  genau diese Identität lädt.
 
-- [ ] **N2 — Song-Preview-Pill: Scrub-Line springt nicht zurück.** Die Scrub-Line der
-  Song-Preview-Pill wechselt nach dem Abspielen nicht automatisch zurück zur
-  Artist-/Titel-Ansicht.
+- [x] **N2 — Song-Preview-Pill: Scrub-Line springt nicht zurück.** ✅ Die aufgeklappte
+  Spulleiste klappt jetzt automatisch zurück zur Artist-/Titel-Ansicht: bei Pause/Ende, und
+  auf Touch nach kurzer Ruhe (Auto-Collapse-Timer). Der klebrige Klick-Umschalter greift nur
+  noch auf Touch — am Desktop steuert der Hover, ein Klick bleibt nicht mehr in der
+  Scrub-Ansicht hängen.
 
-- [ ] **N3 — Schrift des Netzes am Desktop pixelig.** Am Desktop bei 100 % Bildschirmzoom
-  ist die Schrift im Netz schlecht leserlich / wirkt pixelig (vermutlich Canvas-Text-
-  Rendering ohne devicePixelRatio-Skalierung — prüfen).
+- [x] **N3 — Schrift des Netzes am Desktop pixelig.** ✅ `DPR` wurde nur einmal beim Laden
+  festgenagelt — Browser-Zoom/OS-Skalierung/Monitorwechsel änderten devicePixelRatio danach,
+  ohne dass das Canvas-Backing neu vermessen wurde (→ hochskalierter, pixeliger Text). Jetzt
+  wird DPR bei jedem `resize()` frisch berechnet, plus ein `matchMedia`-Listener auf
+  DPR-Wechsel.
 
-- [ ] **N4 — Login-Hinweis beim ersten Ablegen ohne Konto.** Ein Hinweis zum Einloggen
-  fehlt, wenn man zum ersten Mal uneingeloggt etwas auf die eigene Playliste ablegen
-  will — sowie beim ersten Login.
+- [x] **N4 — Login-Hinweis beim ersten Ablegen ohne Konto.** ✅ Legt ein uneingeloggter Nutzer
+  zum ersten Mal etwas auf eine Liste, erscheint (genau einmal pro Gerät, nach der
+  Like-Bestätigung) ein dezenter Hinweis „Ohne Konto bleibt deine Liste nur auf diesem Gerät"
+  mit „Jetzt anmelden"-Link direkt in die Registrierung.
 
-- [ ] **N5 — Leeres Netz: „Meistgehörtes von Last.fm importieren" entfernen.** Beim leeren
-  Netz steht ein Hinweis zum Importieren des meistgehörten Last.fm-Materials. Das kann
-  raus, wird nicht gebraucht.
+- [x] **N5 — Leeres Netz: „Meistgehörtes von Last.fm importieren" entfernen.** ✅ Button samt
+  Verdrahtung (und ungenutzter API-Client-Methode) aus dem Empty-State entfernt.
 
-- [ ] **N6 — Löschen-Knopf: Modal mit Optionen.** Der Löschen-Knopf soll ein Modalfenster
-  öffnen, in dem man auswählt, WAS genau gelöscht werden soll (sinnvolle Optionen selbst
-  festlegen — z. B. ganzes Netz, nur Auswahl, nur Notizen/Status, nur gespeicherte
-  Playlist).
+- [x] **N6 — Löschen-Knopf: Modal mit Optionen.** ✅ „Alles löschen" heißt jetzt „Löschen…"
+  und öffnet einen Dialog mit drei Umfängen: **Ganze Karte leeren** (alles),
+  **Nur unverknüpfte Acts aufräumen** (Gesuchte/Gebuchte/Notierte bleiben) und
+  **Auftritts- & Wiki-Zusatzdaten zurücksetzen** — jeweils mit Erklärung + umfangsspezifischer
+  Sicherheitsabfrage (nutzt die vorhandenen `/api/reset`-Scopes all/discovered/lineups).
 
-- [ ] **N7 — Gespeicherte Playlists auffindbar machen.** Unklar, wo man die eigenen
-  gespeicherten Playlists zum Ansehen findet — Zugang/Auffindbarkeit schaffen.
+- [x] **N7 — Gespeicherte Playlists auffindbar machen.** ✅ Neuer Eintrag „★ Meine Listen" im
+  ⋯-Menü (in beiden Modi sichtbar) öffnet den Listen-Umschalter (ansehen/wechseln/umbenennen/
+  neu) — vorher nur über das ▾ am Listen-Panel erreichbar.
 
-- [ ] **N8 — Startansicht: gesamtes Netz, nur Hauptsonnen.** Beim Start soll die Seite
-  immer das gesamte Netz anzeigen, so weit herausgezoomt, dass nur die Hauptsonnen
-  sichtbar sind.
+- [x] **N8 — Startansicht: gesamtes Netz, nur Hauptsonnen.** ✅ Der Start passt jetzt immer die
+  Gesamtübersicht ein (`fitAll`); die früher gemerkte Pan/Zoom-Ansicht (F3) wird auf
+  Nutzerwunsch nicht mehr wiederhergestellt (Persistenz-Code entfernt).

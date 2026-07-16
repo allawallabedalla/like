@@ -377,6 +377,12 @@
   .suggest.open { display: block; }
   .suggest div { padding: 7px 10px; cursor: pointer; }
   .suggest div:hover, .suggest div.active { background: #f0f0f0; }
+  /* N1: Vorschlag mit Zusatzinfo (Hörerzahl + Verifizier-Link) zum Unterscheiden von Namensvettern. */
+  .suggest div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .suggest .sugname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .suggest .sugmeta { flex: none; color: var(--muted); font-size: 11px; display: inline-flex; align-items: center; gap: 6px; }
+  .suggest .sugmeta a { color: var(--muted); text-decoration: none; border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; line-height: 1.5; }
+  .suggest .sugmeta a:hover { color: var(--text); border-color: var(--line); }
 
   /* Breadcrumb */
   .trail { position: fixed; top: 52px; left: 14px; right: 340px; z-index: 8; display: flex; gap: 6px;
@@ -619,6 +625,15 @@
   .modal textarea::placeholder { color: var(--muted); }
   .modal .row { display: flex; gap: 8px; margin-top: 14px; }
   .modal .row button { flex: 1; border-left: 1px solid var(--line-soft); }
+  /* N6: Löschen-Optionen — je eine Schaltfläche mit Titel + Erklärung, was genau gelöscht wird. */
+  .delopts { display: flex; flex-direction: column; gap: 8px; }
+  .delopt { display: block; width: 100%; text-align: left; padding: 10px 12px; background: var(--bg);
+    border: 1px solid var(--line-soft); cursor: pointer; transition: border-color .12s, background .12s; }
+  .delopt:hover, .delopt:focus-visible { border-color: var(--line); background: var(--line-soft); outline: none; }
+  .delopt b { display: block; font-size: 13.5px; color: var(--text); margin-bottom: 2px; }
+  .delopt span { display: block; font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .delopt.danger b { color: #d23; }
+  .delopt.danger:hover, .delopt.danger:focus-visible { border-color: #d23; }
   /* Spenden/Support-Popup + Nutzungspause (aktiv nur mit gesetzter LIKE_DONATE_URL) */
   .supportcard { position: relative; }
   .supportcard .sclose { position: absolute; top: 8px; right: 12px; background: none; border: none;
@@ -853,6 +868,8 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     </div>
     <!-- W15: Listenansicht — tastatur- und screenreader-taugliche Alternative zur Karte -->
     <div class="mrow"><button id="segList" title="Alle Einträge als sortier- und filterbare Liste — vollständig mit Tastatur bedienbar (Taste l)">☰ Listenansicht</button></div>
+    <!-- N7: gespeicherte Listen/Playlists sichtbar erreichbar machen (in beiden Modi) -->
+    <div class="mrow"><button id="openLists" title="Deine gespeicherten Listen (Playlists) ansehen, wechseln, umbenennen oder neu anlegen">★ Meine Listen</button></div>
     <div class="mtitle hideStatic">Konto</div>
     <div id="acctBox" class="hideStatic" style="margin-bottom:10px; font-size:12.5px"></div>
     <div class="mtitle mobileonly hideStatic" id="searchTitle">Suche</div>
@@ -879,7 +896,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <label class="toggle" id="venueWrap" style="display:none" title="Spielorte aus den gemeinsamen Auftritten als eigene Punkte einblenden — zeigt, welche Venues deine Acts verbinden"><input type="checkbox" id="venueToggle" /> Venues</label>
     <div class="mtitle hideStatic workonly">Aufräumen</div>
     <button id="pruneOrphans" class="hideStatic workonly" style="width:100%" title="Acts ohne jede Verbindung von der Karte nehmen — z. B. Monde, die nach dem Löschen ihrer Sonne allein übrig bleiben. Gesuchte, gebuchte/notierte Acts bleiben.">Unverknüpfte aufräumen</button>
-    <button id="resetAll" class="hideStatic workonly" style="width:100%" title="Die ganze Karte leeren — Acts, Verbindungen, Notizen und Markierungen. Mit Sicherheitsabfrage.">Alles löschen</button>
+    <button id="resetAll" class="hideStatic workonly" style="width:100%" title="Löschen-Dialog öffnen — auswählen, was genau verschwinden soll (ganze Karte, nur unverknüpfte Acts, oder Auftritts-/Wiki-Zusatzdaten).">Löschen…</button>
     <div class="mtitle">Export</div>
     <div class="mrow">
       <button id="export" class="workonly" title="Markierte Acts als CSV"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M8 2v7m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>CSV</button>
@@ -940,7 +957,6 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     </div>
     <div id="seedChips" class="seedchips hideStatic"></div>
     <button id="surpriseBtn" class="surprisebtn hideStatic" title="Zeig mir einen zufälligen, eher unbekannten Act">✦ Überrasch mich</button>
-    <button id="lfmImport" class="loginhint hideStatic" style="display:none" title="Deine meistgehörten Last.fm-Künstler als fertige Start-Karte laden (Name genügt, kein Passwort)">↧ Last.fm-Künstler als Start-Karte importieren</button>
     <button id="loginHint" class="loginhint hideStatic" style="display:none"
       title="Anonym bleibt deine Karte auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.">
       <span class="lh-i">↗</span> Anmelden — deine Karte dauerhaft &amp; auf allen Geräten sichern
@@ -1157,6 +1173,31 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <div class="row">
         <button class="primary" id="feedbackSend">Senden</button>
         <button id="feedbackCancel">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- N6: Löschen-Dialog — was genau soll verschwinden? -->
+  <div class="modal-back" id="deleteModal">
+    <div class="modal" style="max-width:460px" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+      <h3 id="deleteTitle">Was möchtest du löschen?</h3>
+      <p style="margin:0 0 12px">Wähle, was genau von der Karte verschwinden soll. Das lässt sich nicht rückgängig machen.</p>
+      <div class="delopts">
+        <button type="button" class="delopt" data-scope="discovered">
+          <b>Nur unverknüpfte Acts aufräumen</b>
+          <span>Allein stehende Monde entfernen. Gesuchte, gebuchte und notierte Acts bleiben erhalten.</span>
+        </button>
+        <button type="button" class="delopt" data-scope="lineups">
+          <b>Auftritts- &amp; Wiki-Zusatzdaten zurücksetzen</b>
+          <span>Geteilte Bühnen (orange Verbindungen) und Wikipedia-Infos neu aufbauen. Acts und Listen bleiben.</span>
+        </button>
+        <button type="button" class="delopt danger" data-scope="all">
+          <b>Ganze Karte leeren</b>
+          <span>Alle Acts, Verbindungen, Notizen und Markierungen löschen — der komplette Neustart.</span>
+        </button>
+      </div>
+      <div class="row">
+        <button id="deleteCancel">Abbrechen</button>
       </div>
     </div>
   </div>
@@ -1473,6 +1514,26 @@ const T = LANG !== "en" ? null : {
   "Keine unverknüpften Acts — alles hängt zusammen.": "No unconnected acts — everything is linked.",
   "Noch keine Venues bekannt — sie sammeln sich beim Erkunden (aus den gemeinsamen Auftritten).": "No venues known yet — they accumulate as you explore (from shared gigs).",
   "Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)": "Really delete EVERYTHING? (acts, connections, notes, marks)",
+  "Ohne Konto bleibt deine Liste nur auf diesem Gerät.": "Without an account your list stays on this device only.",
+  "Jetzt anmelden": "Sign in now",
+  "Auf Last.fm ansehen — ist das der richtige Act?": "View on Last.fm — is this the right act?",
+  "★ Meine Listen": "★ My lists",
+  "Deine gespeicherten Listen (Playlists) ansehen, wechseln, umbenennen oder neu anlegen": "View, switch, rename or create your saved lists (playlists)",
+  "Löschen…": "Delete…",
+  "Löschen-Dialog öffnen — auswählen, was genau verschwinden soll (ganze Karte, nur unverknüpfte Acts, oder Auftritts-/Wiki-Zusatzdaten).": "Open the delete dialog — choose exactly what should go (the whole map, only unconnected acts, or gig/wiki extra data).",
+  "Was möchtest du löschen?": "What do you want to delete?",
+  "Wähle, was genau von der Karte verschwinden soll. Das lässt sich nicht rückgängig machen.": "Choose exactly what should disappear from the map. This can't be undone.",
+  "Nur unverknüpfte Acts aufräumen": "Only tidy up unconnected acts",
+  "Allein stehende Monde entfernen. Gesuchte, gebuchte und notierte Acts bleiben erhalten.": "Remove stray moons. Searched, booked and annotated acts stay.",
+  "Auftritts- & Wiki-Zusatzdaten zurücksetzen": "Reset gig & wiki extra data",
+  "Geteilte Bühnen (orange Verbindungen) und Wikipedia-Infos neu aufbauen. Acts und Listen bleiben.": "Rebuild shared stages (orange links) and Wikipedia info. Acts and lists stay.",
+  "Ganze Karte leeren": "Clear the whole map",
+  "Alle Acts, Verbindungen, Notizen und Markierungen löschen — der komplette Neustart.": "Delete all acts, connections, notes and marks — the full reset.",
+  "Alle unverknüpften Acts von der Karte nehmen? Gesuchte, gebuchte und notierte Acts bleiben.": "Remove all unconnected acts from the map? Searched, booked and annotated acts stay.",
+  "Auftritts- und Wiki-Zusatzdaten zurücksetzen? Acts und Listen bleiben, die Zusatzdaten werden beim Erkunden neu aufgebaut.": "Reset gig and wiki extra data? Acts and lists stay; the extra data is rebuilt as you explore.",
+  "Karte geleert.": "Map cleared.",
+  "Unverknüpfte Acts aufgeräumt.": "Unconnected acts tidied up.",
+  "Auftritts- & Wiki-Daten zurückgesetzt.": "Gig & wiki data reset.",
   "Datei ist kein gültiger Graph-Export": "File is not a valid graph export",
   "Bitte Key einfügen": "Please paste a key", "Key konnte nicht gespeichert werden": "Key could not be saved",
   "Ort nicht gefunden": "Place not found",
@@ -1956,7 +2017,6 @@ const API = {
   reveal: (id) => POST("/api/reveal", { id }), // „+K laden": geparkte Nachbarn eines Acts nachholen
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
   demo: () => GET("/api/demo"),
-  lastfmImport: (user) => POST("/api/lastfm-import", { user }),
   shareMap: () => POST("/api/share", {}),
 };
 
@@ -1979,11 +2039,16 @@ const LABEL_MIN_ZOOM = 0.5;
 const LEAF_ZOOM = 0.85;
 // Grobe Zeigegeräte (Finger) brauchen größere Trefferflächen als eine Maus.
 const COARSE = (() => { try { return matchMedia("(pointer: coarse)").matches; } catch { return false; } })();
-let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
+let W = 0, H = 0, DPR = 1;
+// N3: DPR NICHT einmalig bei Load festnageln — Browser-Zoom, OS-Skalierung und das Ziehen
+// des Fensters auf einen anderen Monitor ändern devicePixelRatio zur Laufzeit. Wird das
+// Backing-Store dann nicht neu vermessen, rendert das Canvas den Text auf einem zu kleinen
+// Raster und skaliert ihn hoch -> „pixelig". Deshalb bei jedem resize() frisch berechnen.
 function resize() {
   const oldW = W, oldH = H;
+  DPR = Math.min(devicePixelRatio || 1, 2);
   W = innerWidth; H = innerHeight;
-  cv.width = W * DPR; cv.height = H * DPR;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   cv.style.width = W + "px"; cv.style.height = H + "px";
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   // Bei Größenänderung den Weltpunkt, der in der Bildschirmmitte lag, mittig halten —
@@ -1995,6 +2060,15 @@ function resize() {
   }
 }
 addEventListener("resize", resize); resize();
+// N3: Zoom-/Monitorwechsel feuert nicht immer ein resize — zusätzlich auf devicePixelRatio-
+// Wechsel horchen (die Media-Query bei genau der aktuellen Auflösung „springt", sobald sich
+// die effektive DPR ändert) und dann neu vermessen + neu aufhängen.
+function watchDPR() {
+  try {
+    matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", () => { resize(); requestDraw(); watchDPR(); }, { once: true });
+  } catch {}
+}
+watchDPR();
 addEventListener("load", () => { resize(); reheat(0.3); }); // Fallback: Fenstergröße steht spät
 
 // ---- Zustand ----
@@ -2071,7 +2145,9 @@ function updateNowPlaying() {
   const el = document.getElementById("nowplaying"); if (!el) return;
   const playing = previewName && audio.src && !audio.paused && !audio.ended;
   if (playing) { document.getElementById("npText").textContent = previewLabel || previewName; el.classList.add("show"); }
-  else el.classList.remove("show");
+  // N2: Pause/Ende -> Band ausblenden UND die (per Tipp aufgeklappte) Spulleiste zurücksetzen,
+  // damit die Pille beim nächsten Erscheinen wieder in der Artist-/Titel-Ansicht startet.
+  else { el.classList.remove("show"); collapseScrub(); }
 }
 async function togglePreview(name) {
   if (previewName === name && !audio.paused) { audio.pause(); return; }
@@ -2127,14 +2203,23 @@ function seekFromEvent(e) {
   audio.currentTime = frac * d; updateScrub();
 }
 let scrubbing = false;
-npBar.addEventListener("pointerdown", (e) => { scrubbing = true; try { npBar.setPointerCapture(e.pointerId); } catch {} seekFromEvent(e); e.preventDefault(); });
+// N2: Aufgeklappte Spulleiste (Touch) nach kurzer Ruhe automatisch wieder zur Artist-/Titel-
+// Ansicht zurückklappen — sonst bleibt sie hängen, weil es auf Touch kein „Maus weg" gibt.
+let _scrubTimer = null;
+function collapseScrub() { clearTimeout(_scrubTimer); _scrubTimer = null; const el = document.getElementById("nowplaying"); if (el) el.classList.remove("expanded"); }
+function armScrubAutoCollapse() { clearTimeout(_scrubTimer); _scrubTimer = setTimeout(collapseScrub, 3500); }
+npBar.addEventListener("pointerdown", (e) => { scrubbing = true; clearTimeout(_scrubTimer); try { npBar.setPointerCapture(e.pointerId); } catch {} seekFromEvent(e); e.preventDefault(); });
 npBar.addEventListener("pointermove", (e) => { if (scrubbing) seekFromEvent(e); });
-npBar.addEventListener("pointerup", (e) => { if (!scrubbing) return; scrubbing = false; try { npBar.releasePointerCapture(e.pointerId); } catch {} });
-npBar.addEventListener("pointercancel", () => { scrubbing = false; });
-// Touch: Antippen der Pille blendet die Spulleiste ein/aus (auf dem Desktop macht das der Hover).
+npBar.addEventListener("pointerup", (e) => { if (!scrubbing) return; scrubbing = false; try { npBar.releasePointerCapture(e.pointerId); } catch {} armScrubAutoCollapse(); });
+npBar.addEventListener("pointercancel", () => { scrubbing = false; armScrubAutoCollapse(); });
+// Antippen der Pille blendet die Spulleiste ein/aus — aber NUR auf Touch-Geräten. Am Desktop
+// übernimmt das der Hover (:hover); ein Klick würde dort sonst dauerhaft in der Scrub-Ansicht
+// hängen bleiben (kein automatischer Rückwechsel). Auf Touch klappt ein Timer sie wieder zu.
 document.getElementById("nowplaying").addEventListener("click", (e) => {
+  if (!COARSE) return; // Desktop: Hover steuert die Ansicht, kein klebriges .expanded
   if (e.target.closest("#npBar, #npStop")) return; // Stop/Scrub nicht abfangen
-  e.currentTarget.classList.toggle("expanded");
+  const on = e.currentTarget.classList.toggle("expanded");
+  if (on) armScrubAutoCollapse(); else collapseScrub();
 });
 let selected = null, hover = null, dragNode = null, dragging = false, moved = false;
 // Nach dem Laden hält der View den fokussierten Knoten mittig, bis sich das Layout beruhigt
@@ -4405,17 +4490,35 @@ async function drainExpandQueue() {
   } finally { expandRunning = false; expandPulse.clear(); requestDraw(); }
 }
 
-document.getElementById("resetAll").onclick = async () => {
+// N6: „Löschen" öffnet einen Dialog mit den möglichen Umfängen (statt nur „alles?" ja/nein).
+const deleteModal = document.getElementById("deleteModal");
+function openDeleteModal() {
   if (STATIC) { toast("Nur im lokalen Tool"); return; }
   closeMore();
-  if (!confirm(t("Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)"))) return;
-  const res = await API.reset("all");
-  if (res.error) { toast("Fehler: " + res.error); return; }
-  closePanel();
-  trail = []; renderTrail();
-  graph = res.graph; rebuild();
-  toast("Geleert.");
+  deleteModal.classList.add("show");
+  const f = deleteModal.querySelector(".delopt"); if (f) f.focus();
+}
+function closeDeleteModal() { deleteModal.classList.remove("show"); }
+document.getElementById("resetAll").onclick = openDeleteModal;
+document.getElementById("deleteCancel").onclick = closeDeleteModal;
+deleteModal.addEventListener("mousedown", (e) => { if (e.target === deleteModal) closeDeleteModal(); });
+addEventListener("keydown", (e) => { if (e.key === "Escape" && deleteModal.classList.contains("show")) closeDeleteModal(); });
+// Kurze, umfangsspezifische Rückfrage + Bestätigungstext je Auswahl.
+const DELETE_SCOPES = {
+  all: { confirm: t("Wirklich ALLES löschen? (Acts, Verbindungen, Notizen, Markierungen)"), done: t("Karte geleert.") },
+  discovered: { confirm: t("Alle unverknüpften Acts von der Karte nehmen? Gesuchte, gebuchte und notierte Acts bleiben."), done: t("Unverknüpfte Acts aufgeräumt.") },
+  lineups: { confirm: t("Auftritts- und Wiki-Zusatzdaten zurücksetzen? Acts und Listen bleiben, die Zusatzdaten werden beim Erkunden neu aufgebaut."), done: t("Auftritts- & Wiki-Daten zurückgesetzt.") },
 };
+deleteModal.querySelectorAll(".delopt").forEach((btn) => btn.onclick = async () => {
+  const scope = btn.dataset.scope; const cfg = DELETE_SCOPES[scope]; if (!cfg) return;
+  if (!confirm(cfg.confirm)) return;
+  closeDeleteModal();
+  const res = await API.reset(scope);
+  if (res.error) { toast("Fehler: " + res.error); return; }
+  if (scope === "all") { closePanel(); trail = []; renderTrail(); graph = res.graph; rebuild(); }
+  else { graph = res.graph; rebuild(new Map(nodes.map(x => [x.id, x]))); }
+  toast(cfg.done);
+});
 
 // Unverknüpfte (grad-0) Acts wegräumen — z. B. Monde, die nach dem Löschen ihrer Sonne
 // allein übrig bleiben. Kuratierte Acts (gesucht/gebucht/Status/Notiz) bleiben erhalten.
@@ -4847,6 +4950,25 @@ function toggleBasket(n, listId = activeList, opts = {}) {
   if (listId === activeList) { if (add) basket.add(n.id); else basket.delete(n.id); }
   renderBasket(); refreshLikeBtn(); requestDraw();
   if (opts.toast !== false) { if (add) toastLiked(n, listId); else toast(tf('Aus „{L}" entfernt', { L: listName(listById(listId)) })); }
+  if (add) maybeAnonLoginHint();
+}
+// N4: Legt ein uneingeloggter Nutzer zum ERSTEN Mal etwas auf eine Liste, dezent auf das
+// Konto hinweisen — sonst lebt die Liste nur auf diesem Gerät (und wird nach 30 Tagen
+// Inaktivität aufgeräumt). Genau einmal pro Gerät, und erst NACH der Like-Bestätigung.
+function maybeAnonLoginHint() {
+  if (STATIC || window.LIKE_USER) return;
+  try { if (localStorage.getItem("like_login_hinted") === "1") return; } catch {}
+  try { localStorage.setItem("like_login_hinted", "1"); } catch {}
+  setTimeout(() => {
+    if (window.LIKE_USER) return; // inzwischen doch angemeldet
+    const el = document.getElementById("toast"); if (!el) return;
+    el.innerHTML = `${t("Ohne Konto bleibt deine Liste nur auf diesem Gerät.")} · ` +
+      `<a href="#" id="lhLogin" style="color:var(--on-accent);text-decoration:underline">${t("Jetzt anmelden")}</a>`;
+    el.classList.add("show"); clearTimeout(el._t);
+    const a = document.getElementById("lhLogin");
+    if (a) a.onclick = (e) => { e.preventDefault(); el.classList.remove("show"); openAuth("register"); };
+    el._t = setTimeout(() => el.classList.remove("show"), 8000);
+  }, 6200); // erst einblenden, wenn die Like-Bestätigung (6 s) verschwunden ist
 }
 // Bestätigung mit Listennamen + zwei Korrekturen: Rückgängig und „andere Liste" (öffnet den Picker).
 function toastLiked(n, listId) {
@@ -5007,18 +5129,34 @@ function removeNode(n) { selected = n; document.getElementById("removeAct").clic
 // Wiederverwendbares Autocomplete (E7/E8): eigener Zustand pro Eingabefeld, gemeinsame Logik.
 // pick(name) = Auswahl aus dem Dropdown; submit() = Enter ohne Auswahl (klassische Suche).
 function attachSuggest(input, listEl, pick, submit) {
-  const st = { items: [], idx: -1, timer: null, seq: 0 };
-  const close = () => { listEl.classList.remove("open"); st.items = []; st.idx = -1; };
+  const st = { items: [], meta: null, idx: -1, timer: null, seq: 0 };
+  const close = () => { listEl.classList.remove("open"); st.items = []; st.meta = null; st.idx = -1; };
   const choose = (i) => {
     const n = st.items[i]; if (!n) return;
     if (busy) { toast(t("Es lädt gerade noch — gleich nochmal auf Enter drücken.")); return; }
     input.value = ""; close(); pick(n);
   };
+  // N1: Hörerzahl kompakt (1.2M / 4.3k) — grober, aber sofort lesbarer Größenhinweis.
+  const fmtCount = (n) => n >= 1e6 ? +(n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n);
   const render = () => {
     if (!st.items.length) { close(); return; }
-    listEl.innerHTML = st.items.map((n, i) => `<div class="${i === st.idx ? "active" : ""}" data-i="${i}">${esc(n)}</div>`).join("");
+    const lbl = LANG === "en" ? "listeners" : "Hörer";
+    listEl.innerHTML = st.items.map((n, i) => {
+      const m = st.meta && st.meta[n];
+      let extra = "";
+      if (m) {
+        const bits = [];
+        if (m.listeners != null) bits.push(`<span title="${esc(fmtCount(m.listeners) + " " + lbl)}">${esc(fmtCount(m.listeners))}</span>`);
+        // Verifizier-Link: öffnet genau die Identität, die beim Klick geladen würde (Namensvetter unterscheiden).
+        if (m.url) bits.push(`<a href="${esc(m.url)}" target="_blank" rel="noreferrer" data-noPick="1" title="${esc(t("Auf Last.fm ansehen — ist das der richtige Act?"))}">↗</a>`);
+        if (bits.length) extra = `<span class="sugmeta">${bits.join(" ")}</span>`;
+      }
+      return `<div class="${i === st.idx ? "active" : ""}" data-i="${i}"><span class="sugname">${esc(n)}</span>${extra}</div>`;
+    }).join("");
     listEl.classList.add("open");
-    listEl.querySelectorAll("div").forEach(d => d.onmousedown = (e) => { e.preventDefault(); choose(+d.dataset.i); });
+    listEl.querySelectorAll("div[data-i]").forEach(d => d.onmousedown = (e) => { e.preventDefault(); choose(+d.dataset.i); });
+    // Klick auf den ↗-Link soll den Act NICHT auswählen, nur die Profilseite öffnen.
+    listEl.querySelectorAll("a[data-noPick]").forEach(a => a.onmousedown = (e) => { e.stopPropagation(); });
   };
   input.addEventListener("input", () => {
     if (STATIC) return;
@@ -5031,7 +5169,11 @@ function attachSuggest(input, listEl, pick, submit) {
         // Nur die Antwort auf die NEUESTE Eingabe anzeigen — sonst überschreiben langsame, alte
         // Antworten die frischen Vorschläge oder öffnen das Dropdown über einem geleerten Feld.
         if (seq !== st.seq || input.value.trim() !== v) return;
-        st.items = r.names || []; st.idx = -1; render();
+        st.items = r.names || [];
+        // Zusatzinfos (Hörerzahl/URL) je Name in eine Lookup-Map — optional, Pack-abhängig.
+        st.meta = null;
+        if (Array.isArray(r.meta) && r.meta.length) { st.meta = {}; for (const e of r.meta) if (e && e.name) st.meta[e.name] = e; }
+        st.idx = -1; render();
       } catch { /* Vorschläge sind optional — Netzfehler still ignorieren */ }
     }, 200);
   });
@@ -5606,6 +5748,14 @@ document.getElementById("mRadar").onclick = () => { closeMore(); document.getEle
 document.getElementById("mTaste").onclick = () => { closeMore(); document.getElementById("tasteBtn").click(); };
 document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); };
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
+// N7: „Meine Listen" öffnet den Listen-Umschalter (ansehen/wechseln/umbenennen/neu) — die
+// gespeicherten Playlists waren bisher nur über das ▾ am Listen-Panel erreichbar.
+document.getElementById("openLists").onclick = () => {
+  closeMore();
+  const sw = document.getElementById("listSwitch");
+  const anchor = (sw && sw.offsetParent !== null) ? sw : document.getElementById("moreBtn");
+  if (anchor) openListMenu(anchor);
+};
 document.getElementById("mGenre").addEventListener("input", (e) => {
   const gf = document.getElementById("genreFilter"); gf.value = e.target.value; filterGenre = e.target.value.trim(); dropHoverIfFiltered(); requestDraw();
 });
@@ -6137,11 +6287,11 @@ function maybeShowIntro() {
   // Layout VOR dem ersten Zeichnen fertig ausrechnen (bis es ruhig ist) — so wackelt beim
   // Anzeigen nichts mehr (kein sichtbares Zappeln direkt nach dem Start). Deckel als Notbremse.
   { let guard = 0; do { tick(); } while (alpha >= ALPHA_MIN && ++guard < 500); }
-  // Gemerkte Ansicht (Pan/Zoom) wiederherstellen, falls vorhanden und plausibel — sonst wie
-  // gehabt alles einpassen und zentrieren, so weit rauszoomen, dass der ganze Graph sichtbar ist.
-  const savedView = loadView();
-  if (savedView && nodes.length && !demoMode) { view.k = savedView.k; view.x = savedView.x; view.y = savedView.y; requestDraw(); }
-  else fitAll();
+  // N8: Beim Start IMMER das ganze Netz einpassen — so weit rauszoomen, dass der komplette
+  // Graph sichtbar ist und (bei großen Netzen) nur die Hauptsonnen als Punkte übrig bleiben.
+  // (Früher wurde hier die zuletzt gemerkte Pan/Zoom-Ansicht wiederhergestellt; auf Nutzer-
+  // wunsch startet die Seite jetzt bewusst immer mit der Gesamtübersicht.)
+  fitAll();
   if (demoMode) showDemoBar();
   loop();
   // App ist bereit -> Ladescreen ausblenden. Ein Frame Vorlauf, damit das Netz schon gezeichnet
@@ -6162,23 +6312,12 @@ function maybeShowIntro() {
   }
 })();
 
-// Ansicht (Pan/Zoom) über Neustarts hinweg merken
-function saveView() { try { localStorage.setItem(LSK("like_view"), JSON.stringify(view)); } catch {} }
-function loadView() {
-  try {
-    const v = JSON.parse(localStorage.getItem(LSK("like_view")));
-    // Plausi-Check: nur eine sinnvolle, endliche Ansicht übernehmen — sonst (kaputter/
-    // uralter Eintrag) lieber wie eh und je fitAll(), statt auf einer Geisterposition zu starten.
-    if (v && Number.isFinite(v.k) && Number.isFinite(v.x) && Number.isFinite(v.y) && v.k > 0.02 && v.k < 10) return v;
-  } catch {}
-  return null;
-}
-addEventListener("beforeunload", saveView);
+// N8: Die Ansicht wird bewusst NICHT mehr über Neustarts gemerkt — die Seite startet immer
+// mit der Gesamtübersicht (fitAll, s. o.). Beim Zurückkehren in den Tab nur neu vermessen.
 addEventListener("visibilitychange", () => {
-  if (document.hidden) saveView();
   // Zurück im Tab: rAF war pausiert und mancher Browser leert/verkleinert das Canvas im Hintergrund
   // -> Canvas-Maße sichern und neu zeichnen, damit das Netz nicht „weg" bleibt.
-  else { resize(); requestDraw(); }
+  if (!document.hidden) { resize(); requestDraw(); }
 });
 
 // E7: Mobile-Suche — Lupe in der Topbar öffnet ein Vollbild-Suchfeld mit Autofokus und
@@ -6215,25 +6354,6 @@ addEventListener("visibilitychange", () => {
   if (chipsEl && seeds.length && !STATIC) {
     chipsEl.innerHTML = `<span>${t("Probier mal:")}</span>` + seeds.map((s) => `<button type="button" data-n="${esc(s)}">${esc(s)}</button>`).join("");
     chipsEl.querySelectorAll("button").forEach((b) => b.onclick = () => exploreByName(b.dataset.n));
-  }
-  // E13: Last.fm-Kaltstart — Nutzername genügt, die Top-Künstler kommen als fertige Karte.
-  const lfm = document.getElementById("lfmImport");
-  if (lfm && CFG.id === "music" && !STATIC) {
-    lfm.style.display = "";
-    lfm.addEventListener("click", async () => {
-      const user = prompt(t("Dein Last.fm-Nutzername (öffentliches Profil genügt, kein Passwort):"));
-      if (!user || !user.trim()) return;
-      lfm.disabled = true; const label = lfm.textContent; lfm.textContent = t("↧ Importiere …");
-      try {
-        const res = await API.lastfmImport(user.trim());
-        if (!res.ok) { toast("Fehler: " + (res.error || "?")); return; }
-        endDemo(false);
-        graph = res.graph; rebuild(); fitAll();
-        fillSizes(); fillGenres(); // Hörerzahlen/Genres für die frischen Knoten nachladen
-        toast(tf("{N} Künstler importiert — Doppelklick lädt Nachbarn", { N: res.imported }));
-      } catch (e) { toast("Fehler: " + e.message); }
-      finally { lfm.disabled = false; lfm.textContent = label; }
-    });
   }
   // „Überrasch mich": zufälliger, eher unbekannter Act vom Server -> direkt reinstolpern.
   const sBtn = document.getElementById("surpriseBtn");

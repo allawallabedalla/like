@@ -3,7 +3,7 @@
 // Setlist.fm) hinter dem generischen Pack-Interface. Die Logik ist 1:1 aus dem
 // alten server.mjs übernommen — Verhalten unverändert.
 
-import { getSimilar, getTopTags, getArtistInfo, searchArtists, clearKeyCache } from "../../lib/lastfm.mjs";
+import { getSimilar, getTopTags, getArtistInfo, searchArtists, searchArtistsDetailed, clearKeyCache } from "../../lib/lastfm.mjs";
 import { coAppearances } from "../../lib/coappear.mjs";
 import { relatedArtists, topTrackPreview, trackPreviewSearch, artistByName as dzArtist } from "../../lib/deezer.mjs";
 import { previewByName } from "../../lib/itunes.mjs";
@@ -120,7 +120,16 @@ export default {
     },
   },
 
-  async suggest(q) { return searchArtists(q); },
+  // N1: aus der detaillierten Suche ableiten (gleicher Cache wie suggestMeta -> nur EIN
+  // Last.fm-Aufruf je Query). Fällt bei Fehler auf die schlanke Namenssuche zurück.
+  async suggest(q) {
+    try { const d = await searchArtistsDetailed(q); if (d && d.length) return d.map((x) => x.name); } catch {}
+    return searchArtists(q);
+  },
+
+  // N1: Zusatzinfos je Vorschlag (Hörerzahl + Last.fm-URL) — die Autocomplete kann so bei
+  // mehrdeutigen Namen zeigen, welcher Act gemeint ist. Fällt still auf [] zurück.
+  async suggestMeta(q) { try { return await searchArtistsDetailed(q); } catch { return []; } },
 
   // Leichter „ähnlich"-Zugriff für die Brücke (nur getSimilar, ohne RA/Genres).
   async similar(name, { limit = 60 } = {}) {
