@@ -634,6 +634,14 @@
   .delopt span { display: block; font-size: 12px; color: var(--muted); line-height: 1.45; }
   .delopt.danger b { color: #d23; }
   .delopt.danger:hover, .delopt.danger:focus-visible { border-color: #d23; }
+  /* N1: Namensvetter-Hinweis — dezente Pille mittig unter der Topbar. */
+  .namesakehint { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); z-index: 26;
+    align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 20px; padding: 5px 6px 5px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.14); font-size: 12.5px; max-width: calc(100vw - 24px); }
+  .namesakehint span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .namesakehint button { border: none; background: none; cursor: pointer; font-size: 12.5px; padding: 4px 8px; color: var(--text); flex: none; }
+  .namesakehint #nsPick { background: var(--accent); color: #fff; border-radius: 14px; }
+  .namesakehint #nsDismiss { color: var(--muted); font-size: 17px; line-height: 1; padding: 2px 7px; }
   /* Spenden/Support-Popup + Nutzungspause (aktiv nur mit gesetzter LIKE_DONATE_URL) */
   .supportcard { position: relative; }
   .supportcard .sclose { position: absolute; top: 8px; right: 12px; background: none; border: none;
@@ -940,6 +948,9 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <div class="legend" id="legend"></div>
   </div>
 
+  <!-- N1: Namensvetter-Hinweis — erscheint nach der Suche, wenn es mehrere gleichnamige Acts gibt -->
+  <div id="namesakeHint" class="namesakehint" style="display:none"></div>
+
   <canvas id="minimap" class="minimap" width="320" height="220" title="Übersicht — Klick springt dorthin"></canvas>
 
   <div class="zoomctl">
@@ -1199,6 +1210,18 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       </div>
       <div class="row">
         <button id="deleteCancel">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- N1: Namensvetter-Auswahl — welcher der gleichnamigen Acts ist gemeint? -->
+  <div class="modal-back" id="namesakeModal">
+    <div class="modal" style="max-width:480px" role="dialog" aria-modal="true" aria-labelledby="namesakeTitle">
+      <h3 id="namesakeTitle">Welcher Act?</h3>
+      <p style="margin:0 0 12px">Mehrere Acts heißen so. Wähle den gemeinten — die Karte lädt dann genau dessen Nachbarschaft (per MusicBrainz-Identität).</p>
+      <div id="namesakeList" class="delopts"></div>
+      <div class="row">
+        <button id="namesakeCancel">Abbrechen</button>
       </div>
     </div>
   </div>
@@ -1519,6 +1542,12 @@ const T = LANG !== "en" ? null : {
   "Ohne Konto bleibt deine Liste nur auf diesem Gerät.": "Without an account your list stays on this device only.",
   "Jetzt anmelden": "Sign in now",
   "Auf Last.fm ansehen — ist das der richtige Act?": "View on Last.fm — is this the right act?",
+  "Mehrere Acts heißen „{N}\"": "Several acts go by „{N}\"",
+  "Auswählen": "Choose", "Ausblenden": "Dismiss",
+  "Welcher „{N}\"?": "Which „{N}\"?",
+  "Welcher Act?": "Which act?",
+  "Mehrere Acts heißen so. Wähle den gemeinten — die Karte lädt dann genau dessen Nachbarschaft (per MusicBrainz-Identität).": "Several acts share this name. Pick the one you mean — the map then loads exactly its neighborhood (by MusicBrainz identity).",
+  "Keine Zusatzinfo": "No extra info",
   "★ Meine Listen": "★ My lists",
   "Deine gespeicherten Listen (Playlists) ansehen, wechseln, umbenennen oder neu anlegen": "View, switch, rename or create your saved lists (playlists)",
   "Löschen…": "Delete…",
@@ -1990,7 +2019,8 @@ function reportClientError(kind, info) {
 }
 const API = {
   graph: () => STATIC ? Promise.resolve(window.LIKE_GRAPH) : GET("/api/graph"),
-  explore: (name) => POST("/api/explore", { name, staged: true }), // R14: Packs ohne Staged-Support ignorieren das Flag
+  explore: (name, mbid) => POST("/api/explore", { name, staged: true, mbid: mbid || undefined }), // R14: Packs ohne Staged-Support ignorieren das Flag
+  namesakes: (name) => GET("/api/namesakes?name=" + encodeURIComponent(name)),
   exploreTogether: (name) => POST("/api/explore2", { name }),
   prefetch: (name) => POST("/api/prefetch", { name }), // Cache vorwärmen (Hover) -> flotter Ausbau
   reset: (scope) => POST("/api/reset", { scope }),
@@ -4385,19 +4415,23 @@ function showDemoBar() {
 // 5× mehr Energie (und gemessen ~93 px Bystander-Bewegung) als dieselbe Geste als ＋-Badge
 // (0.2). Der Default sinkt auf 0.4: genug, damit ein wirklich neuer Seed sich sauber
 // einordnet, aber ohne die ganze Karte aufzuwühlen. Die ＋-Queue bleibt bei 0.2.
-async function exploreByName(name, { select = true, center = true, reheatAmt = 0.4 } = {}) {
+async function exploreByName(name, { select = true, center = true, reheatAmt = 0.4, mbid = null, fromNamesake = false } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
   endDemo(false); // erste eigene Suche: reload() ersetzt die Beispiel-Karte gleich durch den echten Graphen
+  hideNamesakeHint(); // N1: alten Namensvetter-Hinweis wegnehmen, solange der neue Act lädt
   busy = true;
   const k = slugify(name);
   const node = nodeById.get(k) || nodes.find(x => slugify(x.name) === k);
   busyId = node ? node.id : null; // pulsierender Lade-Ring am Knoten
   toast(tf(`Lade „{N}" …`, { N: name }));
   try {
-    const res = await API.explore(name);
+    const res = await API.explore(name, mbid);
     await reload(res.name, { select, center, reheatAmt, graph: res.graph }); // res.graph: kein zweiter Roundtrip (R13)
     addTrail(res.name);
+    // N1: nach einer normalen Suche im Hintergrund prüfen, ob es Namensvetter gibt — falls ja,
+    // erscheint ein dezenter Hinweis (nicht bei einer Auswahl AUS dem Namensvetter-Dialog).
+    if (!fromNamesake) maybeCheckNamesakes(res.name);
     // R15: Nachlade-Batches (Hörerzahlen/Genres) teilen sich das Last.fm-Gate mit dem
     // nächsten Ausbau — bei gefüllter ＋-Warteschlange erst NACH dem letzten Eintrag
     // starten, damit Folge-Klicks nicht hinter popfill-Requests warten.
@@ -4420,6 +4454,76 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 0
     if (/API-Key/i.test(e.message) && CFG.key) { openKeyModal(); toast(`Erst den ${CFG.key.name} einrichten`); }
     else toast("Fehler: " + e.message);
   } finally { busy = false; busyId = null; }
+}
+
+// ---- N1: Namensvetter-Auswahl (nur Musik) ----
+// Nach einer normalen Suche prüfen, ob es mehrere gleichnamige Acts gibt (MusicBrainz). Falls ja,
+// dezent darauf hinweisen; der Nutzer wählt den gemeinten -> geladen wird per MusicBrainz-Identität.
+let namesakeList = [], namesakeName = "";
+const namesakeDismissed = new Set(); // Namen, deren Hinweis in dieser Sitzung erledigt/weggeklickt ist
+async function maybeCheckNamesakes(name) {
+  if (STATIC || CFG.id !== "music" || !name) return;
+  if (namesakeDismissed.has(name.toLowerCase())) { hideNamesakeHint(); return; }
+  try {
+    const r = await API.namesakes(name);
+    const list = (r && r.namesakes) || [];
+    if (list.length < 2) { hideNamesakeHint(); return; }
+    namesakeList = list; namesakeName = name;
+    showNamesakeHint(name);
+  } catch { /* optionales Feature — Netzfehler still ignorieren */ }
+}
+function hideNamesakeHint() { const el = document.getElementById("namesakeHint"); if (el) el.style.display = "none"; }
+function showNamesakeHint(name) {
+  const el = document.getElementById("namesakeHint"); if (!el) return;
+  el.innerHTML = `<span>${tf('Mehrere Acts heißen „{N}"', { N: esc(name) })}</span>` +
+    `<button id="nsPick">${t("Auswählen")}</button>` +
+    `<button id="nsDismiss" title="${t("Ausblenden")}" aria-label="${t("Ausblenden")}">×</button>`;
+  el.style.display = "flex";
+  document.getElementById("nsPick").onclick = openNamesakeModal;
+  document.getElementById("nsDismiss").onclick = () => { namesakeDismissed.add(name.toLowerCase()); hideNamesakeHint(); };
+}
+const namesakeModal = document.getElementById("namesakeModal");
+function closeNamesakeModal() { namesakeModal.classList.remove("show"); }
+namesakeModal.addEventListener("mousedown", (e) => { if (e.target === namesakeModal) closeNamesakeModal(); });
+document.getElementById("namesakeCancel").onclick = closeNamesakeModal;
+addEventListener("keydown", (e) => { if (e.key === "Escape" && namesakeModal.classList.contains("show")) closeNamesakeModal(); });
+const nsFmt = (n) => n == null ? "—" : (n >= 1e6 ? +(n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n));
+function openNamesakeModal() {
+  if (!namesakeList.length) return;
+  document.getElementById("namesakeTitle").textContent = tf('Welcher „{N}"?', { N: namesakeName });
+  const lbl = LANG === "en" ? "listeners" : "Hörer";
+  const box = document.getElementById("namesakeList");
+  box.innerHTML = namesakeList.map((c, i) => {
+    const info = [c.disambiguation, c.genre, c.area, c.begin].filter(Boolean).map(esc).join(" · ");
+    const hz = c.listeners != null ? ` <span style="color:var(--muted);font-weight:400">· ${nsFmt(c.listeners)} ${lbl}</span>` : "";
+    return `<button type="button" class="delopt" data-i="${i}"><b>${esc(c.name)}${hz}</b><span>${info || t("Keine Zusatzinfo")}</span></button>`;
+  }).join("");
+  box.querySelectorAll(".delopt").forEach((b) => b.onclick = () => pickNamesake(namesakeList[+b.dataset.i]));
+  namesakeModal.classList.add("show");
+  const f = box.querySelector(".delopt"); if (f) f.focus();
+}
+async function pickNamesake(c) {
+  if (!c || busy) return;
+  closeNamesakeModal();
+  namesakeDismissed.add((namesakeName || "").toLowerCase());
+  hideNamesakeHint();
+  // Den namensbasierten Quellknoten samt seiner allein hängenden, unmarkierten Entdeckungen
+  // entfernen, dann die GEWÄHLTE Identität per MBID frisch laden — sonst mischen sich die
+  // Nachbarschaften zweier gleichnamiger Acts auf demselben (namensbasierten) Knoten. Der
+  // discovered-Reset trifft nur lose, unmarkierte Punkte (Gesuchte/Gebuchte/Notierte bleiben).
+  // Den echten Knoten (und damit seine Server-ID) über den Namen finden — die Client-slugify
+  // weicht von der Server-slug ab (Klammer-Suffixe), darum NICHT neu ableiten.
+  const kk = slugify(namesakeName);
+  const srcNode = nodes.find((n) => slugify(n.name) === kk);
+  const srcId = srcNode ? srcNode.id : null;
+  busy = true; busyId = null;
+  toast(tf(`Lade „{N}" …`, { N: c.name }));
+  try {
+    if (srcId && graph.artists[srcId]) await API.remove(srcId);
+    await API.reset("discovered");
+  } catch { /* egal: der folgende Explore lädt den Server-Stand ohnehin frisch */ }
+  busy = false;
+  await exploreByName(c.name, { mbid: c.mbid, fromNamesake: true });
 }
 
 // R14 — Phase 2 des zweiphasigen Ausbaus: läuft NACH der Erstantwort im Hintergrund und

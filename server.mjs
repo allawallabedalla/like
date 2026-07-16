@@ -1166,7 +1166,7 @@ const server = createServer(async (req, res) => {
 
     // Haupt-Flow: einen Eintrag erkunden -> ähnlich + zusammen + Genres (via Pack).
     if (req.method === "POST" && (url.pathname === "/api/explore" || url.pathname === "/api/expand")) {
-      const { name, staged } = await readBody(req);
+      const { name, staged, mbid } = await readBody(req);
       if (!name) return send(res, 400, { error: "name fehlt" });
       countUsage(url.pathname === "/api/expand" ? "expand" : "explore", pack.id);
       // R14 — zweiphasiger Ausbau: Kann das Pack staged (nur Musik) und wünscht der Client
@@ -1179,13 +1179,14 @@ const server = createServer(async (req, res) => {
       // lang: einzelne Packs richten Anbieter-Storefronts an der UI-Sprache aus (E14, Podcasts).
       try {
         r = usesStaged
-          ? await pack.exploreFast(name)
-          : await pack.explore(name, { home: reqHome(req), lang: req.headers["x-like-lang"] === "en" ? "en" : "de" });
+          ? await pack.exploreFast(name, { mbid })
+          : await pack.explore(name, { home: reqHome(req), lang: req.headers["x-like-lang"] === "en" ? "en" : "de", mbid });
       }
       catch (err) { return send(res, 502, { error: err.message }); }
       return withGraphLock(GRAPH, async () => {
         const g = await loadGraph(GRAPH);
-        const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, seed: true });
+        const src = upsertArtist(g, { name: r.canonical || name, url: r.url || null, mbid: mbid || null, seed: true });
+        if (mbid) src.mbid = mbid; // gewählte Namensvetter-Identität festhalten (Enrich/Expand nutzen sie)
         if (!usesStaged) src.explored = true;
         if (r.genres?.length) src.genres = r.genres.slice(0, 6);
         if (r.meta) { src.booking = r.meta; }
@@ -1854,6 +1855,17 @@ const server = createServer(async (req, res) => {
       let meta = null;
       if (pack.suggestMeta) { try { meta = await pack.suggestMeta(q); } catch {} }
       return send(res, 200, meta && meta.length ? { names, meta } : { names });
+    }
+
+    // N1: gleichnamige Acts („Namensvetter") zu einem Namen — für den Disambiguierungs-Dialog.
+    // Read-only, extern gedrosselt/gecacht; leere Liste, wenn es keine Mehrdeutigkeit gibt oder
+    // die Quelle nicht erreichbar ist (Feature degradiert dann still).
+    if (req.method === "GET" && url.pathname === "/api/namesakes") {
+      const name = (url.searchParams.get("name") || "").trim();
+      if (!name || !pack.namesakes) return send(res, 200, { ok: true, namesakes: [] });
+      let list = [];
+      try { list = await pack.namesakes(name); } catch {}
+      return send(res, 200, { ok: true, namesakes: list || [] });
     }
 
     // „Überrasch mich" (leere Seite): ein zufälliger, eher unbekannter Eintrag zum Reinstolpern.

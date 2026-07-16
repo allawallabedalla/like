@@ -87,4 +87,12 @@ test.describe("Kritische Endpoints (read-only): Status + Schema", () => {
     const b = await res.json();
     expect(Array.isArray(b.names)).toBe(true);
   });
+
+  test("GET /api/namesakes — liefert immer ein namesakes-Array (degradiert ohne Netz)", async ({ request }) => {
+    const res = await request.get(`/api/namesakes?name=Nirvana&pack=${PUBLIC_PACK}`);
+    expect(res.status()).toBe(200);
+    const b = await res.json();
+    expect(b.ok).toBe(true);
+    expect(Array.isArray(b.namesakes)).toBe(true);
+  });
 });
