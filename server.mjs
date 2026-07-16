@@ -33,6 +33,7 @@ import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.m
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback, notifyQuiet } from "./lib/pushover.mjs";
+import { hasIssueSink, collectFeedbackQuiet, createFeedbackIssue } from "./lib/github-issues.mjs";
 import { initUsage, countUsage, usageSnapshot } from "./lib/usage.mjs";
 import { landingHtml } from "./lib/landing.mjs";
 import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount } from "./lib/auth.mjs";
@@ -249,7 +250,11 @@ const radarCache = new Map(); // Graph-Pfad -> { at, key, payload }
 const RADAR_TTL = 10 * 60 * 1000;
 
 // Feedback ist einmal beim Start bekannt (Credentials ändern sich zur Laufzeit nicht).
-const FEEDBACK_ON = await hasPushover();
+// Zwei unabhängige Senken: Pushover = Sofortmeldung ans Handy, GitHub-Issues = dauerhafte,
+// anonyme Sammelstelle fürs Backlog. Der ✉-Knopf erscheint, sobald MINDESTENS eine aktiv ist.
+const PUSHOVER_ON = await hasPushover();
+const ISSUES_ON = hasIssueSink();
+const FEEDBACK_ON = PUSHOVER_ON || ISSUES_ON;
 await initAuth(DATA_DIR); // Accounts (optional): Nutzer-Store + Session-Secret laden
 await initUsage(DATA_DIR); // W7: anonyme, rein aggregierte Tageszähler (siehe Datenschutzseite)
 // Datei-Cache beschränken: beim Start + täglich alte Einträge löschen (sonst füllt er die Platte).
@@ -1043,7 +1048,15 @@ const server = createServer(async (req, res) => {
       if (fbHits.length >= 6) return send(res, 429, { error: "Zu viele Nachrichten — bitte kurz warten." });
       fbHits.push(now);
       try {
-        await sendFeedback({ message: `[${pack.id} v${APP_VERSION}] ${msg.slice(0, 900)}` });
+        if (PUSHOVER_ON) {
+          // Anonym + dauerhaft fürs Backlog sammeln (best effort, blockiert die Sofortmeldung nie),
+          // dann die Pushover-Sofortmeldung — deren Fehler meldet der Knopf als 502.
+          collectFeedbackQuiet({ message: msg, pack: pack.id, version: APP_VERSION });
+          await sendFeedback({ message: `[${pack.id} v${APP_VERSION}] ${msg.slice(0, 900)}` });
+        } else {
+          // Nur GitHub-Sink aktiv -> hier ist das Issue die einzige Senke, Fehler also melden.
+          await createFeedbackIssue({ message: msg, pack: pack.id, version: APP_VERSION });
+        }
         return send(res, 200, { ok: true });
       } catch (err) {
         return send(res, 502, { error: err.message });
@@ -1054,7 +1067,7 @@ const server = createServer(async (req, res) => {
     // viel Debug-Kontext. Nur wenn Pushover eingerichtet ist; sonst still (200, sent:false). Gleiche
     // Drossel wie Feedback, damit ein hängender Client keine Nachrichtenflut auslöst.
     if (req.method === "POST" && url.pathname === "/api/clienterror") {
-      if (!FEEDBACK_ON) return send(res, 200, { ok: true, sent: false });
+      if (!PUSHOVER_ON) return send(res, 200, { ok: true, sent: false });
       const now = Date.now();
       fbHits = fbHits.filter((t) => now - t < 5 * 60 * 1000);
       if (fbHits.length >= 6) return send(res, 200, { ok: true, sent: false }); // still gedrosselt, kein Spam
