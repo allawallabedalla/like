@@ -906,3 +906,45 @@ kein `catch → return leer` *innerhalb* von `cached()` steht — sonst denselbe
 Straße) → M6 (Katalog-Achse, geringerer Hebel). Jede Domäne isoliert testbar; der
 Server nutzt `bridgeNeighbors()` bereits automatisch (`neighborsFor()`), sobald ein
 Pack es anbietet — kein Server-Umbau nötig.
+
+---
+
+## Runde 21 — Nutzer-Feedback (2026-07-16)
+
+Direktes Feedback aus der Nutzung — noch unbearbeitet, hier zur Aufnahme in die
+nächste Runde festgehalten.
+
+- [ ] **N1 — Act-Suche: Eindeutigkeit bei mehrdeutigen Namen.** Bei nicht eindeutigen
+  Act-Namen ist schwer zu erkennen, ob der richtige Act gezogen wurde. Idee: in der
+  Act-Suche zusätzliche eindeutige Hinweise anbieten — z. B. Links zu Bandcamp o. ä.,
+  damit die Auswahl eindeutig vorgegeben werden kann. (Alternative Umsetzungsideen
+  willkommen: Disambiguierung über Genre/Herkunft/Jahre, kleines Cover-Thumbnail,
+  Hörerzahl o. Ä.)
+
+- [ ] **N2 — Song-Preview-Pill: Scrub-Line springt nicht zurück.** Die Scrub-Line der
+  Song-Preview-Pill wechselt nach dem Abspielen nicht automatisch zurück zur
+  Artist-/Titel-Ansicht.
+
+- [ ] **N3 — Schrift des Netzes am Desktop pixelig.** Am Desktop bei 100 % Bildschirmzoom
+  ist die Schrift im Netz schlecht leserlich / wirkt pixelig (vermutlich Canvas-Text-
+  Rendering ohne devicePixelRatio-Skalierung — prüfen).
+
+- [ ] **N4 — Login-Hinweis beim ersten Ablegen ohne Konto.** Ein Hinweis zum Einloggen
+  fehlt, wenn man zum ersten Mal uneingeloggt etwas auf die eigene Playliste ablegen
+  will — sowie beim ersten Login.
+
+- [ ] **N5 — Leeres Netz: „Meistgehörtes von Last.fm importieren" entfernen.** Beim leeren
+  Netz steht ein Hinweis zum Importieren des meistgehörten Last.fm-Materials. Das kann
+  raus, wird nicht gebraucht.
+
+- [ ] **N6 — Löschen-Knopf: Modal mit Optionen.** Der Löschen-Knopf soll ein Modalfenster
+  öffnen, in dem man auswählt, WAS genau gelöscht werden soll (sinnvolle Optionen selbst
+  festlegen — z. B. ganzes Netz, nur Auswahl, nur Notizen/Status, nur gespeicherte
+  Playlist).
+
+- [ ] **N7 — Gespeicherte Playlists auffindbar machen.** Unklar, wo man die eigenen
+  gespeicherten Playlists zum Ansehen findet — Zugang/Auffindbarkeit schaffen.
+
+- [ ] **N8 — Startansicht: gesamtes Netz, nur Hauptsonnen.** Beim Start soll die Seite
+  immer das gesamte Netz anzeigen, so weit herausgezoomt, dass nur die Hauptsonnen
+  sichtbar sind.
