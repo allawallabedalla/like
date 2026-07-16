@@ -3,7 +3,7 @@
 // Setlist.fm) hinter dem generischen Pack-Interface. Die Logik ist 1:1 aus dem
 // alten server.mjs übernommen — Verhalten unverändert.
 
-import { getSimilar, getTopTags, getArtistInfo, searchArtists, searchArtistsDetailed, clearKeyCache } from "../../lib/lastfm.mjs";
+import { getSimilar, getTopTags, getArtistInfo, searchArtists, searchArtistsDetailed, getTagArtists, clearKeyCache } from "../../lib/lastfm.mjs";
 import { coAppearances } from "../../lib/coappear.mjs";
 import { relatedArtists, topTrackPreview, trackPreviewSearch, artistByName as dzArtist } from "../../lib/deezer.mjs";
 import { previewByName } from "../../lib/itunes.mjs";
@@ -290,7 +290,22 @@ export default {
   // „Überrasch mich" (Kaltstart, leere Seite): 4 Zufallskandidaten aus dem Pool ziehen,
   // ihre Hörerzahl prüfen und den mit den WENIGSTEN nehmen -> eher ein Geheimtipp.
   // Fällt ohne Netz/Key auf einen einfachen Zufallszug zurück.
-  async surprise() {
+  async surprise({ genre } = {}) {
+    // FB14/#74: Mit Genre -> ein eher unbekannter Act AUS diesem Genre (Last.fm tag.gettopartists,
+    // nach Popularität sortiert). Aus der hinteren Hälfte der Liste ziehen = Geheimtipp statt Chart-
+    // Hit, aber garantiert über Last.fm ladbar. Ohne Genre bzw. bei leerem Ergebnis: Seed-Pool wie bisher.
+    const g = String(genre || "").trim();
+    if (g) {
+      try {
+        const arr = await getTagArtists(g, { limit: 60 });
+        if (arr.length) {
+          const tail = arr.slice(Math.floor(arr.length / 2)); // populärste Hälfte weglassen
+          const pool = tail.length ? tail : arr;
+          return pool[Math.floor(Math.random() * pool.length)].name;
+        }
+      } catch {}
+      // kein Treffer fürs Genre -> auf den normalen Zufallszug zurückfallen
+    }
     const pick = () => SURPRISE_SEEDS[Math.floor(Math.random() * SURPRISE_SEEDS.length)];
     const cands = new Set(); while (cands.size < 4) cands.add(pick());
     let best = null, bestL = Infinity;

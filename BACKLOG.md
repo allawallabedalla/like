@@ -1027,11 +1027,15 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   waren über N7 schon erreichbar.)
 
 ### Offen — große Bretter (eigene Vorhaben)
-- [ ] **FB4 — Ähnlichkeit/Auftritts-Häufigkeit RÄUMLICH kodieren (#66).** „Näher = ähnlicher"
-  statt nur Liniendicke. Force-Ziellänge an den Score koppeln. Querverweis: Runde-11-Kontroverse
-  („Nähe zeigt Verwandtschaft" hält das aktuelle Layout nicht ein).
-- [ ] **FB14 — „Überrasch mich" mit Genre-Eingabe (#74).** Nach grober Suche Genre-Eingabe
-  anbieten (oder „egal"-Knopf).
+- [x] **FB4 — Ähnlichkeit/Auftritts-Häufigkeit RÄUMLICH kodieren (#66).** ✅ Die Force-Ruhelänge
+  hing schon an der kombinierten Bindung (ähnlich+zusammen), aber nur schwach. Jetzt steiler
+  gespreizt (`66 + (1-bond)^1.35 * 168`): stark gebundene Paare enger, schwach gebundene deutlich
+  weiter; Kollisions-/Halo-Clamp fängt unten ab. **Tuning-Wert — im Browser gegensehen/nachjustieren.**
+- [x] **FB14 — „Überrasch mich" mit Genre-Eingabe (#74).** ✅ Optionales Genre-Feld unter dem Button
+  (nur Musik). Mit Genre zieht der Server einen eher unbekannten Act AUS dem Genre (Last.fm
+  `tag.gettopartists`, hintere Hälfte = Geheimtipp, garantiert ladbar); leer = wie bisher. Neu:
+  `getTagArtists` (lib/lastfm.mjs), `surprise({genre})` (music-pack), `?genre=` an `/api/surprise`.
+  Am echten Modul verifiziert.
 - [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** Über 1–2 „Eckverbinder"-Acts an die
   Engine koppeln. Große Quelle (Rate-Limits, Matching). Die Idee ist in N1 bereits notiert.
 - [ ] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** Netz als eigenständige HTML-Datei inkl.

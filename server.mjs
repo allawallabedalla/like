@@ -1872,8 +1872,9 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/surprise") {
       if (!pack.surprise) return send(res, 200, { ok: false });
       countUsage("surprise", pack.id);
+      const genre = (url.searchParams.get("genre") || "").trim().slice(0, 40); // FB14: optional Genre-gefiltert
       let name = null;
-      try { name = await pack.surprise(); } catch {}
+      try { name = await pack.surprise({ genre }); } catch {}
       return name ? send(res, 200, { ok: true, name }) : send(res, 200, { ok: false });
     }
 

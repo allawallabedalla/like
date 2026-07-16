@@ -968,6 +968,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     </div>
     <div id="seedChips" class="seedchips hideStatic"></div>
     <button id="surpriseBtn" class="surprisebtn hideStatic" title="Zeig mir einen zufälligen, eher unbekannten Act">✦ Überrasch mich</button>
+    <input id="surpriseGenre" class="hideStatic" placeholder="Genre (optional) — z. B. Ambient" autocomplete="off" title="Optional: ein Genre eingeben, dann kommt der Zufalls-Act aus diesem Genre. Leer = egal." style="display:none;margin-top:8px;max-width:280px;width:100%;padding:7px 10px;background:var(--bg);border:1px solid var(--line-soft);border-radius:8px;font-size:13px;text-align:center" />
     <button id="loginHint" class="loginhint hideStatic" style="display:none"
       title="Anonym bleibt deine Karte auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt. Mit Konto bleiben Karte, Likes und Notizen dauerhaft gespeichert — und sind auf allen Geräten gleich.">
       <span class="lh-i">↗</span> Anmelden — deine Karte dauerhaft &amp; auf allen Geräten sichern
@@ -1531,6 +1532,7 @@ const T = LANG !== "en" ? null : {
   "Heimatort: {N} — neu geladene Ziele rechnen ab hier": "Home: {N} — newly loaded destinations measure from here",
   "Heimatort: dein Standort — neu geladene Ziele rechnen ab hier": "Home: your location — newly loaded destinations measure from here",
   "Gerade keine Überraschung zur Hand": "No surprise at hand right now",
+  "Nichts fürs Genre {G} gefunden — versuch ein anderes": "Nothing found for the {G} genre — try another",
   "Überraschung fehlgeschlagen": "Surprise failed",
   "Erst ein paar Einträge laden — dann gibt's was zu entdecken.": "Load a few entries first — then there's something to discover.",
   "Zu wenig auf der Karte — erkunde erst ein paar Einträge.": "Not enough on the map — explore a few entries first.",
@@ -2788,7 +2790,12 @@ function tick() {
   }
   for (const l of links) {
     if (l.type === "venue") continue; // D3: Venue-Kanten ziehen nicht — Venues folgen ihren Acts, nicht umgekehrt
-    let rest = (85 + (1 - (l.bond ?? l.strength)) * 90) * spread; // kombinierte Bindung (ähnlich+zusammen => näher), bei dichtem Netz luftiger
+    // FB4/#66: Ähnlichkeit RÄUMLICH stärker kodieren — „näher = ähnlicher" soll auf einen Blick
+    // lesbar sein (Liniendicke allein reicht dem Nutzer nicht). Die Ruhelänge hing schon an der
+    // kombinierten Bindung (ähnlich+zusammen), aber nur schwach; jetzt steiler gespreizt: stark
+    // gebundene Paare rücken enger, schwach gebundene deutlich weiter auseinander. Nach unten
+    // fängt der Kollisions-/Halo-Clamp unten ab, sodass nichts kollabiert.
+    let rest = (66 + Math.pow(1 - (l.bond ?? l.strength), 1.35) * 168) * spread;
     // Planeten-Modus: zwei benachbarte Planeten (beide mit Mond-Halo) brauchen Platz für ihre
     // Ringe — sonst überlappen die Systeme zu einem Knäuel. Ruhelänge auf die Summe der
     // Halo-Radien + Puffer anheben, damit sich die Planeten sauber auseinanderschieben.
@@ -6516,17 +6523,24 @@ addEventListener("visibilitychange", () => {
   }
   // „Überrasch mich": zufälliger, eher unbekannter Act vom Server -> direkt reinstolpern.
   const sBtn = document.getElementById("surpriseBtn");
+  const sGenre = document.getElementById("surpriseGenre");
   if (sBtn) {
     if (STATIC || !FEAT.surprise) sBtn.style.display = "none"; // nur wo das Pack surprise() anbietet
-    sBtn.addEventListener("click", async () => {
+    // FB14/#74: optionale Genre-Eingabe nur im Musik-Pack zeigen (nur dort serverseitig unterstützt).
+    if (sGenre) sGenre.style.display = (!STATIC && FEAT.surprise && CFG.id === "music") ? "" : "none";
+    const doSurprise = async () => {
       sBtn.disabled = true; const label = sBtn.textContent; sBtn.textContent = t("✦ Suche …");
       try {
-        const r = await GET("/api/surprise");
+        const g = (sGenre?.value || "").trim();
+        const r = await GET("/api/surprise" + (g ? "?genre=" + encodeURIComponent(g) : ""));
         if (r && r.ok && r.name) await exploreByName(r.name);
-        else toast("Gerade keine Überraschung zur Hand");
+        else toast(g ? tf("Nichts fürs Genre {G} gefunden — versuch ein anderes", { G: g }) : "Gerade keine Überraschung zur Hand");
       } catch { toast("Überraschung fehlgeschlagen"); }
       finally { sBtn.disabled = false; sBtn.textContent = label; }
-    });
+    };
+    sBtn.addEventListener("click", doSurprise);
+    // Enter im Genre-Feld löst die Überraschung aus
+    if (sGenre) sGenre.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doSurprise(); } });
   }
   // Beim Öffnen der leeren Karte den Fokus auf die Leiste legen.
   if (!STATIC && !nodes.length) setTimeout(() => q2.focus(), 60);
