@@ -1849,7 +1849,11 @@ const server = createServer(async (req, res) => {
       if (q.length < 2) return send(res, 200, { names: [] });
       let names = [];
       try { names = pack.suggest ? await pack.suggest(q) : []; } catch {}
-      return send(res, 200, { names });
+      // N1: optionale Zusatzinfos je Treffer (Hörerzahl + Profil-URL) zum Disambiguieren
+      // mehrdeutiger Namen. Nur wenn das Pack sie anbietet; sonst bleibt es bei `names`.
+      let meta = null;
+      if (pack.suggestMeta) { try { meta = await pack.suggestMeta(q); } catch {} }
+      return send(res, 200, meta && meta.length ? { names, meta } : { names });
     }
 
     // „Überrasch mich" (leere Seite): ein zufälliger, eher unbekannter Eintrag zum Reinstolpern.
