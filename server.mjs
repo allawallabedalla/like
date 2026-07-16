@@ -33,7 +33,7 @@ import { loadStats, saveStats, addSnapshot, growthPerMonth } from "./lib/stats.m
 import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback, notifyQuiet } from "./lib/pushover.mjs";
-import { hasIssueSink, collectFeedbackQuiet, createFeedbackIssue } from "./lib/github-issues.mjs";
+import { hasIssueSink, collectFeedbackQuiet, createFeedbackIssue, listFeedbackIssues, feedbackTarget } from "./lib/github-issues.mjs";
 import { initUsage, countUsage, usageSnapshot } from "./lib/usage.mjs";
 import { landingHtml } from "./lib/landing.mjs";
 import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount } from "./lib/auth.mjs";
@@ -235,6 +235,8 @@ function datenschutzPage() {
   <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Geräte-Kennung (Letztere wird nach 30 Tagen ohne Besuch automatisch gelöscht).</p>
   <h2>Anonyme Nutzungszähler</h2>
   <p>Der Server zählt, wie oft Funktionen insgesamt genutzt werden (z. B. „Suche wurde heute 12-mal verwendet") — als reine Tagessummen, <b>ohne</b> IP-Adressen, Kennungen, Profile oder Reihenfolgen. Ein Rückschluss auf einzelne Personen ist damit nicht möglich; die Zahlen dienen allein dazu, die Weiterentwicklung sinnvoll zu priorisieren. Es sind keinerlei Analyse- oder Werbedienste Dritter eingebunden.</p>
+  <h2>Feedback</h2>
+  <p>Nutzt du freiwillig den <b>Feedback-Knopf</b> (✉), wird der von dir eingegebene Nachrichtentext zusammen mit der aktuell gewählten Domäne und der App-Version an den Server übermittelt und dort <b>zur Bearbeitung gespeichert</b> — je nach Konfiguration als Push-Nachricht an den Betreiber und/oder als Eintrag in einem privaten Aufgaben-/Ticket-System (GitHub). Die Speicherung erfolgt <b>anonym</b>: es werden <b>keine</b> IP-Adresse, Kennung oder Konto-Angabe mitgespeichert, und der Text wird keiner Person zugeordnet. Rechtsgrundlage ist unser berechtigtes Interesse an der Verbesserung der App (Art. 6 Abs. 1 lit. f DSGVO); die Nutzung ist freiwillig. <b>Bitte gib im Freitext keine personenbezogenen Daten ein.</b> Da das Ticket-System (GitHub) seinen Sitz außerhalb der EU hat, kann dabei eine Übermittlung in ein Drittland erfolgen.</p>
   <h2>Externe Dienste</h2>
   <p>Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
   <h2>Deine Rechte</h2>
@@ -1058,6 +1060,25 @@ const server = createServer(async (req, res) => {
           await createFeedbackIssue({ message: msg, pack: pack.id, version: APP_VERSION });
         }
         return send(res, 200, { ok: true });
+      } catch (err) {
+        return send(res, 502, { error: err.message });
+      }
+    }
+
+    // Betreiber-Ansicht der gesammelten Feedback-Issues (Read-Through auf GitHub, dieselben
+    // Issues wie dort — nur bequem in der App/per curl). Streng geschützt: nur mit dem
+    // LIKE_OWNER_SECRET (konstantzeit verglichen). Ohne gesetztes Secret gibt es den Endpunkt
+    // gar nicht (404), damit er nicht als Existenz-Orakel für den Secret-Namen dient.
+    if (req.method === "GET" && url.pathname === "/api/feedback/log") {
+      if (!OWNER_SECRET) return send(res, 404, { error: "Nicht gefunden." });
+      const secret = url.searchParams.get("secret") || req.headers["x-like-owner"] || "";
+      if (!timingEq(secret, OWNER_SECRET)) return send(res, 403, { error: "Kein Zugriff." });
+      if (!ISSUES_ON) return send(res, 400, { error: "GitHub-Feedback-Sammlung ist nicht eingerichtet (GITHUB_FEEDBACK_TOKEN)." });
+      const state = url.searchParams.get("state") || "open";
+      const limit = parseInt(url.searchParams.get("limit") || "50", 10) || 50;
+      try {
+        const issues = await listFeedbackIssues({ state, limit });
+        return send(res, 200, { ok: true, ...feedbackTarget(), count: issues.length, issues });
       } catch (err) {
         return send(res, 502, { error: err.message });
       }

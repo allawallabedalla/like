@@ -56,6 +56,11 @@ services:
         sync: false
       - key: GITHUB_FEEDBACK_REPO   # "owner/repo"; leer = Default allawallabedalla/like
         sync: false
+      # optional: Betreiber-Geheimnis. Schaltet den „neuer Besuch"-Push frei UND den
+      # geschützten Lese-Endpunkt GET /api/feedback/log?secret=… (zeigt die gesammelten
+      # Feedback-Issues in der App/per curl). Ungesetzt = beides aus.
+      - key: LIKE_OWNER_SECRET
+        sync: false
       # Zweitquelle für „zusammen aufgetreten" (Setlist.fm, Gratis-Key) — zweites Standbein
       # neben der inoffiziellen RA-API; ohne Key ist das Feature einfach aus.
       - key: SETLISTFM_KEY
