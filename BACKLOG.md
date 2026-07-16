@@ -906,3 +906,85 @@ kein `catch → return leer` *innerhalb* von `cached()` steht — sonst denselbe
 Straße) → M6 (Katalog-Achse, geringerer Hebel). Jede Domäne isoliert testbar; der
 Server nutzt `bridgeNeighbors()` bereits automatisch (`neighborsFor()`), sobald ein
 Pack es anbietet — kein Server-Umbau nötig.
+
+---
+
+## Runde 21 — Aus Testnutzer-Feedback (2026-07-16)
+
+**Kontext:** Erste Ernte aus der neuen Feedback-Sammlung (✉-Knopf → anonyme GitHub-Issues,
+Label `feedback`). 16 echte Rückmeldungen aus dem Music-Pack (v2.6.0), Issues **#66–#81**.
+Hier thematisch geclustert, Duplikate zusammengefasst, jede Zeile verweist auf ihre Quelle.
+
+**Vorbehalt:** Das sind **Roh-Rückmeldungen von Testnutzern, noch NICHT gegen den Code
+verifiziert** — anders als die Audit-Runden oben. Vor der Umsetzung jeden Punkt am echten
+Code/Live-Verhalten gegenprüfen (manche überschneiden sich mit früheren Runden, s. Querverweise).
+
+### Cluster A — Audio-Vorschau (häufigste Beschwerde)
+
+- [ ] **FB1 — Autoplay-Blockade sauber abfangen statt roher Fehlermeldung** (#67, #73).
+  Nutzer sehen häufig „der Browser hat das Abspielen verhindert" / „keine Klangvorschau
+  verfügbar" bzw. ein Blockier-Popup. Erwartet: freundliches „Zum Anhören tippen"-Muster
+  nach der ersten Nutzergeste, kein technischer Fehlertoast. Autoplay-Policy ist
+  browserseitig — Ursache trennen (echte Policy-Blockade vs. fehlende Quelle).
+- [ ] **FB2 — Falsches Audio gematcht** (#81). Bei „Magnum" (Rockband) lief französischer
+  HipHop („Magnüm"?). Die Preview-Auflösung (Deezer/iTunes) trifft per Namens-Fuzzy-Match
+  den falschen Act — strenger matchen (exakter Name, ggf. MBID/Marktabgleich), sonst nichts
+  abspielen.
+- [ ] **FB3 — Redundanten Toast beim Vorschau-Start entfernen** (#71). Der Toast beim
+  Starten der Audiovorschau doppelt sich mit der Preview-Pill — raus.
+
+### Cluster B — Layout & Darstellung
+
+- [ ] **FB4 — Ähnlichkeit/Auftritts-Häufigkeit RÄUMLICH kodieren** (#66). „Näher = ähnlicher"
+  auf Anhieb sichtbar, Liniendicke allein reicht dem Nutzer nicht. Force-Ziellänge an den
+  Score koppeln. Querverweis: Kontroverse aus Runde 11 („Nähe zeigt Verwandtschaft" hält das
+  aktuelle Layout nicht ein) — hier steckt derselbe Kern.
+- [ ] **FB5 — Sprachwechsel ordnet das Netz neu an** (#70). i18n-Umschalten löst offenbar
+  ein Rebuild/Relayout aus; die Anordnung soll erhalten bleiben.
+- [ ] **FB6 — Komischer Schatten beim Verschieben im Flat-Modus** (#76). Beim Ziehen der
+  Kugeln erscheint ein Schatten, der im Flat-Modus keinen Sinn ergibt. Querverweis: F7 (Flat-
+  Modus-Drag).
+- [ ] **FB7 — „Aufräumen" schiebt Monde vom Planeten weg** (#80). Nach dem Aufräumen fliegen
+  Monde weg statt sich zu ordnen — Ordnung im „Sternsystem" soll Vorrang haben. Eng verwandt
+  mit FB8.
+
+### Cluster C — Aufräumen / Löschen / Profil
+
+- [ ] **FB8 — Löschen-/Aufräumen-Menü neu schneiden** (#75). Drei klare Aktionen gewünscht:
+  (1) unverknüpfte Altlasten löschen, (2) alle Monde löschen, (3) ganze Karte löschen.
+  Playlists/Lineup sollen **nie** (höchstens tief im Profilmenü) löschbar sein.
+- [ ] **FB9 — Profilmenü mit Konto-Infos** (#75). Nutzer sucht eine Übersicht mit ein paar
+  Account-Informationen — existiert bisher nicht sichtbar.
+
+### Cluster D — Verständlichkeit / Onboarding
+
+- [ ] **FB10 — Das „+N"-Badge erklären** (#77). Bedeutung der kleinen „+15" (weitere Acts in
+  der Nähe) ist unklar; generell „noch nicht selbsterklärend genug".
+- [ ] **FB11 — „+N"-Badge dynamisch mit dem Zoom skalieren** (#68). Beim Reinzoomen schlecht
+  sichtbar; soll mit der Hauptkugel mitskalieren.
+- [ ] **FB12 — „Brücke bauen" blendet viele Acts aus — erklären/entschärfen** (#78). Der
+  Fokus-Effekt der Brücke wirkt unerwartet; Hinweis einblenden oder sanfter ausblenden.
+- [ ] **FB13 — Hinweis auf temporäre Speicherung bei anonymem „like"** (#79). Ohne Login soll
+  ein Hinweis kommen, dass die Karte nur temporär (geräteweit) gehalten wird. Querverweis:
+  E2 (Anon-ID in localStorage, 30-Tage-TTL) + Datenschutztext — prüfen, ob der Hinweis dort
+  schon greift.
+
+### Cluster E — Neue Features / Erweiterungen
+
+- [ ] **FB14 — „Überrasch mich" mit Genre-Eingabe** (#74). Nach grober Suche eine Genre-
+  Eingabe anbieten (oder einen „egal"-Knopf dazu). *(Impact mittel / Aufwand niedrig)*
+- [ ] **FB15 — Bandcamp als Quelle für kleine Acts** (#72). Viele kleine Acts sind fast nur
+  dort; über 1–2 „Eckverbinder"-Acts an die bestehende Engine koppeln. *(Impact hoch /
+  Aufwand hoch — eigene Quelle, Rate-Limits, Matching)*
+- [ ] **FB16 — Interaktiver HTML-Snapshot-Export** (#69). Netz als eigenständige HTML-Datei
+  herunterladen, inkl. Funktionen (Vorschau anhören, Künstler:innen-Infos). Querverweis: W14
+  (Read-Only-Link `/s/<id>`) und `export-static.mjs` als Rendering-Basis.
+
+**Reihenfolge/Wirkung:** Cluster A zuerst (meistgenannt, Kern-Erlebnis Musik) → Cluster D
+(billige Klarheits-Fixes, hoher gefühlter Nutzen) → Cluster B/C (Layout- & Aufräum-Politur) →
+Cluster E (Features, größerer Aufwand). FB2/FB3/FB6/FB10/FB11 sind kleine, lokale Fixes;
+FB4/FB15/FB16 sind die dicken Bretter.
+
+**Nächster Schritt:** Punkte einzeln am Live-Verhalten verifizieren (Vorbehalt oben), dann wie
+üblich abarbeiten. Die zugehörigen `feedback`-Issues bleiben offen und werden beim Abhaken des
+jeweiligen Punkts geschlossen.
