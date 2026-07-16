@@ -1036,12 +1036,27 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   `tag.gettopartists`, hintere Hälfte = Geheimtipp, garantiert ladbar); leer = wie bisher. Neu:
   `getTagArtists` (lib/lastfm.mjs), `surprise({genre})` (music-pack), `?genre=` an `/api/surprise`.
   Am echten Modul verifiziert.
-- [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** Über 1–2 „Eckverbinder"-Acts an die
-  Engine koppeln. Große Quelle (Rate-Limits, Matching). Die Idee ist in N1 bereits notiert.
-- [ ] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** Netz als eigenständige HTML-Datei inkl.
-  Vorschau/Infos. Querverweis: W14 (`/s/<id>`) und `export-static.mjs`.
+- [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** *Analyse:* `lib/bandcamp.mjs` bietet
+  bereits `discoverTag(genre)` (kleine, neue Acts je Genre) + `searchBand` (Ort). Das Problem ist
+  nicht die Quelle, sondern die **Einbindung**: der Graph ist namensbasiert über Last.fm — Bandcamp-
+  *only*-Acts laden dort nicht (`exploreByName` findet sie nicht). Es braucht die „Eckverbinder"-
+  Logik (Bandcamp-Act → nächster über Last.fm existierender Nachbar) ODER einen eigenen Bandcamp-
+  Knotentyp im Graphen. Zusätzlich: bandcamp.mjs nutzt **inoffizielle Endpoints (ToS/Risiko)** — als
+  Live-Feature eine **Betreiber-Entscheidung**. *Nächster Schritt/Entscheidung nötig:* (a) nur als
+  Genre-Discovery-Vorschlagsliste (kein Graph-Knoten), (b) echter Bandcamp-Knotentyp, (c) vorerst aus.
+  Teil-Nutzen ist über FB14 (Genre-Surprise) schon da — nur eben via Last.fm, nicht Bandcamp.
+- [ ] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** *Analyse:* `export-static.mjs` erzeugt
+  bereits eine self-contained HTML (Graph eingebettet, zoom/klick/filter/Infos/PNG **offline** ok) —
+  ABER der Export läuft im STATIC-Modus und alle API-Calls sind **relativ** (`/api/preview`), d. h.
+  **die Klangvorschau funktioniert in der heruntergeladenen Datei nicht** (kein Server). Genau die
+  will der Nutzer aber. *Entscheidung nötig:* (a) Offline-Snapshot **ohne** Vorschau (kleinster, sofort
+  machbar), (b) Vorschau-URLs beim Export **vorab einbetten** (voll offline, aber N gedrosselte
+  Lookups pro Export), (c) Export ruft die **Live-Instanz** absolut auf (Vorschau online, braucht
+  CORS am Server). Danach: Server-Endpoint `/api/export.html` (aktueller Nutzer-Graph) + Download-Knopf.
 
-**Reihenfolge/Wirkung:** FB3 ✅ erledigt. Als Nächstes die kleinen, sobald verifiziert/geklärt
-(FB6 & FB11 brauchen einen Screenshot bzw. Zeige-mich-Moment; FB2/FB5 lokalisieren), dann die
-großen Bretter (FB4/FB14/FB15/FB16). Die zugehörigen `feedback`-Issues bleiben offen und werden
-beim Abhaken geschlossen.
+**Stand (2026-07-16):** 10 von 16 umgesetzt — FB1–FB14 bis auf zwei erledigt (FB3, FB5, FB7,
+FB12, FB6, FB9, FB10, FB11, FB4, FB14; plus FB8/FB13 via Runde 21). **Offen: FB15 + FB16** — beide
+sind keine reinen Bugs, sondern brauchen erst eine Entscheidung (s. o.: Bandcamp-Einbindung/ToS bzw.
+Export-Vorschau offline-vs-online). Alle Frontend-/Canvas-Fixes (FB4/FB5/FB6/FB7/FB9/FB10/FB11/FB12/
+FB14-UI) sind logik-/syntaxgeprüft, aber im Browser noch gegenzusehen. Die `feedback`-Issues bleiben
+offen und werden beim Abhaken geschlossen.
