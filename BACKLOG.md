@@ -1001,24 +1001,30 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   Knotenpositionen in `sessionStorage` sichern (`stashLayoutForReload`), beim Start als `prev` in
   `rebuild(prev, 0)` einspielen (kalt, kein Reheat) — die Anordnung bleibt erhalten. Gilt auch fürs
   Modus-Umschalten. (Frontend-Fix, im Browser noch gegenzusehen.)
-- [ ] **FB6 — „Komischer Schatten" beim Verschieben im Flat-Modus (#76).** Vermutlich der
-  Hover-Schein (`shadowBlur 16`, `--edge-together`), der beim Ziehen mitläuft. Im Flat-Modus
-  prüfen/abschwächen. **Screenshot vom Nutzer würde die Diagnose absichern.**
-- [ ] **FB11 — „+N"-Badge mit dem Zoom skalieren (#68).** Unklar, welches Badge genau: das
-  Mond-`＋` ist bewusst bildschirm-konstant (`/view.k`), ein numerisches „+15" fürs Nachladen
-  finde ich so nicht. **Kurz zeigen, welches „+15" gemeint ist**, dann gezielt fixen.
+- [x] **FB6 — „Schlagschatten nach innen auf die Kugel" beim Verschieben (#76).** ✅ Nutzer
+  präzisiert: nur in Bewegung. Ursache: der weiche Hover-Schein (`shadowBlur 16`) — auf Touch gibt
+  es „Hover" nur während des Ziehens, der blurred Schein wirkte dann wie ein Schlagschatten. Fix:
+  Schein für den gerade gezogenen Knoten (`n !== dragNode`) nicht zeichnen; reines Hovern bleibt.
+- [x] **FB11 — „+N"-Indikator mit dem Zoom skalieren (#68).** ✅ Geklärt: der `n.pending`-Chip
+  („noch versteckte, zur Übersicht ausgeblendete Acts"). War bildschirm-konstant (`/view.k`) → winzig
+  neben einer nah herangezoomten Kugel. Fix: Chip-Radius (in `pendingBadge`) + Schrift skalieren mit
+  dem Kugelradius (Mindestgröße bleibt); Position & Trefferfläche ziehen automatisch mit.
 - [x] **FB7 — „Aufräumen" schiebt Monde weg vom Planeten (#80).** ✅ `sortLayout()` behandelte
   Monde als Baumknoten und setzte `_moonAng=null` → sie flogen aus der Umlaufbahn. Fix: Monde
   (`_moon`) vom Sortieren ausnehmen; sie umkreisen weiter ihren Planeten (`updateMoons`).
   (Frontend-Fix, im Browser noch gegenzusehen.)
-- [ ] **FB10 — Das „+N"-Badge erklären (#77).** Onboarding/Copy — „noch nicht selbsterklärend".
-  Sinnvoll zusammen mit FB11 (dasselbe Element).
+- [x] **FB10 — Den „+N"-Indikator erklären (#77).** ✅ Der Chip-Tooltip erklärt jetzt das „warum
+  versteckt": „Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)"
+  (DE+EN); zusammen mit dem größeren Chip aus FB11 ist der Indikator klarer. (Discovery auf Touch
+  bleibt begrenzt — echter Onboarding-Hinweis wäre eine separate größere Sache.)
 - [x] **FB12 — „Brücke bauen" blendet viele Acts aus (#78).** ✅ Zweifach: Nicht-Kandidaten im
   Brücke-Modus nicht mehr fast unsichtbar (0.15 → 0.28, Kontext bleibt), plus erklärender Hinweis
   in der Brücken-Leiste („Andere Acts sind kurz abgeblendet, damit der Weg sichtbar ist …", DE+EN).
   (Frontend-Fix, im Browser noch gegenzusehen.)
-- [ ] **FB9 — Profilmenü mit Konto-Infos (#75, Rest).** Playlists sind über N7 erreichbar; eine
-  kleine Konto-Übersicht (Name, Status …) fehlt noch.
+- [x] **FB9 — Profilmenü mit Konto-Infos (#75, Rest).** ✅ Die Konto-Box im ⋯-Menü zeigt jetzt neben
+  „Angemeldet als …/abmelden" eine kleine Übersicht: Acts auf der Karte, davon in Listen, Anzahl
+  Listen — client-seitig aus dem Graphen, ohne neuen Endpoint (auch für anonyme Nutzer). (Playlists
+  waren über N7 schon erreichbar.)
 
 ### Offen — große Bretter (eigene Vorhaben)
 - [ ] **FB4 — Ähnlichkeit/Auftritts-Häufigkeit RÄUMLICH kodieren (#66).** „Näher = ähnlicher"

@@ -1620,7 +1620,7 @@ const T = LANG !== "en" ? null : {
   "Keine Klangprobe für „{N}\" gefunden": "No preview found for \"{N}\"",
   "noch nichts geladen": "nothing loaded yet",
   "{K} weitere laden": "load {K} more", "＋ {K} weitere laden": "＋ load {K} more",
-  "Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang": "Show more saved similar acts — no fresh loading",
+  "Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)": "Similar acts hidden to keep things tidy — show them (no fresh loading)",
   "Lade …": "Loading …", "Konnte nicht laden.": "Couldn't load.",
   "Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.": "No likes yet — explore and mark a few entries, then your cross-domain profile appears here.",
   "Themen, die deine Welten <b>verbinden</b>:": "Themes that <b>connect</b> your worlds:",
@@ -3160,7 +3160,10 @@ function draw() {
     // weniger, als würden „ganz viele Acts ausgeblendet". Andere Dimm-Modi bleiben bei 0.15.
     const baseA = (faded ? (bridgeActive ? 0.28 : 0.15) : 1) * ap * lodA;
     // weicher Hover-Schein hinter dem Knoten (nur der eine gehoverte — günstig)
-    if (hovG && n.id === hovG.id && !faded && ap >= 1) {
+    // FB6/#76: den weichen Hover-Schein NICHT für den gerade gezogenen Knoten zeichnen. Auf Touch
+    // gibt es „Hover" nur während des Ziehens — der blurred Schein wirkte dann wie ein Schlagschatten,
+    // der beim Verschieben auf die Kugel fällt. Beim reinen Hovern (ohne Drag) bleibt der Schein.
+    if (hovG && n.id === hovG.id && !faded && ap >= 1 && n !== dragNode) {
       ctx.globalAlpha = 1; ctx.shadowColor = getCss("--edge-together"); ctx.shadowBlur = 16;
       traceNode(n, r); ctx.fillStyle = nodeColor(n); ctx.fill();
       ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
@@ -3225,7 +3228,7 @@ function draw() {
     // Annähern/Hovern wächst und ein weiches Halo bekommt — so ist klar: hier gibt es was einzublenden.
     if (n.pending && !n.venue) {
       const b = pendingBadge(n), near = pendingNear(n) || n === hover;
-      const R = (near ? 10.5 : 7.5) / view.k;
+      const R = near ? b.r * 1.4 : b.r; // b.r skaliert jetzt mit der Kugel (FB11); beim Annähern etwas größer
       // Halo beim Annähern, damit der Chip „aufwacht" und als Ziel erkennbar wird.
       if (near) {
         ctx.globalAlpha = 0.16 * ap; ctx.fillStyle = getCss("--accent");
@@ -3236,7 +3239,7 @@ function draw() {
       // „+K"-Zahl im Chip, sobald genug herangezoomt oder beim Annähern (sonst bleibt die Übersicht ruhig).
       if (view.k > 0.5 || near) {
         ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.font = `700 ${(near ? 9.5 : 8) / view.k}px ${CANVAS_FONT}`;
+        ctx.font = `700 ${R * 1.05}px ${CANVAS_FONT}`; // Schrift skaliert mit dem Chip mit
         ctx.fillText("+" + n.pending, b.x, b.y + 0.5 / view.k);
         ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
       }
@@ -3721,7 +3724,10 @@ function onPlayBtn(px, py) {
 // Nutzer ohnehin schon zum „mehr einblenden" antippen. Ein Tipp darauf ruft revealMore(n).
 function pendingBadge(n) {
   const rr = radius(n);
-  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: 8 / view.k };
+  // FB11/#68: „+K"-Chip nicht mehr rein bildschirm-konstant (winzig neben einer großen, nah
+  // herangezoomten Kugel), sondern mit dem Kugelradius mitskalieren — mit Mindestgröße, damit er
+  // beim Rauszoomen lesbar bleibt. Position + Trefferfläche (onPendingBadge) ziehen automatisch mit.
+  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: Math.max(8 / view.k, rr * 0.42) };
 }
 // Zeiger/Finger nahe am „+K"-Chip? -> Chip vergrößern und Trefferfläche aufziehen (fingerfreundlich).
 // mouseWorld ist nur bei Maus gesetzt; auf Touch trägt COARSE ohnehin die größere Basis-Trefferfläche.
@@ -4074,7 +4080,7 @@ function appendRevealBtn(n) {
   const b = document.createElement("div");
   b.className = "nb morelink";
   b.innerHTML = `<span>＋ ${tf("{K} weitere laden", { K: n.pending })}</span>`;
-  b.title = t("Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang");
+  b.title = t("Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)");
   b.onclick = () => revealMore(n);
   el.appendChild(b);
 }
@@ -4717,7 +4723,7 @@ function updateTooltip(n, e) {
 // Hinweis am „+K"-Chip: macht die Antipp-Affordanz sichtbar („mehr einblenden, kein Ladevorgang").
 function showPendingTip(n, e) {
   tipEl.innerHTML = `<b>＋ ${tf("{K} weitere laden", { K: n.pending })}</b><br>` +
-    `<span class="g">${t("Weitere gespeicherte ähnliche Acts einblenden — kein neuer Ladevorgang")}</span>`;
+    `<span class="g">${t("Ähnliche Acts, die zur Übersicht ausgeblendet sind — einblenden (kein Ladevorgang)")}</span>`;
   tipEl.classList.add("show");
   const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
   tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tw - 8) + "px";
@@ -5918,11 +5924,22 @@ const authModal = document.getElementById("authModal");
 let authMode = "login";
 function renderAcct() {
   const box = document.getElementById("acctBox"); if (!box) return;
+  // FB9/#75: kleine Konto-/Karten-Übersicht — client-seitig aus dem Graphen abgeleitet
+  // (keine neue Server-Anfrage): Acts auf der Karte, davon in Listen, Anzahl Listen.
+  const L = (de, en) => LANG === "en" ? en : de;
+  const arts = Object.values((typeof graph !== "undefined" && graph?.artists) || {});
+  const onMap = arts.length;
+  const inLists = arts.filter((a) => (a.lists || []).length).length;
+  const listIds = new Set(); for (const a of arts) for (const lid of (a.lists || [])) listIds.add(lid);
+  const item = (onMap === 1 ? (CFG.item?.sing || CFG.item?.plur) : CFG.item?.plur) || "Acts";
+  const stats = onMap
+    ? `<div style="color:var(--muted);margin-top:5px;line-height:1.5">${onMap} ${item} · ${inLists} ${L("in Listen", "in lists")} · ${listIds.size} ${L("Listen", "lists")}</div>`
+    : "";
   if (window.LIKE_USER) {
-    box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>`;
+    box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>${stats}`;
     box.querySelector("#acctLogout").onclick = doLogout;
   } else {
-    box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button><div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigene Karte auf diesem Gerät (nach 30 Tagen Inaktivität aufgeräumt). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
+    box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button>${stats}<div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigene Karte auf diesem Gerät (nach 30 Tagen Inaktivität aufgeräumt). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
     box.querySelector("#acctLogin").onclick = () => { closeMore(); openAuth("login"); };
   }
 }
