@@ -49,6 +49,13 @@ services:
         sync: false
       - key: PUSHOVER_USER
         sync: false
+      # optional: anonymes Feedback zusätzlich dauerhaft als GitHub-Issue sammeln (Label "feedback"),
+      # damit daraus Backlog-Einträge werden. Token braucht nur "issues: write" aufs Repo — Fine-grained
+      # PAT reicht. Ungesetzt = aus (dann bleibt es bei der Pushover-Sofortmeldung). Nie ins Repo!
+      - key: GITHUB_FEEDBACK_TOKEN
+        sync: false
+      - key: GITHUB_FEEDBACK_REPO   # "owner/repo"; leer = Default allawallabedalla/like
+        sync: false
       # Zweitquelle für „zusammen aufgetreten" (Setlist.fm, Gratis-Key) — zweites Standbein
       # neben der inoffiziellen RA-API; ohne Key ist das Feature einfach aus.
       - key: SETLISTFM_KEY

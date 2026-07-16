@@ -221,6 +221,17 @@ Browser. Einrichten: ENV `PUSHOVER_TOKEN` + `PUSHOVER_USER`, oder Datei `.pushov
 (`{"token":"…","user":"…"}`). Fehlt beides, ist der Knopf einfach aus. Für die Release-Builds
 als GitHub-Secrets `PUSHOVER_TOKEN` / `PUSHOVER_USER` hinterlegen.
 
+### Feedback sammeln → Backlog (GitHub-Issues, optional)
+Pushover ist eine **flüchtige Sofortmeldung** — nichts davon bleibt auf dem Server (siehe
+`lib/pushover.mjs`, es wird nur `fetch` an die Pushover-API gemacht, kein Speichern). Wer das
+Feedback **dauerhaft und im Repo auffindbar** sammeln will, setzt zusätzlich `GITHUB_FEEDBACK_TOKEN`
+(Fine-grained PAT mit `issues: write` aufs Repo; optional `GITHUB_FEEDBACK_REPO` als `owner/repo`,
+Default `allawallabedalla/like`). Dann legt der Server pro Feedback ein **anonymes GitHub-Issue**
+mit Label `feedback` an — **nur Text + Pack + Version, keine IP/Konto/Session**. Die offenen
+`feedback`-Issues sind die Backlog-Rohliste: daraus werden `BACKLOG.md`-Einträge, danach schließt
+man sie. Nichts landet in der Git-History; Redigieren/Löschen bleibt trivial. Beide Senken sind
+unabhängig — der ✉-Knopf erscheint, sobald **eine** aktiv ist.
+
 ## Musik-Erweiterung: Venues einblenden
 Im Musik-Pack lässt sich über den **Venues**-Schalter (Topbar) eine zusätzliche Ebene
 einblenden: Spielorte, an denen mindestens zwei deiner Acts aufgetreten sind, erscheinen als
