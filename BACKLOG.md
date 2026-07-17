@@ -1045,6 +1045,44 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   Live-Feature eine **Betreiber-Entscheidung**. *Nächster Schritt/Entscheidung nötig:* (a) nur als
   Genre-Discovery-Vorschlagsliste (kein Graph-Knoten), (b) echter Bandcamp-Knotentyp, (c) vorerst aus.
   Teil-Nutzen ist über FB14 (Genre-Surprise) schon da — nur eben via Last.fm, nicht Bandcamp.
+  - **✅ Entscheidung getroffen (2026-07-17) — LAZY Opt-in-Eckverbinder über den `pending`-Mechanismus.**
+    Neue Erkenntnis: Bandcamp ist **schon live** (read-light) — `searchBand` liefert den Ort (`bcLocation`,
+    `packs/music/pack.mjs:261`), `discoverTag` speist Genre-Discovery/Radar (`:356`) inkl. Health-Probe
+    (`:377`). Die „dürfen wir überhaupt?"-Gate ist damit praktisch schon mit Ja beantwortet. FB15 wird
+    daher als **opt-in, hidden-by-default, LAZY** umgesetzt — Default = **null** Bandcamp-Kosten (weder
+    Fetch noch Force-Sim), exakt wie heute; Kosten entstehen nur, wenn der Nutzer den Toggle aktiv nutzt.
+    Das entschärft ToS-Volumen **und** Performance **und** die „Karte zumüllen"-Sorge zugleich.
+    - **Grundidee:** Bandcamp-only-Tipps als **Blätter am gerade erkundeten Act**, angebunden über
+      **gemeinsames Genre** (leichter Eckverbinder, Variante b — aber nur auf Anfrage). Kein
+      Graph-Modell-Umbau: wir **wiederverwenden den vorhandenen `pending`/`/api/reveal`-Mechanismus**
+      (`server.mjs:1233/1282`), der Nachbarn ohne erneuten Netz-Aufruf einblendet.
+    - **Bandcamp-Knoten sind View-only-Blätter:** kein Last.fm → kein „weiter erkunden" (`exploreByName`
+      findet sie nicht). Im Info-Panel „weiter erkunden" durch **„auf Bandcamp öffnen ↗"** ersetzen
+      (Flag `bandcampOnly` am Knoten prüfen, `#expand`/Taste `e`-Pfad abfangen).
+    - **Umsetzungsschritte:**
+      1. **Server — neuer Endpoint** `POST /api/bandcamp/reveal {id}` (nur `features.bandcamp`/music):
+         zieht `discoverTag(genre)` für die `a.genres` des Acts, filtert auf **echten Bandcamp-Longtail**
+         (Name noch nicht im Graph; optional Last.fm-Gegencheck via vorhandenem `searchArtistsDetailed`
+         — auffindbare überspringen), legt Knoten mit `source:"bandcamp"`, `bandcampOnly:true`, `url` an
+         und hängt sie per `addEdge(..., "similar", 0.4, "bandcamp")` an den Act. Analog zur
+         `/api/reveal`-Logik, aber **holt** die Kandidaten live (nur hier, nie im normalen `explore()`).
+         Gedrosselt/defensiv wie bei `discoverTag` schon (`throttled` + `.catch(()=>[])`).
+      2. **Knoten-Flag** `bandcampOnly:true` (+ `url`) — überlebt `migrate` (Blacklist) + `materialize`;
+         Client kennzeichnet solche Knoten optisch dezent (z. B. bc-Tönung/Badge).
+      3. **Client — Toggle** „Bandcamp-Geheimtipps einblenden" im Entdecken-Popover (`#discoverbox`),
+         Zustand in `localStorage`. An/aus ruft den Reveal-Endpoint für den gewählten Act bzw. blendet
+         die schon geladenen Bandcamp-Blätter aus/ein (Ausblenden = kein erneuter Fetch).
+      4. **Info-Panel** (`renderNodeImage`/`bookingHtml`-Umfeld): bei `bandcampOnly` die
+         „weiter erkunden"-Aktion durch „auf Bandcamp öffnen ↗" (`n.url`) ersetzen.
+      5. **Feature-Flag** `features.bandcamp` (nur music, Default im UI aus); Health-Probe existiert schon.
+    - **Performance-Garantie:** **kein** `discoverTag` im `explore()`-Pfad — ausschließlich im
+      Reveal-Endpoint auf Nutzeraktion. Ausgeblendete/nicht angeforderte Bandcamp-Knoten kosten weder
+      Netz noch Force-Sim.
+    - **Offen/Vorbehalt:** ToS (inoffizielle Endpoints — aber read-light, opt-in, gedrosselt, degradiert
+      still); Qualität des Genre-Matchs (durch hidden-by-default entschärft); Heuristik „ist Bandcamp-only"
+      (Name-Dedup + optionaler Last.fm-Gegencheck). *Optionaler Spike vorab:* `discoverTag` über ein paar
+      Genres sampeln und die Last.fm-Auffindbarkeit messen (quantifiziert den Longtail) — nur auf einem
+      echten Deploy lauffähig (externe Hosts hier blockiert).
 - [x] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** ✅ Variante **c** umgesetzt: neuer
   Server-Endpoint `GET /api/export.html` bettet den aktuellen Nutzer-Graph + Pack-Config **voll-inline**
   ein (`APP_SPLIT.raw`, keine externen `app.<hash>`-Dateien) → ansehen/zoomen/filtern/Infos/PNG laufen
