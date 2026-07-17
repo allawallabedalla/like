@@ -223,6 +223,8 @@ function impressumPage() {
     "im-liab-p": `„like" is a private, non-commercial project and combines data from external sources (incl. Last.fm, TMDB, Wikivoyage, Wikipedia); the rights to it belong to the respective providers. No guarantee is given for accuracy, completeness or timeliness. The operators of linked external sites are solely responsible for their content.`,
     "im-ds-link": `<a href="/datenschutz">Privacy policy</a>`,
     "im-source": `Source code (AGPL-3.0): <a href="${REPO_URL}" target="_blank" rel="noreferrer">${REPO_URL}</a>`,
+    "im-attr-h": "Data sources &amp; attribution",
+    "im-attr-p": `Content is combined from external sources. Text/data from <b>Wikipedia</b> and <b>Wikivoyage</b> is licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> (authors: the respective contributors; changes possible — share-alike). Other data (incl. Last.fm, Resident Advisor, TMDB, MusicBrainz, iNaturalist, Open Library, BoardGameGeek, Steam, OpenAlex) belongs to the respective providers and is used under their terms; their trademarks/logos belong to their owners.`,
   };
   const addrNoteEl = addr ? "" : `<p class="muted todo" data-i18n="im-addrnote">Bitte die ladungsfähige Anschrift ergänzen (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — ohne sie ist das Impressum nicht vollständig.</p>`;
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
@@ -249,6 +251,8 @@ function impressumPage() {
   <p data-i18n="im-resp-p">Der oben genannte Diensteanbieter.</p>
   <h2 data-i18n="im-liab-h">Haftung für Inhalte &amp; Links</h2>
   <p class="muted" data-i18n="im-liab-p">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
+  <h2 data-i18n="im-attr-h">Datenquellen &amp; Attribution</h2>
+  <p class="muted" data-i18n="im-attr-p">Inhalte werden aus externen Quellen zusammengeführt. Texte/Daten von <b>Wikipedia</b> und <b>Wikivoyage</b> stehen unter <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> (Urheber: die jeweiligen Autor:innen; Änderungen möglich — Weitergabe unter gleichen Bedingungen). Übrige Daten (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, iNaturalist, Open Library, BoardGameGeek, Steam, OpenAlex) gehören den jeweiligen Anbietern und werden gemäß deren Bedingungen genutzt; deren Marken/Logos gehören ihren Inhabern.</p>
   <p class="muted" style="margin-top:14px" data-i18n="im-source">Quelltext (AGPL-3.0): <a href="${REPO_URL}" target="_blank" rel="noreferrer">${REPO_URL}</a></p>
   <p class="muted" data-i18n="im-ds-link"><a href="/datenschutz">Datenschutzerklärung</a></p>
 </div>${legalI18nScript(enDict, "Legal notice — like")}</body></html>`;
@@ -275,6 +279,8 @@ function datenschutzPage() {
     "ds-account-p": "If you create an account, your username, a <b>hashed</b> password and a recovery code are stored so your map is the same across several devices (Art. 6(1)(b) GDPR). Without an account, everything stays tied to an anonymous device identifier and expires after 30 days of inactivity.",
     "ds-map-h": "Your map",
     "ds-map-p": `The map you build up (searched acts, „likes", status, notes) is stored server-side — per account or per anonymous device identifier (the latter is automatically deleted after 30 days without a visit).`,
+    "ds-share-h": "Shared maps (links)",
+    "ds-share-p": `If you share a map via „share map as link", an immutable, publicly retrievable read-only copy is stored server-side at a random address (/s/…) — deliberately <b>without</b> your notes, status or fees. Anyone with the link can view it; search engines are excluded via noindex, and no person is linked to it. A shared link can be deleted on request.`,
     "ds-usage-h": "Anonymous usage counters",
     "ds-usage-p": `The server counts how often features are used in total (e.g. „search was used 12 times today") — as pure daily totals, <b>without</b> IP addresses, identifiers, profiles or sequences. Drawing conclusions about individual people is not possible; the numbers serve solely to prioritise further development sensibly. No third-party analytics or advertising services are embedded.`,
     "ds-debug-h": "A brief visit note to me (for debugging)",
@@ -315,6 +321,8 @@ function datenschutzPage() {
   <p data-i18n="ds-account-p">Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an eine anonyme Geräte-Kennung gebunden und verfällt nach 30 Tagen Inaktivität.</p>
   <h2 data-i18n="ds-map-h">Deine Karte</h2>
   <p data-i18n="ds-map-p">Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Geräte-Kennung (Letztere wird nach 30 Tagen ohne Besuch automatisch gelöscht).</p>
+  <h2 data-i18n="ds-share-h">Geteilte Karten (Links)</h2>
+  <p data-i18n="ds-share-p">Teilst du eine Karte über „Karte als Link teilen", wird eine unveränderliche, öffentlich abrufbare Read-only-Kopie unter einer zufälligen Adresse (/s/…) serverseitig gespeichert — bewusst <b>ohne</b> Notizen, Status oder Gagen. Jeder mit dem Link kann sie ansehen; Suchmaschinen werden per noindex ausgeschlossen, und es ist keine Person damit verknüpft. Einen geteilten Link kannst du auf Anfrage löschen lassen.</p>
   <h2 data-i18n="ds-usage-h">Anonyme Nutzungszähler</h2>
   <p data-i18n="ds-usage-p">Der Server zählt, wie oft Funktionen insgesamt genutzt werden (z. B. „Suche wurde heute 12-mal verwendet") — als reine Tagessummen, <b>ohne</b> IP-Adressen, Kennungen, Profile oder Reihenfolgen. Ein Rückschluss auf einzelne Personen ist damit nicht möglich; die Zahlen dienen allein dazu, die Weiterentwicklung sinnvoll zu priorisieren. Es sind keinerlei Analyse- oder Werbedienste Dritter eingebunden.</p>
   <h2 data-i18n="ds-debug-h">Kurzer Besuchs-Hinweis an mich (zum Debuggen)</h2>
@@ -1052,6 +1060,8 @@ const server = createServer(async (req, res) => {
       const withMeta = APP_SPLIT.shell.replace("<title>Like</title>", `<title>${escAttr(m.title)}</title>\n${metaTags({ ...m, base: publicBase(req) })}`);
       // STATIC-Modus: LIKE_GRAPH macht das Frontend read-only (Banner, keine Schreib-Aktionen).
       const html = withMeta.replace("<script>", `<script>window.LIKE_CFG = ${esc2(sPack.config)};\nwindow.LIKE_PACKS = ${esc2(PACK_LIST)};\nwindow.LIKE_GRAPH = ${esc2(materialize(shared))};</script>\n<script>`);
+      // U-2b.5: öffentlich abrufbarer, nutzergenerierter Snapshot -> nicht indexieren.
+      res.setHeader("x-robots-tag", "noindex, nofollow");
       return send(res, 200, html, "text/html; charset=utf-8", "public, max-age=300");
     }
 
