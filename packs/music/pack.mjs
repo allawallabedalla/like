@@ -87,7 +87,7 @@ export default {
     ],
     radarTitle: "Radar — Geheimtipps",
     radarTogetherReason: "hat mit deinem Like gespielt",
-    features: { preview: true, radar: true, context: true, active: true, booking: true, tour: true, venues: true, surprise: true },
+    features: { preview: true, radar: true, context: true, active: true, booking: true, tour: true, venues: true, surprise: true, bandcamp: true },
     key: { name: "Last.fm-Key", createUrl: "https://www.last.fm/api/account/create", hint: "Für die Live-Suche braucht like einen kostenlosen Last.fm-API-Key." },
     // EN-Overlay: exakte deutsche Config-Strings -> Englisch (für den Sprach-Umschalter)
     en: {
@@ -185,6 +185,31 @@ export default {
       add(c.name, null, Math.min(0.85, 0.5 + 0.1 * shows));
     }
     return { canonical, list: out };
+  },
+
+  // FB15/#72: Bandcamp-„Geheimtipps" — kleine Acts, die oft NUR auf Bandcamp existieren, als
+  // Eckverbinder an einen vorhandenen Act hängen (über dessen Genres via Bandcamp-Genre-Discovery).
+  // Bewusst NUR auf Anfrage aufgerufen (lazy, opt-in) — nie im normalen explore()-/radar-Pfad, damit
+  // Default-Nutzung keinerlei Bandcamp-Kosten trägt. Liefert View-only-Blätter (kein Last.fm → nicht
+  // weiter erkundbar; im Panel „auf Bandcamp öffnen"). Defensiv: Bandcamp aus/Genre leer -> [].
+  async bandcampNeighbors(name, { genres = [], limit = 8 } = {}) {
+    const tags = (genres || []).map((g) => String(g || "").toLowerCase().trim()).filter(Boolean).slice(0, 2);
+    if (!tags.length) return [];
+    const seen = new Set([String(name || "").toLowerCase()]);
+    const out = [];
+    for (const tag of tags) {
+      let items = [];
+      try { items = await discoverTag(tag, { limit: Math.ceil(limit / tags.length) + 2 }); } catch { items = []; }
+      for (const it of items) {
+        const k = String(it.artist || "").toLowerCase();
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        out.push({ name: it.artist, url: it.url || null, genre: it.genre });
+        if (out.length >= limit) break;
+      }
+      if (out.length >= limit) break;
+    }
+    return out;
   },
 
   // R14 — zweiphasiger Ausbau: Phase 1 (schnell, ~0,7-1 s) liefert Last.fm-Identität +

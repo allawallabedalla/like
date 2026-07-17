@@ -214,6 +214,9 @@ export default {
       canonical: hit.title,
       url: voyUrl(hit.lang, hit.title),
       genres: await genresFor(tags, coord, ctx),
+      // FB29/#97: Wikivoyage-Koordinaten fürs Info-Panel (kleine Karte „wo liegt das?") mit
+      // durchreichen. Werden schon für „km ab Zuhause"/geoNearby berechnet — hier nur mitgeliefert.
+      coord: coord && isFinite(coord.lat) && isFinite(coord.lon) ? { lat: coord.lat, lon: coord.lon } : null,
       similarSource: "wikivoyage",
       togetherSource: "wikivoyage",
       similar: similar.slice(0, 20),
@@ -233,6 +236,9 @@ export default {
       const { tags } = styleTags(art.wikitext);
       // Distanz nutzt Wikivoyage-Koordinaten (kein Nominatim-Aufruf pro Nachbar).
       if (!a.genres?.length || a.genres.length < 2) out.genres = await genresFor(tags, art.coord, ctx);
+      // FB29/#97: Koordinaten auch für Nachbarknoten nachliefern (Info-Panel-Mini-Karte), falls das
+      // Wikivoyage-Extrakt sie kennt — so bekommt nicht nur der gesuchte Seed eine Karte.
+      if (art.coord && isFinite(art.coord.lat) && isFinite(art.coord.lon)) out.coord = { lat: art.coord.lat, lon: art.coord.lon };
     } catch {}
     return out;
   },

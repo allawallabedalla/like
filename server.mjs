@@ -147,7 +147,7 @@ function landingPage(unlocked, req) {
     }),
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
-    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
+    footer: `🚧 Diese Seite entsteht gerade · ${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „Labs" + Passwort-Prompt statt Link
     lockLabel: "Labs",
     heroId: "music",                 // E3: Musik ist das Produkt — als Hero hervorheben
@@ -1334,6 +1334,10 @@ const server = createServer(async (req, res) => {
         if (mbid) src.mbid = mbid; // gewählte Namensvetter-Identität festhalten (Enrich/Expand nutzen sie)
         if (!usesStaged) src.explored = true;
         if (r.genres?.length) src.genres = r.genres.slice(0, 6);
+        // FB29/#97: Koordinaten am Knoten festhalten (Info-Panel-Mini-Karte, z. B. Travel).
+        if (r.coord && Number.isFinite(r.coord.lat) && Number.isFinite(r.coord.lon)) src.coord = { lat: r.coord.lat, lon: r.coord.lon };
+        // FB27/#95: Bild fürs Info-Panel (z. B. Plants) mit Attribution festhalten.
+        if (r.image && r.image.src) src.image = { src: String(r.image.src).slice(0, 400), credit: String(r.image.credit || "").slice(0, 300), href: r.image.href ? String(r.image.href).slice(0, 400) : null };
         if (r.meta) { src.booking = r.meta; }
         if (r.active !== undefined) src.active = r.active;
         // Fan-out drosseln: nur die Top-N stärksten „ähnlich"-Nachbarn kommen sofort in die
@@ -1412,6 +1416,34 @@ const server = createServer(async (req, res) => {
         delete src.pending; delete src.pendingSource;
         await persist(g);
         return send(res, 200, { ok: true, revealed: pend.length, graph: materialize(g) });
+      });
+    }
+
+    // FB15/#72: Bandcamp-„Geheimtipps" — auf ausdrückliche Anfrage kleine, oft NUR auf Bandcamp
+    // existierende Acts als View-only-Blätter an einen vorhandenen Act hängen (Eckverbinder über
+    // dessen Genres). LAZY: nur hier, nie im normalen Explore-/Radar-Pfad -> Default = null Kosten.
+    if (req.method === "POST" && url.pathname === "/api/bandcamp/reveal") {
+      if (!pack.bandcampNeighbors) return send(res, 400, { error: "Für dieses Pack nicht verfügbar." });
+      const { id } = await readBody(req);
+      let picks = [];
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const src = g.artists[id];
+        if (!src) return send(res, 404, { error: "Eintrag unbekannt" });
+        try { picks = await pack.bandcampNeighbors(src.name, { genres: src.genres || [] }); } catch { picks = []; }
+        // Nur echter Longtail: schon vorhandene Knoten überspringen (kein Dublett auf der Karte).
+        let added = 0;
+        for (const p of picks) {
+          const tid = slug(p.name);
+          if (!tid || tid === src.id || g.artists[tid]) continue;
+          const t = upsertArtist(g, { name: p.name, url: p.url || null });
+          t.bandcampOnly = true;               // View-only-Blatt: kein Last.fm -> nicht weiter erkundbar
+          if (p.url) t.url = p.url;
+          addEdge(g, src.id, t.id, "similar", 0.4, "bandcamp");
+          added++;
+        }
+        if (added) await persist(g);
+        return send(res, 200, { ok: true, added, found: picks.length, graph: materialize(g) });
       });
     }
 
@@ -1700,8 +1732,12 @@ const server = createServer(async (req, res) => {
           growth = growthPerMonth(stats, id);
         }
         if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
+        // FB29/#97: Koordinaten nachtragen, falls der Knoten noch keine hat (Info-Panel-Mini-Karte).
+        if (patch.coord && Number.isFinite(patch.coord.lat) && Number.isFinite(patch.coord.lon) && !a.coord) { a.coord = { lat: patch.coord.lat, lon: patch.coord.lon }; changed = true; }
+        // FB27/#95: Bild nachtragen, falls der Knoten noch keins hat (Info-Panel, z. B. Plants).
+        if (patch.image && patch.image.src && !a.image) { a.image = { src: String(patch.image.src).slice(0, 400), credit: String(patch.image.credit || "").slice(0, 300), href: patch.image.href ? String(patch.image.href).slice(0, 400) : null }; changed = true; }
         if (changed) await persist(g);
-        return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+        return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null, image: a.image || null, coord: a.coord || null });
       });
     }
 

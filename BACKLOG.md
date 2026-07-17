@@ -1036,7 +1036,7 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   `tag.gettopartists`, hintere Hälfte = Geheimtipp, garantiert ladbar); leer = wie bisher. Neu:
   `getTagArtists` (lib/lastfm.mjs), `surprise({genre})` (music-pack), `?genre=` an `/api/surprise`.
   Am echten Modul verifiziert.
-- [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** *Analyse:* `lib/bandcamp.mjs` bietet
+- [x] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** *Analyse:* `lib/bandcamp.mjs` bietet
   bereits `discoverTag(genre)` (kleine, neue Acts je Genre) + `searchBand` (Ort). Das Problem ist
   nicht die Quelle, sondern die **Einbindung**: der Graph ist namensbasiert über Last.fm — Bandcamp-
   *only*-Acts laden dort nicht (`exploreByName` findet sie nicht). Es braucht die „Eckverbinder"-
@@ -1045,6 +1045,60 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   Live-Feature eine **Betreiber-Entscheidung**. *Nächster Schritt/Entscheidung nötig:* (a) nur als
   Genre-Discovery-Vorschlagsliste (kein Graph-Knoten), (b) echter Bandcamp-Knotentyp, (c) vorerst aus.
   Teil-Nutzen ist über FB14 (Genre-Surprise) schon da — nur eben via Last.fm, nicht Bandcamp.
+  - **✅ Entscheidung getroffen (2026-07-17) — LAZY Opt-in-Eckverbinder über den `pending`-Mechanismus.**
+    Neue Erkenntnis: Bandcamp ist **schon live** (read-light) — `searchBand` liefert den Ort (`bcLocation`,
+    `packs/music/pack.mjs:261`), `discoverTag` speist Genre-Discovery/Radar (`:356`) inkl. Health-Probe
+    (`:377`). Die „dürfen wir überhaupt?"-Gate ist damit praktisch schon mit Ja beantwortet. FB15 wird
+    daher als **opt-in, hidden-by-default, LAZY** umgesetzt — Default = **null** Bandcamp-Kosten (weder
+    Fetch noch Force-Sim), exakt wie heute; Kosten entstehen nur, wenn der Nutzer den Toggle aktiv nutzt.
+    Das entschärft ToS-Volumen **und** Performance **und** die „Karte zumüllen"-Sorge zugleich.
+    - **Grundidee:** Bandcamp-only-Tipps als **Blätter am gerade erkundeten Act**, angebunden über
+      **gemeinsames Genre** (leichter Eckverbinder, Variante b — aber nur auf Anfrage). Kein
+      Graph-Modell-Umbau: wir **wiederverwenden den vorhandenen `pending`/`/api/reveal`-Mechanismus**
+      (`server.mjs:1233/1282`), der Nachbarn ohne erneuten Netz-Aufruf einblendet.
+    - **Bandcamp-Knoten sind View-only-Blätter:** kein Last.fm → kein „weiter erkunden" (`exploreByName`
+      findet sie nicht). Im Info-Panel „weiter erkunden" durch **„auf Bandcamp öffnen ↗"** ersetzen
+      (Flag `bandcampOnly` am Knoten prüfen, `#expand`/Taste `e`-Pfad abfangen).
+    - **Umsetzungsschritte:**
+      1. **Server — neuer Endpoint** `POST /api/bandcamp/reveal {id}` (nur `features.bandcamp`/music):
+         zieht `discoverTag(genre)` für die `a.genres` des Acts, filtert auf **echten Bandcamp-Longtail**
+         (Name noch nicht im Graph; optional Last.fm-Gegencheck via vorhandenem `searchArtistsDetailed`
+         — auffindbare überspringen), legt Knoten mit `source:"bandcamp"`, `bandcampOnly:true`, `url` an
+         und hängt sie per `addEdge(..., "similar", 0.4, "bandcamp")` an den Act. Analog zur
+         `/api/reveal`-Logik, aber **holt** die Kandidaten live (nur hier, nie im normalen `explore()`).
+         Gedrosselt/defensiv wie bei `discoverTag` schon (`throttled` + `.catch(()=>[])`).
+      2. **Knoten-Flag** `bandcampOnly:true` (+ `url`) — überlebt `migrate` (Blacklist) + `materialize`;
+         Client kennzeichnet solche Knoten optisch dezent (z. B. bc-Tönung/Badge).
+      3. **Client — Toggle** „Bandcamp-Geheimtipps einblenden" im Entdecken-Popover (`#discoverbox`),
+         Zustand in `localStorage`. An/aus ruft den Reveal-Endpoint für den gewählten Act bzw. blendet
+         die schon geladenen Bandcamp-Blätter aus/ein (Ausblenden = kein erneuter Fetch).
+      4. **Info-Panel** (`renderNodeImage`/`bookingHtml`-Umfeld): bei `bandcampOnly` die
+         „weiter erkunden"-Aktion durch „auf Bandcamp öffnen ↗" (`n.url`) ersetzen.
+      5. **Feature-Flag** `features.bandcamp` (nur music, Default im UI aus); Health-Probe existiert schon.
+    - **Performance-Garantie:** **kein** `discoverTag` im `explore()`-Pfad — ausschließlich im
+      Reveal-Endpoint auf Nutzeraktion. Ausgeblendete/nicht angeforderte Bandcamp-Knoten kosten weder
+      Netz noch Force-Sim.
+    - **Offen/Vorbehalt:** ToS (inoffizielle Endpoints — aber read-light, opt-in, gedrosselt, degradiert
+      still); Qualität des Genre-Matchs (durch hidden-by-default entschärft); Heuristik „ist Bandcamp-only"
+      (Name-Dedup + optionaler Last.fm-Gegencheck). *Optionaler Spike vorab:* `discoverTag` über ein paar
+      Genres sampeln und die Last.fm-Auffindbarkeit messen (quantifiziert den Longtail) — nur auf einem
+      echten Deploy lauffähig (externe Hosts hier blockiert).
+    - **✅ Umgesetzt (2026-07-17):** Genau nach Plan. **Pack** `packs/music/pack.mjs`: neue Methode
+      `bandcampNeighbors(name, {genres})` (Genre-Discovery via `discoverTag`, dedup, defensiv → `[]`)
+      + `features.bandcamp:true`. **Server** `POST /api/bandcamp/reveal {id}`: nur wenn
+      `pack.bandcampNeighbors` existiert (sonst 400), hängt die Tipps als Knoten mit `bandcampOnly:true`
+      + `url` und `similar`-Kante (source „bandcamp") an den Act; **lazy** (nie im explore-/radar-Pfad).
+      **Client:** Opt-in-Knopf „⊕ Bandcamp-Geheimtipps" im Info-Panel (`#bandcampRow`, nur `FEAT.bandcamp`,
+      nicht für Bandcamp-Blätter, nicht STATIC) → ruft den Endpoint, spielt den Graphen wie `revealMore`
+      ein. **Sackgassen-Handling:** Bandcamp-Blätter sind kein Last.fm → alle Explore-Auslöser
+      (Doppelklick, e-Taste, Panel-Knopf, Kontextmenü) laufen über `expandOrOpen(n)`, das bei
+      `bandcampOnly` die **Bandcamp-Seite öffnet** statt zu erkunden; der Panel-Knopf heißt dann
+      „Auf Bandcamp öffnen ↗". DE+EN. **Verifiziert:** `bandcampOnly`+Kante überleben `migrate`+
+      `materialize` (Unit-Test); Endpoint-Gate 404/400 (curl); volle Playwright-Suite grün.
+      **Live-Vorbehalt:** die echte `discoverTag`-Qualität ist in dieser Umgebung nicht testbar
+      (Bandcamp-Host blockiert) — auf einem echten Deploy einmal gegensehen (liefert sinnvolle Tipps?
+      wie viele echte Bandcamp-only?). Der optionale Last.fm-Gegencheck (nur echter Longtail) bleibt
+      ein möglicher Zusatz.
 - [x] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** ✅ Variante **c** umgesetzt: neuer
   Server-Endpoint `GET /api/export.html` bettet den aktuellen Nutzer-Graph + Pack-Config **voll-inline**
   ein (`APP_SPLIT.raw`, keine externen `app.<hash>`-Dateien) → ansehen/zoomen/filtern/Infos/PNG laufen
@@ -1062,6 +1116,237 @@ noch gegenzusehen. Die `feedback`-Issues bleiben offen und werden beim Abhaken g
 
 ---
 
+## Runde 23 — Neues Testnutzer-Feedback über den ✉-Knopf (2026-07-17)
+
+**Kontext:** 13 neue anonyme `feedback`-Issues **#84–#97** (Stand 17.07., Music-Pack v2.6.0,
+aber diesmal packübergreifend: Music, Books, Boardgames, Podcasts, Papers, Plants, Travel).
+Erfassen und analysieren — noch **nichts umgesetzt**. IDs `FBn` laufen ab Runde 22 (FB16) weiter
+und verweisen 1:1 auf ihr Quell-Issue. (`#90` ist kein Feedback-Issue.)
+
+**Vorbehalt:** Roh-Rückmeldungen, **nicht am Live-Verhalten verifiziert**. Jeder Punkt ist unten
+mit einer ersten Code-Analyse hinterlegt; die offenen Punkte je einzeln am echten Code/Browser
+gegenprüfen, bevor umgesetzt wird. Ein Teil sind reine Bugs, ein Teil braucht eine Betreiber-/
+Scope-/Datenschutz-Entscheidung (unten markiert).
+
+**Verifizierungs-Stand (2026-07-17):** Die code-nahen Punkte **FB18, FB21, FB22, FB25, FB28, FB29**
+wurden per paralleler Read-only-Analyse am echten Code gegengeprüft — Ursachen bestätigt, Fixes je
+Punkt skizziert (siehe „✓ Verifiziert"-Zeilen). Die Ursachen stehen; die reinen Verhaltensdetails
+(Gate-Repro bei FB21, welche Podcast-Seeds bei FB28 durchfallen, Canvas-Optik bei FB22) sind noch
+live/im Browser final zu bestätigen. Betreiber-Entscheidungen zu FB17/FB19/FB23/FB24/FB26 sind oben
+eingetragen.
+
+### Schnell & klar umrissen (Frontend-Tweaks)
+- [x] **FB18 — „+N"-Kugel etwas kleiner, weiterhin dynamisch (#85).** Direkte Nachjustierung von
+  FB11: der `pending`-Chip skaliert seit FB11 mit dem Kugelradius (`pendingBadge`:
+  `r = max(8/view.k, rr*0.42)`, Position `rr*0.82`). Nutzer findet ihn jetzt *einen Tick zu groß*.
+  Faktor `0.42` moderat senken (z. B. `0.34`) und die Mindestgröße beibehalten, damit er beim
+  Rauszoomen lesbar bleibt. Trefferfläche (`onPendingBadge`) zieht automatisch mit. Reiner
+  Tuning-Wert — im Browser gegensehen.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch):** Faktor zentral an genau einer Stelle
+    (`public/index.html:3745`); Zeichnung/Schrift/Halo/Treffer leiten sich davon ab und skalieren
+    automatisch mit. **Fix:** `0.42 → 0.34`, Mindestgröße (`8/view.k`) + Position (`rr*0.82`)
+    bleiben. Keine Nebenwirkungen, kein Test-Bruch erwartet.
+
+- [x] **FB19 — „Seite ist im Entstehen"-Hinweis (#86).** Nutzer fragt nach einem dezenten Beta-
+  Hinweis („die Seite ist im Entstehen, es kann noch ab und zu was schiefgehen"). **Entscheidung
+  getroffen (2026-07-17): dauerhafter Footer-Vermerk** — kleiner, immer sichtbarer Hinweis (DE+EN),
+  nicht wegklickbar. Dezent stylen, damit er nicht mit der Bedienung konkurriert.
+
+- [x] **FB22 — „Überrasch mich" lädt neues Buch → Zentralstern ruckelt (#89, Books).** Beim
+  Nachladen über Surprise bekommt der neue Eintrag eine frische Position und der Force-Solver
+  „reheatet" — der zentrale Knoten springt sichtbar. Vermutlich fehlt hier das kalte Einspielen
+  (analog FB5: `rebuild(prev, 0)` statt Reheat) bzw. der neue Knoten sollte am Rand statt in der
+  Mitte spawnen (vgl. R18-Kommentar „freien Startplatz suchen"). Am Books-Pack im Browser
+  reproduzieren, dann Spawn/Reheat dämpfen. (Gilt sinngemäß für alle Nicht-Music-Packs.)
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch für Ursache):** Zwei Kanäle zusammen: (1) Surprise ruft
+    `exploreByName(name)` **ohne Optionen** → Default `reheatAmt=0.4` (`index.html:4452/6552`) → `reload`
+    → `rebuild(prev, 0.4)` → `reheat(0.4)` (`index.html:2702`) weckt ALLE Knoten inkl. Zentralstern.
+    (2) Ein unbekannter Surprise-Act hat keinen platzierten Nachbarn (`cnt===0`) und spawnt **exakt in
+    der Bildmitte** auf dem Zentralstern (`index.html:2570`, Waisen `2628-2631`); `freeSpot` landet
+    direkt daneben → starke Nahabstoßung (`REP/d²`) schießt die Sonne an. **Fix (pack-neutral):**
+    unverbundene neue Seeds am **Rand** der Bounding-Box spawnen statt in der Mitte (`cnt===0`-Zweig
+    ändern), optional FB5-analog Zentralstern kurz `pinned`. Nur `reheatAmt` senken reicht NICHT.
+    **Im Browser (Space+Flat, Books + ein weiteres Nicht-Music-Pack) gegensehen.**
+
+### Zu verifizieren / entscheiden (Bugs & UX)
+- [x] **FB21 — „Überrasch mich" bei Boardgames: Fehler-401-Toast (#88).** `/api/surprise` liefert
+  nur einen Namen (`surpriseFrom(SURPRISE_SEEDS, popularity)`); den lädt der Client anschließend
+  über `/api/explore`. Der 401 kommt **nicht** aus `/api/surprise`, sondern sehr wahrscheinlich aus
+  dem „Coming soon"-Gate: gesperrte Packs antworten mit `send(res, 401, {error:"locked"})`
+  (`server.mjs`). Boardgames ist nicht das öffentliche Pack (`LIKE_PUBLIC_PACK=music`), d. h. ohne
+  gültiges Unlock-Cookie schlägt der Folge-Call fehl. **Erst live prüfen:** (a) ob der Toast wirklich
+  vom Gate stammt (dann Unlock-Zustand/Redirect sauberer behandeln, statt eines nackten 401-Toasts)
+  oder (b) ob boardgames-`popularity`/`explore` selbst 401t. Gemeinsame Wurzel mit FB28.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch für Ursache):** Der 401 kommt aus dem **Gate**, nicht
+    aus dem Pack. `server.mjs:986-991` blockt vor JEDER Pack-Route (`isLockedPack && !isUnlocked` →
+    `401 {error:"locked"}`) — betrifft `/api/surprise` und den Folge-`/api/explore`. Der Pack kann
+    kein 401 werfen (BGG-Fehler sind gefangen). Auslöser: boardgames-Seite war bei Ladezeit
+    freigeschaltet, aber das `like_unlock`-Cookie fehlt/abgelaufen beim Klick; der `#surpriseBtn`
+    wird bei gesperrtem Pack **nicht** ausgeblendet (`index.html:6544` prüft nur STATIC/FEAT).
+    **Fix:** Gate-401 (`error:"locked"`) zentral in den API-Wrappern (`index.html:2013/2020`) abfangen
+    → `unlockThen(CFG.id, reload)` statt nacktem Toast; zusätzlich `#surpriseBtn` bei `packLocked`
+    deaktivieren. Deckt Surprise + Explore + alle gated Calls in einem Rutsch ab. **Live mit gesetztem
+    `LIKE_UNLOCK_PASSWORD` + gelöschtem Cookie exakt reproduzieren.**
+
+- [x] **FB28 — „Überrasch mich" bei Podcasts: nur Apple, Fehlermeldung nennt alle Quellen (#96).**
+  Der Podcasts-Pack sucht ausschließlich über iTunes (`searchPodcast` → `itunes.apple.com/search`).
+  Findet Apple den Surprise-Seed nicht, scheitert das Laden und der Fehler-Toast listet offenbar die
+  Quellen auf. Zwei Teile: (1) **Quelle** — Fallback über eine zweite Quelle (z. B. TasteDive/
+  Genre-Nachbarn, die der Pack schon für die Brücke nutzt) oder Seeds strikt auf iTunes-auffindbare
+  beschränken; (2) **Fehlertext** — keine internen Quellennamen im Nutzer-Toast, nur eine neutrale
+  Meldung („gerade keine Empfehlung gefunden, nochmal versuchen"). Live gegen die iTunes-Suche prüfen.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch für Codepfad):** `searchPodcast` (`packs/podcasts/
+    pack.mjs:26-35`) ist der EINZIGE Resolver (iTunes, `limit=1`, ohne `country` → US-Store).
+    Wurzel des geleakten Quellennamens: `surpriseFrom` (`lib/surprise.mjs:5-18`) gibt **nie null**
+    zurück (`return best || pick()`) → ein bei Apple unauffindbarer Seed wird trotzdem als `name`
+    durchgereicht, `/api/surprise` liefert `{ok:true}`, der Client ruft `exploreByName`, `explore()`
+    wirft `„…" nicht bei Apple Podcasts gefunden` (`pack.mjs:220`) → 502 → `toast("Fehler: "+msg)`
+    (`index.html:4489`). `null`-Treffer werden 14 Tage gecacht → „klebrig". **Fix (empfohlen):**
+    (a) `surprise()` gibt nur einen von `searchPodcast` **auflösbaren** Seed zurück, sonst **null** →
+    dann greift automatisch der schon vorhandene neutrale Toast (`index.html:6553`, Wortlaut ggf.
+    anpassen); (b) den generischen Explore-Fehler (`pack.mjs:220`/`index.html:4489`) für getippte
+    Suchen **nicht** anfassen. **Live prüfen:** welche der dt. Seeds im US-Store durchfallen und ob
+    `country=de` (analog `byGenre`) hilft; Cache ggf. leeren.
+
+- [x] **FB25 — „Entdecken"-Menü: redundante/verwirrend ähnliche Funktionen (#93, Music).** Bestand
+  heute: der `#discoverBtn`-Popover (`discoverbox`) enthält **Überrasch mich · Szenen · Brückenbauer**,
+  daneben gibt es separat **Radar** (`#radarBtn` bzw. `#mRadar` im Booking-Modus) und **✦ Überrasch
+  mich** nochmal als Empty-State-Button (`#surpriseBtn`). „Überrasch mich" und „Radar" existieren also
+  doppelt/parallel an verschiedenen Stellen — das ist die gemeinte Redundanz. **Entscheidung nötig:**
+  Entdeck-Werkzeuge (Radar, Überrasch mich, Szenen, Brückenbauer) an *einem* Ort bündeln und die
+  Dubletten entfernen; Beschriftungen schärfen. UX-Umbau, kein Bug — erst Konzept, dann umsetzen.
+  - **✓ Verifiziert (2026-07-17):** Kern-Redundanz ist **nicht** bloße Doppelung, sondern **„Überrasch
+    mich" zweimal mit gleichem Wortlaut, aber unterschiedlicher Funktion**: der Empty-State-Button
+    `#surpriseBtn` (`index.html:974`) lädt serverseitig einen **neuen unbekannten Act** (`/api/surprise`,
+    mit Genre-Feld), während `#discSurprise`/Fun-Modus-`#discoverBtn` (`5705`/`1964`) `surpriseMe()`
+    aufruft = **Client-Streifzug durchs bestehende Netz** (braucht ≥2 Knoten, kein Genre). Weiter: Radar
+    sitzt als eigener Topbar-Knopf **neben** statt **im** Entdecken-Popover (`#radarBtn` `850` vs.
+    Popover `1035-1050`); `#mRadar`/`#mDiscover` sind nur Mobile-Proxys (keine echten Dubletten).
+    **Konzept-Vorschlag:** (1) Radar als vierten `.ditem` ins Popover holen, `#radarBtn` aus der Topbar
+    nehmen; (2) den Netz-Streifzug umbenennen (z. B. „Streifzug"), damit „Überrasch mich" eindeutig der
+    Empty-State-Act-Lader bleibt; (3) Empty-State-Surprise + Genre-Feld bewusst getrennt lassen.
+    **→ Entscheidung getroffen (2026-07-17): den Netz-Streifzug umbenennen** (Empty-State bleibt
+    „✦ Überrasch mich" = Act laden; Popover-Eintrag `#discSurprise`/Fun-Modus wird zu „Streifzug",
+    DE+EN). Radar zusätzlich ins Entdecken-Popover holen, `#radarBtn` aus der Topbar nehmen.
+  - **✅ Umgesetzt (2026-07-17) — Namenskollision aufgelöst (Kern von #93):** Der Netz-Streifzug heißt
+    jetzt überall **„Streifzug"** (Popover `#discSurprise`, Fun-Modus-`#discoverBtn`, `#mDiscover`,
+    DE+EN); **„✦ Überrasch mich" bleibt allein dem Empty-State-Act-Lader** (`#surpriseBtn`). Damit tun
+    die beiden nicht mehr Verschiedenes unter gleichem Namen.
+  - **⏸ Offen (Design-Entscheidung, NICHT Teil der Naming-Frage):** Radar ins Popover holen +
+    `#radarBtn` aus der Topbar nehmen. Zurückgestellt: Radar ist prominent (eigenes Tour-Slide) — es
+    zu vergraben senkt die Sichtbarkeit. Braucht eine bewusste Entscheidung.
+
+- [x] **FB26 — „like papers" ist missverständlich („Papier") → „like Science" (#94).**
+  **Entscheidung getroffen (2026-07-17): Anzeigename → „Science"**, **Pack-ID/URL `?pack=papers`
+  bleibt** (Kompatibilität). Nur das Label ändern: Landing-Kachel, Titel/`<title>`, Intro/Copy in
+  DE+EN. Pack-interne IDs, Datenpfade und Endpoints unangetastet lassen.
+
+- [x] **FB17 — Geschmacks-Knopf raus, „Aufräumen" kontextabhängig als Ecken-Nudge (#84, Music).**
+  Zwei Wünsche: (1) ✅ **erledigt** — der **◈ Geschmacks-Fingerabdruck-Knopf** (`#tasteBtn`) samt
+  Verdrahtung (Topbar-Button, `#mTaste`, Modal `#tasteModal`/`#tasteBody`, Handler, CSS `.tastebody`,
+  i18n, `API.taste`, Escape-/Guard-Referenzen) wurde entfernt. Der Server-Endpoint `/api/taste` bleibt
+  (Read-only, von der E2E-Suite geprüft), hat aber keine UI mehr. (2) ✅ **erledigt (2026-07-17):** der
+  **Aufräumen-Knopf** (`#tidyBtn`) bleibt, aber zusätzlich erscheint ein **dezenter Ecken-Nudge**
+  (`#tidyNudge`, unten mittig, wegklickbar) **erst bei Fülle**. Heuristik (einfach & günstig, nach
+  jedem `rebuild`): **≥40 Knoten UND seit letztem Aufräumen/Ausblenden ≥12 dazugekommen**. „Aufräumen"
+  im Nudge ruft `sortLayout()`; Aufräumen (Knopf oder Nudge) und „×" setzen die Baseline zurück
+  (`ackTidy`), damit erst spürbares Weiterwachsen erneut hinweist. Unterdrückt bei offenem
+  Modal/Listenansicht und im STATIC-Snapshot.
+
+### Betreiber-/Datenschutz-Entscheidung (Pushover-Tracking)
+- [x] **FB23 — Screen & Sprache ins Pushover-Signal (#91, Books).** `notifyVisitMaybe` meldet heute
+  Pack, maskierte IP-Region, User-Agent, Referer. **Entscheidung getroffen (2026-07-17): Screen-Größe
+  + UI-Sprache zusätzlich melden.** Beide liegen nur im Client → einmalig, dezent an den Visit-Ping
+  mitgeben (Viewport-Größe + `navigator.language`), **ohne neuen Identifikator**, in `notifyVisitMaybe`
+  an die bestehende Meldung anhängen. Kein Personenbezug über das bisherige Besuchs-Signal hinaus.
+  - **⚠️ Beim Merge abgelöst (2026-07-17):** Parallel wurde auf `main` (PR #98) das Besuchs-Signal
+    grundlegend umgebaut — statt der „neuer Besuch"-Meldung (`notifyVisitMaybe`) gibt es jetzt ein
+    Sitzungs-Ende-Beacon (`/api/visit/end` → `notifyVisitEnd`), das **Sprache, Gerät/Browser, Pack,
+    Konto-Status, Kartengröße, genutzte Funktionen und Verweildauer** erfasst. Das deckt FB23s Ziel
+    (welche Sprache/welcher Screen) besser ab. Meine FB23-Ankunfts-Variante wurde beim Merge daher
+    **verworfen** (main's System übernommen). Einziger nicht übernommener Teil: die **exakte
+    Screen-Auflösung** — ließe sich bei Bedarf leicht in main's Beacon ergänzen (Follow-up).
+- [ ] ~~**FB24 — Letzten Klick/letzte Aktion ins Pushover-Signal (#92, Books).**~~ **Entscheidung
+  getroffen (2026-07-17): NICHT umsetzen.** Wäre Verhaltens-Tracking und kollidiert mit der „anonym,
+  keine Session"-Zusage im Impressum. Bewusst verworfen — Issue #92 wird mit dieser Begründung
+  geschlossen.
+
+### Große Bretter (eigene Vorhaben)
+- [x] **FB20 — Intro-Tour packübergreifend korrekt + USABILITY.md (#87, Boardgames).** Die Tour-Slides
+  (`tourT1`–`tourT5` in `public/index.html`) sind musik-/„Act"-/„Last.fm"-/„Radar"-lastig formuliert
+  und werden in **allen** Packs gleich gezeigt — für Boardgames/Books/… stimmen Begriffe und teils
+  Funktionen nicht mehr mit der realen Bedienung überein. Zwei Stränge: (1) Tour-Copy an die reale,
+  pack-neutrale Bedienung angleichen (Nomen aus der Pack-Config statt hart „Act"); (2) Nutzer-Idee
+  einer **`USABILITY.md`** aufgreifen — eine gepflegte Funktions-/UI-Referenz (jede Funktion + wo sie
+  sitzt), die als Single Source für Tour, Hilfe und künftige Änderungen dient. Empfehlung: `USABILITY.md`
+  zuerst als Bestandsaufnahme anlegen, daraus die Tour korrigieren. Sinnvoll — ja.
+  - **✅ Umgesetzt (2026-07-17):** (1) **`USABILITY.md`** angelegt — vollständige Funktions-/UI-Referenz
+    (Konzept, beide Modi, Topbar, Canvas-Interaktionen, Info-Panel, Entdecken-Popover, Radar, Listen,
+    Export, Löschen, Feedback, Shortcuts, **Pack-/Feature-Matrix**, Beta/Gate). In `CLAUDE.md` als
+    Single Source verlinkt. (2) Tour pack-neutral vervollständigt: Slide 1–4 waren es schon (via `tf()`
+    aus `CFG`), **Slide 5 (`tourT5`/`tourP5`) war noch hart „Acts"/„hören"** → jetzt aus `CFG.item.plur`
+    (DE+EN); Slide 2 nennt jetzt auch den Einfach-Klick. Musik behält die handgetexteten Slides.
+    **Hinweis/Regression gefixt:** Slide 5 ist der **Profi-Slide** (Szenen/Brücken) und wird im
+    Fun-Modus (Default) bewusst entfernt (`.slide[data-s="4"].remove()`); das unbedingte Setzen von
+    `tourT5`/`tourP5` warf dort einen null-Zugriff (PAGEERROR) → jetzt defensiv geguardet. Im
+    Profi-Modus erscheint Slide 5 pack-neutral, im Fun-Modus bleibt er ausgeblendet.
+    *Follow-up möglich:* ein tieferer Per-Pack-Wortlaut-Feinschliff, aber die faktischen Ungenauigkeiten
+    (falsches Nomen, „hören" ohne Klangprobe) sind raus.
+- [x] **FB27 — Bild im Info-Sidebar (#95, Plants; wirkt packübergreifend).** Das Info-Panel (`.panel`,
+  rechts, 320px) zeigt heute Text/Kontext, kein Bild. Wunsch: ein Bild je Eintrag, für Plants
+  idealerweise eine **historische Zeichnung (à la Haeckel/gemeinfrei)**. **Analyse/Entscheidung nötig:**
+  woher das Bild kommt — Wikipedia-/Wikimedia-Thumbnail (schon per Kontext erreichbar, aber Lizenz je
+  Bild prüfen) vs. gemeinfreie Illustrationsquellen (Haeckel-Tafeln liegen als PD auf Wikimedia). Sauber
+  wäre ein optionales `image`/`thumb`-Feld pro Pack (nur wo es eine gute, lizenzklare Quelle gibt) +
+  eine Bildzeile im Panel mit Quellen-/Lizenzhinweis. Scope: Bildquelle + Lizenz + Panel-Layout.
+  - **✅ Umgesetzt (2026-07-17):** Generisches `image = { src, credit, href }` am Knoten + Panel-Widget
+    `#pImg` (`renderNodeImage`, für **jeden** Pack, der ein Bild liefert) — mit **Pflicht-Attribution +
+    Lizenz** als Caption und Link zur Quelle; `referrerpolicy=no-referrer`, `onerror` blendet aus.
+    **Plants** liefert das Bild aus dem **iNaturalist-Standardfoto** (`default_photo.medium_url` +
+    `attribution` + `license_code`) in `explore()` **und** `enrich()`; Server persistiert es
+    (`src.image`/`a.image`), die Enrich-Response reicht `image`+`coord` an den Client, damit auch
+    **Nachbarknoten** ohne Reload ein Bild bekommen. `renderNodeImage` unit-getestet. Statt der
+    Haeckel-Zeichnung echte CC-Fotos (lizenzklar, automatisch, immer vorhanden) — Haeckel-Tafeln
+    wären ein späterer kuratierten Zusatz. Live (Netz) im Browser noch gegenzusehen.
+
+- [x] **FB29 — Kleine Karte im Info-Sidebar bei Travel (#97).** Wunsch: bei `travel` eine Mini-Karte
+  „wo liegt das?" im Info-Panel — Nutzer selbst schlägt vor, dass notfalls **Land genügt**. **Analyse:**
+  keine Google-API nötig; Optionen (a) statisches, gemeinfreies SVG-Weltkarten-Mini mit gesetztem
+  Marker aus Lat/Lon (kein Netz, keine Keys — bevorzugt), (b) eingebettete OSM-/Wikimedia-Karte
+  (externer Tile-Server, ToS/Netz), (c) nur Land + Flagge als Text/Emoji (minimal). Travel-Pack liefert
+  vermutlich schon Koordinaten/Land über seine Quelle — erst prüfen, dann Variante (a) als
+  key-/netzfreie Lösung. Scope: Datenverfügbarkeit (Lat/Lon) + Panel-Widget.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch):** **Lat/Lon existiert bereits im Backend, wird aber
+    nicht ans Frontend geliefert.** `lib/travel.mjs:122-140` holt Wikivoyage-Koordinaten
+    (`coord={lat,lon}`), `packs/travel/pack.mjs:196` nutzt sie schon für „km ab Zuhause"/`geoNearby` —
+    aber der `explore()`-Return (`pack.mjs:213-222`) und `server.mjs` persistieren `coord` **nicht**.
+    Land/Region sind unzuverlässig (Nominatim-`country` nur wenn Wikivoyage keine Koordinaten hat).
+    Kein Weltkarten-SVG und kein Bild-Feld im Panel vorhanden; Einfügepunkt: neues `<div id="pMap">`
+    nach `#pSub`/`#pGenres` (`index.html:1284-1285`), Render in `selectNode()` (`4054-4090`).
+    **Empfehlung Variante (a):** (1) `coord` in `explore()`-Return + Server-Persistenz durchreichen
+    (`materialize` reicht es dann automatisch weiter), (2) gemeinfreies Äquidistant-Weltkarten-SVG als
+    Asset hinzufügen (Lizenz klären: Natural Earth / Wikimedia BlankMap, PD), Marker per
+    Equirektangular-Projektion, (3) Land+Flagge als Fallback ohne Koordinaten. **Offen:** nur der Seed
+    hat sicher `coord` (Nachbarknoten ggf. via `enrich` nachladen); SVG-Lizenz.
+  - **✅ Umgesetzt (2026-07-17):** (1) `coord` wird jetzt durchgereicht — `explore()` **und** `enrich()`
+    im Travel-Pack liefern `{lat,lon}`, der Server persistiert sie am Knoten (`src.coord`/`a.coord`,
+    überlebt `migrate` (Blacklist) + `materialize`). (2) Info-Panel-Widget `#pMap` (`renderMiniMap`,
+    nur `CFG.id==="travel"` mit Koordinaten): **key-/netzfrei** — inline gezeichnete äquidistante
+    Weltkarte (Gradnetz + betonter Äquator/Nullmeridian) mit Marker aus Lat/Lon; Klick öffnet die
+    genaue Stelle auf OpenStreetMap; Caption zeigt die Koordinaten. **Bewusst als self-contained v1
+    ohne externes Asset** (keine Lizenzfrage). *Mögliches Follow-up:* das Gradnetz später durch ein
+    gemeinfreies Küstenlinien-SVG (Natural Earth / Wikimedia BlankMap) ersetzen — dann ist die
+    Kontinent-Silhouette erkennbar. Projektion + Branch-Logik per Unit-Test verifiziert; Live-Explore
+    (Netz) im Browser noch gegenzusehen.
+
+---
+
+## Arbeitsweise (Runde 23)
+Backlog erst vollständig erfasst. Umsetzung danach **Punkt für Punkt**, je einzeln am echten
+Code/Browser verifizieren, sinnvolle Commits, PR — **nicht ungefragt mergen**. Reihenfolge-Vorschlag:
+zuerst die klaren Frontend-Tweaks (FB18/FB19/FB22) und die Surprise-Bugs (FB21/FB28), dann die
+UX-Umbauten (FB25/FB17) und die großen Bretter (FB20/FB27/FB29); FB23/FB24/FB26 warten auf eine
+Betreiber-Entscheidung. Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
 ## Runde 23 — Intro-Feinschliff: Kreuz-Fokuskasten + Login-Vorteil (2026-07-17)
 
 Kleiner UX-Befund aus dem Testnutzer-Screenshot: beim Öffnen der Willkommens-Tour lag ein

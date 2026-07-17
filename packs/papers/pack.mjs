@@ -88,7 +88,9 @@ export default {
 
   config: {
     id: "papers",
-    title: "Like Papers",
+    // FB26/#94: Anzeigename „Science" statt „Papers" (wurde als „Papier" missverstanden). Pack-ID
+    // und URL ?pack=papers bleiben unverändert — nur das sichtbare Label ändert sich.
+    title: "Like Science",
     brand: "like",
     item: { sing: "Paper", plur: "Paper" },
     searchPlaceholder: "Paper / Thema suchen…   ( / )",

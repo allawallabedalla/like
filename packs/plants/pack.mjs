@@ -52,6 +52,19 @@ async function taxonById(id) {
   });
 }
 
+// FB27/#95: Bild fürs Info-Panel aus dem iNaturalist-Standardfoto — mit Attribution/Lizenz
+// (CC-Fotos brauchen einen Credit). Mittlere Auflösung reicht fürs kleine Panel.
+function photoOf(taxon) {
+  const p = taxon && taxon.default_photo;
+  if (!p || !(p.medium_url || p.url)) return null;
+  const lic = p.license_code ? ` (${String(p.license_code).toUpperCase()})` : "";
+  return {
+    src: p.medium_url || p.url,
+    credit: (p.attribution || "iNaturalist") + lic,
+    href: `https://www.inaturalist.org/taxa/${taxon.id}`,
+  };
+}
+
 // Geschwister-Arten: andere Arten derselben Gattung (GBIF-frei via iNat-Children des Elterntaxons).
 async function genusSiblings(taxon, { limit = 12 } = {}) {
   const genus = (taxon.ancestors || []).find((a) => a.rank === "genus") || (taxon.rank === "genus" ? taxon : null);
@@ -286,6 +299,7 @@ export default {
       canonical: display(taxon),
       url: `https://www.inaturalist.org/taxa/${taxon.id}`,
       genres: genres.slice(0, 6),
+      image: photoOf(taxon), // FB27/#95
       similarSource: "inaturalist",
       togetherSource: "inaturalist",
       similar: sibs.slice(0, 15).map((t) => ({ name: display(t), url: `https://www.inaturalist.org/taxa/${t.id}`, match: 0.6 })),
@@ -301,10 +315,15 @@ export default {
       if (hit) {
         if (hit.observations_count) out.popularity = hit.observations_count;
         if (!a.url) out.url = `https://www.inaturalist.org/taxa/${hit.id}`;
-        if (!a.genres?.length) {
+        // FB27/#95: Bild (+ ggf. Familie) für Nachbarknoten nachladen. Das Standardfoto steckt im
+        // Voll-Taxon; einmal holen und für Bild und Familie nutzen.
+        if (!a.image || !a.genres?.length) {
           const t = await taxonById(hit.id);
-          const fam = (t?.ancestors || []).find((x) => x.rank === "family");
-          if (fam) out.genres = [cap(fam.preferred_common_name || fam.name)];
+          if (!a.image) { const img = photoOf(t || hit); if (img) out.image = img; }
+          if (!a.genres?.length) {
+            const fam = (t?.ancestors || []).find((x) => x.rank === "family");
+            if (fam) out.genres = [cap(fam.preferred_common_name || fam.name)];
+          }
         }
       }
     } catch {}

@@ -149,7 +149,6 @@
   .bar > button, .bar > select, .search input, .search button { height: 38px; }
   /* Topbar-Buttons mit Icon+Text nie umbrechen lassen (sonst werden sie zu hoch) */
   .bar > button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
-  #radarBtn { gap: 4px; }
   /* Schmale Fenster: nur Bar-Elemente anpassen. Die Anzeige-Optionen/Export liegen im
      ⋯-Menü und bleiben dort IMMER erreichbar (die frühere Ausblendung galt der alten Topbar). */
   @media (max-width: 760px) { .bar { gap: 8px; padding: 0 10px; } .brand .ver { display: none; } }
@@ -168,7 +167,7 @@
      (2) ≤1040px: der Genre-Filter wandert ins Menü (bereits via .gfilter-Regel unten).
      (3) ≤640px: auch die Suche wandert ins Menü (echtes Handy). */
   @media (max-width: 1180px) {
-    #radarBtn, #discoverBtn, #tasteBtn, #tidyBtn, #feedbackBtn, #helpBtn { display: none !important; }
+    #discoverBtn, #tidyBtn, #feedbackBtn, #helpBtn { display: none !important; }
     #toolsTitle { display: block; }
     #toolsRow1, #toolsRow2 { display: flex; }
     #toolsRow1 button, #toolsRow2 button { flex: 1; }
@@ -240,6 +239,17 @@
   .panel.open { transform: none; }
   .panel h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
   .panel .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 8px; }
+  /* FB27/#95: Bild im Info-Panel (mit Attribution/Lizenz) */
+  .pimg { margin: 0 0 14px; }
+  .pimg img { width: 100%; height: auto; max-height: 200px; object-fit: cover; display: block; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--line-soft); }
+  .pimg .cred { margin-top: 4px; font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+  .pimg .cred a { color: var(--muted); text-decoration: underline; }
+  /* FB29/#97: Standort-Mini-Karte im Info-Panel (nur Travel) */
+  .pmap { margin: 0 0 14px; }
+  .pmap a { text-decoration: none; color: inherit; }
+  .pmap svg { width: 100%; height: auto; display: block; border: 1px solid var(--line-soft); border-radius: 8px; }
+  .pmap .cap { margin-top: 5px; font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .pmap .cap a { color: var(--muted); text-decoration: underline; }
   .playbtn { flex: none; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line-soft); background: var(--bg);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; }
   .playbtn:hover { border-color: var(--edge-together); color: var(--edge-together); }
@@ -325,6 +335,22 @@
     color: var(--on-accent); border: none; padding: 10px 16px; z-index: 20; opacity: 0;
     transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  /* FB19/#86: dauerhafter, dezenter „Seite im Entstehen"-Hinweis, unten mittig. pointer-events:none,
+     damit er die Karte nie blockiert; niedriger z-index, damit Modals/Panels ihn verdecken. */
+  #betaFlag { position: fixed; left: 50%; bottom: 3px; transform: translateX(-50%); z-index: 6;
+    font-size: 10.5px; color: var(--muted); opacity: .6; pointer-events: none; white-space: nowrap;
+    letter-spacing: .2px; max-width: 96vw; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 640px) { #betaFlag { font-size: 9.5px; bottom: 2px; } }
+  /* FB17-2/#84: Aufräumen-Nudge (erscheint nur bei viel Inhalt/Unordnung), dezent, wegklickbar */
+  #tidyNudge { position: fixed; left: 50%; bottom: 54px; transform: translateX(-50%); z-index: 14;
+    display: none; align-items: center; gap: 8px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 20px; padding: 6px 8px 6px 14px; font-size: 12.5px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18); max-width: 92vw; }
+  #tidyNudge.show { display: flex; }
+  #tidyNudge button { border: none; background: none; cursor: pointer; font: inherit; padding: 4px 6px; }
+  #tidyNudge .go { color: var(--edge-together); font-weight: 600; border-radius: 14px; }
+  #tidyNudge .go:hover { background: var(--line-soft); }
+  #tidyNudge .x { color: var(--muted); font-size: 15px; line-height: 1; }
   /* Links im Toast (z.B. "Rückgängig") müssen klickbar sein, obwohl der Toast
      selbst pointer-events:none hat (sonst blockiert er die Karte darunter) */
   .toast a { pointer-events: auto; }
@@ -467,17 +493,6 @@
   #fader.notrans { transition: none; }
   @media (prefers-reduced-motion: reduce) { #fader { transition: none; } }
 
-  /* Geschmacks-Fingerabdruck */
-  .tastebody { max-height: 55vh; overflow-y: auto; margin: 10px 0 4px; }
-  .tastebody .trow { padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
-  .tastebody .trow:last-child { border-bottom: none; }
-  .tastebody .thead { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
-  .tastebody .thead b { font-size: 14px; }
-  .tastebody .thead small { color: var(--muted); margin-left: auto; }
-  .tastebody .tchips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-  .tastebody .tchips span { font-size: 11px; border: 1px solid var(--line-soft); border-radius: 12px; padding: 2px 8px; color: var(--text); }
-  .tastebody .tover { margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--line-soft); font-size: 12.5px; }
-  .tastebody .tover b { color: var(--edge-together); }
   .zoomctl button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line-soft); border-top: none;
     background: var(--bg); font-size: 16px; line-height: 1; }
   .zoomctl button:first-child { border-top: 1px solid var(--line-soft); }
@@ -577,7 +592,7 @@
 
   /* Entdecken-Popover */
   /* Aktiv-Zustand: Werkzeug-Knopf hervorheben, solange sein Fenster offen ist (C10, C9) */
-  #radarBtn.on, #discoverBtn.on { border-color: var(--edge-together); color: var(--edge-together); }
+  #discoverBtn.on { border-color: var(--edge-together); color: var(--edge-together); }
   .discoverbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
     padding: 12px 14px; width: 268px; display: none; font-size: 13px; box-shadow: 0 10px 34px rgba(0,0,0,.16); border-radius: 10px; }
   .discoverbox.show { display: block; }
@@ -786,8 +801,8 @@
      schlank und kann nicht mehr überlaufen. Nur wenige Bar-Elemente weichen auf schmalen
      Fenstern; das ⋯-Menü (mit allem darin) bleibt immer erreichbar. */
   @media (max-width: 1040px) { .gfilter { display: none !important; } }          /* Genre-Filter (auch via Panel-Chips) */
-  @media (max-width: 900px)  { #tasteBtn, #feedbackBtn { display: none !important; } }
-  @media (max-width: 760px)  { #radarBtn { display: none !important; } .bar { gap: 8px; } } /* Entdecken bleibt */
+  @media (max-width: 900px)  { #feedbackBtn { display: none !important; } }
+  @media (max-width: 760px)  { .bar { gap: 8px; } } /* Radar/Streifzug liegen im Entdecken-Popover */
   @media (max-width: 480px) {
     /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante.
        Höhe bewusst < 2/3, damit der Graph oben sichtbar bleibt (der fokussierte Knoten
@@ -859,9 +874,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
     <button id="mSearchBtn" class="iconbtn hideStatic" title="Suchen" aria-label="Suchen"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
-    <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
-    <button id="discoverBtn" title="Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
-    <button id="tasteBtn" class="iconbtn hideStatic workonly" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
+    <button id="discoverBtn" title="Entdeck-Werkzeuge: Radar, Streifzug, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
     <button id="tidyBtn" class="iconbtn" title="Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="8" cy="2.4" r="1.35" fill="currentColor"/><circle cx="12.85" cy="10.8" r="1.35" fill="currentColor"/><circle cx="3.15" cy="10.8" r="1.35" fill="currentColor"/></svg></button>
     <button id="feedbackBtn" class="iconbtn hideStatic" style="display:none" title="Feedback / Fehler melden">✉</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
@@ -896,11 +909,9 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <input id="mSearch" class="gfilter mobileonly hideStatic" placeholder="Act suchen…" autocomplete="off" style="width:100%;margin-bottom:8px" />
     <div class="mtitle mobileonly" id="toolsTitle">Werkzeuge</div>
     <div class="mrow mobileonly" id="toolsRow1">
-      <button id="mDiscover" title="Entdeck-Werkzeuge">✦ Entdecken</button>
-      <button id="mRadar" class="hideStatic" title="Geheimtipp-Radar">◎ Radar</button>
+      <button id="mDiscover" title="Entdeck-Werkzeuge: Radar, Streifzug, Szenen, Brückenbauer">✦ Entdecken</button>
     </div>
     <div class="mrow mobileonly" id="toolsRow2">
-      <button id="mTaste" class="hideStatic workonly" title="Geschmacks-Fingerabdruck">◈ Profil</button>
       <button id="mTidy" title="Netz sortieren">⌗ Sortieren</button>
       <button id="mHelp" title="Bedienung & Shortcuts">? Hilfe</button>
     </div>
@@ -1046,9 +1057,15 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
 
   <div class="discoverbox" id="discoverbox">
     <div class="dtitle">Entdecken</div>
+    <!-- FB25/#93: Radar ins Entdecken-Popover gebündelt (früher eigener Topbar-Knopf) — alle
+         Entdeck-Werkzeuge an einem Ort, keine zwei fast gleichen Einstiege mehr. -->
+    <div class="ditem" id="discRadar">
+      <span class="dico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg></span>
+      <span><b>Radar</b><small>Kleine, noch unentdeckte Einträge nah an deinem Geschmack — mit Begründung.</small></span>
+    </div>
     <div class="ditem" id="discSurprise">
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 3.8 9.5 8 8 12.2 6.5 8Z"/></svg></span>
-      <span><b>Überrasch mich</b><small>Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.</small></span>
+      <span><b>Streifzug</b><small>Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.</small></span>
     </div>
     <div class="ditem workonly" id="discScenes">
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"><circle cx="6.1" cy="8" r="3.4"/><circle cx="9.9" cy="8" r="3.4"/></svg></span>
@@ -1168,12 +1185,14 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
 
   <div id="fader"></div>
 
-  <div class="modal-back" id="tasteModal">
-    <div class="modal" style="max-width:460px" role="dialog" aria-modal="true" aria-labelledby="tasteTitle">
-      <h3 id="tasteTitle">◈ Dein Geschmacks-Fingerabdruck</h3>
-      <div id="tasteBody" class="tastebody"><small style="color:var(--muted)">Lade …</small></div>
-      <div class="row"><button id="tasteClose">Schließen</button></div>
-    </div>
+  <!-- FB19/#86: dauerhafter Beta-Hinweis. Text wird in JS lokalisiert (setBetaFlag). -->
+  <div id="betaFlag" aria-hidden="true"></div>
+
+  <!-- FB17-2/#84: dezenter Aufräumen-Nudge, erscheint erst bei erkanntem Füllgrad/Chaos -->
+  <div id="tidyNudge" role="status">
+    <span id="tidyNudgeTxt">Das Netz ist ganz schön voll geworden.</span>
+    <button class="go" id="tidyNudgeGo">Aufräumen</button>
+    <button class="x" id="tidyNudgeX" title="Ausblenden" aria-label="Ausblenden">×</button>
   </div>
 
   <div class="modal-back" id="authModal">
@@ -1294,6 +1313,10 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <button class="close" id="closePanel" title="Panel schließen (Esc)">×</button>
     <h2 id="pName">–</h2>
     <div class="sub" id="pSub"></div>
+    <!-- FB27/#95: Bild mit Attribution (z. B. Plants), wenn der Knoten eins hat -->
+    <div id="pImg" class="pimg" style="display:none"></div>
+    <!-- FB29/#97: kleine Standort-Karte (nur Travel, wenn Koordinaten vorliegen) -->
+    <div id="pMap" class="pmap" style="display:none"></div>
     <div id="pGenres" class="genres"></div>
     <div id="pBooking" class="booking"></div>
     <div class="row">
@@ -1303,6 +1326,11 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <div class="row" style="margin-top:8px">
       <div class="likegroup"><button id="basketBtn" title="In die aktive Liste aufnehmen (Taste b)">like!</button><button id="likeMore" title="In welche Liste? — mehrere möglich">▾</button></div>
       <button id="bridgeBtn" class="workonly" title="Welcher Eintrag verbindet diesen mit einem anderen? Hier klicken, dann Ziel wählen">Brücke bauen…</button>
+    </div>
+    <!-- FB15/#72: Bandcamp-Geheimtipps — opt-in, lazy; nur Music (features.bandcamp), standardmäßig aus.
+         Lädt erst auf Klick kleine, oft Bandcamp-only-Acts als Blätter an diesen Eintrag. -->
+    <div class="row" id="bandcampRow" style="margin-top:8px;display:none">
+      <button id="bandcampBtn" title="Kleine Acts laden, die (oft) nur auf Bandcamp existieren — als Blätter an diesen Eintrag (lädt erst auf Klick)">⊕ Bandcamp-Geheimtipps</button>
     </div>
     <div class="field workonly">
       <label>Status</label>
@@ -1380,8 +1408,12 @@ const T = LANG !== "en" ? null : {
   "Domäne wechseln — jede hat ihre eigene Sammlung": "Switch domain — each has its own collection",
   "Ansicht & Export": "View & export", "Genre filtern…": "Filter by genre…",
   "Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien": "Tidy up — arrange the network neatly: group scenes, as few crossing lines as possible",
-  "Dein Geschmacks-Fingerabdruck über alle Domänen": "Your taste fingerprint across all domains",
   "Bedienung & Tastatur-Shortcuts": "Controls & keyboard shortcuts",
+  "🚧 Diese Seite entsteht gerade — es kann noch etwas haken.": "🚧 This site is still a work in progress — things may occasionally break.",
+  "Das Netz ist ganz schön voll geworden.": "Your network has gotten quite full.",
+  "Genaue Lage auf OpenStreetMap ansehen": "View exact location on OpenStreetMap",
+  "Ungefähre Lage: {C}": "Approximate location: {C}",
+  "Karte ↗": "Map ↗",
   "Feedback / Fehler melden": "Feedback / report a bug",
   "Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung": "Hidden-gem radar: small acts in the visible part of the map, close to your likes — with reasoning",
   "Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer": "Discovery tools: random find, scenes, bridge builder",
@@ -1392,7 +1424,7 @@ const T = LANG !== "en" ? null : {
   "Space: Planeten mit kreisenden Monden (dunkel) · Flat: klassisches Netz (hell)": "Space: planets with orbiting moons (dark) · Flat: classic network (light)",
   "✦ Entdecken": "✦ Discover", "◈ Profil": "◈ Profile", "⌗ Sortieren": "⌗ Tidy up", "? Hilfe": "? Help",
   "✦ Überrasch mich": "✦ Surprise me", "◎ Radar": "◎ Radar",
-  "Geschmacks-Fingerabdruck": "Taste fingerprint", "Netz sortieren": "Tidy the network",
+  "Netz sortieren": "Tidy the network",
   "Bedienung & Shortcuts": "Controls & shortcuts", "Geheimtipp-Radar": "Hidden-gem radar", "Entdeck-Werkzeuge": "Discovery tools",
   "Farben": "Colors", "Verbindungen": "Connections", "Geheimtipps": "Hidden gems", "Große dämpfen": "Dim big ones",
   "Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln": "Color nodes by their main genre — scenes and themes appear as color islands",
@@ -1456,6 +1488,12 @@ const T = LANG !== "en" ? null : {
   // Entdecken
   "Überrasch mich": "Surprise me",
   "Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.": "A random stroll through your network — lands somewhere new.",
+  "Kleine, noch unentdeckte Einträge nah an deinem Geschmack — mit Begründung.": "Small, still-undiscovered entries close to your taste — with reasoning.",
+  "⊕ Bandcamp-Geheimtipps": "⊕ Bandcamp hidden gems",
+  "⊕ Lade Bandcamp …": "⊕ Loading Bandcamp …",
+  "Auf Bandcamp öffnen ↗": "Open on Bandcamp ↗",
+  "Keine Bandcamp-Geheimtipps gefunden.": "No Bandcamp hidden gems found.",
+  "{N} Bandcamp-Tipp(s) hinzugefügt": "Added {N} Bandcamp gem(s)",
   "Szenen zeigen": "Show scenes",
   "Hebt zusammengehörige Gruppen als sanfte Farbflächen hervor.": "Highlights groups that belong together as soft color areas.",
   "Brückenbauer": "Bridge builders", "Welche Einträge halten deine Szenen zusammen?": "Which entries hold your scenes together?",
@@ -1707,6 +1745,7 @@ const T = LANG !== "en" ? null : {
   "— dann gilt deine Spende auf allen Geräten.": "— then your donation counts on all your devices.",
   "Schreib mir kurz, was besser werden soll": "Tell me briefly what should get better",
   "✦ Suche …": "✦ Searching …", "Streifzug: {P}": "Stroll: {P}",
+  "Streifzug": "Stroll", "✦ Streifzug": "✦ Stroll",
   "Radar öffnen": "Open radar",
   "und {N} weitere im Aufwind": "and {N} more on the rise",
   "Monat": "month",
@@ -1719,7 +1758,9 @@ const T = LANG !== "en" ? null : {
   "Kanten": "edges", "{P} an diesem Ort": "{P} at this venue",
   "{T} zeigt {P} als klickbare <b>Karte</b>. Zwei Verbindungsarten: {S1} = {L1}, {S2} = {L2}.": "{T} shows {P} as a clickable <b>map</b>. Two kinds of connections: {S1} = {L1}, {S2} = {L2}.",
   "— blau": "— blue", "— orange": "— orange",
-  "Such oben z.B. „{X}\". <b>Doppelklick</b> auf einen Punkt lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.": "Try searching for \"{X}\" above. A <b>double-click</b> on a dot loads its neighbors — that's how you hop through the network step by step.",
+  "Such oben z.B. „{X}\". Ein <b>Klick</b> auf einen Punkt öffnet seine Info, ein <b>Doppelklick</b> lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.": "Try searching for \"{X}\" above. A <b>click</b> on a dot opens its info, a <b>double-click</b> loads its neighbors — that's how you hop through the network step by step.",
+  "Entdecken, Szenen & aufräumen": "Discover, scenes & tidy up",
+  "<b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, entfernst du am Punkt mit <b>×</b>; „<b>Unverknüpfte aufräumen</b>\" unter „⋯\" räumt allein übrig gebliebene {P}.": "<b>Discover</b> highlights related <b>scenes</b> as color areas (their names in the legend, bottom left) and shows <b>bridges</b> between them. Remove anything that doesn't fit with <b>×</b> on its dot; \"<b>Remove unconnected</b>\" under \"⋯\" clears out {P} left on their own.",
   "Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> {P} nahe deinem Geschmack vor — mit Klartext-Begründung und „{L}\" in einem Klick.": "The <b>radar</b> suggests <b>small, still undiscovered</b> {P} close to your taste — with plain-language reasoning and \"{L}\" in one click.",
   "Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?\". Viel Spaß!": "With <b>{L}</b>, favorites go to your <b>{B}</b> — exportable as CSV. Dark mode, backup &amp; more live under \"?\". Have fun!",
   "Willkommen bei {T}": "Welcome to {T}",
@@ -1781,6 +1822,14 @@ async function unlockThen(id, go) {
     if (r.ok) { UNLOCKED = true; go(); }
     else { toast("Falsches Passwort"); }
   } catch { toast("Freischalten fehlgeschlagen"); }
+}
+// FB21/#88: Ein API-Fehler mit e.locked bedeutet, dass die Session-Freischaltung fehlt/abgelaufen ist
+// (Gate-401). Statt eines nackten Fehler-Toasts das Passwort abfragen und nach Erfolg neu laden.
+// Gibt true zurück, wenn der Fehler ein Sperr-Fehler war (Aufrufer unterdrückt dann seinen Toast).
+function handleLocked(e) {
+  if (!e || !e.locked) return false;
+  unlockThen(CFG.id, () => location.reload());
+  return true;
 }
 
 // ---- Domain-Pack-Config ----
@@ -1900,14 +1949,16 @@ function applyCfg() {
       switchPackTo(id); // weicher Übergang + Reload mit neuem Pack
     };
   } else if (sw) { sw.style.display = "none"; }
-  // Cross-Pack-Brücken & Fingerabdruck brauchen mehrere Domänen + den Live-Server
+  // Cross-Pack-Brücken brauchen mehrere Domänen + den Live-Server
   const multi = Array.isArray(window.LIKE_PACKS) && window.LIKE_PACKS.length > 1 && !STATIC;
-  if (!multi) { $("fieldCross").style.display = "none"; $("tasteBtn").style.display = "none"; }
+  if (!multi) { $("fieldCross").style.display = "none"; }
   $("q").placeholder = CFG.searchPlaceholder || "Suchen…   ( / )";
   $("q").title = CFG.searchTitle || "";
   $("go").title = CFG.goTitle || "";
   if (CFG.id !== "music") $("surpriseBtn").title = tf("Zeig mir einen zufälligen, eher unbekannten {S}", { S: CFG.item.sing });
   $("genreFilter").placeholder = CFG.genreFilterPlaceholder || "Filtern…";
+  // FB19/#86: dauerhafter „Seite entsteht"-Hinweis (lokalisiert; Sprachwechsel lädt die Seite neu).
+  { const bf = $("betaFlag"); if (bf) bf.textContent = t("🚧 Diese Seite entsteht gerade — es kann noch etwas haken."); }
   renderLegend(); // dynamische Legende (zeigt nur, was gerade da ist) ohne Quellen-Hinweise — B11/B12
   // Popularität / "Große dämpfen"
   if (CFG.popularity) {
@@ -1915,7 +1966,7 @@ function applyCfg() {
     $("dimBigWrap").title = CFG.popularity.dimTitle || "";
   } else $("dimBigWrap").style.display = "none";
   if (FEAT.venues) $("venueWrap").style.display = "";
-  if (!FEAT.radar) $("radarBtn").style.display = "none";
+  if (!FEAT.radar) { const dr = $("discRadar"); if (dr) dr.style.display = "none"; }
   $("radarTitle").textContent = CFG.radarTitle || "Radar";
   // leerer Zustand: nur die zentrale Suchleiste (Platzhalter aus der Pack-Config)
   $("q2").placeholder = (CFG.searchPlaceholder || "Suchen…").replace(/\s*\(\s*\/\s*\)\s*$/, "") + (CFG.exampleSeed ? `   ${t("z.B.")} ${CFG.exampleSeed}` : "");
@@ -1952,11 +2003,17 @@ function applyCfg() {
       T: esc(CFG.title), P: esc(CFG.item.plur),
       S1: `<span style="color:var(--edge-similar)">${t("— blau")}</span>`, L1: esc(CFG.edges.similar.label),
       S2: `<span style="color:var(--edge-together)">${t("— orange")}</span>`, L2: esc(CFG.edges.together.label) });
-    $("tourP2").innerHTML = tf(`Such oben z.B. „{X}". <b>Doppelklick</b> auf einen Punkt lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.`, { X: esc(CFG.exampleSeed) });
+    $("tourP2").innerHTML = tf(`Such oben z.B. „{X}". Ein <b>Klick</b> auf einen Punkt öffnet seine Info, ein <b>Doppelklick</b> lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.`, { X: esc(CFG.exampleSeed) });
     $("tourT3").textContent = CFG.radarTitle || t("Das Radar");
     $("tourP3").innerHTML = tf(`Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> {P} nahe deinem Geschmack vor — mit Klartext-Begründung und „{L}" in einem Klick.`, { P: esc(CFG.item.plur), L: ll });
     $("tourP4").innerHTML = tf(`Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!`, { L: ll, B: bl });
     $("tourPill").textContent = CFG.likeLabel || "merken!";
+    // FB20/#87: Slide 5 pack-neutral — der handgetextete Slide sagt „Acts" und „hören" (nur Musik).
+    // Achtung: Slide 5 (der Profi-Slide) wird im Fun-Modus oben bewusst entfernt (data-s="4") —
+    // daher defensiv nur setzen, wenn er noch existiert (sonst im Stöbern-Modus null-Zugriff).
+    const t5 = $("tourT5"), p5 = $("tourP5");
+    if (t5) t5.textContent = t("Entdecken, Szenen & aufräumen");
+    if (p5) p5.innerHTML = tf(`<b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, entfernst du am Punkt mit <b>×</b>; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene {P}.`, { P: esc(CFG.item.plur) });
   }
   // Fun/Work-Umschalter: aktiven Modus markieren; außerhalb von Musik heißt Work „Profi"
   $("modeFun").classList.toggle("on", MODE === "fun");
@@ -1972,13 +2029,9 @@ function applyCfg() {
     $("focusBtn").replaceWith(share);
     share.classList.remove("iconbtn", "shareicon");
     share.appendChild(document.createTextNode(" " + t("Teilen")));
-    // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst
-    // „Überrasch mich" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile).
-    const db = $("discoverBtn");
-    db.lastChild.textContent = t("Überrasch mich");
-    db.title = t("Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem");
-    db.onclick = () => surpriseMe();
-    $("mDiscover").textContent = t("✦ Überrasch mich");
+    // FB25/#93: „Entdecken" öffnet auch im Stöbern-Modus das Popover — es enthält jetzt mindestens
+    // zwei Einträge (Streifzug + Radar; Szenen/Brücken sind Profi-only), also lohnt das Menü. Früher
+    // löste der Knopf hier direkt den Streifzug aus, als das Popover nur einen Eintrag gehabt hätte.
     $("helpCtx").textContent = t("Menü (Erkunden, Merken …)");
     if (FEAT.tour) $("tourP4").innerHTML = tf("Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b>-Liste (links unten). Viel Spaß!",
       { L: esc(CFG.likeLabel || "like!"), B: esc(CFG.basketLabel || "Favoriten") });
@@ -2026,7 +2079,11 @@ async function parseRes(r) {
     // durchreichen (sonst „langer kryptischer Code" im Toast). Nur kurzer, unverdächtiger Text.
     let m = data && (data.error || data.message);
     if (!m) { const t = (txt || "").trim(); m = (t && t.length <= 100 && !/[<>]/.test(t)) ? t : ("Server-Fehler (" + r.status + ")"); }
-    const e = new Error(m); e.status = r.status; e.bodySnippet = (txt || "").slice(0, 200); throw e; // Status/Body fürs Debugging anhängen
+    const e = new Error(m); e.status = r.status; e.bodySnippet = (txt || "").slice(0, 200); // Status/Body fürs Debugging anhängen
+    // FB21/#88: gesperrtes Pack -> Gate antwortet mit 401 {error:"locked"}. Markieren, damit die
+    // Aufrufer statt eines nackten Fehler-Toasts den Freischalt-Dialog zeigen (handleLocked).
+    if (r.status === 401 && data && data.error === "locked") { e.locked = true; e.lockedPack = data.pack || null; }
+    throw e;
   }
   return data;
 }
@@ -2069,11 +2126,11 @@ const API = {
   bridgeStop: (session) => POST("/api/bridge/stop", { session }),
   bridgeAdd: (from, to, via, fromId, toId) => POST("/api/bridge/add", { from, to, via, fromId, toId }),
   feedback: (message) => POST("/api/feedback", { message }),
-  taste: () => GET("/api/taste"),
   crossbridge: (name) => POST("/api/crossbridge", { name }),
   artist: (body) => POST("/api/artist", body),
   lists: (body) => POST("/api/lists", body), // v2.6: Like-Listen anlegen/umbenennen/umfärben/löschen
   reveal: (id) => POST("/api/reveal", { id }), // „+K laden": geparkte Nachbarn eines Acts nachholen
+  bandcampReveal: (id) => POST("/api/bandcamp/reveal", { id }), // FB15: Bandcamp-Geheimtipps an einen Act
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
   demo: () => GET("/api/demo"),
   shareMap: () => POST("/api/share", {}),
@@ -2583,11 +2640,30 @@ function rebuild(prev, reheatAmt = 1) {
     }
     return { x: tx, y: ty }; // Notnagel (sehr dichte Karte): Kollision räumt später auf
   };
+  // FB22/#89: Schwerpunkt + Außenradius der bereits platzierten (bestehenden) Knoten. Ein neuer,
+  // UNVERBUNDENER Seed (typisch „Überrasch mich") hat keinen platzierten Nachbarn und landete
+  // bislang auf W/2,(H+52)/2 — also DIREKT auf dem Zentralstern. Zusammen mit reheat() drückte die
+  // Nahabstoßung die Sonne an -> sichtbares Ruckeln. Statt der Mitte spawnt er jetzt am RAND des
+  // vorhandenen Netzes; freeSpot rückt von dort weiter hinaus. Leere Karte: Mitte bleibt richtig.
+  let exCx = 0, exCy = 0, exCnt = 0, exR = 0;
+  for (const m of nodes) { if (m && m.x != null && !isNew.has(m.id) && !m.venue) { exCx += m.x; exCy += m.y; exCnt++; } }
+  if (exCnt) {
+    exCx /= exCnt; exCy /= exCnt;
+    for (const m of nodes) { if (m && m.x != null && !isNew.has(m.id) && !m.venue) { const d = Math.hypot(m.x - exCx, m.y - exCy); if (d > exR) exR = d; } }
+  }
   newSeeds.forEach((n, i) => {
     // Schwerpunkt der bereits platzierten (bestehenden) Nachbarn dieses Seeds …
     let sx = 0, sy = 0, cnt = 0;
     for (const nb of (adj.get(n.id) || [])) { const m = nodeById.get(nb); if (m && m.x != null && !isNew.has(m.id)) { sx += m.x; sy += m.y; cnt++; } }
-    const tx = cnt ? sx / cnt : W / 2, ty = cnt ? sy / cnt : (H + 52) / 2;
+    let tx, ty;
+    if (cnt) { tx = sx / cnt; ty = sy / cnt; }
+    else if (exCnt) {
+      // unverbundener Seed: an den Rand des Bestands, in einer je Seed deterministischen Richtung
+      // (mehrere neue Seeds verteilen sich so, statt sich mittig zu stapeln).
+      const ang = seededRnd(n.id, "seedring") * Math.PI * 2;
+      const rr = exR + 130 + radius(n);
+      tx = exCx + Math.cos(ang) * rr; ty = exCy + Math.sin(ang) * rr;
+    } else { tx = W / 2; ty = (H + 52) / 2; } // leere Karte
     const pos = freeSpot(tx, ty, radius(n));
     n.x = pos.x; n.y = pos.y;
     placedSeedIds.add(n.id);
@@ -2660,6 +2736,7 @@ function rebuild(prev, reheatAmt = 1) {
   renderLegend();       // dynamische Legende an den neuen Bestand anpassen (B12)
   if (typeof renderListView === "function") renderListView(); // W15: Liste synchron halten
   reheat(reheatAmt); // neues Layout durchrechnen lassen (beim ＋-Ausbauen bewusst sanfter -> weniger Zappeln, B4)
+  if (typeof maybeTidyNudge === "function") maybeTidyNudge(); // FB17-2/#84: Aufräumen-Hinweis bei Fülle
 }
 
 // ---- Ansicht: alles zeigen / zoomen ----
@@ -3762,7 +3839,9 @@ function pendingBadge(n) {
   // FB11/#68: „+K"-Chip nicht mehr rein bildschirm-konstant (winzig neben einer großen, nah
   // herangezoomten Kugel), sondern mit dem Kugelradius mitskalieren — mit Mindestgröße, damit er
   // beim Rauszoomen lesbar bleibt. Position + Trefferfläche (onPendingBadge) ziehen automatisch mit.
-  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: Math.max(8 / view.k, rr * 0.42) };
+  // FB18/#85: Faktor von 0.42 auf 0.34 gesenkt — der Chip war neben großen Kugeln einen Tick zu groß;
+  // Mindestgröße (8/view.k) + Position (0.82) bleiben, damit Lesbarkeit und Sitz erhalten bleiben.
+  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: Math.max(8 / view.k, rr * 0.34) };
 }
 // Zeiger/Finger nahe am „+K"-Chip? -> Chip vergrößern und Trefferfläche aufziehen (fingerfreundlich).
 // mouseWorld ist nur bei Maus gesetzt; auf Touch trägt COARSE ohnehin die größere Basis-Trefferfläche.
@@ -3926,7 +4005,7 @@ addEventListener("mouseup", (e) => {
 cv.addEventListener("dblclick", (e) => {
   const p = canvasXY(e);
   const n = pick(p.x, p.y);
-  if (n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppelklick = weiter hangeln
+  if (n && !n.venue) { selectNode(n); expandOrOpen(n); } // Doppelklick = weiter hangeln (Bandcamp: öffnen)
 });
 cv.addEventListener("contextmenu", (e) => {
   e.preventDefault();
@@ -4028,7 +4107,7 @@ cv.addEventListener("touchend", (e) => {
         // gut treffbar: der Chip wächst und trägt eine großzügige (COARSE-)Trefferfläche.
         if (onPendingBadge(n, p.x, p.y)) { revealMore(n); lastTapT = now; lastTapNode = n; touch = null; return; }
         if (bridgeFrom) finishBridge(n);
-        else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppeltipp
+        else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); expandOrOpen(n); } // Doppeltipp
         else { selectNode(n); } // Tipp = nur Info-Karte öffnen; Abspielen über den ▶ im Panel
         lastTapT = now; lastTapNode = n;
       } else if (!bridge) closePanel();
@@ -4039,6 +4118,49 @@ cv.addEventListener("touchend", (e) => {
 cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null; }, { passive: false });
 
 // ---- Panel ----
+// FB27/#95: Bild im Info-Panel (mit Pflicht-Attribution/Lizenz für CC-Fotos). Generisch: jeder Pack
+// kann am Knoten ein `image = { src, credit, href }` liefern (aktuell Plants via iNaturalist).
+function renderNodeImage(n) {
+  const el = document.getElementById("pImg");
+  if (!el) return;
+  const im = n && n.image;
+  if (!im || !im.src) { el.style.display = "none"; el.innerHTML = ""; return; }
+  const cred = im.credit
+    ? `<div class="cred">${im.href ? `<a href="${esc(im.href)}" target="_blank" rel="noreferrer">` : ""}${esc(im.credit)}${im.href ? "</a>" : ""}</div>`
+    : "";
+  el.innerHTML = `<img src="${esc(im.src)}" alt="${esc(n.name || "")}" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.pimg').style.display='none'">${cred}`;
+  el.style.display = "";
+}
+// FB29/#97: kleine Standort-Karte im Info-Panel. Bewusst key-/netzfrei: eine inline gezeichnete
+// Weltkarte (äquidistante Projektion mit Gradnetz) + Marker aus Lat/Lon, wie vom Travel-Pack
+// mitgeliefert (n.coord). Ein Klick öffnet die genaue Stelle auf OpenStreetMap (echte Karte).
+// Nur für Travel und nur, wenn Koordinaten vorliegen; sonst bleibt das Widget verborgen.
+function renderMiniMap(n) {
+  const el = document.getElementById("pMap");
+  if (!el) return;
+  const c = n && n.coord;
+  if (CFG.id !== "travel" || !c || !isFinite(c.lat) || !isFinite(c.lon)) { el.style.display = "none"; el.innerHTML = ""; return; }
+  const lat = Math.max(-90, Math.min(90, c.lat)), lon = Math.max(-180, Math.min(180, c.lon));
+  const W = 232, H = 116;
+  const px = ((lon + 180) / 360) * W, py = ((90 - lat) / 180) * H;
+  let grid = "";
+  for (let L = -120; L <= 120; L += 60) { const gx = ((L + 180) / 360 * W).toFixed(1); grid += `<line x1="${gx}" y1="0" x2="${gx}" y2="${H}"/>`; }
+  for (let L = -60; L <= 60; L += 30) { const gy = ((90 - L) / 180 * H).toFixed(1); grid += `<line x1="0" y1="${gy}" x2="${W}" y2="${gy}"/>`; }
+  const eqY = (H / 2).toFixed(1), pmX = (W / 2).toFixed(1);
+  const coordTxt = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? "E" : "W"}`;
+  const osm = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=5/${lat.toFixed(3)}/${lon.toFixed(3)}`;
+  el.innerHTML =
+    `<a href="${osm}" target="_blank" rel="noreferrer" title="${esc(t("Genaue Lage auf OpenStreetMap ansehen"))}">` +
+      `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tf("Ungefähre Lage: {C}", { C: coordTxt }))}">` +
+        `<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" fill="var(--bg)"/>` +
+        `<g stroke="var(--line-soft)" stroke-width="0.5" fill="none">${grid}</g>` +
+        `<g stroke="var(--line)" stroke-width="0.8" fill="none"><line x1="0" y1="${eqY}" x2="${W}" y2="${eqY}"/><line x1="${pmX}" y1="0" x2="${pmX}" y2="${H}"/></g>` +
+        `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4.6" fill="var(--accent)" stroke="#fff" stroke-width="1.6"/>` +
+      `</svg>` +
+    `</a>` +
+    `<div class="cap"><span>${esc(coordTxt)}</span><a href="${osm}" target="_blank" rel="noreferrer">${esc(t("Karte ↗"))}</a></div>`;
+  el.style.display = "";
+}
 // Genre-Pills im Panel: Klick toggelt das Genre als Karten-Filter (ODER-verknüpft
 // mit anderen ausgewählten Genres, so wie der Genre-Filter oben in der Topbar).
 function renderGenrePills(genres) {
@@ -4085,6 +4207,8 @@ function selectNode(n) {
   // W4: Auswahl-Wechsel für Screenreader ansagen (Name + Vernetzungsgrad).
   announce(`${n.name} — ${tf(n.deg === 1 ? "{N} Verbindung" : "{N} Verbindungen", { N: n.deg || 0 })}`);
   renderSub(n, null);
+  renderNodeImage(n); // FB27/#95: Bild mit Attribution (z. B. Plants)
+  renderMiniMap(n); // FB29/#97: Standort-Karte (Travel)
   renderGenrePills(n.genres);
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
   document.getElementById("status").value = n.status || "";
@@ -4099,6 +4223,13 @@ function selectNode(n) {
   document.getElementById("fee").value = n.fee || "";
   document.getElementById("note").value = n.note || "";
   refreshLikeBtn();
+  // FB15/#72: Bandcamp-Geheimtipps-Zeile nur für Music (FEAT.bandcamp), nicht für Bandcamp-Blätter
+  // selbst, nicht im STATIC-Snapshot. Und: ein Bandcamp-Blatt ist eine Sackgasse (kein Last.fm) —
+  // der „Weiter erkunden"-Knopf wird zu „Auf Bandcamp öffnen ↗".
+  const bcRow = document.getElementById("bandcampRow");
+  if (bcRow) bcRow.style.display = (FEAT.bandcamp && !n.bandcampOnly && !STATIC) ? "flex" : "none";
+  const expandBtn = document.getElementById("expand");
+  expandBtn.textContent = (n.bandcampOnly && n.url) ? t("Auf Bandcamp öffnen ↗") : t("Weiter erkunden");
   document.getElementById("pLabels").innerHTML = "";
   if (!STATIC) loadDetails(n);  // Genres + Hörerzahl + Ort beim Anklicken nachladen
 
@@ -4259,8 +4390,12 @@ async function loadDetails(n) {
     // Hörer-Trend (aus der App-Historie) am Knoten merken — nur gesetzt, wenn GENUG Daten da
     // sind (growthPerMonth liefert sonst null). Wird fürs Teilen genutzt.
     n._growth = (res.growth != null) ? res.growth : null;
+    // FB27/#95 + FB29/#97: nachgeladenes Bild / Koordinaten am Knoten übernehmen (Nachbarknoten
+    // bekommen sie erst per enrich) und das Panel aktualisieren, wenn der Knoten noch gewählt ist.
+    if (res.image?.src && !n.image) { n.image = res.image; if (graph.artists[n.id]) graph.artists[n.id].image = res.image; }
+    if (res.coord && !n.coord) { n.coord = res.coord; if (graph.artists[n.id]) graph.artists[n.id].coord = res.coord; }
     if (res.genres?.length) computeGenreColors(); // nachgeladene Genres in die Cluster-Farben einbeziehen
-    if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); }
+    if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); renderNodeImage(n); renderMiniMap(n); }
     requestDraw();
   } catch {}
 }
@@ -4356,7 +4491,30 @@ document.getElementById("saveNote").onclick = async () => {
   const res = await API.artist({ id: selected.id, note });
   if (res.ok) { selected.note = note; graph.artists[selected.id].note = note; toast("Notiz gespeichert"); }
 };
-document.getElementById("expand").onclick = () => { if (selected && !selected.venue) exploreByName(selected.name); };
+// FB15/#72: Bandcamp-only-Blätter sind Sackgassen (kein Last.fm) — statt „weiter erkunden" die
+// Bandcamp-Seite öffnen. Alle Explore-Auslöser (Doppelklick, e-Taste, Panel-Knopf, Kontextmenü)
+// laufen über diesen Helfer, damit sie bei Bandcamp-Knoten nicht ins Leere erkunden.
+function expandOrOpen(n) {
+  if (!n || n.venue) return;
+  if (n.bandcampOnly) { if (n.url) window.open(n.url, "_blank", "noopener"); return; }
+  exploreByName(n.name);
+}
+document.getElementById("expand").onclick = () => { if (selected) expandOrOpen(selected); };
+// FB15/#72: Bandcamp-Geheimtipps laden (opt-in, lazy) — hängt kleine, oft Bandcamp-only-Acts als
+// Blätter an den gewählten Act. Erst DIESER Klick löst Bandcamp-Aufrufe aus (Default = null Kosten).
+document.getElementById("bandcampBtn").onclick = async () => {
+  if (!selected || selected.venue || selected.bandcampOnly || STATIC) return;
+  const btn = document.getElementById("bandcampBtn"); const lbl = btn.textContent;
+  btn.disabled = true; btn.textContent = t("⊕ Lade Bandcamp …");
+  try {
+    const srcName = selected.name;
+    const r = await API.bandcampReveal(selected.id);
+    if (r?.graph) reload(srcName, { graph: r.graph, center: false, reheatAmt: 0.7 });
+    if (r && r.added === 0) toast(t("Keine Bandcamp-Geheimtipps gefunden."));
+    else if (r && r.added) toast(tf("{N} Bandcamp-Tipp(s) hinzugefügt", { N: r.added }));
+  } catch { toast(t("Konnte nicht laden.")); }
+  finally { btn.disabled = false; btn.textContent = lbl; }
+};
 
 document.getElementById("removeAct").onclick = async () => {
   if (!selected || selected.venue) return;
@@ -4506,7 +4664,8 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 0
     // liefert Server-Fehler als HTTP-Fehlerstatus (parseRes() wirft dann), NIE als {error} in
     // einer 200er-Antwort — die Prüfung gehört daher hierher, nicht in einen res.error-Zweig
     // (der nie erreicht wird).
-    if (/API-Key/i.test(e.message) && CFG.key) { openKeyModal(); toast(`Erst den ${CFG.key.name} einrichten`); }
+    if (handleLocked(e)) { /* Gate: Freischalt-Dialog statt Fehler-Toast (FB21) */ }
+    else if (/API-Key/i.test(e.message) && CFG.key) { openKeyModal(); toast(`Erst den ${CFG.key.name} einrichten`); }
     else toast("Fehler: " + e.message);
   } finally { busy = false; busyId = null; }
 }
@@ -4788,13 +4947,13 @@ function showCtx(n, x, y) {
   ] : MODE === "fun" ? [
     // Stöbern-Modus: nur die vier Kern-Aktionen — Profi-Werkzeuge (Fokus, Vergleich, Brücke,
     // Fixieren) bleiben dem Booking-Modus vorbehalten.
-    ["Weiter erkunden", () => exploreByName(n.name)],
+    ["Weiter erkunden", () => expandOrOpen(n)],
     ["Details öffnen", () => selectNode(n)],
     ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
     likeItem,
     ["Entfernen", () => removeNode(n)],
   ] : [
-    ["Weiter erkunden", () => exploreByName(n.name)],
+    ["Weiter erkunden", () => expandOrOpen(n)],
     ["Details öffnen", () => selectNode(n)],
     ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
@@ -5399,14 +5558,20 @@ const radarBody = document.getElementById("radarBody");
 const radarStamp = document.getElementById("radarStamp");
 let radarBusy = false;
 // C10: Aktiv-Zustand am Radar-Knopf + Außenklick schließt -> klar, wie man das Fenster loswird.
-function syncRadarBtn() { document.getElementById("radarBtn").classList.toggle("on", radarEl.classList.contains("show")); }
+// FB25/#93: Radar sitzt jetzt im Entdecken-Popover (#discRadar) statt als eigener Topbar-Knopf.
+// Der aktive Zustand wird am Popover-Eintrag markiert (der ist beim Öffnen des Radars zwar zu,
+// aber die Markierung schadet nicht und greift, falls das Popover offen bleibt).
+function syncRadarBtn() { const b = document.getElementById("discRadar"); if (b) b.classList.toggle("on", radarEl.classList.contains("show")); }
 function closeRadar() { radarEl.classList.remove("show"); syncRadarBtn(); }
+function toggleRadar() {
+  if (radarEl.classList.contains("show")) { closeRadar(); }
+  else { markFeat("radar"); closeDiscover(); radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
+}
 document.getElementById("radarClose").onclick = closeRadar;
-document.getElementById("radarBtn").onclick = () => {
-  if (radarEl.classList.contains("show")) closeRadar(); else { markFeat("radar"); radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
-};
+document.getElementById("discRadar").onclick = toggleRadar;
 document.addEventListener("mousedown", (e) => {
-  if (radarEl.classList.contains("show") && !radarEl.contains(e.target) && e.target.id !== "radarBtn" && !document.getElementById("radarBtn").contains(e.target)) closeRadar();
+  // Außenklick schließt das Radar — Klicks aus dem Entdecken-Popover (der Radar-Einstieg) ausnehmen.
+  if (radarEl.classList.contains("show") && !radarEl.contains(e.target) && !e.target.closest("#discoverbox")) closeRadar();
 });
 document.getElementById("radarRefresh").onclick = () => runRadar(true);
 
@@ -5891,7 +6056,26 @@ function sortLayout() {
   // aufgeräumte Anordnung stehen (Kollisionen lösen sich, Struktur bleibt).
   reheat(0.12);
 }
-document.getElementById("tidyBtn").onclick = () => { sortLayout(); toast("Netz sortiert"); };
+document.getElementById("tidyBtn").onclick = () => { sortLayout(); toast("Netz sortiert"); ackTidy(); };
+// FB17-2/#84: dezenter Aufräumen-Nudge — der Knopf bleibt, aber zusätzlich weisen wir erst darauf hin,
+// wenn das Netz voll/unübersichtlich geworden ist (statt den Nutzer permanent zum Aufräumen zu drängen).
+let tidyAckCount = 0; // Knotenzahl beim letzten Aufräumen/Ausblenden — erst nach spürbarem Wachstum erneut.
+function hideTidyNudge() { const el = document.getElementById("tidyNudge"); if (el) el.classList.remove("show"); }
+function ackTidy() { tidyAckCount = nodes.length; hideTidyNudge(); }
+function maybeTidyNudge() {
+  const el = document.getElementById("tidyNudge"); if (!el) return;
+  // nicht nerven: nicht im STATIC-Snapshot, nicht während ein Modal/die Listenansicht offen ist.
+  if (STATIC || document.querySelector(".modal-back.show") || (typeof listOpen !== "undefined" && listOpen)) { el.classList.remove("show"); return; }
+  const grew = nodes.length - tidyAckCount;
+  // Schwelle: viel Inhalt (≥40 Knoten) UND seit letztem Aufräumen/Ausblenden spürbar gewachsen (≥12).
+  if (nodes.length >= 40 && grew >= 12) el.classList.add("show");
+  else if (grew < 6) el.classList.remove("show");
+}
+{
+  const go = document.getElementById("tidyNudgeGo"), x = document.getElementById("tidyNudgeX");
+  if (go) go.onclick = () => { sortLayout(); toast("Netz sortiert"); ackTidy(); };
+  if (x) x.onclick = ackTidy;
+}
 document.addEventListener("mousedown", (e) => {
   if (discoverEl.classList.contains("show") && !discoverEl.contains(e.target) && e.target.id !== "discoverBtn" && !document.getElementById("discoverBtn").contains(e.target))
     closeDiscover();
@@ -5937,9 +6121,7 @@ document.addEventListener("mousedown", (e) => {
 // Handy: die ins ⋯-Menü verlagerten Werkzeuge lösen dieselben Aktionen aus wie die Topbar-Buttons.
 const closeMore = () => moreEl.classList.remove("show");
 document.getElementById("mDiscover").onclick = () => { closeMore(); document.getElementById("discoverBtn").click(); };
-document.getElementById("mRadar").onclick = () => { closeMore(); document.getElementById("radarBtn").click(); };
-document.getElementById("mTaste").onclick = () => { closeMore(); document.getElementById("tasteBtn").click(); };
-document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); };
+document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); ackTidy(); };
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
 // N7: „Meine Listen" öffnet den Listen-Umschalter (ansehen/wechseln/umbenennen/neu) — die
 // gespeicherten Playlists waren bisher nur über das ▾ am Listen-Panel erreichbar.
@@ -6158,35 +6340,9 @@ function switchPackTo(id, extraQuery) {
   requestAnimationFrame(() => requestAnimationFrame(() => { faderEl.classList.remove("notrans"); faderEl.classList.remove("on"); }));
 })();
 
-// ---- Geschmacks-Fingerabdruck (über alle Domänen) ----
-const tasteModal = document.getElementById("tasteModal");
-document.getElementById("tasteClose").onclick = () => tasteModal.classList.remove("show");
-tasteModal.addEventListener("mousedown", (e) => { if (e.target === tasteModal) tasteModal.classList.remove("show"); });
-document.getElementById("tasteBtn").onclick = async () => {
-  const body = document.getElementById("tasteBody");
-  tasteModal.classList.add("show");
-  document.getElementById("tasteClose").focus();
-  body.innerHTML = `<small style="color:var(--muted)">${t("Lade …")}</small>`;
-  try {
-    const res = await API.taste();
-    if (!res.ok) { body.innerHTML = `<small style="color:var(--muted)">${t("Konnte nicht laden.")}</small>`; return; }
-    const withLikes = res.packs.filter((p) => p.count > 0);
-    if (!withLikes.length) {
-      body.innerHTML = `<small style="color:var(--muted)">${t("Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.")}</small>`;
-      return;
-    }
-    const rows = withLikes.map((p) => `
-      <div class="trow">
-        <div class="thead"><b>${esc(p.title)}</b><small>${p.count} ${esc(p.item.plur)}</small></div>
-        ${p.topGenres.length ? `<div class="tchips">${p.topGenres.map((g) => `<span>${esc(g.name)}${g.count > 1 ? " ×" + g.count : ""}</span>`).join("")}</div>` : ""}
-        ${p.topItems.length ? `<div style="font-size:11.5px;color:var(--muted);margin-top:5px">${t("z.B.")} ${p.topItems.slice(0, 3).map(esc).join(" · ")}</div>` : ""}
-      </div>`).join("");
-    const over = res.overlaps?.length
-      ? `<div class="tover">${t("Themen, die deine Welten <b>verbinden</b>:")} ${res.overlaps.map((o) => `„${esc(o.name)}" (${o.packs.map(esc).join(" + ")})`).join(" · ")}</div>`
-      : "";
-    body.innerHTML = rows + over;
-  } catch { body.innerHTML = '<small style="color:var(--muted)">Fehler beim Laden.</small>'; }
-};
+// FB17/#84: Der Geschmacks-Fingerabdruck (◈-Knopf + Modal) wurde auf Nutzerwunsch entfernt.
+// Der Server-Endpoint /api/taste bleibt bestehen (Read-only, von der E2E-Suite geprüft), hat aber
+// keine UI mehr. Cross-Pack-Brücken (crossBtn) sind davon unberührt.
 
 // ---- Cross-Pack-Brücken: gibt es diesen Eintrag in anderen Domänen? ----
 document.getElementById("crossBtn").onclick = async () => {
@@ -6269,14 +6425,13 @@ addEventListener("keydown", (e) => {
   if (introEl.classList.contains("show") || keyModal.classList.contains("show")) return;
   if (feedbackModal.classList.contains("show")) { if (e.key === "Escape") closeFeedback(); return; }
   if (authModal.classList.contains("show")) { if (e.key === "Escape") authModal.classList.remove("show"); return; }
-  if (tasteModal && tasteModal.classList.contains("show")) { if (e.key === "Escape") tasteModal.classList.remove("show"); return; }
   const supportEl = document.getElementById("supportModal");
   if (supportEl && supportEl.classList.contains("show")) { if (e.key === "Escape") supportEl.classList.remove("show"); return; }
   const t = e.target.tagName;
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
   else if (e.key === "Escape") { hideCtx(); if (moreEl.classList.contains("show")) moreEl.classList.remove("show"); else if (listOpen) toggleListView(false); else if (discoverEl.classList.contains("show")) discoverEl.classList.remove("show"); else if (radarEl.classList.contains("show")) closeRadar(); else if (helpEl.classList.contains("show")) toggleHelp(); else if (bridgeFrom || bridge) clearBridge(); else if (bridgeSet.size) clearBridges(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
-  else if (e.key === "e" && selected && !selected.venue) exploreByName(selected.name);
+  else if (e.key === "e" && selected && !selected.venue) expandOrOpen(selected);
   else if (e.key === "f" && selected) toggleFocus(selected);
   else if (e.key === "b" && selected) toggleBasket(selected);
   else if (e.key === "Delete" && selected && !selected.venue) removeNode(selected);
@@ -6639,7 +6794,7 @@ addEventListener("visibilitychange", () => {
         const r = await GET("/api/surprise" + (g ? "?genre=" + encodeURIComponent(g) : ""));
         if (r && r.ok && r.name) await exploreByName(r.name);
         else toast(g ? tf("Nichts fürs Genre {G} gefunden — versuch ein anderes", { G: g }) : "Gerade keine Überraschung zur Hand");
-      } catch { toast("Überraschung fehlgeschlagen"); }
+      } catch (e) { if (!handleLocked(e)) toast("Überraschung fehlgeschlagen"); }
       finally { sBtn.disabled = false; sBtn.textContent = label; }
     };
     sBtn.addEventListener("click", doSurprise);
