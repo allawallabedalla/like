@@ -28,6 +28,14 @@ services:
       # alle anderen brauchen dieses Passwort. Leer/ungesetzt = alles offen.
       - key: LIKE_UNLOCK_PASSWORD
         sync: false
+        # U-2c.1: In PR-Previews wäre das Passwort sonst ungesetzt = „alles offen" (alle Labs frei).
+        # previewValue gatet Previews wie Prod; das echte Prod-Passwort bleibt ein Dashboard-Secret.
+        previewValue: like-preview
+      # U-2c.1: PR-Previews aus dem Suchindex halten (robots Disallow + X-Robots-Tag noindex).
+      # In Prod ungesetzt -> normal indexierbar.
+      - key: LIKE_NOINDEX
+        sync: false
+        previewValue: "1"
       # Optionale Heimat für „Like Travel" (Standard: Berlin, Deutschland)
       - key: LIKE_TRAVEL_HOME
         sync: false

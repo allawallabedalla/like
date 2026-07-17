@@ -34,7 +34,7 @@ import { loadPack, listPacks, resolvePackId, dataFile } from "./lib/packs.mjs";
 import { clearKey } from "./lib/keys.mjs";
 import { hasPushover, sendFeedback, notifyQuiet } from "./lib/pushover.mjs";
 import { hasIssueSink, collectFeedbackQuiet, createFeedbackIssue, listFeedbackIssues, feedbackTarget } from "./lib/github-issues.mjs";
-import { initUsage, countUsage, usageSnapshot } from "./lib/usage.mjs";
+import { initUsage, countUsage, usageSnapshot, flushUsage } from "./lib/usage.mjs";
 import { landingHtml } from "./lib/landing.mjs";
 import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount } from "./lib/auth.mjs";
 
@@ -107,6 +107,9 @@ try { APP_VERSION = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"
 //  - sonst der Deploy-Commit (LIKE_BUILD_REF oder Renders RENDER_GIT_COMMIT) -> Kurz-SHA + Commit-Link.
 // So lässt sich jederzeit nachvollziehen, welche Änderungen deployed sind.
 const REPO_URL = "https://github.com/allawallabedalla/like";
+// U-2c.1: Nicht-Produktions-Instanzen (v. a. Render-PR-Previews) aus dem Index halten.
+// LIKE_NOINDEX=1 -> robots.txt verbietet alles + jede Antwort trägt X-Robots-Tag: noindex.
+const NOINDEX = /^(1|true|yes|on)$/i.test(process.env.LIKE_NOINDEX || "");
 const _BUILD_PR = (process.env.LIKE_BUILD_PR || "").replace(/\D/g, "");
 const _BUILD_SHA = (process.env.LIKE_BUILD_REF || process.env.RENDER_GIT_COMMIT || "").trim();
 const BUILD_REF = _BUILD_PR ? { label: `PR #${_BUILD_PR}`, href: `${REPO_URL}/pull/${_BUILD_PR}` }
@@ -493,6 +496,7 @@ function send(res, code, body, type = "application/json", cacheControl = "no-sto
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
   };
   if (type.startsWith("text/html")) headers["x-frame-options"] = "SAMEORIGIN"; // Clickjacking-Schutz für die Seiten
+  if (NOINDEX) headers["x-robots-tag"] = "noindex, nofollow"; // U-2c.1: Nicht-Prod aus dem Suchindex halten
   // HSTS nur hinter dem HTTPS-Proxy (Render) — lokal/Electron (http://localhost) wäre es falsch.
   if (res.req?.headers["x-forwarded-proto"] === "https") headers["strict-transport-security"] = "max-age=31536000";
   // Antwort-Kompression (W2): brotli bevorzugt, gzip als Fallback. Sync ist hier okay —
@@ -1029,7 +1033,10 @@ const server = createServer(async (req, res) => {
     // SEO-Grundgerüst (W1): robots.txt, sitemap.xml, llms.txt — alles aus Bordmitteln.
     if (req.method === "GET" && url.pathname === "/robots.txt") {
       const base = publicBase(req);
-      const body = `User-agent: *\nAllow: /\nDisallow: /api/\n${base ? `\nSitemap: ${base}/sitemap.xml\n` : ""}`;
+      // U-2c.1: Nicht-Prod (LIKE_NOINDEX) komplett aus dem Index halten.
+      const body = NOINDEX
+        ? `User-agent: *\nDisallow: /\n`
+        : `User-agent: *\nAllow: /\nDisallow: /api/\n${base ? `\nSitemap: ${base}/sitemap.xml\n` : ""}`;
       return send(res, 200, body, "text/plain; charset=utf-8");
     }
     if (req.method === "GET" && url.pathname === "/sitemap.xml") {
@@ -2178,3 +2185,21 @@ server.listen(PORT, HOST, () => {
   console.log(`Like läuft auf ${url} (Packs: ${[...PACKS.keys()].join(", ")}; Default: ${DEFAULT_PACK})`);
   if (process.argv.includes("--open") || process.env.LIKE_OPEN) openBrowser(url);
 });
+
+// U-2c.5: Robustheit im Dauerbetrieb. Ein einzelner unerwarteter Fehler soll den
+// Single-Process-Server NICHT still killen — protokollieren und weiterlaufen (der auslösende
+// Request scheitert für sich, wie bei den try/catch-Zweigen der Handler).
+process.on("uncaughtException", (e) => { console.error("[uncaughtException]", e?.stack || e); });
+process.on("unhandledRejection", (e) => { console.error("[unhandledRejection]", e?.stack || e); });
+// Sauberes Herunterfahren bei Redeploy/Stop: laufende Antworten austrinken (server.close) und
+// den letzten Nutzungszähler-Stand sichern, statt hart abgeschnitten zu werden.
+let shuttingDown = false;
+for (const sig of ["SIGTERM", "SIGINT"]) {
+  process.on(sig, () => {
+    if (shuttingDown) return; shuttingDown = true;
+    console.log(`[${sig}] Herunterfahren — Verbindungen austrinken …`);
+    server.close(() => process.exit(0));
+    Promise.resolve(flushUsage()).catch(() => {});
+    setTimeout(() => process.exit(0), 5000).unref?.(); // Notausgang, falls Verbindungen hängen
+  });
+}

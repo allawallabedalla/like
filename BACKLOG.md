@@ -1430,13 +1430,13 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 ### Phase 2c — Sicherheit & Betrieb (Produktions-Härtung)
 
-- [ ] **Render-PR-Previews laufen mit offenem Labs-Gate.** [hoch/S · Deploy] LIKE_UNLOCK_PASSWORD sync:false = „alles offen" in Previews. → Passwort für Previews setzen oder LIKE_PREVIEW=1 erzwingt Gate; X-Robots noindex auf Nicht-Prod; test:ci-Regression.
+- [x] **Render-PR-Previews laufen mit offenem Labs-Gate.** [hoch/S · Deploy] LIKE_UNLOCK_PASSWORD sync:false = „alles offen" in Previews. → Passwort für Previews setzen oder LIKE_PREVIEW=1 erzwingt Gate; X-Robots noindex auf Nicht-Prod; test:ci-Regression. _(phase-2c: previewValue-Gate + LIKE_NOINDEX -> robots Disallow + X-Robots)_
 - [ ] **Keine Content-Security-Policy.** [hoch/M · Sicherheit] → restriktive Basis-CSP (object-src none; base-uri self; frame-ancestors self; connect-src auf genutzte Hosts), Report-Only zuerst; script-src via Nonce statt unsafe-inline (server.mjs:471).
 - [ ] **Kein Rate-Limit auf teuren Endpoints; /api/preview ACAO:\*.** [hoch/M · Sicherheit] → Pro-IP-Token-Bucket vor explore/radar/preview/geocode/context/bridge; ACAO:* auf Snapshot-Origins einschränken (server.mjs:1331,1749,1784).
 - [ ] **Unbegrenzte anonyme Namensräume (Disk-Fill-DoS).** [mittel/M · Robustheit] → Anon-Writes pro IP drosseln + harte Obergrenze Ordnerzahl/Bytes; TTL senken (server.mjs:549-583).
-- [ ] **Crash-Handler + Graceful-Shutdown fehlen.** [mittel/S · Ops] → uncaughtException/unhandledRejection-Handler; SIGTERM → usage-flush() + server.close mit Draining.
-- [ ] **Dockerfile ungehärtet.** [mittel/S · Deploy] → USER node; HEALTHCHECK gegen /api/health; .dockerignore um Secret-Muster (deny-by-default).
-- [ ] **Feedback/clienterror: globale Drossel + Markdown-Injection.** [mittel/S · Sicherheit] → Drossel pro IP; Nutzertext in Codeblock/neutralisieren (server.mjs:1194-1240; github-issues.mjs:70).
+- [x] **Crash-Handler + Graceful-Shutdown fehlen.** [mittel/S · Ops] → uncaughtException/unhandledRejection-Handler; SIGTERM → usage-flush() + server.close mit Draining. _(phase-2c: uncaught/unhandled-Logger + SIGTERM/SIGINT drain + usage-flush)_
+- [x] **Dockerfile ungehärtet.** [mittel/S · Deploy] → USER node; HEALTHCHECK gegen /api/health; .dockerignore um Secret-Muster (deny-by-default). _(phase-2c: HEALTHCHECK + .dockerignore-Secret-Muster; USER node bewusst offen — /data-Volume-Ownership braucht Render-Disk-Check)_
+- [ ] **Feedback/clienterror: globale Drossel + Markdown-Injection.** [mittel/S · Sicherheit] → Drossel pro IP; Nutzertext in Codeblock/neutralisieren (server.mjs:1194-1240; github-issues.mjs:70). _(phase-2c: Markdown/@mention-Injection via Codeblock entschaerft; Pro-IP-Drossel -> zusammen mit U-2c.3 Rate-Limit)_
 - [ ] **Keine Observability (Fehler/Quellenausfall).** [mittel/M · Betrieb] → strukturierte Request-Logs + Fehlerraten-/Quellenausfall-Alarm über Pushover; clienterror auswertbar.
 - [ ] **Backup/Disaster-Recovery.** [mittel/M · Datenhaltung] → Off-Disk-Snapshot von /data + Disk-Auslastungsalarm.
 - [ ] **Sicherheits-Regressionstests fehlen.** [mittel/M · Test] → CSV-Formel-Escaping, Security-Header/Cookie-Flags, Auth-429, 413/400 assertieren.
