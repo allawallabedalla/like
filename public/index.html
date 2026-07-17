@@ -692,9 +692,21 @@
   /* Onboarding-Intro (5 Slides, animierte SVG-Illustrationen — GIF-Feeling ohne GIF) */
   .introcard { position: relative; background: var(--bg); border: 1px solid var(--line);
     width: min(460px, calc(100vw - 32px)); padding: 26px 26px 18px; }
+  /* Beim Öffnen bekommt die Karte selbst den Fokus (Screenreader/Tastatur) — ohne den UA-Fokus-
+     kasten, der sonst wie ein Rahmen ums × wirkte. Tastatur-Nutzer sehen beim Tabben trotzdem
+     einen sauberen Ring (:focus-visible unten). */
+  .introcard:focus { outline: none; }
   .introcard .iclose { position: absolute; top: 10px; right: 12px; z-index: 3; background: none; border: none;
-    font-size: 20px; color: var(--muted); cursor: pointer; }
-  .introcard .iclose:hover { color: var(--text); }
+    line-height: 1; padding: 2px 4px; border-radius: 6px; font-size: 20px; color: var(--muted); cursor: pointer;
+    transition: color .12s ease, background .12s ease; }
+  .introcard .iclose:hover { color: var(--text); background: var(--line-soft); }
+  .introcard .iclose:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
+  /* Abschluss-Hinweis (z.B. Login-Vorteil) auf dem letzten Slide — dezent abgesetzt */
+  .slide .ihint { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line-soft);
+    font-size: 13px; line-height: 1.5; color: var(--muted); cursor: pointer; transition: color .12s ease; }
+  .slide .ihint:hover { color: var(--text); }
+  .slide .ihint b { color: var(--text); font-weight: 600; }
+  .slide .ihint .lh-i { opacity: .7; margin-right: 3px; }
   .istage { position: relative; }
   .iart svg { pointer-events: none; } /* Illustration ist reine Deko -> darf keine Klicks abfangen */
   .slide { display: none; }
@@ -1050,8 +1062,8 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
   </div>
 
   <div class="modal-back" id="intro">
-    <div class="introcard" role="dialog" aria-modal="true" aria-label="Einführung">
-      <button class="iclose" id="introSkip" title="Überspringen">×</button>
+    <div class="introcard" role="dialog" aria-modal="true" aria-label="Einführung" tabindex="-1">
+      <button class="iclose" id="introSkip" title="Überspringen" aria-label="Überspringen">×</button>
       <div class="istage">
         <!-- Slide 1: Was ist like -->
         <div class="slide active" data-s="0">
@@ -1141,7 +1153,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
           <h3 id="tourT5">Entdecken, hören &amp; aufräumen</h3>
           <p id="tourP5"><b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen dazu
           in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, klickst du am
-          Punkt mit <b>×</b> weg; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene Acts.</p>
+          Punkt mit <b>×</b> weg; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene Acts. Viel Spaß!</p>
         </div>
       </div>
       <div class="inav">
@@ -1483,6 +1495,10 @@ const T = LANG !== "en" ? null : {
   "Zurück": "Back", "Weiter": "Next", "Los geht's": "Let's go", "Überspringen": "Skip",
   // Auth / Feedback / Key
   "Anmelden": "Sign in", "Melde dich an, damit deine Karte auf allen Geräten gleich ist.": "Sign in so your map is the same on all devices.",
+  '<span class="lh-i">↗</span> <b>Anmelden</b> lohnt sich: dann bleiben Karte, Likes &amp; Notizen dauerhaft — und auf allen Geräten gleich.':
+    '<span class="lh-i">↗</span> <b>Signing in</b> pays off: your map, likes &amp; notes then stay permanent — and the same on all your devices.',
+  "Ohne Login liegt deine Karte nur auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt.":
+    "Without an account your map stays only on this device and is cleaned up after 30 days without a visit.",
   "Nutzername": "Username", "Passwort": "Password",
   "Feedback ans Team": "Feedback to the team",
   "Was ist dir aufgefallen? Idee, Fehler, Wunsch — alles hilft. Geht direkt als\n      Nachricht ans Team (mit Angabe der aktuellen Domäne &amp; Version).": "What did you notice? Idea, bug, wish — everything helps. Goes straight to the team (with the current domain & version).",
@@ -1742,7 +1758,7 @@ function translateDom() {
     tourT4: 'Collect &amp; export',
     tourP4: 'With <b>like!</b>, favorites go to your <b>lineup</b> — exportable as CSV for booking. Dark mode, backup &amp; more live under "?". Have fun!',
     tourT5: 'Discover, listen &amp; tidy up',
-    tourP5: '<b>Discover</b> highlights related <b>scenes</b> as color areas (their names in the legend, bottom left) and shows <b>bridges</b> between them. Anything that doesn\'t fit, remove with <b>×</b> on its dot; "<b>Remove unconnected</b>" under "⋯" cleans up acts left on their own.',
+    tourP5: '<b>Discover</b> highlights related <b>scenes</b> as color areas (their names in the legend, bottom left) and shows <b>bridges</b> between them. Anything that doesn\'t fit, remove with <b>×</b> on its dot; "<b>Remove unconnected</b>" under "⋯" cleans up acts left on their own. Have fun!',
   };
   for (const id in tour) { const el = document.getElementById(id); if (el) el.innerHTML = tour[id]; }
 }
@@ -5501,7 +5517,24 @@ function renderIntro() {
   introBackBtn.style.visibility = introIdx === 0 ? "hidden" : "visible";
   introNextBtn.textContent = t(introIdx === introSlides.length - 1 ? "Los geht's" : "Weiter");
 }
-function openIntro() { introIdx = 0; renderIntro(); introEl.classList.add("show"); document.getElementById("introSkip").focus(); }
+// Login-Vorteil auf dem letzten Slide einblenden — nur live & solange nicht angemeldet.
+// Klick öffnet direkt die Registrierung (wie der Hinweis auf dem leeren Start-Screen).
+function placeIntroLogin() {
+  const last = introSlides[introSlides.length - 1];
+  let hint = document.getElementById("introLogin");
+  if (STATIC || window.LIKE_USER || !last) { if (hint) hint.remove(); return; }
+  if (!hint) {
+    hint = document.createElement("p");
+    hint.id = "introLogin"; hint.className = "ihint"; hint.setAttribute("role", "button"); hint.tabIndex = 0;
+    hint.innerHTML = t('<span class="lh-i">↗</span> <b>Anmelden</b> lohnt sich: dann bleiben Karte, Likes &amp; Notizen dauerhaft — und auf allen Geräten gleich.');
+    hint.title = t("Ohne Login liegt deine Karte nur auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt.");
+    const go = () => { closeIntro(); openAuth("register"); };
+    hint.addEventListener("click", go);
+    hint.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  }
+  last.appendChild(hint);
+}
+function openIntro() { introIdx = 0; placeIntroLogin(); renderIntro(); introEl.classList.add("show"); introEl.querySelector(".introcard").focus(); }
 function closeIntro() { introEl.classList.remove("show"); try { localStorage.setItem(LSK("like_intro_seen"), "1"); } catch {} }
 introNextBtn.onclick = () => { if (introIdx < introSlides.length - 1) { introIdx++; renderIntro(); } else closeIntro(); };
 introBackBtn.onclick = () => { if (introIdx > 0) { introIdx--; renderIntro(); } };

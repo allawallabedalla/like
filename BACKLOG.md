@@ -1059,3 +1059,31 @@ FB16 (plus FB8/FB13 via Runde 21). **Offen: nur noch FB15** (Bandcamp) — brauc
 Scope-Entscheidung (Bandcamp-Einbindung + ToS), kein reiner Bug. Alle Frontend-/Canvas-Fixes
 (FB4/FB5/FB6/FB7/FB9/FB10/FB11/FB12/FB14-UI/FB16-Knopf) sind logik-/syntaxgeprüft, aber im Browser
 noch gegenzusehen. Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
+
+---
+
+## Runde 23 — Intro-Feinschliff: Kreuz-Fokuskasten + Login-Vorteil (2026-07-17)
+
+Kleiner UX-Befund aus dem Testnutzer-Screenshot: beim Öffnen der Willkommens-Tour lag ein
+brauner UA-Fokuskasten ums Schließen-„×" (rechts oben) — sah aus wie ein zweiter Rahmen.
+Ursache: `openIntro()` setzte den Fokus direkt auf `#introSkip`. Zusätzlicher Wunsch: die Tour
+soll warm mit „Viel Spaß!" enden UND dezent auf den Login-Vorteil hinweisen.
+
+- [x] **Fokuskasten ums „×" weg.** `openIntro()` fokussiert jetzt die Dialog-Karte selbst
+  (`.introcard` mit `tabindex="-1"`, `outline:none`) statt den Schließen-Knopf — Screenreader/
+  Tastatur bekommen den Fokus weiterhin in den Dialog (der Tab-Trap greift unverändert), aber
+  ohne sichtbaren Kasten. Das „×" bekam zudem einen dezenten Hover-Hintergrund + saubere
+  `:focus-visible`-Umrandung (Tastatur-Nutzer sehen weiter einen Ring).
+- [x] **„Viel Spaß!" auf dem letzten Slide.** Im Stöber-Modus (Standard) stand es schon auf dem
+  jetzt letzten Slide „Sammeln & exportieren"; im Profi/Booking-Modus fehlte es auf dem
+  Szenen-Slide (`tourP5`) — dort ergänzt (DE + EN-Fassung).
+- [x] **Login-Vorteil-Hinweis am Tour-Ende.** Dezent abgesetzte Zeile auf dem letzten Slide
+  (nur live & solange nicht angemeldet, nicht im STATIC-Export): „↗ Anmelden lohnt sich: dann
+  bleiben Karte, Likes & Notizen dauerhaft — und auf allen Geräten gleich." Klick öffnet direkt
+  die Registrierung (wie der Hinweis auf dem leeren Start-Screen), Enter/Space ebenso.
+
+**Verifiziert:** `npm run check`-Smoke grün (10 Packs, ein Server). Zusätzlich mit echtem
+Chromium gegen `server.mjs` gefahren: Tour öffnet automatisch, Fokus liegt auf `.introcard`
+(nicht mehr am „×"), Login-Hinweis + „Viel Spaß!" erscheinen DE & EN auf dem letzten Slide,
+keine neuen Konsolenfehler (nur der bekannte externe Zertifikatsfehler). Nur `public/index.html`
+geändert.
