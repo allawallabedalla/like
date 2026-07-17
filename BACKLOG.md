@@ -1059,3 +1059,126 @@ FB16 (plus FB8/FB13 via Runde 21). **Offen: nur noch FB15** (Bandcamp) — brauc
 Scope-Entscheidung (Bandcamp-Einbindung + ToS), kein reiner Bug. Alle Frontend-/Canvas-Fixes
 (FB4/FB5/FB6/FB7/FB9/FB10/FB11/FB12/FB14-UI/FB16-Knopf) sind logik-/syntaxgeprüft, aber im Browser
 noch gegenzusehen. Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
+
+---
+
+## Runde 23 — Neues Testnutzer-Feedback über den ✉-Knopf (2026-07-17)
+
+**Kontext:** 13 neue anonyme `feedback`-Issues **#84–#97** (Stand 17.07., Music-Pack v2.6.0,
+aber diesmal packübergreifend: Music, Books, Boardgames, Podcasts, Papers, Plants, Travel).
+Erfassen und analysieren — noch **nichts umgesetzt**. IDs `FBn` laufen ab Runde 22 (FB16) weiter
+und verweisen 1:1 auf ihr Quell-Issue. (`#90` ist kein Feedback-Issue.)
+
+**Vorbehalt:** Roh-Rückmeldungen, **nicht am Live-Verhalten verifiziert**. Jeder Punkt ist unten
+mit einer ersten Code-Analyse hinterlegt; die offenen Punkte je einzeln am echten Code/Browser
+gegenprüfen, bevor umgesetzt wird. Ein Teil sind reine Bugs, ein Teil braucht eine Betreiber-/
+Scope-/Datenschutz-Entscheidung (unten markiert).
+
+### Schnell & klar umrissen (Frontend-Tweaks)
+- [ ] **FB18 — „+N"-Kugel etwas kleiner, weiterhin dynamisch (#85).** Direkte Nachjustierung von
+  FB11: der `pending`-Chip skaliert seit FB11 mit dem Kugelradius (`pendingBadge`:
+  `r = max(8/view.k, rr*0.42)`, Position `rr*0.82`). Nutzer findet ihn jetzt *einen Tick zu groß*.
+  Faktor `0.42` moderat senken (z. B. `0.34`) und die Mindestgröße beibehalten, damit er beim
+  Rauszoomen lesbar bleibt. Trefferfläche (`onPendingBadge`) zieht automatisch mit. Reiner
+  Tuning-Wert — im Browser gegensehen.
+
+- [ ] **FB19 — „Seite ist im Entstehen"-Hinweis (#86).** Nutzer fragt nach einem dezenten Beta-
+  Hinweis („die Seite ist im Entstehen, es kann noch ab und zu was schiefgehen"). Klein: einmaliger,
+  wegklickbarer Hinweis-Streifen (wie der Login-Hinweis aus N4/FB13-Mechanik) oder eine Zeile im
+  Hilfe-Popover. **Entscheidung nötig:** dauerhafter Footer-Vermerk vs. einmaliger Dismiss-Hinweis —
+  Ersteres ehrlicher, Letzteres unaufdringlicher. Vorschlag: einmalig pro Gerät, dismissbar.
+
+- [ ] **FB22 — „Überrasch mich" lädt neues Buch → Zentralstern ruckelt (#89, Books).** Beim
+  Nachladen über Surprise bekommt der neue Eintrag eine frische Position und der Force-Solver
+  „reheatet" — der zentrale Knoten springt sichtbar. Vermutlich fehlt hier das kalte Einspielen
+  (analog FB5: `rebuild(prev, 0)` statt Reheat) bzw. der neue Knoten sollte am Rand statt in der
+  Mitte spawnen (vgl. R18-Kommentar „freien Startplatz suchen"). Am Books-Pack im Browser
+  reproduzieren, dann Spawn/Reheat dämpfen. (Gilt sinngemäß für alle Nicht-Music-Packs.)
+
+### Zu verifizieren / entscheiden (Bugs & UX)
+- [ ] **FB21 — „Überrasch mich" bei Boardgames: Fehler-401-Toast (#88).** `/api/surprise` liefert
+  nur einen Namen (`surpriseFrom(SURPRISE_SEEDS, popularity)`); den lädt der Client anschließend
+  über `/api/explore`. Der 401 kommt **nicht** aus `/api/surprise`, sondern sehr wahrscheinlich aus
+  dem „Coming soon"-Gate: gesperrte Packs antworten mit `send(res, 401, {error:"locked"})`
+  (`server.mjs`). Boardgames ist nicht das öffentliche Pack (`LIKE_PUBLIC_PACK=music`), d. h. ohne
+  gültiges Unlock-Cookie schlägt der Folge-Call fehl. **Erst live prüfen:** (a) ob der Toast wirklich
+  vom Gate stammt (dann Unlock-Zustand/Redirect sauberer behandeln, statt eines nackten 401-Toasts)
+  oder (b) ob boardgames-`popularity`/`explore` selbst 401t. Gemeinsame Wurzel mit FB28.
+
+- [ ] **FB28 — „Überrasch mich" bei Podcasts: nur Apple, Fehlermeldung nennt alle Quellen (#96).**
+  Der Podcasts-Pack sucht ausschließlich über iTunes (`searchPodcast` → `itunes.apple.com/search`).
+  Findet Apple den Surprise-Seed nicht, scheitert das Laden und der Fehler-Toast listet offenbar die
+  Quellen auf. Zwei Teile: (1) **Quelle** — Fallback über eine zweite Quelle (z. B. TasteDive/
+  Genre-Nachbarn, die der Pack schon für die Brücke nutzt) oder Seeds strikt auf iTunes-auffindbare
+  beschränken; (2) **Fehlertext** — keine internen Quellennamen im Nutzer-Toast, nur eine neutrale
+  Meldung („gerade keine Empfehlung gefunden, nochmal versuchen"). Live gegen die iTunes-Suche prüfen.
+
+- [ ] **FB25 — „Entdecken"-Menü: redundante/verwirrend ähnliche Funktionen (#93, Music).** Bestand
+  heute: der `#discoverBtn`-Popover (`discoverbox`) enthält **Überrasch mich · Szenen · Brückenbauer**,
+  daneben gibt es separat **Radar** (`#radarBtn` bzw. `#mRadar` im Booking-Modus) und **✦ Überrasch
+  mich** nochmal als Empty-State-Button (`#surpriseBtn`). „Überrasch mich" und „Radar" existieren also
+  doppelt/parallel an verschiedenen Stellen — das ist die gemeinte Redundanz. **Entscheidung nötig:**
+  Entdeck-Werkzeuge (Radar, Überrasch mich, Szenen, Brückenbauer) an *einem* Ort bündeln und die
+  Dubletten entfernen; Beschriftungen schärfen. UX-Umbau, kein Bug — erst Konzept, dann umsetzen.
+
+- [ ] **FB26 — „like papers" ist missverständlich („Papier") → evtl. „like Science" (#94).**
+  Pack-Umbenennung `papers`→ Anzeigename „Science" o. Ä. Betrifft Landing-Kachel, Titel, Copy in
+  mehreren Sprachen. **Betreiber-Entscheidung** (Namensgebung/Branding, ggf. URL/`?pack=papers`
+  soll aus Kompatibilität bleiben — nur das *Label* ändern, nicht die Pack-ID). Klein umzusetzen,
+  aber bewusst entscheiden.
+
+- [ ] **FB17 — Geschmacks-Knopf raus, „Aufräumen" kontextabhängig als Ecken-Modal (#84, Music).**
+  Zwei Wünsche: (1) den **◈ Geschmacks-Fingerabdruck-Knopf** (`#tasteBtn`, öffnet die Cross-Domain-
+  Taste-Übersicht) aus der Topbar entfernen; (2) den **Aufräumen-Knopf** (`#tidyBtn`) nicht mehr
+  dauerhaft anzeigen, sondern erst als dezentes Modal in der Bildecke einblenden, **sobald ein
+  gewisser Füllgrad/Chaos erkannt** wird (Knoten-/Kreuzungszahl-Schwelle). **Entscheidung nötig:** ob
+  der Taste-Knopf ganz weg soll (oder nur ins ⋯-Menü wandert) und welche Heuristik „Chaos" auslöst.
+  UX-Umbau — Konzept zuerst.
+
+### Betreiber-/Datenschutz-Entscheidung (Pushover-Tracking)
+- [ ] **FB23 — Screen & Sprache ins Pushover-Signal (#91, Books).** `notifyVisitMaybe` meldet heute
+  Pack, maskierte IP-Region, User-Agent, Referer. Screen-Größe und UI-Sprache liegen **nur im Client**
+  — sie müssten (einmalig, dezent) mitgeschickt werden (z. B. an `/api/health`/Visit-Ping als Query,
+  ohne neue Identifikatoren). Aus dem UA lässt sich Mobile/Desktop grob schon ableiten; echte
+  Viewport-Größe + `navigator.language` wären präziser. **Datenschutz-Entscheidung** (NOTES/Impressum
+  betonen „keine IP/kein Konto" beim Feedback — hier geht es um das *Besuchs*-Signal an den Betreiber).
+- [ ] **FB24 — Letzten Klick/letzte Aktion ins Pushover-Signal (#92, Books).** Wunsch: „was war der
+  letzte Klick der Person". Das ist **Verhaltens-Tracking** — deutlich sensibler als FB23. Technisch:
+  letzte Nutzer-Aktion clientseitig puffern und beim nächsten Signal mitgeben. **Klare Betreiber-/
+  Datenschutz-Entscheidung nötig**, inkl. ob/wie das mit der bisherigen „anonym, keine Session"-
+  Zusage (Impressum) vereinbar ist. Default-Empfehlung: **nicht** ohne bewusste Entscheidung umsetzen.
+
+### Große Bretter (eigene Vorhaben)
+- [ ] **FB20 — Intro-Tour packübergreifend korrekt + USABILITY.md (#87, Boardgames).** Die Tour-Slides
+  (`tourT1`–`tourT5` in `public/index.html`) sind musik-/„Act"-/„Last.fm"-/„Radar"-lastig formuliert
+  und werden in **allen** Packs gleich gezeigt — für Boardgames/Books/… stimmen Begriffe und teils
+  Funktionen nicht mehr mit der realen Bedienung überein. Zwei Stränge: (1) Tour-Copy an die reale,
+  pack-neutrale Bedienung angleichen (Nomen aus der Pack-Config statt hart „Act"); (2) Nutzer-Idee
+  einer **`USABILITY.md`** aufgreifen — eine gepflegte Funktions-/UI-Referenz (jede Funktion + wo sie
+  sitzt), die als Single Source für Tour, Hilfe und künftige Änderungen dient. Empfehlung: `USABILITY.md`
+  zuerst als Bestandsaufnahme anlegen, daraus die Tour korrigieren. Sinnvoll — ja.
+
+- [ ] **FB27 — Bild im Info-Sidebar (#95, Plants; wirkt packübergreifend).** Das Info-Panel (`.panel`,
+  rechts, 320px) zeigt heute Text/Kontext, kein Bild. Wunsch: ein Bild je Eintrag, für Plants
+  idealerweise eine **historische Zeichnung (à la Haeckel/gemeinfrei)**. **Analyse/Entscheidung nötig:**
+  woher das Bild kommt — Wikipedia-/Wikimedia-Thumbnail (schon per Kontext erreichbar, aber Lizenz je
+  Bild prüfen) vs. gemeinfreie Illustrationsquellen (Haeckel-Tafeln liegen als PD auf Wikimedia). Sauber
+  wäre ein optionales `image`/`thumb`-Feld pro Pack (nur wo es eine gute, lizenzklare Quelle gibt) +
+  eine Bildzeile im Panel mit Quellen-/Lizenzhinweis. Scope: Bildquelle + Lizenz + Panel-Layout.
+
+- [ ] **FB29 — Kleine Karte im Info-Sidebar bei Travel (#97).** Wunsch: bei `travel` eine Mini-Karte
+  „wo liegt das?" im Info-Panel — Nutzer selbst schlägt vor, dass notfalls **Land genügt**. **Analyse:**
+  keine Google-API nötig; Optionen (a) statisches, gemeinfreies SVG-Weltkarten-Mini mit gesetztem
+  Marker aus Lat/Lon (kein Netz, keine Keys — bevorzugt), (b) eingebettete OSM-/Wikimedia-Karte
+  (externer Tile-Server, ToS/Netz), (c) nur Land + Flagge als Text/Emoji (minimal). Travel-Pack liefert
+  vermutlich schon Koordinaten/Land über seine Quelle — erst prüfen, dann Variante (a) als
+  key-/netzfreie Lösung. Scope: Datenverfügbarkeit (Lat/Lon) + Panel-Widget.
+
+---
+
+## Arbeitsweise (Runde 23)
+Backlog erst vollständig erfasst. Umsetzung danach **Punkt für Punkt**, je einzeln am echten
+Code/Browser verifizieren, sinnvolle Commits, PR — **nicht ungefragt mergen**. Reihenfolge-Vorschlag:
+zuerst die klaren Frontend-Tweaks (FB18/FB19/FB22) und die Surprise-Bugs (FB21/FB28), dann die
+UX-Umbauten (FB25/FB17) und die großen Bretter (FB20/FB27/FB29); FB23/FB24/FB26 warten auf eine
+Betreiber-Entscheidung. Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
