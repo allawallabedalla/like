@@ -158,6 +158,34 @@ function landingPage(unlocked, req) {
   });
 }
 
+// Gemeinsame Sprachlogik für die statischen Rechtstexte (Impressum/Datenschutz): Deutsch ist die
+// Quellsprache im Markup; ist die Nutzersprache Englisch (gespeicherte Wahl „like_lang" gewinnt,
+// sonst Browsersprache), ersetzt ein kleines Wörterbuch die mit data-i18n markierten Blöcke per
+// innerHTML. Gleiche Mechanik wie App und Startseite — rein clientseitig, damit die eine
+// Sprachwahl (localStorage) auf der ganzen Seite greift. Kein Cookie, kein Serverzustand nötig.
+const LEGAL_LANG_CSS = `
+  .langtgl{position:fixed;top:14px;right:14px;display:inline-flex;border:1px solid #2a3550;border-radius:11px;overflow:hidden;background:#10141fdd;backdrop-filter:blur(8px);z-index:5}
+  .langtgl button{border:0;background:transparent;color:#e7e9ee;opacity:.58;font:600 12px system-ui,-apple-system,sans-serif;padding:8px 10px;cursor:pointer;letter-spacing:.04em}
+  .langtgl button.on{background:#e7e9ee;color:#0a0f1c;opacity:1}
+  .langtgl button:not(.on):hover{opacity:.9}`;
+const LEGAL_LANG_TOGGLE = `<div class="langtgl" id="langTgl" title="Sprache / Language"><button type="button" id="langDe">DE</button><button type="button" id="langEn">EN</button></div>`;
+// Baut das Übersetzungs-Skript. dict = { i18nSchlüssel: englisches innerHTML }, titleEn = engl. <title>.
+function legalI18nScript(dict, titleEn) {
+  return `<script>(function(){
+  function bl(){return ((navigator.language||"en").toLowerCase().indexOf("de")===0)?"de":"en";}
+  var lang=bl();try{var s=localStorage.getItem("like_lang");if(s==="de"||s==="en")lang=s;}catch(e){}
+  document.documentElement.lang=lang;
+  var bD=document.getElementById("langDe"),bE=document.getElementById("langEn");
+  if(bD&&bE){bD.classList.toggle("on",lang==="de");bE.classList.toggle("on",lang==="en");
+    var set=function(l){if(l===lang)return;try{localStorage.setItem("like_lang",l);}catch(e){}location.reload();};
+    bD.onclick=function(){set("de");};bE.onclick=function(){set("en");};}
+  if(lang!=="en")return;
+  var D=${JSON.stringify(dict)};
+  [].slice.call(document.querySelectorAll("[data-i18n]")).forEach(function(el){var k=el.getAttribute("data-i18n");if(D[k]!=null)el.innerHTML=D[k];});
+  var te=${JSON.stringify(titleEn || "")};if(te)document.title=te;
+})();</script>`;
+}
+
 // Impressum (Pflicht in DE): minimale Angaben. Adresse ist als Platzhalter markiert und
 // muss vom Betreiber ergänzt werden (per ENV LIKE_IMPRINT_ADDRESS / _NAME / _EMAIL überschreibbar).
 function impressumPage() {
@@ -172,6 +200,21 @@ function impressumPage() {
   const norm = (s) => s.toLowerCase().replace(/[.\s]+$/, "").trim();
   const addrFirst = addr.split("\n")[0] || "";
   const providerHtml = addr && norm(addrFirst) === norm(name) ? addrHtml : `${esc(name)}<br>${addrHtml}`;
+  const enDict = {
+    "im-back": "← back to like",
+    "im-h1": "Legal notice",
+    "im-note": "Information pursuant to § 5 TMG and § 18 (2) MStV.",
+    "im-provider-h": "Service provider",
+    "im-addrnote": "Please add the summonable postal address (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — without it the legal notice is incomplete.",
+    "im-contact-h": "Contact",
+    "im-contact-p": "Get in touch via the feedback button (✉) in the app.",
+    "im-resp-h": "Responsible for content (§ 18 (2) MStV)",
+    "im-resp-p": "The service provider named above.",
+    "im-liab-h": "Liability for content &amp; links",
+    "im-liab-p": `„like" is a private, non-commercial project and combines data from external sources (incl. Last.fm, TMDB, Wikivoyage, Wikipedia); the rights to it belong to the respective providers. No guarantee is given for accuracy, completeness or timeliness. The operators of linked external sites are solely responsible for their content.`,
+    "im-ds-link": `<a href="/datenschutz">Privacy policy</a>`,
+  };
+  const addrNoteEl = addr ? "" : `<p class="muted todo" data-i18n="im-addrnote">Bitte die ladungsfähige Anschrift ergänzen (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — ohne sie ist das Impressum nicht vollständig.</p>`;
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Impressum — like</title>
@@ -182,22 +225,22 @@ function impressumPage() {
   a{color:#ff8a3d} h1{font-size:28px;margin:0 0 4px} h2{font-size:15px;margin:24px 0 4px}
   p{margin:5px 0;opacity:.92} .muted{opacity:.6;font-size:13px} .todo{color:#ffcf99}
   code{background:#ffffff14;padding:1px 5px;border-radius:4px;font-size:12px}
-  .back{display:inline-block;margin-bottom:22px;opacity:.7;text-decoration:none;color:inherit}
-</style></head><body><div class="wrap">
-  <a class="back" href="/">← zurück zu like</a>
-  <h1>Impressum</h1>
-  <p class="muted">Angaben gemäß § 5 TMG und § 18 Abs. 2 MStV.</p>
-  <h2>Diensteanbieter</h2>
+  .back{display:inline-block;margin-bottom:22px;opacity:.7;text-decoration:none;color:inherit}${LEGAL_LANG_CSS}
+</style></head><body>${LEGAL_LANG_TOGGLE}<div class="wrap">
+  <a class="back" href="/" data-i18n="im-back">← zurück zu like</a>
+  <h1 data-i18n="im-h1">Impressum</h1>
+  <p class="muted" data-i18n="im-note">Angaben gemäß § 5 TMG und § 18 Abs. 2 MStV.</p>
+  <h2 data-i18n="im-provider-h">Diensteanbieter</h2>
   <p>${providerHtml}</p>
-  ${addrNote}
-  <h2>Kontakt</h2>
-  <p>Kontaktaufnahme über den Feedback-Knopf (✉) in der App.</p>
-  <h2>Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
-  <p>Der oben genannte Diensteanbieter.</p>
-  <h2>Haftung für Inhalte &amp; Links</h2>
-  <p class="muted">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
-  <p class="muted" style="margin-top:14px"><a href="/datenschutz">Datenschutzerklärung</a></p>
-</div></body></html>`;
+  ${addrNoteEl}
+  <h2 data-i18n="im-contact-h">Kontakt</h2>
+  <p data-i18n="im-contact-p">Kontaktaufnahme über den Feedback-Knopf (✉) in der App.</p>
+  <h2 data-i18n="im-resp-h">Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
+  <p data-i18n="im-resp-p">Der oben genannte Diensteanbieter.</p>
+  <h2 data-i18n="im-liab-h">Haftung für Inhalte &amp; Links</h2>
+  <p class="muted" data-i18n="im-liab-p">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
+  <p class="muted" style="margin-top:14px" data-i18n="im-ds-link"><a href="/datenschutz">Datenschutzerklärung</a></p>
+</div>${legalI18nScript(enDict, "Legal notice — like")}</body></html>`;
 }
 
 // Datenschutzerklärung — beschreibt die TATSÄCHLICHEN Datenflüsse der App (bewusst knapp und
@@ -205,6 +248,34 @@ function impressumPage() {
 function datenschutzPage() {
   const name = (process.env.LIKE_IMPRINT_NAME || "Nicolas R").trim();
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const enDict = {
+    "im-back": "← back to like",
+    "ds-h1": "Privacy policy",
+    "ds-intro": `„like" is a private, non-commercial project. As little data as possible is processed — no tracking, no ads, no analytics cookies.`,
+    "ds-controller-h": "Controller",
+    "ds-controller-p": `Get in touch via the feedback button (✉) in the app. See the <a href="/impressum">legal notice</a> for details.`,
+    "ds-hosting-h": "Hosting &amp; server logs",
+    "ds-hosting-p": "The app runs at a hosting provider (Render). When you access it, technically necessary server logs are created (incl. IP address, timestamp, requested resource) to deliver and secure the site. Legal basis: legitimate interest (Art. 6(1)(f) GDPR). The provider may operate servers outside the EU; any such transfers take place on the basis of appropriate safeguards where applicable.",
+    "ds-cookies-h": "Cookies &amp; local storage",
+    "ds-cookies-1": "<b>localStorage</b> (anonymous device identifier): keeps your map together on this device so it survives closing the tab. No cookie, no sharing; the associated map is <b>automatically deleted server-side after 30 days without a visit</b>. You can remove the identifier yourself at any time (clear your browser storage).",
+    "ds-cookies-2": "<b>localStorage</b> (theme, view, remembered map section): pure convenience settings that stay on your device.",
+    "ds-cookies-3": "<b>Login cookie</b>: only if you voluntarily create an account — keeps you signed in.",
+    "ds-account-h": "Account (optional)",
+    "ds-account-p": "If you create an account, your username, a <b>hashed</b> password and a recovery code are stored so your map is the same across several devices (Art. 6(1)(b) GDPR). Without an account, everything stays tied to an anonymous device identifier and expires after 30 days of inactivity.",
+    "ds-map-h": "Your map",
+    "ds-map-p": `The map you build up (searched acts, „likes", status, notes) is stored server-side — per account or per anonymous device identifier (the latter is automatically deleted after 30 days without a visit).`,
+    "ds-usage-h": "Anonymous usage counters",
+    "ds-usage-p": `The server counts how often features are used in total (e.g. „search was used 12 times today") — as pure daily totals, <b>without</b> IP addresses, identifiers, profiles or sequences. Drawing conclusions about individual people is not possible; the numbers serve solely to prioritise further development sensibly. No third-party analytics or advertising services are embedded.`,
+    "ds-debug-h": "A brief visit note to me (for debugging)",
+    "ds-debug-p": `„like" is a one-person hobby project, and I have not built in any analytics tools. So that I still notice <b>whether the app actually works</b> — whether someone gets stuck, whether a feature apparently never lands, whether sign-up works —, the site sometimes sends me a <b>short note on my phone</b> when you leave: roughly how long you were there, a coarsely masked region (only the first two IP blocks, e.g. „84.112.*.*"), device type/browser and language, which area (pack) you were in, how many entries were on your map, which features you used and whether an account was created during this session. This is purely <b>debugging for my own project</b> — no marketing, no sharing. The note goes <b>only to me</b>, is <b>not stored</b> and <b>not recognised again</b>: there is no cross-device or cross-session identifier and no profile about you — your next visit is a new, unlinkable event to me. No third-party analytics or advertising services are involved; to deliver the note I may use the push service Pushover. Legal basis is my legitimate interest in keeping the app running and improving it (Art. 6(1)(f) GDPR).`,
+    "ds-feedback-h": "Feedback",
+    "ds-feedback-p": "If you voluntarily use the <b>feedback button</b> (✉), the message text you enter is sent to the server together with the currently selected domain and the app version and <b>stored there for processing</b> — depending on configuration as a push message to the operator and/or as an entry in a private task/ticket system (GitHub). Storage is <b>anonymous</b>: <b>no</b> IP address, identifier or account detail is stored with it, and the text is not attributed to any person. Legal basis is our legitimate interest in improving the app (Art. 6(1)(f) GDPR); use is voluntary. <b>Please do not enter any personal data in the free text.</b> As the ticket system (GitHub) is based outside the EU, a transfer to a third country may occur.",
+    "ds-external-h": "External services",
+    "ds-external-p": "Content is assembled from external sources (incl. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). These queries run <b>server-side</b> — your IP address is <b>not</b> passed on to these services. Exceptions, where your browser loads directly from the respective provider (and your IP reaches them): the <b>30-second audio previews</b> (Deezer/iTunes CDN) and the <b>update notice</b> (GitHub). No analytics or advertising services are embedded.",
+    "ds-rights-h": "Your rights",
+    "ds-rights-p": "You have the right to access, rectification, erasure, restriction, data portability and objection (Art. 15–21 GDPR) as well as the right to lodge a complaint with a supervisory authority. An account can be deleted along with its data on request; without an account, clearing your browser storage is enough.",
+    "ds-stand": "Status: template — please update and have it legally reviewed if operations change.",
+  };
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Datenschutz — like</title>
@@ -214,37 +285,37 @@ function datenschutzPage() {
   .wrap{max-width:680px;margin:0 auto;padding:52px 22px 60px}
   a{color:#ff8a3d} h1{font-size:28px;margin:0 0 4px} h2{font-size:15px;margin:24px 0 4px}
   p,li{margin:5px 0;opacity:.92} .muted{opacity:.6;font-size:13px} ul{margin:5px 0;padding-left:20px}
-  .back{display:inline-block;margin-bottom:22px;opacity:.7;text-decoration:none;color:inherit}
-</style></head><body><div class="wrap">
-  <a class="back" href="/">← zurück zu like</a>
-  <h1>Datenschutzerklärung</h1>
-  <p class="muted">„like" ist ein privates, nicht-kommerzielles Projekt. Es werden so wenig Daten wie möglich verarbeitet — kein Tracking, keine Werbung, keine Analyse-Cookies.</p>
-  <h2>Verantwortlicher</h2>
-  <p>${esc(name)} · Kontaktaufnahme über den Feedback-Knopf (✉) in der App. Näheres im <a href="/impressum">Impressum</a>.</p>
-  <h2>Hosting &amp; Server-Logs</h2>
-  <p>Die App läuft bei einem Hosting-Anbieter (Render). Beim Aufruf entstehen technisch notwendige Server-Logs (u. a. IP-Adresse, Zeitpunkt, angeforderte Ressource) zur Auslieferung und Sicherheit der Seite. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Der Anbieter kann Server außerhalb der EU betreiben; entsprechende Übermittlungen erfolgen ggf. auf Grundlage geeigneter Garantien.</p>
-  <h2>Cookies &amp; lokale Speicherung</h2>
+  .back{display:inline-block;margin-bottom:22px;opacity:.7;text-decoration:none;color:inherit}${LEGAL_LANG_CSS}
+</style></head><body>${LEGAL_LANG_TOGGLE}<div class="wrap">
+  <a class="back" href="/" data-i18n="im-back">← zurück zu like</a>
+  <h1 data-i18n="ds-h1">Datenschutzerklärung</h1>
+  <p class="muted" data-i18n="ds-intro">„like" ist ein privates, nicht-kommerzielles Projekt. Es werden so wenig Daten wie möglich verarbeitet — kein Tracking, keine Werbung, keine Analyse-Cookies.</p>
+  <h2 data-i18n="ds-controller-h">Verantwortlicher</h2>
+  <p>${esc(name)} · <span data-i18n="ds-controller-p">Kontaktaufnahme über den Feedback-Knopf (✉) in der App. Näheres im <a href="/impressum">Impressum</a>.</span></p>
+  <h2 data-i18n="ds-hosting-h">Hosting &amp; Server-Logs</h2>
+  <p data-i18n="ds-hosting-p">Die App läuft bei einem Hosting-Anbieter (Render). Beim Aufruf entstehen technisch notwendige Server-Logs (u. a. IP-Adresse, Zeitpunkt, angeforderte Ressource) zur Auslieferung und Sicherheit der Seite. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Der Anbieter kann Server außerhalb der EU betreiben; entsprechende Übermittlungen erfolgen ggf. auf Grundlage geeigneter Garantien.</p>
+  <h2 data-i18n="ds-cookies-h">Cookies &amp; lokale Speicherung</h2>
   <ul>
-    <li><b>localStorage</b> (anonyme Geräte-Kennung): hält deine Karte auf diesem Gerät zusammen, damit sie das Schließen des Tabs überlebt. Kein Cookie, keine Weitergabe; die zugehörige Karte wird serverseitig nach <b>30 Tagen ohne Besuch automatisch gelöscht</b>. Du kannst die Kennung jederzeit selbst entfernen (Browser-Speicher leeren).</li>
-    <li><b>localStorage</b> (Theme, Ansicht, gemerkter Kartenausschnitt): reine Komfort-Einstellungen, verbleiben auf deinem Gerät.</li>
-    <li><b>Login-Cookie</b>: nur wenn du dir freiwillig ein Konto anlegst — hält dich angemeldet.</li>
+    <li data-i18n="ds-cookies-1"><b>localStorage</b> (anonyme Geräte-Kennung): hält deine Karte auf diesem Gerät zusammen, damit sie das Schließen des Tabs überlebt. Kein Cookie, keine Weitergabe; die zugehörige Karte wird serverseitig nach <b>30 Tagen ohne Besuch automatisch gelöscht</b>. Du kannst die Kennung jederzeit selbst entfernen (Browser-Speicher leeren).</li>
+    <li data-i18n="ds-cookies-2"><b>localStorage</b> (Theme, Ansicht, gemerkter Kartenausschnitt): reine Komfort-Einstellungen, verbleiben auf deinem Gerät.</li>
+    <li data-i18n="ds-cookies-3"><b>Login-Cookie</b>: nur wenn du dir freiwillig ein Konto anlegst — hält dich angemeldet.</li>
   </ul>
-  <h2>Konto (optional)</h2>
-  <p>Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an eine anonyme Geräte-Kennung gebunden und verfällt nach 30 Tagen Inaktivität.</p>
-  <h2>Deine Karte</h2>
-  <p>Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Geräte-Kennung (Letztere wird nach 30 Tagen ohne Besuch automatisch gelöscht).</p>
-  <h2>Anonyme Nutzungszähler</h2>
-  <p>Der Server zählt, wie oft Funktionen insgesamt genutzt werden (z. B. „Suche wurde heute 12-mal verwendet") — als reine Tagessummen, <b>ohne</b> IP-Adressen, Kennungen, Profile oder Reihenfolgen. Ein Rückschluss auf einzelne Personen ist damit nicht möglich; die Zahlen dienen allein dazu, die Weiterentwicklung sinnvoll zu priorisieren. Es sind keinerlei Analyse- oder Werbedienste Dritter eingebunden.</p>
-  <h2>Kurzer Besuchs-Hinweis an mich (zum Debuggen)</h2>
-  <p>„like" ist ein Ein-Personen-Bastelprojekt, und ich habe keine Analyse-Tools eingebaut. Damit ich trotzdem merke, <b>ob die App überhaupt funktioniert</b> — ob jemand hängen bleibt, ob eine Funktion offenbar nie ankommt, ob die Anmeldung klappt —, schickt mir die Seite beim Verlassen manchmal eine <b>kurze Notiz aufs Handy</b>: ungefähr wie lange du da warst, grob maskierte Region (nur die ersten beiden IP-Blöcke, z. B. „84.112.*.*"), Gerätetyp/Browser und Sprache, in welchem Bereich (Pack) du warst, wie viele Einträge auf deiner Karte lagen, welche Funktionen du benutzt hast und ob in dieser Sitzung ein Konto entstanden ist. Das ist reines <b>Debugging fürs eigene Projekt</b> — keine Vermarktung, keine Weitergabe. Die Notiz landet <b>nur bei mir</b>, wird <b>nicht gespeichert</b> und <b>nicht wiedererkannt</b>: Es gibt keine geräte- oder sitzungsübergreifende Kennung und kein Profil über dich — dein nächster Besuch ist für mich ein neuer, nicht verknüpfbarer Vorgang. Es sind keine Analyse- oder Werbedienste Dritter beteiligt; für die Zustellung der Notiz nutze ich ggf. den Push-Dienst Pushover. Rechtsgrundlage ist mein berechtigtes Interesse, die App am Laufen zu halten und zu verbessern (Art. 6 Abs. 1 lit. f DSGVO).</p>
-  <h2>Feedback</h2>
-  <p>Nutzt du freiwillig den <b>Feedback-Knopf</b> (✉), wird der von dir eingegebene Nachrichtentext zusammen mit der aktuell gewählten Domäne und der App-Version an den Server übermittelt und dort <b>zur Bearbeitung gespeichert</b> — je nach Konfiguration als Push-Nachricht an den Betreiber und/oder als Eintrag in einem privaten Aufgaben-/Ticket-System (GitHub). Die Speicherung erfolgt <b>anonym</b>: es werden <b>keine</b> IP-Adresse, Kennung oder Konto-Angabe mitgespeichert, und der Text wird keiner Person zugeordnet. Rechtsgrundlage ist unser berechtigtes Interesse an der Verbesserung der App (Art. 6 Abs. 1 lit. f DSGVO); die Nutzung ist freiwillig. <b>Bitte gib im Freitext keine personenbezogenen Daten ein.</b> Da das Ticket-System (GitHub) seinen Sitz außerhalb der EU hat, kann dabei eine Übermittlung in ein Drittland erfolgen.</p>
-  <h2>Externe Dienste</h2>
-  <p>Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
-  <h2>Deine Rechte</h2>
-  <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie ein Beschwerderecht bei einer Aufsichtsbehörde. Ein Konto lässt sich samt Daten auf Anfrage löschen; ohne Konto genügt das Leeren des Browser-Speichers.</p>
-  <p class="muted" style="margin-top:16px">Stand: Vorlage — bei geändertem Betrieb bitte aktualisieren und juristisch prüfen lassen.</p>
-</div></body></html>`;
+  <h2 data-i18n="ds-account-h">Konto (optional)</h2>
+  <p data-i18n="ds-account-p">Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an eine anonyme Geräte-Kennung gebunden und verfällt nach 30 Tagen Inaktivität.</p>
+  <h2 data-i18n="ds-map-h">Deine Karte</h2>
+  <p data-i18n="ds-map-p">Die von dir aufgebaute Karte (gesuchte Acts, „Likes", Status, Notizen) wird serverseitig gespeichert — pro Konto bzw. pro anonymer Geräte-Kennung (Letztere wird nach 30 Tagen ohne Besuch automatisch gelöscht).</p>
+  <h2 data-i18n="ds-usage-h">Anonyme Nutzungszähler</h2>
+  <p data-i18n="ds-usage-p">Der Server zählt, wie oft Funktionen insgesamt genutzt werden (z. B. „Suche wurde heute 12-mal verwendet") — als reine Tagessummen, <b>ohne</b> IP-Adressen, Kennungen, Profile oder Reihenfolgen. Ein Rückschluss auf einzelne Personen ist damit nicht möglich; die Zahlen dienen allein dazu, die Weiterentwicklung sinnvoll zu priorisieren. Es sind keinerlei Analyse- oder Werbedienste Dritter eingebunden.</p>
+  <h2 data-i18n="ds-debug-h">Kurzer Besuchs-Hinweis an mich (zum Debuggen)</h2>
+  <p data-i18n="ds-debug-p">„like" ist ein Ein-Personen-Bastelprojekt, und ich habe keine Analyse-Tools eingebaut. Damit ich trotzdem merke, <b>ob die App überhaupt funktioniert</b> — ob jemand hängen bleibt, ob eine Funktion offenbar nie ankommt, ob die Anmeldung klappt —, schickt mir die Seite beim Verlassen manchmal eine <b>kurze Notiz aufs Handy</b>: ungefähr wie lange du da warst, grob maskierte Region (nur die ersten beiden IP-Blöcke, z. B. „84.112.*.*"), Gerätetyp/Browser und Sprache, in welchem Bereich (Pack) du warst, wie viele Einträge auf deiner Karte lagen, welche Funktionen du benutzt hast und ob in dieser Sitzung ein Konto entstanden ist. Das ist reines <b>Debugging fürs eigene Projekt</b> — keine Vermarktung, keine Weitergabe. Die Notiz landet <b>nur bei mir</b>, wird <b>nicht gespeichert</b> und <b>nicht wiedererkannt</b>: Es gibt keine geräte- oder sitzungsübergreifende Kennung und kein Profil über dich — dein nächster Besuch ist für mich ein neuer, nicht verknüpfbarer Vorgang. Es sind keine Analyse- oder Werbedienste Dritter beteiligt; für die Zustellung der Notiz nutze ich ggf. den Push-Dienst Pushover. Rechtsgrundlage ist mein berechtigtes Interesse, die App am Laufen zu halten und zu verbessern (Art. 6 Abs. 1 lit. f DSGVO).</p>
+  <h2 data-i18n="ds-feedback-h">Feedback</h2>
+  <p data-i18n="ds-feedback-p">Nutzt du freiwillig den <b>Feedback-Knopf</b> (✉), wird der von dir eingegebene Nachrichtentext zusammen mit der aktuell gewählten Domäne und der App-Version an den Server übermittelt und dort <b>zur Bearbeitung gespeichert</b> — je nach Konfiguration als Push-Nachricht an den Betreiber und/oder als Eintrag in einem privaten Aufgaben-/Ticket-System (GitHub). Die Speicherung erfolgt <b>anonym</b>: es werden <b>keine</b> IP-Adresse, Kennung oder Konto-Angabe mitgespeichert, und der Text wird keiner Person zugeordnet. Rechtsgrundlage ist unser berechtigtes Interesse an der Verbesserung der App (Art. 6 Abs. 1 lit. f DSGVO); die Nutzung ist freiwillig. <b>Bitte gib im Freitext keine personenbezogenen Daten ein.</b> Da das Ticket-System (GitHub) seinen Sitz außerhalb der EU hat, kann dabei eine Übermittlung in ein Drittland erfolgen.</p>
+  <h2 data-i18n="ds-external-h">Externe Dienste</h2>
+  <p data-i18n="ds-external-p">Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
+  <h2 data-i18n="ds-rights-h">Deine Rechte</h2>
+  <p data-i18n="ds-rights-p">Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie ein Beschwerderecht bei einer Aufsichtsbehörde. Ein Konto lässt sich samt Daten auf Anfrage löschen; ohne Konto genügt das Leeren des Browser-Speichers.</p>
+  <p class="muted" style="margin-top:16px" data-i18n="ds-stand">Stand: Vorlage — bei geändertem Betrieb bitte aktualisieren und juristisch prüfen lassen.</p>
+</div>${legalI18nScript(enDict, "Privacy — like")}</body></html>`;
 }
 
 // Radar ist teuer (viele Popularitäts-Lookups) -> 10 Min im Speicher cachen, PRO GRAPH-DATEI
