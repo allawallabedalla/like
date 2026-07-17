@@ -1297,6 +1297,34 @@ const server = createServer(async (req, res) => {
       });
     }
 
+    // FB15/#72: Bandcamp-„Geheimtipps" — auf ausdrückliche Anfrage kleine, oft NUR auf Bandcamp
+    // existierende Acts als View-only-Blätter an einen vorhandenen Act hängen (Eckverbinder über
+    // dessen Genres). LAZY: nur hier, nie im normalen Explore-/Radar-Pfad -> Default = null Kosten.
+    if (req.method === "POST" && url.pathname === "/api/bandcamp/reveal") {
+      if (!pack.bandcampNeighbors) return send(res, 400, { error: "Für dieses Pack nicht verfügbar." });
+      const { id } = await readBody(req);
+      let picks = [];
+      return withGraphLock(GRAPH, async () => {
+        const g = await loadGraph(GRAPH);
+        const src = g.artists[id];
+        if (!src) return send(res, 404, { error: "Eintrag unbekannt" });
+        try { picks = await pack.bandcampNeighbors(src.name, { genres: src.genres || [] }); } catch { picks = []; }
+        // Nur echter Longtail: schon vorhandene Knoten überspringen (kein Dublett auf der Karte).
+        let added = 0;
+        for (const p of picks) {
+          const tid = slug(p.name);
+          if (!tid || tid === src.id || g.artists[tid]) continue;
+          const t = upsertArtist(g, { name: p.name, url: p.url || null });
+          t.bandcampOnly = true;               // View-only-Blatt: kein Last.fm -> nicht weiter erkundbar
+          if (p.url) t.url = p.url;
+          addEdge(g, src.id, t.id, "similar", 0.4, "bandcamp");
+          added++;
+        }
+        if (added) await persist(g);
+        return send(res, 200, { ok: true, added, found: picks.length, graph: materialize(g) });
+      });
+    }
+
     // Brücke suchen (Routenplaner): Sitzung starten. Beide Endpunkte werden aufgelöst und
     // ihre direkten Nachbarn geladen; gibt es schon eine Begegnung (A—X—B), kommt das
     // Ergebnis sofort. Sonst antwortet der Server mit einer Sitzungs-Id + Fortschritt und

@@ -1036,7 +1036,7 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
   `tag.gettopartists`, hintere Hälfte = Geheimtipp, garantiert ladbar); leer = wie bisher. Neu:
   `getTagArtists` (lib/lastfm.mjs), `surprise({genre})` (music-pack), `?genre=` an `/api/surprise`.
   Am echten Modul verifiziert.
-- [ ] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** *Analyse:* `lib/bandcamp.mjs` bietet
+- [x] **FB15 — Bandcamp als Quelle für kleine Acts (#72).** *Analyse:* `lib/bandcamp.mjs` bietet
   bereits `discoverTag(genre)` (kleine, neue Acts je Genre) + `searchBand` (Ort). Das Problem ist
   nicht die Quelle, sondern die **Einbindung**: der Graph ist namensbasiert über Last.fm — Bandcamp-
   *only*-Acts laden dort nicht (`exploreByName` findet sie nicht). Es braucht die „Eckverbinder"-
@@ -1083,6 +1083,22 @@ offenen Punkte je einzeln am echten Code/Browser gegenprüfen, bevor umgesetzt w
       (Name-Dedup + optionaler Last.fm-Gegencheck). *Optionaler Spike vorab:* `discoverTag` über ein paar
       Genres sampeln und die Last.fm-Auffindbarkeit messen (quantifiziert den Longtail) — nur auf einem
       echten Deploy lauffähig (externe Hosts hier blockiert).
+    - **✅ Umgesetzt (2026-07-17):** Genau nach Plan. **Pack** `packs/music/pack.mjs`: neue Methode
+      `bandcampNeighbors(name, {genres})` (Genre-Discovery via `discoverTag`, dedup, defensiv → `[]`)
+      + `features.bandcamp:true`. **Server** `POST /api/bandcamp/reveal {id}`: nur wenn
+      `pack.bandcampNeighbors` existiert (sonst 400), hängt die Tipps als Knoten mit `bandcampOnly:true`
+      + `url` und `similar`-Kante (source „bandcamp") an den Act; **lazy** (nie im explore-/radar-Pfad).
+      **Client:** Opt-in-Knopf „⊕ Bandcamp-Geheimtipps" im Info-Panel (`#bandcampRow`, nur `FEAT.bandcamp`,
+      nicht für Bandcamp-Blätter, nicht STATIC) → ruft den Endpoint, spielt den Graphen wie `revealMore`
+      ein. **Sackgassen-Handling:** Bandcamp-Blätter sind kein Last.fm → alle Explore-Auslöser
+      (Doppelklick, e-Taste, Panel-Knopf, Kontextmenü) laufen über `expandOrOpen(n)`, das bei
+      `bandcampOnly` die **Bandcamp-Seite öffnet** statt zu erkunden; der Panel-Knopf heißt dann
+      „Auf Bandcamp öffnen ↗". DE+EN. **Verifiziert:** `bandcampOnly`+Kante überleben `migrate`+
+      `materialize` (Unit-Test); Endpoint-Gate 404/400 (curl); volle Playwright-Suite grün.
+      **Live-Vorbehalt:** die echte `discoverTag`-Qualität ist in dieser Umgebung nicht testbar
+      (Bandcamp-Host blockiert) — auf einem echten Deploy einmal gegensehen (liefert sinnvolle Tipps?
+      wie viele echte Bandcamp-only?). Der optionale Last.fm-Gegencheck (nur echter Longtail) bleibt
+      ein möglicher Zusatz.
 - [x] **FB16 — Interaktiver HTML-Snapshot-Export (#69).** ✅ Variante **c** umgesetzt: neuer
   Server-Endpoint `GET /api/export.html` bettet den aktuellen Nutzer-Graph + Pack-Config **voll-inline**
   ein (`APP_SPLIT.raw`, keine externen `app.<hash>`-Dateien) → ansehen/zoomen/filtern/Infos/PNG laufen

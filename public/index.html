@@ -1315,6 +1315,11 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <div class="likegroup"><button id="basketBtn" title="In die aktive Liste aufnehmen (Taste b)">like!</button><button id="likeMore" title="In welche Liste? — mehrere möglich">▾</button></div>
       <button id="bridgeBtn" class="workonly" title="Welcher Eintrag verbindet diesen mit einem anderen? Hier klicken, dann Ziel wählen">Brücke bauen…</button>
     </div>
+    <!-- FB15/#72: Bandcamp-Geheimtipps — opt-in, lazy; nur Music (features.bandcamp), standardmäßig aus.
+         Lädt erst auf Klick kleine, oft Bandcamp-only-Acts als Blätter an diesen Eintrag. -->
+    <div class="row" id="bandcampRow" style="margin-top:8px;display:none">
+      <button id="bandcampBtn" title="Kleine Acts laden, die (oft) nur auf Bandcamp existieren — als Blätter an diesen Eintrag (lädt erst auf Klick)">⊕ Bandcamp-Geheimtipps</button>
+    </div>
     <div class="field workonly">
       <label>Status</label>
       <div class="statusrow">
@@ -1472,6 +1477,11 @@ const T = LANG !== "en" ? null : {
   "Überrasch mich": "Surprise me",
   "Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.": "A random stroll through your network — lands somewhere new.",
   "Kleine, noch unentdeckte Einträge nah an deinem Geschmack — mit Begründung.": "Small, still-undiscovered entries close to your taste — with reasoning.",
+  "⊕ Bandcamp-Geheimtipps": "⊕ Bandcamp hidden gems",
+  "⊕ Lade Bandcamp …": "⊕ Loading Bandcamp …",
+  "Auf Bandcamp öffnen ↗": "Open on Bandcamp ↗",
+  "Keine Bandcamp-Geheimtipps gefunden.": "No Bandcamp hidden gems found.",
+  "{N} Bandcamp-Tipp(s) hinzugefügt": "Added {N} Bandcamp gem(s)",
   "Szenen zeigen": "Show scenes",
   "Hebt zusammengehörige Gruppen als sanfte Farbflächen hervor.": "Highlights groups that belong together as soft color areas.",
   "Brückenbauer": "Bridge builders", "Welche Einträge halten deine Szenen zusammen?": "Which entries hold your scenes together?",
@@ -2104,6 +2114,7 @@ const API = {
   artist: (body) => POST("/api/artist", body),
   lists: (body) => POST("/api/lists", body), // v2.6: Like-Listen anlegen/umbenennen/umfärben/löschen
   reveal: (id) => POST("/api/reveal", { id }), // „+K laden": geparkte Nachbarn eines Acts nachholen
+  bandcampReveal: (id) => POST("/api/bandcamp/reveal", { id }), // FB15: Bandcamp-Geheimtipps an einen Act
   suggest: (q) => GET("/api/suggest?q=" + encodeURIComponent(q)),
   demo: () => GET("/api/demo"),
   shareMap: () => POST("/api/share", {}),
@@ -3974,7 +3985,7 @@ addEventListener("mouseup", (e) => {
 cv.addEventListener("dblclick", (e) => {
   const p = canvasXY(e);
   const n = pick(p.x, p.y);
-  if (n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppelklick = weiter hangeln
+  if (n && !n.venue) { selectNode(n); expandOrOpen(n); } // Doppelklick = weiter hangeln (Bandcamp: öffnen)
 });
 cv.addEventListener("contextmenu", (e) => {
   e.preventDefault();
@@ -4076,7 +4087,7 @@ cv.addEventListener("touchend", (e) => {
         // gut treffbar: der Chip wächst und trägt eine großzügige (COARSE-)Trefferfläche.
         if (onPendingBadge(n, p.x, p.y)) { revealMore(n); lastTapT = now; lastTapNode = n; touch = null; return; }
         if (bridgeFrom) finishBridge(n);
-        else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); exploreByName(n.name); } // Doppeltipp
+        else if (now - lastTapT < 300 && lastTapNode === n && !n.venue) { selectNode(n); expandOrOpen(n); } // Doppeltipp
         else { selectNode(n); } // Tipp = nur Info-Karte öffnen; Abspielen über den ▶ im Panel
         lastTapT = now; lastTapNode = n;
       } else if (!bridge) closePanel();
@@ -4192,6 +4203,13 @@ function selectNode(n) {
   document.getElementById("fee").value = n.fee || "";
   document.getElementById("note").value = n.note || "";
   refreshLikeBtn();
+  // FB15/#72: Bandcamp-Geheimtipps-Zeile nur für Music (FEAT.bandcamp), nicht für Bandcamp-Blätter
+  // selbst, nicht im STATIC-Snapshot. Und: ein Bandcamp-Blatt ist eine Sackgasse (kein Last.fm) —
+  // der „Weiter erkunden"-Knopf wird zu „Auf Bandcamp öffnen ↗".
+  const bcRow = document.getElementById("bandcampRow");
+  if (bcRow) bcRow.style.display = (FEAT.bandcamp && !n.bandcampOnly && !STATIC) ? "flex" : "none";
+  const expandBtn = document.getElementById("expand");
+  expandBtn.textContent = (n.bandcampOnly && n.url) ? t("Auf Bandcamp öffnen ↗") : t("Weiter erkunden");
   document.getElementById("pLabels").innerHTML = "";
   if (!STATIC) loadDetails(n);  // Genres + Hörerzahl + Ort beim Anklicken nachladen
 
@@ -4453,7 +4471,30 @@ document.getElementById("saveNote").onclick = async () => {
   const res = await API.artist({ id: selected.id, note });
   if (res.ok) { selected.note = note; graph.artists[selected.id].note = note; toast("Notiz gespeichert"); }
 };
-document.getElementById("expand").onclick = () => { if (selected && !selected.venue) exploreByName(selected.name); };
+// FB15/#72: Bandcamp-only-Blätter sind Sackgassen (kein Last.fm) — statt „weiter erkunden" die
+// Bandcamp-Seite öffnen. Alle Explore-Auslöser (Doppelklick, e-Taste, Panel-Knopf, Kontextmenü)
+// laufen über diesen Helfer, damit sie bei Bandcamp-Knoten nicht ins Leere erkunden.
+function expandOrOpen(n) {
+  if (!n || n.venue) return;
+  if (n.bandcampOnly) { if (n.url) window.open(n.url, "_blank", "noopener"); return; }
+  exploreByName(n.name);
+}
+document.getElementById("expand").onclick = () => { if (selected) expandOrOpen(selected); };
+// FB15/#72: Bandcamp-Geheimtipps laden (opt-in, lazy) — hängt kleine, oft Bandcamp-only-Acts als
+// Blätter an den gewählten Act. Erst DIESER Klick löst Bandcamp-Aufrufe aus (Default = null Kosten).
+document.getElementById("bandcampBtn").onclick = async () => {
+  if (!selected || selected.venue || selected.bandcampOnly || STATIC) return;
+  const btn = document.getElementById("bandcampBtn"); const lbl = btn.textContent;
+  btn.disabled = true; btn.textContent = t("⊕ Lade Bandcamp …");
+  try {
+    const srcName = selected.name;
+    const r = await API.bandcampReveal(selected.id);
+    if (r?.graph) reload(srcName, { graph: r.graph, center: false, reheatAmt: 0.7 });
+    if (r && r.added === 0) toast(t("Keine Bandcamp-Geheimtipps gefunden."));
+    else if (r && r.added) toast(tf("{N} Bandcamp-Tipp(s) hinzugefügt", { N: r.added }));
+  } catch { toast(t("Konnte nicht laden.")); }
+  finally { btn.disabled = false; btn.textContent = lbl; }
+};
 
 document.getElementById("removeAct").onclick = async () => {
   if (!selected || selected.venue) return;
@@ -4885,13 +4926,13 @@ function showCtx(n, x, y) {
   ] : MODE === "fun" ? [
     // Stöbern-Modus: nur die vier Kern-Aktionen — Profi-Werkzeuge (Fokus, Vergleich, Brücke,
     // Fixieren) bleiben dem Booking-Modus vorbehalten.
-    ["Weiter erkunden", () => exploreByName(n.name)],
+    ["Weiter erkunden", () => expandOrOpen(n)],
     ["Details öffnen", () => selectNode(n)],
     ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
     likeItem,
     ["Entfernen", () => removeNode(n)],
   ] : [
-    ["Weiter erkunden", () => exploreByName(n.name)],
+    ["Weiter erkunden", () => expandOrOpen(n)],
     ["Details öffnen", () => selectNode(n)],
     ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
@@ -6349,7 +6390,7 @@ addEventListener("keydown", (e) => {
   if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") { if (e.key === "Escape") e.target.blur(); return; }
   if (e.key === "/") { e.preventDefault(); qEl.focus(); }
   else if (e.key === "Escape") { hideCtx(); if (moreEl.classList.contains("show")) moreEl.classList.remove("show"); else if (listOpen) toggleListView(false); else if (discoverEl.classList.contains("show")) discoverEl.classList.remove("show"); else if (radarEl.classList.contains("show")) closeRadar(); else if (helpEl.classList.contains("show")) toggleHelp(); else if (bridgeFrom || bridge) clearBridge(); else if (bridgeSet.size) clearBridges(); else if (focusId) clearFocus(); else if (compareSet.size) clearCompare(); else closePanel(); }
-  else if (e.key === "e" && selected && !selected.venue) exploreByName(selected.name);
+  else if (e.key === "e" && selected && !selected.venue) expandOrOpen(selected);
   else if (e.key === "f" && selected) toggleFocus(selected);
   else if (e.key === "b" && selected) toggleBasket(selected);
   else if (e.key === "Delete" && selected && !selected.venue) removeNode(selected);
