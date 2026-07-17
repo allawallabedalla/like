@@ -1082,7 +1082,7 @@ live/im Browser final zu bestätigen. Betreiber-Entscheidungen zu FB17/FB19/FB23
 eingetragen.
 
 ### Schnell & klar umrissen (Frontend-Tweaks)
-- [ ] **FB18 — „+N"-Kugel etwas kleiner, weiterhin dynamisch (#85).** Direkte Nachjustierung von
+- [x] **FB18 — „+N"-Kugel etwas kleiner, weiterhin dynamisch (#85).** Direkte Nachjustierung von
   FB11: der `pending`-Chip skaliert seit FB11 mit dem Kugelradius (`pendingBadge`:
   `r = max(8/view.k, rr*0.42)`, Position `rr*0.82`). Nutzer findet ihn jetzt *einen Tick zu groß*.
   Faktor `0.42` moderat senken (z. B. `0.34`) und die Mindestgröße beibehalten, damit er beim
@@ -1093,12 +1093,12 @@ eingetragen.
     automatisch mit. **Fix:** `0.42 → 0.34`, Mindestgröße (`8/view.k`) + Position (`rr*0.82`)
     bleiben. Keine Nebenwirkungen, kein Test-Bruch erwartet.
 
-- [ ] **FB19 — „Seite ist im Entstehen"-Hinweis (#86).** Nutzer fragt nach einem dezenten Beta-
+- [x] **FB19 — „Seite ist im Entstehen"-Hinweis (#86).** Nutzer fragt nach einem dezenten Beta-
   Hinweis („die Seite ist im Entstehen, es kann noch ab und zu was schiefgehen"). **Entscheidung
   getroffen (2026-07-17): dauerhafter Footer-Vermerk** — kleiner, immer sichtbarer Hinweis (DE+EN),
   nicht wegklickbar. Dezent stylen, damit er nicht mit der Bedienung konkurriert.
 
-- [ ] **FB22 — „Überrasch mich" lädt neues Buch → Zentralstern ruckelt (#89, Books).** Beim
+- [x] **FB22 — „Überrasch mich" lädt neues Buch → Zentralstern ruckelt (#89, Books).** Beim
   Nachladen über Surprise bekommt der neue Eintrag eine frische Position und der Force-Solver
   „reheatet" — der zentrale Knoten springt sichtbar. Vermutlich fehlt hier das kalte Einspielen
   (analog FB5: `rebuild(prev, 0)` statt Reheat) bzw. der neue Knoten sollte am Rand statt in der
@@ -1171,19 +1171,22 @@ eingetragen.
     **Konzept-Vorschlag:** (1) Radar als vierten `.ditem` ins Popover holen, `#radarBtn` aus der Topbar
     nehmen; (2) den Netz-Streifzug umbenennen (z. B. „Streifzug"), damit „Überrasch mich" eindeutig der
     Empty-State-Act-Lader bleibt; (3) Empty-State-Surprise + Genre-Feld bewusst getrennt lassen.
-    **→ offene Design-Fragen an den Nutzer (siehe unten), erst dann umbauen.**
+    **→ Entscheidung getroffen (2026-07-17): den Netz-Streifzug umbenennen** (Empty-State bleibt
+    „✦ Überrasch mich" = Act laden; Popover-Eintrag `#discSurprise`/Fun-Modus wird zu „Streifzug",
+    DE+EN). Radar zusätzlich ins Entdecken-Popover holen, `#radarBtn` aus der Topbar nehmen.
 
-- [ ] **FB26 — „like papers" ist missverständlich („Papier") → „like Science" (#94).**
+- [x] **FB26 — „like papers" ist missverständlich („Papier") → „like Science" (#94).**
   **Entscheidung getroffen (2026-07-17): Anzeigename → „Science"**, **Pack-ID/URL `?pack=papers`
   bleibt** (Kompatibilität). Nur das Label ändern: Landing-Kachel, Titel/`<title>`, Intro/Copy in
   DE+EN. Pack-interne IDs, Datenpfade und Endpoints unangetastet lassen.
 
-- [ ] **FB17 — Geschmacks-Knopf raus, „Aufräumen" kontextabhängig als Ecken-Modal (#84, Music).**
-  Zwei Wünsche: (1) den **◈ Geschmacks-Fingerabdruck-Knopf** (`#tasteBtn`, öffnet die Cross-Domain-
-  Taste-Übersicht) → **Entscheidung getroffen (2026-07-17): ganz entfernen** (Button + `#tasteBtn`-
-  Verdrahtung + zugehöriges Panel/Handler; auf tote Referenzen achten, vgl. F4-Aufräumen). (2) den
+- [~] **FB17 — Geschmacks-Knopf raus, „Aufräumen" kontextabhängig als Ecken-Modal (#84, Music).**
+  Zwei Wünsche: (1) ✅ **erledigt** — der **◈ Geschmacks-Fingerabdruck-Knopf** (`#tasteBtn`) samt
+  Verdrahtung (Topbar-Button, `#mTaste`, Modal `#tasteModal`/`#tasteBody`, Handler, CSS `.tastebody`,
+  i18n, `API.taste`, Escape-/Guard-Referenzen) wurde entfernt. Der Server-Endpoint `/api/taste` bleibt
+  (Read-only, von der E2E-Suite geprüft), hat aber keine UI mehr. (2) **noch offen:** den
   **Aufräumen-Knopf** (`#tidyBtn`) nicht mehr dauerhaft anzeigen, sondern erst als dezentes Modal in
-  der Bildecke einblenden, **sobald ein gewisser Füllgrad/Chaos erkannt** wird. **Noch offen:** die
+  der Bildecke einblenden, **sobald ein gewisser Füllgrad/Chaos erkannt** wird. **Offen:** die
   Heuristik für „Chaos" (Knoten-/Kreuzungszahl-Schwelle) — Vorschlag beim Umsetzen, dann abstimmen.
 
 ### Betreiber-/Datenschutz-Entscheidung (Pushover-Tracking)

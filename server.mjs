@@ -147,7 +147,7 @@ function landingPage(unlocked, req) {
     }),
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
-    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
+    footer: `🚧 Diese Seite entsteht gerade · ${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „Labs" + Passwort-Prompt statt Link
     lockLabel: "Labs",
     heroId: "music",                 // E3: Musik ist das Produkt — als Hero hervorheben

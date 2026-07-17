@@ -168,7 +168,7 @@
      (2) ≤1040px: der Genre-Filter wandert ins Menü (bereits via .gfilter-Regel unten).
      (3) ≤640px: auch die Suche wandert ins Menü (echtes Handy). */
   @media (max-width: 1180px) {
-    #radarBtn, #discoverBtn, #tasteBtn, #tidyBtn, #feedbackBtn, #helpBtn { display: none !important; }
+    #radarBtn, #discoverBtn, #tidyBtn, #feedbackBtn, #helpBtn { display: none !important; }
     #toolsTitle { display: block; }
     #toolsRow1, #toolsRow2 { display: flex; }
     #toolsRow1 button, #toolsRow2 button { flex: 1; }
@@ -325,6 +325,12 @@
     color: var(--on-accent); border: none; padding: 10px 16px; z-index: 20; opacity: 0;
     transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  /* FB19/#86: dauerhafter, dezenter „Seite im Entstehen"-Hinweis, unten mittig. pointer-events:none,
+     damit er die Karte nie blockiert; niedriger z-index, damit Modals/Panels ihn verdecken. */
+  #betaFlag { position: fixed; left: 50%; bottom: 3px; transform: translateX(-50%); z-index: 6;
+    font-size: 10.5px; color: var(--muted); opacity: .6; pointer-events: none; white-space: nowrap;
+    letter-spacing: .2px; max-width: 96vw; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 640px) { #betaFlag { font-size: 9.5px; bottom: 2px; } }
   /* Links im Toast (z.B. "Rückgängig") müssen klickbar sein, obwohl der Toast
      selbst pointer-events:none hat (sonst blockiert er die Karte darunter) */
   .toast a { pointer-events: auto; }
@@ -467,17 +473,6 @@
   #fader.notrans { transition: none; }
   @media (prefers-reduced-motion: reduce) { #fader { transition: none; } }
 
-  /* Geschmacks-Fingerabdruck */
-  .tastebody { max-height: 55vh; overflow-y: auto; margin: 10px 0 4px; }
-  .tastebody .trow { padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
-  .tastebody .trow:last-child { border-bottom: none; }
-  .tastebody .thead { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
-  .tastebody .thead b { font-size: 14px; }
-  .tastebody .thead small { color: var(--muted); margin-left: auto; }
-  .tastebody .tchips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-  .tastebody .tchips span { font-size: 11px; border: 1px solid var(--line-soft); border-radius: 12px; padding: 2px 8px; color: var(--text); }
-  .tastebody .tover { margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--line-soft); font-size: 12.5px; }
-  .tastebody .tover b { color: var(--edge-together); }
   .zoomctl button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line-soft); border-top: none;
     background: var(--bg); font-size: 16px; line-height: 1; }
   .zoomctl button:first-child { border-top: 1px solid var(--line-soft); }
@@ -774,7 +769,7 @@
      schlank und kann nicht mehr überlaufen. Nur wenige Bar-Elemente weichen auf schmalen
      Fenstern; das ⋯-Menü (mit allem darin) bleibt immer erreichbar. */
   @media (max-width: 1040px) { .gfilter { display: none !important; } }          /* Genre-Filter (auch via Panel-Chips) */
-  @media (max-width: 900px)  { #tasteBtn, #feedbackBtn { display: none !important; } }
+  @media (max-width: 900px)  { #feedbackBtn { display: none !important; } }
   @media (max-width: 760px)  { #radarBtn { display: none !important; } .bar { gap: 8px; } } /* Entdecken bleibt */
   @media (max-width: 480px) {
     /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante.
@@ -849,7 +844,6 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <button id="mSearchBtn" class="iconbtn hideStatic" title="Suchen" aria-label="Suchen"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
     <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
     <button id="discoverBtn" title="Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
-    <button id="tasteBtn" class="iconbtn hideStatic workonly" title="Dein Geschmacks-Fingerabdruck über alle Domänen">◈</button>
     <button id="tidyBtn" class="iconbtn" title="Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="8" cy="2.4" r="1.35" fill="currentColor"/><circle cx="12.85" cy="10.8" r="1.35" fill="currentColor"/><circle cx="3.15" cy="10.8" r="1.35" fill="currentColor"/></svg></button>
     <button id="feedbackBtn" class="iconbtn hideStatic" style="display:none" title="Feedback / Fehler melden">✉</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
@@ -888,7 +882,6 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <button id="mRadar" class="hideStatic" title="Geheimtipp-Radar">◎ Radar</button>
     </div>
     <div class="mrow mobileonly" id="toolsRow2">
-      <button id="mTaste" class="hideStatic workonly" title="Geschmacks-Fingerabdruck">◈ Profil</button>
       <button id="mTidy" title="Netz sortieren">⌗ Sortieren</button>
       <button id="mHelp" title="Bedienung & Shortcuts">? Hilfe</button>
     </div>
@@ -1156,13 +1149,8 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
 
   <div id="fader"></div>
 
-  <div class="modal-back" id="tasteModal">
-    <div class="modal" style="max-width:460px" role="dialog" aria-modal="true" aria-labelledby="tasteTitle">
-      <h3 id="tasteTitle">◈ Dein Geschmacks-Fingerabdruck</h3>
-      <div id="tasteBody" class="tastebody"><small style="color:var(--muted)">Lade …</small></div>
-      <div class="row"><button id="tasteClose">Schließen</button></div>
-    </div>
-  </div>
+  <!-- FB19/#86: dauerhafter Beta-Hinweis. Text wird in JS lokalisiert (setBetaFlag). -->
+  <div id="betaFlag" aria-hidden="true"></div>
 
   <div class="modal-back" id="authModal">
     <div class="modal" style="max-width:400px" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -1368,8 +1356,8 @@ const T = LANG !== "en" ? null : {
   "Domäne wechseln — jede hat ihre eigene Sammlung": "Switch domain — each has its own collection",
   "Ansicht & Export": "View & export", "Genre filtern…": "Filter by genre…",
   "Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien": "Tidy up — arrange the network neatly: group scenes, as few crossing lines as possible",
-  "Dein Geschmacks-Fingerabdruck über alle Domänen": "Your taste fingerprint across all domains",
   "Bedienung & Tastatur-Shortcuts": "Controls & keyboard shortcuts",
+  "🚧 Diese Seite entsteht gerade — es kann noch etwas haken.": "🚧 This site is still a work in progress — things may occasionally break.",
   "Feedback / Fehler melden": "Feedback / report a bug",
   "Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung": "Hidden-gem radar: small acts in the visible part of the map, close to your likes — with reasoning",
   "Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer": "Discovery tools: random find, scenes, bridge builder",
@@ -1380,7 +1368,7 @@ const T = LANG !== "en" ? null : {
   "Space: Planeten mit kreisenden Monden (dunkel) · Flat: klassisches Netz (hell)": "Space: planets with orbiting moons (dark) · Flat: classic network (light)",
   "✦ Entdecken": "✦ Discover", "◈ Profil": "◈ Profile", "⌗ Sortieren": "⌗ Tidy up", "? Hilfe": "? Help",
   "✦ Überrasch mich": "✦ Surprise me", "◎ Radar": "◎ Radar",
-  "Geschmacks-Fingerabdruck": "Taste fingerprint", "Netz sortieren": "Tidy the network",
+  "Netz sortieren": "Tidy the network",
   "Bedienung & Shortcuts": "Controls & shortcuts", "Geheimtipp-Radar": "Hidden-gem radar", "Entdeck-Werkzeuge": "Discovery tools",
   "Farben": "Colors", "Verbindungen": "Connections", "Geheimtipps": "Hidden gems", "Große dämpfen": "Dim big ones",
   "Knoten nach ihrem Haupt-Genre einfärben — Szenen und Themen zeigen sich als Farbinseln": "Color nodes by their main genre — scenes and themes appear as color islands",
@@ -1884,14 +1872,16 @@ function applyCfg() {
       switchPackTo(id); // weicher Übergang + Reload mit neuem Pack
     };
   } else if (sw) { sw.style.display = "none"; }
-  // Cross-Pack-Brücken & Fingerabdruck brauchen mehrere Domänen + den Live-Server
+  // Cross-Pack-Brücken brauchen mehrere Domänen + den Live-Server
   const multi = Array.isArray(window.LIKE_PACKS) && window.LIKE_PACKS.length > 1 && !STATIC;
-  if (!multi) { $("fieldCross").style.display = "none"; $("tasteBtn").style.display = "none"; }
+  if (!multi) { $("fieldCross").style.display = "none"; }
   $("q").placeholder = CFG.searchPlaceholder || "Suchen…   ( / )";
   $("q").title = CFG.searchTitle || "";
   $("go").title = CFG.goTitle || "";
   if (CFG.id !== "music") $("surpriseBtn").title = tf("Zeig mir einen zufälligen, eher unbekannten {S}", { S: CFG.item.sing });
   $("genreFilter").placeholder = CFG.genreFilterPlaceholder || "Filtern…";
+  // FB19/#86: dauerhafter „Seite entsteht"-Hinweis (lokalisiert; Sprachwechsel lädt die Seite neu).
+  { const bf = $("betaFlag"); if (bf) bf.textContent = t("🚧 Diese Seite entsteht gerade — es kann noch etwas haken."); }
   renderLegend(); // dynamische Legende (zeigt nur, was gerade da ist) ohne Quellen-Hinweise — B11/B12
   // Popularität / "Große dämpfen"
   if (CFG.popularity) {
@@ -2053,7 +2043,6 @@ const API = {
   bridgeStop: (session) => POST("/api/bridge/stop", { session }),
   bridgeAdd: (from, to, via, fromId, toId) => POST("/api/bridge/add", { from, to, via, fromId, toId }),
   feedback: (message) => POST("/api/feedback", { message }),
-  taste: () => GET("/api/taste"),
   crossbridge: (name) => POST("/api/crossbridge", { name }),
   artist: (body) => POST("/api/artist", body),
   lists: (body) => POST("/api/lists", body), // v2.6: Like-Listen anlegen/umbenennen/umfärben/löschen
@@ -2563,11 +2552,30 @@ function rebuild(prev, reheatAmt = 1) {
     }
     return { x: tx, y: ty }; // Notnagel (sehr dichte Karte): Kollision räumt später auf
   };
+  // FB22/#89: Schwerpunkt + Außenradius der bereits platzierten (bestehenden) Knoten. Ein neuer,
+  // UNVERBUNDENER Seed (typisch „Überrasch mich") hat keinen platzierten Nachbarn und landete
+  // bislang auf W/2,(H+52)/2 — also DIREKT auf dem Zentralstern. Zusammen mit reheat() drückte die
+  // Nahabstoßung die Sonne an -> sichtbares Ruckeln. Statt der Mitte spawnt er jetzt am RAND des
+  // vorhandenen Netzes; freeSpot rückt von dort weiter hinaus. Leere Karte: Mitte bleibt richtig.
+  let exCx = 0, exCy = 0, exCnt = 0, exR = 0;
+  for (const m of nodes) { if (m && m.x != null && !isNew.has(m.id) && !m.venue) { exCx += m.x; exCy += m.y; exCnt++; } }
+  if (exCnt) {
+    exCx /= exCnt; exCy /= exCnt;
+    for (const m of nodes) { if (m && m.x != null && !isNew.has(m.id) && !m.venue) { const d = Math.hypot(m.x - exCx, m.y - exCy); if (d > exR) exR = d; } }
+  }
   newSeeds.forEach((n, i) => {
     // Schwerpunkt der bereits platzierten (bestehenden) Nachbarn dieses Seeds …
     let sx = 0, sy = 0, cnt = 0;
     for (const nb of (adj.get(n.id) || [])) { const m = nodeById.get(nb); if (m && m.x != null && !isNew.has(m.id)) { sx += m.x; sy += m.y; cnt++; } }
-    const tx = cnt ? sx / cnt : W / 2, ty = cnt ? sy / cnt : (H + 52) / 2;
+    let tx, ty;
+    if (cnt) { tx = sx / cnt; ty = sy / cnt; }
+    else if (exCnt) {
+      // unverbundener Seed: an den Rand des Bestands, in einer je Seed deterministischen Richtung
+      // (mehrere neue Seeds verteilen sich so, statt sich mittig zu stapeln).
+      const ang = seededRnd(n.id, "seedring") * Math.PI * 2;
+      const rr = exR + 130 + radius(n);
+      tx = exCx + Math.cos(ang) * rr; ty = exCy + Math.sin(ang) * rr;
+    } else { tx = W / 2; ty = (H + 52) / 2; } // leere Karte
     const pos = freeSpot(tx, ty, radius(n));
     n.x = pos.x; n.y = pos.y;
     placedSeedIds.add(n.id);
@@ -3742,7 +3750,9 @@ function pendingBadge(n) {
   // FB11/#68: „+K"-Chip nicht mehr rein bildschirm-konstant (winzig neben einer großen, nah
   // herangezoomten Kugel), sondern mit dem Kugelradius mitskalieren — mit Mindestgröße, damit er
   // beim Rauszoomen lesbar bleibt. Position + Trefferfläche (onPendingBadge) ziehen automatisch mit.
-  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: Math.max(8 / view.k, rr * 0.42) };
+  // FB18/#85: Faktor von 0.42 auf 0.34 gesenkt — der Chip war neben großen Kugeln einen Tick zu groß;
+  // Mindestgröße (8/view.k) + Position (0.82) bleiben, damit Lesbarkeit und Sitz erhalten bleiben.
+  return { x: n.x + rr * 0.82, y: n.y + rr * 0.82, r: Math.max(8 / view.k, rr * 0.34) };
 }
 // Zeiger/Finger nahe am „+K"-Chip? -> Chip vergrößern und Trefferfläche aufziehen (fingerfreundlich).
 // mouseWorld ist nur bei Maus gesetzt; auf Touch trägt COARSE ohnehin die größere Basis-Trefferfläche.
@@ -5900,7 +5910,6 @@ document.addEventListener("mousedown", (e) => {
 const closeMore = () => moreEl.classList.remove("show");
 document.getElementById("mDiscover").onclick = () => { closeMore(); document.getElementById("discoverBtn").click(); };
 document.getElementById("mRadar").onclick = () => { closeMore(); document.getElementById("radarBtn").click(); };
-document.getElementById("mTaste").onclick = () => { closeMore(); document.getElementById("tasteBtn").click(); };
 document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); };
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
 // N7: „Meine Listen" öffnet den Listen-Umschalter (ansehen/wechseln/umbenennen/neu) — die
@@ -6117,35 +6126,9 @@ function switchPackTo(id, extraQuery) {
   requestAnimationFrame(() => requestAnimationFrame(() => { faderEl.classList.remove("notrans"); faderEl.classList.remove("on"); }));
 })();
 
-// ---- Geschmacks-Fingerabdruck (über alle Domänen) ----
-const tasteModal = document.getElementById("tasteModal");
-document.getElementById("tasteClose").onclick = () => tasteModal.classList.remove("show");
-tasteModal.addEventListener("mousedown", (e) => { if (e.target === tasteModal) tasteModal.classList.remove("show"); });
-document.getElementById("tasteBtn").onclick = async () => {
-  const body = document.getElementById("tasteBody");
-  tasteModal.classList.add("show");
-  document.getElementById("tasteClose").focus();
-  body.innerHTML = `<small style="color:var(--muted)">${t("Lade …")}</small>`;
-  try {
-    const res = await API.taste();
-    if (!res.ok) { body.innerHTML = `<small style="color:var(--muted)">${t("Konnte nicht laden.")}</small>`; return; }
-    const withLikes = res.packs.filter((p) => p.count > 0);
-    if (!withLikes.length) {
-      body.innerHTML = `<small style="color:var(--muted)">${t("Noch keine Likes — erkunde und markiere ein paar Einträge, dann entsteht hier dein Profil über alle Domänen.")}</small>`;
-      return;
-    }
-    const rows = withLikes.map((p) => `
-      <div class="trow">
-        <div class="thead"><b>${esc(p.title)}</b><small>${p.count} ${esc(p.item.plur)}</small></div>
-        ${p.topGenres.length ? `<div class="tchips">${p.topGenres.map((g) => `<span>${esc(g.name)}${g.count > 1 ? " ×" + g.count : ""}</span>`).join("")}</div>` : ""}
-        ${p.topItems.length ? `<div style="font-size:11.5px;color:var(--muted);margin-top:5px">${t("z.B.")} ${p.topItems.slice(0, 3).map(esc).join(" · ")}</div>` : ""}
-      </div>`).join("");
-    const over = res.overlaps?.length
-      ? `<div class="tover">${t("Themen, die deine Welten <b>verbinden</b>:")} ${res.overlaps.map((o) => `„${esc(o.name)}" (${o.packs.map(esc).join(" + ")})`).join(" · ")}</div>`
-      : "";
-    body.innerHTML = rows + over;
-  } catch { body.innerHTML = '<small style="color:var(--muted)">Fehler beim Laden.</small>'; }
-};
+// FB17/#84: Der Geschmacks-Fingerabdruck (◈-Knopf + Modal) wurde auf Nutzerwunsch entfernt.
+// Der Server-Endpoint /api/taste bleibt bestehen (Read-only, von der E2E-Suite geprüft), hat aber
+// keine UI mehr. Cross-Pack-Brücken (crossBtn) sind davon unberührt.
 
 // ---- Cross-Pack-Brücken: gibt es diesen Eintrag in anderen Domänen? ----
 document.getElementById("crossBtn").onclick = async () => {
@@ -6228,7 +6211,6 @@ addEventListener("keydown", (e) => {
   if (introEl.classList.contains("show") || keyModal.classList.contains("show")) return;
   if (feedbackModal.classList.contains("show")) { if (e.key === "Escape") closeFeedback(); return; }
   if (authModal.classList.contains("show")) { if (e.key === "Escape") authModal.classList.remove("show"); return; }
-  if (tasteModal && tasteModal.classList.contains("show")) { if (e.key === "Escape") tasteModal.classList.remove("show"); return; }
   const supportEl = document.getElementById("supportModal");
   if (supportEl && supportEl.classList.contains("show")) { if (e.key === "Escape") supportEl.classList.remove("show"); return; }
   const t = e.target.tagName;
