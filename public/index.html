@@ -342,6 +342,16 @@
     font-size: 10.5px; color: var(--muted); opacity: .6; pointer-events: none; white-space: nowrap;
     letter-spacing: .2px; max-width: 96vw; overflow: hidden; text-overflow: ellipsis; }
   @media (max-width: 640px) { #betaFlag { font-size: 9.5px; bottom: 2px; } }
+  /* FB17-2/#84: Aufräumen-Nudge (erscheint nur bei viel Inhalt/Unordnung), dezent, wegklickbar */
+  #tidyNudge { position: fixed; left: 50%; bottom: 54px; transform: translateX(-50%); z-index: 14;
+    display: none; align-items: center; gap: 8px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 20px; padding: 6px 8px 6px 14px; font-size: 12.5px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18); max-width: 92vw; }
+  #tidyNudge.show { display: flex; }
+  #tidyNudge button { border: none; background: none; cursor: pointer; font: inherit; padding: 4px 6px; }
+  #tidyNudge .go { color: var(--edge-together); font-weight: 600; border-radius: 14px; }
+  #tidyNudge .go:hover { background: var(--line-soft); }
+  #tidyNudge .x { color: var(--muted); font-size: 15px; line-height: 1; }
   /* Links im Toast (z.B. "Rückgängig") müssen klickbar sein, obwohl der Toast
      selbst pointer-events:none hat (sonst blockiert er die Karte darunter) */
   .toast a { pointer-events: auto; }
@@ -1163,6 +1173,13 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
   <!-- FB19/#86: dauerhafter Beta-Hinweis. Text wird in JS lokalisiert (setBetaFlag). -->
   <div id="betaFlag" aria-hidden="true"></div>
 
+  <!-- FB17-2/#84: dezenter Aufräumen-Nudge, erscheint erst bei erkanntem Füllgrad/Chaos -->
+  <div id="tidyNudge" role="status">
+    <span id="tidyNudgeTxt">Das Netz ist ganz schön voll geworden.</span>
+    <button class="go" id="tidyNudgeGo">Aufräumen</button>
+    <button class="x" id="tidyNudgeX" title="Ausblenden" aria-label="Ausblenden">×</button>
+  </div>
+
   <div class="modal-back" id="authModal">
     <div class="modal" style="max-width:400px" role="dialog" aria-modal="true" aria-labelledby="authTitle">
       <h3 id="authTitle">Anmelden</h3>
@@ -1373,6 +1390,7 @@ const T = LANG !== "en" ? null : {
   "Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien": "Tidy up — arrange the network neatly: group scenes, as few crossing lines as possible",
   "Bedienung & Tastatur-Shortcuts": "Controls & keyboard shortcuts",
   "🚧 Diese Seite entsteht gerade — es kann noch etwas haken.": "🚧 This site is still a work in progress — things may occasionally break.",
+  "Das Netz ist ganz schön voll geworden.": "Your network has gotten quite full.",
   "Genaue Lage auf OpenStreetMap ansehen": "View exact location on OpenStreetMap",
   "Ungefähre Lage: {C}": "Approximate location: {C}",
   "Karte ↗": "Map ↗",
@@ -2686,6 +2704,7 @@ function rebuild(prev, reheatAmt = 1) {
   renderLegend();       // dynamische Legende an den neuen Bestand anpassen (B12)
   if (typeof renderListView === "function") renderListView(); // W15: Liste synchron halten
   reheat(reheatAmt); // neues Layout durchrechnen lassen (beim ＋-Ausbauen bewusst sanfter -> weniger Zappeln, B4)
+  if (typeof maybeTidyNudge === "function") maybeTidyNudge(); // FB17-2/#84: Aufräumen-Hinweis bei Fülle
 }
 
 // ---- Ansicht: alles zeigen / zoomen ----
@@ -5951,7 +5970,26 @@ function sortLayout() {
   // aufgeräumte Anordnung stehen (Kollisionen lösen sich, Struktur bleibt).
   reheat(0.12);
 }
-document.getElementById("tidyBtn").onclick = () => { sortLayout(); toast("Netz sortiert"); };
+document.getElementById("tidyBtn").onclick = () => { sortLayout(); toast("Netz sortiert"); ackTidy(); };
+// FB17-2/#84: dezenter Aufräumen-Nudge — der Knopf bleibt, aber zusätzlich weisen wir erst darauf hin,
+// wenn das Netz voll/unübersichtlich geworden ist (statt den Nutzer permanent zum Aufräumen zu drängen).
+let tidyAckCount = 0; // Knotenzahl beim letzten Aufräumen/Ausblenden — erst nach spürbarem Wachstum erneut.
+function hideTidyNudge() { const el = document.getElementById("tidyNudge"); if (el) el.classList.remove("show"); }
+function ackTidy() { tidyAckCount = nodes.length; hideTidyNudge(); }
+function maybeTidyNudge() {
+  const el = document.getElementById("tidyNudge"); if (!el) return;
+  // nicht nerven: nicht im STATIC-Snapshot, nicht während ein Modal/die Listenansicht offen ist.
+  if (STATIC || document.querySelector(".modal-back.show") || (typeof listOpen !== "undefined" && listOpen)) { el.classList.remove("show"); return; }
+  const grew = nodes.length - tidyAckCount;
+  // Schwelle: viel Inhalt (≥40 Knoten) UND seit letztem Aufräumen/Ausblenden spürbar gewachsen (≥12).
+  if (nodes.length >= 40 && grew >= 12) el.classList.add("show");
+  else if (grew < 6) el.classList.remove("show");
+}
+{
+  const go = document.getElementById("tidyNudgeGo"), x = document.getElementById("tidyNudgeX");
+  if (go) go.onclick = () => { sortLayout(); toast("Netz sortiert"); ackTidy(); };
+  if (x) x.onclick = ackTidy;
+}
 document.addEventListener("mousedown", (e) => {
   if (discoverEl.classList.contains("show") && !discoverEl.contains(e.target) && e.target.id !== "discoverBtn" && !document.getElementById("discoverBtn").contains(e.target))
     closeDiscover();
@@ -5998,7 +6036,7 @@ document.addEventListener("mousedown", (e) => {
 const closeMore = () => moreEl.classList.remove("show");
 document.getElementById("mDiscover").onclick = () => { closeMore(); document.getElementById("discoverBtn").click(); };
 document.getElementById("mRadar").onclick = () => { closeMore(); document.getElementById("radarBtn").click(); };
-document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); };
+document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); ackTidy(); };
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
 // N7: „Meine Listen" öffnet den Listen-Umschalter (ansehen/wechseln/umbenennen/neu) — die
 // gespeicherten Playlists waren bisher nur über das ▾ am Listen-Panel erreichbar.

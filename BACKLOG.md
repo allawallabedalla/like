@@ -1187,14 +1187,17 @@ eingetragen.
   bleibt** (Kompatibilität). Nur das Label ändern: Landing-Kachel, Titel/`<title>`, Intro/Copy in
   DE+EN. Pack-interne IDs, Datenpfade und Endpoints unangetastet lassen.
 
-- [~] **FB17 — Geschmacks-Knopf raus, „Aufräumen" kontextabhängig als Ecken-Modal (#84, Music).**
+- [x] **FB17 — Geschmacks-Knopf raus, „Aufräumen" kontextabhängig als Ecken-Nudge (#84, Music).**
   Zwei Wünsche: (1) ✅ **erledigt** — der **◈ Geschmacks-Fingerabdruck-Knopf** (`#tasteBtn`) samt
   Verdrahtung (Topbar-Button, `#mTaste`, Modal `#tasteModal`/`#tasteBody`, Handler, CSS `.tastebody`,
   i18n, `API.taste`, Escape-/Guard-Referenzen) wurde entfernt. Der Server-Endpoint `/api/taste` bleibt
-  (Read-only, von der E2E-Suite geprüft), hat aber keine UI mehr. (2) **noch offen:** den
-  **Aufräumen-Knopf** (`#tidyBtn`) nicht mehr dauerhaft anzeigen, sondern erst als dezentes Modal in
-  der Bildecke einblenden, **sobald ein gewisser Füllgrad/Chaos erkannt** wird. **Offen:** die
-  Heuristik für „Chaos" (Knoten-/Kreuzungszahl-Schwelle) — Vorschlag beim Umsetzen, dann abstimmen.
+  (Read-only, von der E2E-Suite geprüft), hat aber keine UI mehr. (2) ✅ **erledigt (2026-07-17):** der
+  **Aufräumen-Knopf** (`#tidyBtn`) bleibt, aber zusätzlich erscheint ein **dezenter Ecken-Nudge**
+  (`#tidyNudge`, unten mittig, wegklickbar) **erst bei Fülle**. Heuristik (einfach & günstig, nach
+  jedem `rebuild`): **≥40 Knoten UND seit letztem Aufräumen/Ausblenden ≥12 dazugekommen**. „Aufräumen"
+  im Nudge ruft `sortLayout()`; Aufräumen (Knopf oder Nudge) und „×" setzen die Baseline zurück
+  (`ackTidy`), damit erst spürbares Weiterwachsen erneut hinweist. Unterdrückt bei offenem
+  Modal/Listenansicht und im STATIC-Snapshot.
 
 ### Betreiber-/Datenschutz-Entscheidung (Pushover-Tracking)
 - [x] **FB23 — Screen & Sprache ins Pushover-Signal (#91, Books).** `notifyVisitMaybe` meldet heute
