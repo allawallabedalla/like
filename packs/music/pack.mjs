@@ -306,8 +306,12 @@ export default {
       const p = await topTrackPreview(name);
       if (p?.url) return plausibleFans(p.fans) ? p : null; // unplausibel -> gar keine (kein fremder Fallback)
     } catch {}
+    // Fallbacks (Deezer-Track-Suche, iTunes) sind streng am Künstlernamen verankert, tragen aber
+    // meist KEIN Fananzahl-Signal -> plausibleFans wirkt dort nur, WENN fans vorliegt (sonst true).
+    // Trotzdem denselben Guard anlegen: sobald ein Fallback je fans mitgibt, greift der Namensvetter-
+    // Schutz auch hier, statt die Probe eines berühmten Gleichnamigen ungeprüft durchzureichen.
     for (const fn of [trackPreviewSearch, previewByName]) {
-      try { const p = await fn(name); if (p?.url) return p; } catch {}
+      try { const p = await fn(name); if (p?.url && plausibleFans(p.fans)) return p; } catch {}
     }
     return null;
   },
