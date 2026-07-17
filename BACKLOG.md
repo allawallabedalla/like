@@ -1074,6 +1074,13 @@ mit einer ersten Code-Analyse hinterlegt; die offenen Punkte je einzeln am echte
 gegenprüfen, bevor umgesetzt wird. Ein Teil sind reine Bugs, ein Teil braucht eine Betreiber-/
 Scope-/Datenschutz-Entscheidung (unten markiert).
 
+**Verifizierungs-Stand (2026-07-17):** Die code-nahen Punkte **FB18, FB21, FB22, FB25, FB28, FB29**
+wurden per paralleler Read-only-Analyse am echten Code gegengeprüft — Ursachen bestätigt, Fixes je
+Punkt skizziert (siehe „✓ Verifiziert"-Zeilen). Die Ursachen stehen; die reinen Verhaltensdetails
+(Gate-Repro bei FB21, welche Podcast-Seeds bei FB28 durchfallen, Canvas-Optik bei FB22) sind noch
+live/im Browser final zu bestätigen. Betreiber-Entscheidungen zu FB17/FB19/FB23/FB24/FB26 sind oben
+eingetragen.
+
 ### Schnell & klar umrissen (Frontend-Tweaks)
 - [ ] **FB18 — „+N"-Kugel etwas kleiner, weiterhin dynamisch (#85).** Direkte Nachjustierung von
   FB11: der `pending`-Chip skaliert seit FB11 mit dem Kugelradius (`pendingBadge`:
@@ -1081,6 +1088,10 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   Faktor `0.42` moderat senken (z. B. `0.34`) und die Mindestgröße beibehalten, damit er beim
   Rauszoomen lesbar bleibt. Trefferfläche (`onPendingBadge`) zieht automatisch mit. Reiner
   Tuning-Wert — im Browser gegensehen.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch):** Faktor zentral an genau einer Stelle
+    (`public/index.html:3745`); Zeichnung/Schrift/Halo/Treffer leiten sich davon ab und skalieren
+    automatisch mit. **Fix:** `0.42 → 0.34`, Mindestgröße (`8/view.k`) + Position (`rr*0.82`)
+    bleiben. Keine Nebenwirkungen, kein Test-Bruch erwartet.
 
 - [ ] **FB19 — „Seite ist im Entstehen"-Hinweis (#86).** Nutzer fragt nach einem dezenten Beta-
   Hinweis („die Seite ist im Entstehen, es kann noch ab und zu was schiefgehen"). **Entscheidung
@@ -1093,6 +1104,15 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   (analog FB5: `rebuild(prev, 0)` statt Reheat) bzw. der neue Knoten sollte am Rand statt in der
   Mitte spawnen (vgl. R18-Kommentar „freien Startplatz suchen"). Am Books-Pack im Browser
   reproduzieren, dann Spawn/Reheat dämpfen. (Gilt sinngemäß für alle Nicht-Music-Packs.)
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch für Ursache):** Zwei Kanäle zusammen: (1) Surprise ruft
+    `exploreByName(name)` **ohne Optionen** → Default `reheatAmt=0.4` (`index.html:4452/6552`) → `reload`
+    → `rebuild(prev, 0.4)` → `reheat(0.4)` (`index.html:2702`) weckt ALLE Knoten inkl. Zentralstern.
+    (2) Ein unbekannter Surprise-Act hat keinen platzierten Nachbarn (`cnt===0`) und spawnt **exakt in
+    der Bildmitte** auf dem Zentralstern (`index.html:2570`, Waisen `2628-2631`); `freeSpot` landet
+    direkt daneben → starke Nahabstoßung (`REP/d²`) schießt die Sonne an. **Fix (pack-neutral):**
+    unverbundene neue Seeds am **Rand** der Bounding-Box spawnen statt in der Mitte (`cnt===0`-Zweig
+    ändern), optional FB5-analog Zentralstern kurz `pinned`. Nur `reheatAmt` senken reicht NICHT.
+    **Im Browser (Space+Flat, Books + ein weiteres Nicht-Music-Pack) gegensehen.**
 
 ### Zu verifizieren / entscheiden (Bugs & UX)
 - [ ] **FB21 — „Überrasch mich" bei Boardgames: Fehler-401-Toast (#88).** `/api/surprise` liefert
@@ -1103,6 +1123,16 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   gültiges Unlock-Cookie schlägt der Folge-Call fehl. **Erst live prüfen:** (a) ob der Toast wirklich
   vom Gate stammt (dann Unlock-Zustand/Redirect sauberer behandeln, statt eines nackten 401-Toasts)
   oder (b) ob boardgames-`popularity`/`explore` selbst 401t. Gemeinsame Wurzel mit FB28.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch für Ursache):** Der 401 kommt aus dem **Gate**, nicht
+    aus dem Pack. `server.mjs:986-991` blockt vor JEDER Pack-Route (`isLockedPack && !isUnlocked` →
+    `401 {error:"locked"}`) — betrifft `/api/surprise` und den Folge-`/api/explore`. Der Pack kann
+    kein 401 werfen (BGG-Fehler sind gefangen). Auslöser: boardgames-Seite war bei Ladezeit
+    freigeschaltet, aber das `like_unlock`-Cookie fehlt/abgelaufen beim Klick; der `#surpriseBtn`
+    wird bei gesperrtem Pack **nicht** ausgeblendet (`index.html:6544` prüft nur STATIC/FEAT).
+    **Fix:** Gate-401 (`error:"locked"`) zentral in den API-Wrappern (`index.html:2013/2020`) abfangen
+    → `unlockThen(CFG.id, reload)` statt nacktem Toast; zusätzlich `#surpriseBtn` bei `packLocked`
+    deaktivieren. Deckt Surprise + Explore + alle gated Calls in einem Rutsch ab. **Live mit gesetztem
+    `LIKE_UNLOCK_PASSWORD` + gelöschtem Cookie exakt reproduzieren.**
 
 - [ ] **FB28 — „Überrasch mich" bei Podcasts: nur Apple, Fehlermeldung nennt alle Quellen (#96).**
   Der Podcasts-Pack sucht ausschließlich über iTunes (`searchPodcast` → `itunes.apple.com/search`).
@@ -1111,6 +1141,18 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   Genre-Nachbarn, die der Pack schon für die Brücke nutzt) oder Seeds strikt auf iTunes-auffindbare
   beschränken; (2) **Fehlertext** — keine internen Quellennamen im Nutzer-Toast, nur eine neutrale
   Meldung („gerade keine Empfehlung gefunden, nochmal versuchen"). Live gegen die iTunes-Suche prüfen.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch für Codepfad):** `searchPodcast` (`packs/podcasts/
+    pack.mjs:26-35`) ist der EINZIGE Resolver (iTunes, `limit=1`, ohne `country` → US-Store).
+    Wurzel des geleakten Quellennamens: `surpriseFrom` (`lib/surprise.mjs:5-18`) gibt **nie null**
+    zurück (`return best || pick()`) → ein bei Apple unauffindbarer Seed wird trotzdem als `name`
+    durchgereicht, `/api/surprise` liefert `{ok:true}`, der Client ruft `exploreByName`, `explore()`
+    wirft `„…" nicht bei Apple Podcasts gefunden` (`pack.mjs:220`) → 502 → `toast("Fehler: "+msg)`
+    (`index.html:4489`). `null`-Treffer werden 14 Tage gecacht → „klebrig". **Fix (empfohlen):**
+    (a) `surprise()` gibt nur einen von `searchPodcast` **auflösbaren** Seed zurück, sonst **null** →
+    dann greift automatisch der schon vorhandene neutrale Toast (`index.html:6553`, Wortlaut ggf.
+    anpassen); (b) den generischen Explore-Fehler (`pack.mjs:220`/`index.html:4489`) für getippte
+    Suchen **nicht** anfassen. **Live prüfen:** welche der dt. Seeds im US-Store durchfallen und ob
+    `country=de` (analog `byGenre`) hilft; Cache ggf. leeren.
 
 - [ ] **FB25 — „Entdecken"-Menü: redundante/verwirrend ähnliche Funktionen (#93, Music).** Bestand
   heute: der `#discoverBtn`-Popover (`discoverbox`) enthält **Überrasch mich · Szenen · Brückenbauer**,
@@ -1119,6 +1161,17 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   doppelt/parallel an verschiedenen Stellen — das ist die gemeinte Redundanz. **Entscheidung nötig:**
   Entdeck-Werkzeuge (Radar, Überrasch mich, Szenen, Brückenbauer) an *einem* Ort bündeln und die
   Dubletten entfernen; Beschriftungen schärfen. UX-Umbau, kein Bug — erst Konzept, dann umsetzen.
+  - **✓ Verifiziert (2026-07-17):** Kern-Redundanz ist **nicht** bloße Doppelung, sondern **„Überrasch
+    mich" zweimal mit gleichem Wortlaut, aber unterschiedlicher Funktion**: der Empty-State-Button
+    `#surpriseBtn` (`index.html:974`) lädt serverseitig einen **neuen unbekannten Act** (`/api/surprise`,
+    mit Genre-Feld), während `#discSurprise`/Fun-Modus-`#discoverBtn` (`5705`/`1964`) `surpriseMe()`
+    aufruft = **Client-Streifzug durchs bestehende Netz** (braucht ≥2 Knoten, kein Genre). Weiter: Radar
+    sitzt als eigener Topbar-Knopf **neben** statt **im** Entdecken-Popover (`#radarBtn` `850` vs.
+    Popover `1035-1050`); `#mRadar`/`#mDiscover` sind nur Mobile-Proxys (keine echten Dubletten).
+    **Konzept-Vorschlag:** (1) Radar als vierten `.ditem` ins Popover holen, `#radarBtn` aus der Topbar
+    nehmen; (2) den Netz-Streifzug umbenennen (z. B. „Streifzug"), damit „Überrasch mich" eindeutig der
+    Empty-State-Act-Lader bleibt; (3) Empty-State-Surprise + Genre-Feld bewusst getrennt lassen.
+    **→ offene Design-Fragen an den Nutzer (siehe unten), erst dann umbauen.**
 
 - [ ] **FB26 — „like papers" ist missverständlich („Papier") → „like Science" (#94).**
   **Entscheidung getroffen (2026-07-17): Anzeigename → „Science"**, **Pack-ID/URL `?pack=papers`
@@ -1169,6 +1222,18 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   (externer Tile-Server, ToS/Netz), (c) nur Land + Flagge als Text/Emoji (minimal). Travel-Pack liefert
   vermutlich schon Koordinaten/Land über seine Quelle — erst prüfen, dann Variante (a) als
   key-/netzfreie Lösung. Scope: Datenverfügbarkeit (Lat/Lon) + Panel-Widget.
+  - **✓ Verifiziert (2026-07-17, Konfidenz hoch):** **Lat/Lon existiert bereits im Backend, wird aber
+    nicht ans Frontend geliefert.** `lib/travel.mjs:122-140` holt Wikivoyage-Koordinaten
+    (`coord={lat,lon}`), `packs/travel/pack.mjs:196` nutzt sie schon für „km ab Zuhause"/`geoNearby` —
+    aber der `explore()`-Return (`pack.mjs:213-222`) und `server.mjs` persistieren `coord` **nicht**.
+    Land/Region sind unzuverlässig (Nominatim-`country` nur wenn Wikivoyage keine Koordinaten hat).
+    Kein Weltkarten-SVG und kein Bild-Feld im Panel vorhanden; Einfügepunkt: neues `<div id="pMap">`
+    nach `#pSub`/`#pGenres` (`index.html:1284-1285`), Render in `selectNode()` (`4054-4090`).
+    **Empfehlung Variante (a):** (1) `coord` in `explore()`-Return + Server-Persistenz durchreichen
+    (`materialize` reicht es dann automatisch weiter), (2) gemeinfreies Äquidistant-Weltkarten-SVG als
+    Asset hinzufügen (Lizenz klären: Natural Earth / Wikimedia BlankMap, PD), Marker per
+    Equirektangular-Projektion, (3) Land+Flagge als Fallback ohne Koordinaten. **Offen:** nur der Seed
+    hat sicher `coord` (Nachbarknoten ggf. via `enrich` nachladen); SVG-Lizenz.
 
 ---
 
