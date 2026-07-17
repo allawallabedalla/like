@@ -147,7 +147,7 @@ function landingPage(unlocked, req) {
     }),
     heading: "like<b>.</b>",
     sub: "Wähle, wonach du heute stöbern willst. Jede Domäne bringt ihr eigenes Netz mit — ein Klick, und du bist mittendrin.",
-    footer: `🚧 Diese Seite entsteht gerade · ${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
+    footer: `${APP_VERSION ? `v${APP_VERSION} · alle Domänen in einer App · ` : ""}<a href="/impressum" style="color:inherit">Impressum</a> · <a href="/datenschutz" style="color:inherit">Datenschutz</a> · <a href="${REPO_URL}" target="_blank" rel="noreferrer" style="color:inherit">Open Source (AGPL-3.0)</a>${BUILD_REF ? ` · <a href="${BUILD_REF.href}" target="_blank" rel="noreferrer" style="color:inherit">${BUILD_REF.label}</a>` : ""}`,
     gated: GATING_ON && !unlocked,   // gesperrte Karten: „Labs" + Passwort-Prompt statt Link
     lockLabel: "Labs",
     heroId: "music",                 // E3: Musik ist das Produkt — als Hero hervorheben
@@ -200,6 +200,15 @@ function impressumPage() {
   const norm = (s) => s.toLowerCase().replace(/[.\s]+$/, "").trim();
   const addrFirst = addr.split("\n")[0] || "";
   const providerHtml = addr && norm(addrFirst) === norm(name) ? addrHtml : `${esc(name)}<br>${addrHtml}`;
+  // U-2b.1: Kontakt-E-Mail (§ 5 TMG „schnelle elektronische Kontaktaufnahme") aus ENV; fehlt sie,
+  // wird der Mangel sichtbar markiert (wie bei der Anschrift), statt ihn zu verschweigen.
+  const email = (process.env.LIKE_IMPRINT_EMAIL || "").trim();
+  const contactDe = email
+    ? `E-Mail: <a href="mailto:${esc(email)}">${esc(email)}</a><br><span class="muted">Oder über den Feedback-Knopf (✉) in der App.</span>`
+    : `<span class="todo">Bitte eine Kontakt-E-Mail ergänzen (ENV <code>LIKE_IMPRINT_EMAIL</code>) — § 5 TMG verlangt die Möglichkeit einer schnellen elektronischen Kontaktaufnahme.</span><br><span class="muted">Bis dahin: Feedback-Knopf (✉) in der App.</span>`;
+  const contactEn = email
+    ? `Email: <a href="mailto:${esc(email)}">${esc(email)}</a><br><span class="muted">Or via the feedback button (✉) in the app.</span>`
+    : `<span class="todo">Please add a contact email (ENV <code>LIKE_IMPRINT_EMAIL</code>) — § 5 TMG requires a means of fast electronic contact.</span><br><span class="muted">Until then: the feedback button (✉) in the app.</span>`;
   const enDict = {
     "im-back": "← back to like",
     "im-h1": "Legal notice",
@@ -207,12 +216,13 @@ function impressumPage() {
     "im-provider-h": "Service provider",
     "im-addrnote": "Please add the summonable postal address (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — without it the legal notice is incomplete.",
     "im-contact-h": "Contact",
-    "im-contact-p": "Get in touch via the feedback button (✉) in the app.",
+    "im-contact-p": contactEn,
     "im-resp-h": "Responsible for content (§ 18 (2) MStV)",
     "im-resp-p": "The service provider named above.",
     "im-liab-h": "Liability for content &amp; links",
     "im-liab-p": `„like" is a private, non-commercial project and combines data from external sources (incl. Last.fm, TMDB, Wikivoyage, Wikipedia); the rights to it belong to the respective providers. No guarantee is given for accuracy, completeness or timeliness. The operators of linked external sites are solely responsible for their content.`,
     "im-ds-link": `<a href="/datenschutz">Privacy policy</a>`,
+    "im-source": `Source code (AGPL-3.0): <a href="${REPO_URL}" target="_blank" rel="noreferrer">${REPO_URL}</a>`,
   };
   const addrNoteEl = addr ? "" : `<p class="muted todo" data-i18n="im-addrnote">Bitte die ladungsfähige Anschrift ergänzen (ENV <code>LIKE_IMPRINT_ADDRESS</code>) — ohne sie ist das Impressum nicht vollständig.</p>`;
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
@@ -234,12 +244,13 @@ function impressumPage() {
   <p>${providerHtml}</p>
   ${addrNoteEl}
   <h2 data-i18n="im-contact-h">Kontakt</h2>
-  <p data-i18n="im-contact-p">Kontaktaufnahme über den Feedback-Knopf (✉) in der App.</p>
+  <p data-i18n="im-contact-p">${contactDe}</p>
   <h2 data-i18n="im-resp-h">Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)</h2>
   <p data-i18n="im-resp-p">Der oben genannte Diensteanbieter.</p>
   <h2 data-i18n="im-liab-h">Haftung für Inhalte &amp; Links</h2>
   <p class="muted" data-i18n="im-liab-p">„like" ist ein privates, nicht-kommerzielles Projekt und verknüpft Daten aus externen Quellen (u. a. Last.fm, TMDB, Wikivoyage, Wikipedia); die Rechte daran liegen bei den jeweiligen Anbietern. Für die Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Für Inhalte verlinkter externer Seiten sind ausschließlich deren Betreiber verantwortlich.</p>
-  <p class="muted" style="margin-top:14px" data-i18n="im-ds-link"><a href="/datenschutz">Datenschutzerklärung</a></p>
+  <p class="muted" style="margin-top:14px" data-i18n="im-source">Quelltext (AGPL-3.0): <a href="${REPO_URL}" target="_blank" rel="noreferrer">${REPO_URL}</a></p>
+  <p class="muted" data-i18n="im-ds-link"><a href="/datenschutz">Datenschutzerklärung</a></p>
 </div>${legalI18nScript(enDict, "Legal notice — like")}</body></html>`;
 }
 
