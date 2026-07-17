@@ -307,7 +307,16 @@ function maskIp(ip) {
   if (ip.includes(":")) return ip.split(":").slice(0, 2).join(":") + ":…"; // IPv6 grob
   return "?";
 }
-async function notifyVisitMaybe(req, pack) {
+// FB23/#91: Browser-Hauptsprache aus dem Accept-Language-Header (grob, nur de/en unterschieden).
+// Dient als Fallback, wenn der Client keine explizite UI-Sprache mitschickt (z. B. Landing ohne JS).
+function acceptLang(req) {
+  const h = String(req.headers["accept-language"] || "").toLowerCase();
+  if (!h) return "";
+  return h.startsWith("de") || h.includes(",de") || /(^|,|;)de\b/.test(h) ? "de" : "en";
+}
+// client (optional, FB23/#91): { screen: "1280x800", lang: "de"|"en" } — nur vom App-Startup-Ping
+// (/api/health) mitgeschickt. Kein neuer Identifikator; ergänzt nur das bestehende Besuchs-Signal.
+async function notifyVisitMaybe(req, pack, client = {}) {
   if (!OWNER_SECRET || isOwnerReq(req)) return;   // Feature aus / oder du selbst
   if (!(await hasPushover())) return;
   const ip = clientIp(req), now = Date.now();
@@ -323,7 +332,11 @@ async function notifyVisitMaybe(req, pack) {
   if (visitNotified.size > 800) for (const [k, t] of visitNotified) if (now - t > 24 * 3600e3) visitNotified.delete(k);
   const ref = String(req.headers["referer"] || "").slice(0, 140);
   const where = !pack ? " (Startseite)" : pack.id !== "music" ? ` (${pack.id})` : "";
-  const msg = `Jemand hat „like"${where} geöffnet.\nRegion: ${maskIp(ip)}${ua ? `\n${ua}` : ""}${ref ? `\nvon: ${ref}` : ""}`;
+  // FB23/#91: Screen-Größe (nur vom Client) + Sprache (Client-UI oder Accept-Language) anhängen.
+  const screen = /^\d{2,5}x\d{2,5}$/.test(String(client.screen || "")) ? client.screen : "";
+  const lang = /^(de|en)$/.test(String(client.lang || "")) ? client.lang : acceptLang(req);
+  const extra = [screen ? `Screen: ${screen}` : "", lang ? `Sprache: ${lang}` : ""].filter(Boolean).join(" · ");
+  const msg = `Jemand hat „like"${where} geöffnet.\nRegion: ${maskIp(ip)}${ua ? `\n${ua}` : ""}${extra ? `\n${extra}` : ""}${ref ? `\nvon: ${ref}` : ""}`;
   sendFeedback({ title: "like — neuer Besuch", message: msg }).catch(() => {}); // best effort, blockiert die Seite nicht
 }
 
@@ -1005,7 +1018,9 @@ const server = createServer(async (req, res) => {
         setCookie(res, "like_owner", "1", req);
         res.writeHead(302, { location: "/" }); return res.end();
       }
-      notifyVisitMaybe(req, pack); // Besuch melden (nur Fremde, gedrosselt) — läuft nebenher
+      // FB23/#91: Der Besuch der App wird jetzt NICHT mehr hier (vor dem Client-JS), sondern über den
+      // /api/health-Startup-Ping gemeldet — der trägt Screen-Größe + UI-Sprache. Dedupe verhindert
+      // ohnehin Doppel-Meldungen. Die Landing (ohne App-JS) meldet weiter direkt beim Doc-Request.
       countUsage("view", pack.id); // W7: aggregierter Tageszähler, kein Personenbezug
       return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser, req), "text/html; charset=utf-8");
     }
@@ -1020,6 +1035,12 @@ const server = createServer(async (req, res) => {
 
     // Selbstauskunft: Pack + Key-Status + ob Feedback verfügbar ist (fürs Frontend beim Start)
     if (req.method === "GET" && url.pathname === "/api/health") {
+      // FB23/#91: Nur der App-Startup-Ping schickt ?scr=BxH&lang=de|en mit — daran hängt das
+      // (gedrosselte) Besuchs-Signal an den Betreiber, angereichert um Screen-Größe + UI-Sprache.
+      // Andere /api/health-Aufrufe (z. B. Versions-Check) tragen kein scr und melden daher nicht.
+      if (url.searchParams.has("scr")) {
+        notifyVisitMaybe(req, pack, { screen: url.searchParams.get("scr") || "", lang: url.searchParams.get("lang") || "" });
+      }
       return send(res, 200, { ok: true, key: await hasApiKey(pack), version: APP_VERSION, build: BUILD_REF, pack: pack.id, feedback: FEEDBACK_ON });
     }
 

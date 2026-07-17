@@ -1190,7 +1190,7 @@ eingetragen.
   Heuristik für „Chaos" (Knoten-/Kreuzungszahl-Schwelle) — Vorschlag beim Umsetzen, dann abstimmen.
 
 ### Betreiber-/Datenschutz-Entscheidung (Pushover-Tracking)
-- [ ] **FB23 — Screen & Sprache ins Pushover-Signal (#91, Books).** `notifyVisitMaybe` meldet heute
+- [x] **FB23 — Screen & Sprache ins Pushover-Signal (#91, Books).** `notifyVisitMaybe` meldet heute
   Pack, maskierte IP-Region, User-Agent, Referer. **Entscheidung getroffen (2026-07-17): Screen-Größe
   + UI-Sprache zusätzlich melden.** Beide liegen nur im Client → einmalig, dezent an den Visit-Ping
   mitgeben (Viewport-Größe + `navigator.language`), **ohne neuen Identifikator**, in `notifyVisitMaybe`

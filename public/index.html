@@ -6276,7 +6276,12 @@ document.getElementById("keySave").onclick = async () => {
 async function checkKey() {
   if (STATIC) return;
   try {
-    const h = await GET("/api/health");
+    // FB23/#91: Screen-Größe + UI-Sprache einmalig an den Startup-Ping hängen — der Server nutzt sie
+    // (gedrosselt, ohne neuen Identifikator) fürs Besuchs-Signal an den Betreiber. Nur dieser
+    // /api/health-Aufruf trägt ?scr; andere Health-Calls lösen bewusst keine Meldung aus.
+    let scrLang = "";
+    try { scrLang = `?scr=${(screen?.width || 0)}x${(screen?.height || 0)}&lang=${LANG}`; } catch {}
+    const h = await GET("/api/health" + scrLang);
     // Version + Deploy-Ref (PR bzw. Commit) im Header — verlinkt auf GitHub zur Nachverfolgung (E1).
     const verEl = document.getElementById("ver");
     if (h.version || h.build) {
