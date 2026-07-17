@@ -234,6 +234,7 @@ export default {
     return {
       together: ca.coacts.slice(0, 25).map((c) => ({ name: c.name, weight: c.weight, shows: c.shows })),
       togetherSource: ca.sources.join("+") || "ra",
+      togetherDegraded: !!ca.degraded,
       genres: ca.genres.slice(0, 6), // kuratierte RA-Genres — der Server mischt sie VOR die Tags
       meta: ca.booking || null,
       active: ca.booking ? ca.booking.upcoming > 0 : undefined,
@@ -251,10 +252,11 @@ export default {
     // GETRENNTE Hosts/Gates — parallel statt seriell spart ~370-500 ms pro kaltem Ausbau
     // (Taskforce R13). Schluck-Semantik wie vorher: jeder Zweig scheitert für sich still;
     // die Genre-Mischreihenfolge (RA vor Tags, unten) bleibt unverändert.
-    let booking = null;
+    let booking = null, togetherDegraded = false;
     const [tagsR, caR] = await Promise.allSettled([getTopTags(canonical, { mbid }), coAppearances(canonical)]);
     if (tagsR.status === "fulfilled") tags = tagsR.value;
-    if (caR.status === "fulfilled") { const ca = caR.value; coacts = ca.coacts; raGenres = ca.genres; sources = ca.sources; booking = ca.booking; }
+    if (caR.status === "fulfilled") { const ca = caR.value; coacts = ca.coacts; raGenres = ca.genres; sources = ca.sources; booking = ca.booking; togetherDegraded = !!ca.degraded; }
+    else togetherDegraded = true; // coAppearances komplett gescheitert -> together konnte nicht geladen werden
 
     const genres = [], seenG = new Set();
     for (const x of [...raGenres, ...tags]) { const k = x.toLowerCase(); if (!seenG.has(k)) { seenG.add(k); genres.push(x); } }
@@ -266,6 +268,7 @@ export default {
       similar: similar.slice(0, 25).map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })),
       together: coacts.slice(0, 25).map((c) => ({ name: c.name, weight: c.weight, shows: c.shows })),
       togetherSource: sources.join("+") || "ra",
+      togetherDegraded,
       meta: booking || null,
       active: booking ? booking.upcoming > 0 : undefined,
       sources,

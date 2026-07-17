@@ -1570,6 +1570,7 @@ const T = LANG !== "en" ? null : {
   "suche gemeinsame Auftritte …": "looking for shared shows …",
   "{N}: keine gemeinsamen Auftritte gefunden": "{N}: no shared shows found",
   "{N}: „{L}\" gerade nicht ladbar — der nächste Ausbau versucht es erneut": "{N}: \"{L}\" unavailable right now — the next expand will retry",
+  "{N}: {L} gerade nicht verfügbar — es werden nur ähnliche Acts gezeigt": "{N}: {L} unavailable right now — showing similar acts only",
   "Dein Last.fm-Nutzername (öffentliches Profil genügt, kein Passwort):": "Your Last.fm username (public profile is enough, no password):",
   "↧ Importiere …": "↧ Importing …",
   "{N} Künstler importiert — Doppelklick lädt Nachbarn": "{N} artists imported — double-click loads neighbors",
@@ -4767,6 +4768,9 @@ async function finishExplore(name) {
       if (selected && selected.id === k) { const n = nodeById.get(k); if (n) selectNode(n); } // Panel (Booking/„tritt auf") auffrischen
     }
     if (r2.together) toast(`${r2.name || name}: ${r2.together} ${CFG.edges.together.count || "verbunden"}`);
+    // Ehrlich statt still (U-2a.7): konnte die together-Quelle gar nicht konsultiert werden
+    // (RA aus/gestört), NICHT „keine gemeinsamen Auftritte" behaupten, sondern die Degradation zeigen.
+    else if (r2.togetherDegraded) toast(tf(`{N}: {L} gerade nicht verfügbar — es werden nur ähnliche Acts gezeigt`, { N: r2.name || name, L: CFG.togetherLabel || CFG.edges.together.label }));
     else toast(tf(`{N}: keine gemeinsamen Auftritte gefunden`, { N: r2.name || name }));
   } catch (e) {
     togetherPending.delete(k); requestDraw();

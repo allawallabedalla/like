@@ -1361,7 +1361,7 @@ const server = createServer(async (req, res) => {
         await persist(g);
         return send(res, 200, {
           ok: true, name: src.name, similar: (r.similar || []).length, together: (r.together || []).length,
-          sources: r.sources || [], pending: usesStaged, graph: materialize(g),
+          sources: r.sources || [], togetherDegraded: !!r.togetherDegraded, pending: usesStaged, graph: materialize(g),
         });
       });
     }
@@ -1395,7 +1395,7 @@ const server = createServer(async (req, res) => {
           addEdge(g, src.id, t.id, "together", c.weight || 1, r2.togetherSource || pack.id, c.shows);
         }
         await persist(g);
-        return send(res, 200, { ok: true, name: src.name, together: (r2.together || []).length, sources: r2.sources || [], graph: materialize(g) });
+        return send(res, 200, { ok: true, name: src.name, together: (r2.together || []).length, sources: r2.sources || [], togetherDegraded: !!r2.togetherDegraded, graph: materialize(g) });
       });
     }
 
