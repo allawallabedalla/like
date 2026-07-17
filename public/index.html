@@ -149,7 +149,6 @@
   .bar > button, .bar > select, .search input, .search button { height: 38px; }
   /* Topbar-Buttons mit Icon+Text nie umbrechen lassen (sonst werden sie zu hoch) */
   .bar > button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
-  #radarBtn { gap: 4px; }
   /* Schmale Fenster: nur Bar-Elemente anpassen. Die Anzeige-Optionen/Export liegen im
      ⋯-Menü und bleiben dort IMMER erreichbar (die frühere Ausblendung galt der alten Topbar). */
   @media (max-width: 760px) { .bar { gap: 8px; padding: 0 10px; } .brand .ver { display: none; } }
@@ -168,7 +167,7 @@
      (2) ≤1040px: der Genre-Filter wandert ins Menü (bereits via .gfilter-Regel unten).
      (3) ≤640px: auch die Suche wandert ins Menü (echtes Handy). */
   @media (max-width: 1180px) {
-    #radarBtn, #discoverBtn, #tidyBtn, #feedbackBtn, #helpBtn { display: none !important; }
+    #discoverBtn, #tidyBtn, #feedbackBtn, #helpBtn { display: none !important; }
     #toolsTitle { display: block; }
     #toolsRow1, #toolsRow2 { display: flex; }
     #toolsRow1 button, #toolsRow2 button { flex: 1; }
@@ -593,7 +592,7 @@
 
   /* Entdecken-Popover */
   /* Aktiv-Zustand: Werkzeug-Knopf hervorheben, solange sein Fenster offen ist (C10, C9) */
-  #radarBtn.on, #discoverBtn.on { border-color: var(--edge-together); color: var(--edge-together); }
+  #discoverBtn.on { border-color: var(--edge-together); color: var(--edge-together); }
   .discoverbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
     padding: 12px 14px; width: 268px; display: none; font-size: 13px; box-shadow: 0 10px 34px rgba(0,0,0,.16); border-radius: 10px; }
   .discoverbox.show { display: block; }
@@ -791,7 +790,7 @@
      Fenstern; das ⋯-Menü (mit allem darin) bleibt immer erreichbar. */
   @media (max-width: 1040px) { .gfilter { display: none !important; } }          /* Genre-Filter (auch via Panel-Chips) */
   @media (max-width: 900px)  { #feedbackBtn { display: none !important; } }
-  @media (max-width: 760px)  { #radarBtn { display: none !important; } .bar { gap: 8px; } } /* Entdecken bleibt */
+  @media (max-width: 760px)  { .bar { gap: 8px; } } /* Radar/Streifzug liegen im Entdecken-Popover */
   @media (max-width: 480px) {
     /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante.
        Höhe bewusst < 2/3, damit der Graph oben sichtbar bleibt (der fokussierte Knoten
@@ -863,8 +862,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <button class="primary" id="go" title="Act laden: ähnlicher Stil + zusammen aufgetreten + Genres">Suchen</button>
     </div>
     <button id="mSearchBtn" class="iconbtn hideStatic" title="Suchen" aria-label="Suchen"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
-    <button id="radarBtn" class="hideStatic" title="Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg>Radar</button>
-    <button id="discoverBtn" title="Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
+    <button id="discoverBtn" title="Entdeck-Werkzeuge: Radar, Streifzug, Szenen, Brückenbauer"><svg class="ic" viewBox="0 0 16 16" style="margin-right:5px"><path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.5l1-4.1L2.2 5.7l4.2-.3z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>Entdecken</button>
     <button id="tidyBtn" class="iconbtn" title="Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="8" cy="2.4" r="1.35" fill="currentColor"/><circle cx="12.85" cy="10.8" r="1.35" fill="currentColor"/><circle cx="3.15" cy="10.8" r="1.35" fill="currentColor"/></svg></button>
     <button id="feedbackBtn" class="iconbtn hideStatic" style="display:none" title="Feedback / Fehler melden">✉</button>
     <button id="helpBtn" class="iconbtn" title="Bedienung & Tastatur-Shortcuts">?</button>
@@ -899,8 +897,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <input id="mSearch" class="gfilter mobileonly hideStatic" placeholder="Act suchen…" autocomplete="off" style="width:100%;margin-bottom:8px" />
     <div class="mtitle mobileonly" id="toolsTitle">Werkzeuge</div>
     <div class="mrow mobileonly" id="toolsRow1">
-      <button id="mDiscover" title="Entdeck-Werkzeuge">✦ Entdecken</button>
-      <button id="mRadar" class="hideStatic" title="Geheimtipp-Radar">◎ Radar</button>
+      <button id="mDiscover" title="Entdeck-Werkzeuge: Radar, Streifzug, Szenen, Brückenbauer">✦ Entdecken</button>
     </div>
     <div class="mrow mobileonly" id="toolsRow2">
       <button id="mTidy" title="Netz sortieren">⌗ Sortieren</button>
@@ -1048,6 +1045,12 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
 
   <div class="discoverbox" id="discoverbox">
     <div class="dtitle">Entdecken</div>
+    <!-- FB25/#93: Radar ins Entdecken-Popover gebündelt (früher eigener Topbar-Knopf) — alle
+         Entdeck-Werkzeuge an einem Ort, keine zwei fast gleichen Einstiege mehr. -->
+    <div class="ditem" id="discRadar">
+      <span class="dico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8L13.2 4.2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="8" cy="8" r="1.15"/></svg></span>
+      <span><b>Radar</b><small>Kleine, noch unentdeckte Einträge nah an deinem Geschmack — mit Begründung.</small></span>
+    </div>
     <div class="ditem" id="discSurprise">
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 3.8 9.5 8 8 12.2 6.5 8Z"/></svg></span>
       <span><b>Streifzug</b><small>Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.</small></span>
@@ -1468,6 +1471,7 @@ const T = LANG !== "en" ? null : {
   // Entdecken
   "Überrasch mich": "Surprise me",
   "Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.": "A random stroll through your network — lands somewhere new.",
+  "Kleine, noch unentdeckte Einträge nah an deinem Geschmack — mit Begründung.": "Small, still-undiscovered entries close to your taste — with reasoning.",
   "Szenen zeigen": "Show scenes",
   "Hebt zusammengehörige Gruppen als sanfte Farbflächen hervor.": "Highlights groups that belong together as soft color areas.",
   "Brückenbauer": "Bridge builders", "Welche Einträge halten deine Szenen zusammen?": "Which entries hold your scenes together?",
@@ -1936,7 +1940,7 @@ function applyCfg() {
     $("dimBigWrap").title = CFG.popularity.dimTitle || "";
   } else $("dimBigWrap").style.display = "none";
   if (FEAT.venues) $("venueWrap").style.display = "";
-  if (!FEAT.radar) $("radarBtn").style.display = "none";
+  if (!FEAT.radar) { const dr = $("discRadar"); if (dr) dr.style.display = "none"; }
   $("radarTitle").textContent = CFG.radarTitle || "Radar";
   // leerer Zustand: nur die zentrale Suchleiste (Platzhalter aus der Pack-Config)
   $("q2").placeholder = (CFG.searchPlaceholder || "Suchen…").replace(/\s*\(\s*\/\s*\)\s*$/, "") + (CFG.exampleSeed ? `   ${t("z.B.")} ${CFG.exampleSeed}` : "");
@@ -1999,15 +2003,9 @@ function applyCfg() {
     $("focusBtn").replaceWith(share);
     share.classList.remove("iconbtn", "shareicon");
     share.appendChild(document.createTextNode(" " + t("Teilen")));
-    // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst den
-    // „Streifzug" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile). FB25/#93: bewusst
-    // NICHT „Überrasch mich" — dieser Wortlaut gehört dem Empty-State-Knopf, der einen NEUEN Act lädt;
-    // der Streifzug springt durch das BESTEHENDE Netz. Gleiche Namen für Verschiedenes hatte verwirrt.
-    const db = $("discoverBtn");
-    db.lastChild.textContent = t("Streifzug");
-    db.title = t("Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem");
-    db.onclick = () => surpriseMe();
-    $("mDiscover").textContent = t("✦ Streifzug");
+    // FB25/#93: „Entdecken" öffnet auch im Stöbern-Modus das Popover — es enthält jetzt mindestens
+    // zwei Einträge (Streifzug + Radar; Szenen/Brücken sind Profi-only), also lohnt das Menü. Früher
+    // löste der Knopf hier direkt den Streifzug aus, als das Popover nur einen Eintrag gehabt hätte.
     $("helpCtx").textContent = t("Menü (Erkunden, Merken …)");
     if (FEAT.tour) $("tourP4").innerHTML = tf("Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b>-Liste (links unten). Viel Spaß!",
       { L: esc(CFG.likeLabel || "like!"), B: esc(CFG.basketLabel || "Favoriten") });
@@ -5498,14 +5496,20 @@ const radarBody = document.getElementById("radarBody");
 const radarStamp = document.getElementById("radarStamp");
 let radarBusy = false;
 // C10: Aktiv-Zustand am Radar-Knopf + Außenklick schließt -> klar, wie man das Fenster loswird.
-function syncRadarBtn() { document.getElementById("radarBtn").classList.toggle("on", radarEl.classList.contains("show")); }
+// FB25/#93: Radar sitzt jetzt im Entdecken-Popover (#discRadar) statt als eigener Topbar-Knopf.
+// Der aktive Zustand wird am Popover-Eintrag markiert (der ist beim Öffnen des Radars zwar zu,
+// aber die Markierung schadet nicht und greift, falls das Popover offen bleibt).
+function syncRadarBtn() { const b = document.getElementById("discRadar"); if (b) b.classList.toggle("on", radarEl.classList.contains("show")); }
 function closeRadar() { radarEl.classList.remove("show"); syncRadarBtn(); }
+function toggleRadar() {
+  if (radarEl.classList.contains("show")) { closeRadar(); }
+  else { closeDiscover(); radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
+}
 document.getElementById("radarClose").onclick = closeRadar;
-document.getElementById("radarBtn").onclick = () => {
-  if (radarEl.classList.contains("show")) closeRadar(); else { radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
-};
+document.getElementById("discRadar").onclick = toggleRadar;
 document.addEventListener("mousedown", (e) => {
-  if (radarEl.classList.contains("show") && !radarEl.contains(e.target) && e.target.id !== "radarBtn" && !document.getElementById("radarBtn").contains(e.target)) closeRadar();
+  // Außenklick schließt das Radar — Klicks aus dem Entdecken-Popover (der Radar-Einstieg) ausnehmen.
+  if (radarEl.classList.contains("show") && !radarEl.contains(e.target) && !e.target.closest("#discoverbox")) closeRadar();
 });
 document.getElementById("radarRefresh").onclick = () => runRadar(true);
 
@@ -6038,7 +6042,6 @@ document.addEventListener("mousedown", (e) => {
 // Handy: die ins ⋯-Menü verlagerten Werkzeuge lösen dieselben Aktionen aus wie die Topbar-Buttons.
 const closeMore = () => moreEl.classList.remove("show");
 document.getElementById("mDiscover").onclick = () => { closeMore(); document.getElementById("discoverBtn").click(); };
-document.getElementById("mRadar").onclick = () => { closeMore(); document.getElementById("radarBtn").click(); };
 document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); ackTidy(); };
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
 // N7: „Meine Listen" öffnet den Listen-Umschalter (ansehen/wechseln/umbenennen/neu) — die

@@ -1192,7 +1192,7 @@ eingetragen.
     Suchen **nicht** anfassen. **Live prüfen:** welche der dt. Seeds im US-Store durchfallen und ob
     `country=de` (analog `byGenre`) hilft; Cache ggf. leeren.
 
-- [~] **FB25 — „Entdecken"-Menü: redundante/verwirrend ähnliche Funktionen (#93, Music).** Bestand
+- [x] **FB25 — „Entdecken"-Menü: redundante/verwirrend ähnliche Funktionen (#93, Music).** Bestand
   heute: der `#discoverBtn`-Popover (`discoverbox`) enthält **Überrasch mich · Szenen · Brückenbauer**,
   daneben gibt es separat **Radar** (`#radarBtn` bzw. `#mRadar` im Booking-Modus) und **✦ Überrasch
   mich** nochmal als Empty-State-Button (`#surpriseBtn`). „Überrasch mich" und „Radar" existieren also
