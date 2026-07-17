@@ -1979,8 +1979,11 @@ function applyCfg() {
     $("tourP4").innerHTML = tf(`Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!`, { L: ll, B: bl });
     $("tourPill").textContent = CFG.likeLabel || "merken!";
     // FB20/#87: Slide 5 pack-neutral — der handgetextete Slide sagt „Acts" und „hören" (nur Musik).
-    $("tourT5").textContent = t("Entdecken, Szenen & aufräumen");
-    $("tourP5").innerHTML = tf(`<b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, entfernst du am Punkt mit <b>×</b>; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene {P}.`, { P: esc(CFG.item.plur) });
+    // Achtung: Slide 5 (der Profi-Slide) wird im Fun-Modus oben bewusst entfernt (data-s="4") —
+    // daher defensiv nur setzen, wenn er noch existiert (sonst im Stöbern-Modus null-Zugriff).
+    const t5 = $("tourT5"), p5 = $("tourP5");
+    if (t5) t5.textContent = t("Entdecken, Szenen & aufräumen");
+    if (p5) p5.innerHTML = tf(`<b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, entfernst du am Punkt mit <b>×</b>; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene {P}.`, { P: esc(CFG.item.plur) });
   }
   // Fun/Work-Umschalter: aktiven Modus markieren; außerhalb von Musik heißt Work „Profi"
   $("modeFun").classList.toggle("on", MODE === "fun");
