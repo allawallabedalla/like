@@ -1208,7 +1208,7 @@ eingetragen.
   geschlossen.
 
 ### Große Bretter (eigene Vorhaben)
-- [ ] **FB20 — Intro-Tour packübergreifend korrekt + USABILITY.md (#87, Boardgames).** Die Tour-Slides
+- [x] **FB20 — Intro-Tour packübergreifend korrekt + USABILITY.md (#87, Boardgames).** Die Tour-Slides
   (`tourT1`–`tourT5` in `public/index.html`) sind musik-/„Act"-/„Last.fm"-/„Radar"-lastig formuliert
   und werden in **allen** Packs gleich gezeigt — für Boardgames/Books/… stimmen Begriffe und teils
   Funktionen nicht mehr mit der realen Bedienung überein. Zwei Stränge: (1) Tour-Copy an die reale,
@@ -1216,7 +1216,14 @@ eingetragen.
   einer **`USABILITY.md`** aufgreifen — eine gepflegte Funktions-/UI-Referenz (jede Funktion + wo sie
   sitzt), die als Single Source für Tour, Hilfe und künftige Änderungen dient. Empfehlung: `USABILITY.md`
   zuerst als Bestandsaufnahme anlegen, daraus die Tour korrigieren. Sinnvoll — ja.
-
+  - **✅ Umgesetzt (2026-07-17):** (1) **`USABILITY.md`** angelegt — vollständige Funktions-/UI-Referenz
+    (Konzept, beide Modi, Topbar, Canvas-Interaktionen, Info-Panel, Entdecken-Popover, Radar, Listen,
+    Export, Löschen, Feedback, Shortcuts, **Pack-/Feature-Matrix**, Beta/Gate). In `CLAUDE.md` als
+    Single Source verlinkt. (2) Tour pack-neutral vervollständigt: Slide 1–4 waren es schon (via `tf()`
+    aus `CFG`), **Slide 5 (`tourT5`/`tourP5`) war noch hart „Acts"/„hören"** → jetzt aus `CFG.item.plur`
+    (DE+EN); Slide 2 nennt jetzt auch den Einfach-Klick. Musik behält die handgetexteten Slides.
+    *Follow-up möglich:* ein tieferer Per-Pack-Wortlaut-Feinschliff, aber die faktischen Ungenauigkeiten
+    (falsches Nomen, „hören" ohne Klangprobe) sind raus.
 - [ ] **FB27 — Bild im Info-Sidebar (#95, Plants; wirkt packübergreifend).** Das Info-Panel (`.panel`,
   rechts, 320px) zeigt heute Text/Kontext, kein Bild. Wunsch: ein Bild je Eintrag, für Plants
   idealerweise eine **historische Zeichnung (à la Haeckel/gemeinfrei)**. **Analyse/Entscheidung nötig:**

@@ -1703,7 +1703,9 @@ const T = LANG !== "en" ? null : {
   "Kanten": "edges", "{P} an diesem Ort": "{P} at this venue",
   "{T} zeigt {P} als klickbare <b>Karte</b>. Zwei Verbindungsarten: {S1} = {L1}, {S2} = {L2}.": "{T} shows {P} as a clickable <b>map</b>. Two kinds of connections: {S1} = {L1}, {S2} = {L2}.",
   "— blau": "— blue", "— orange": "— orange",
-  "Such oben z.B. „{X}\". <b>Doppelklick</b> auf einen Punkt lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.": "Try searching for \"{X}\" above. A <b>double-click</b> on a dot loads its neighbors — that's how you hop through the network step by step.",
+  "Such oben z.B. „{X}\". Ein <b>Klick</b> auf einen Punkt öffnet seine Info, ein <b>Doppelklick</b> lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.": "Try searching for \"{X}\" above. A <b>click</b> on a dot opens its info, a <b>double-click</b> loads its neighbors — that's how you hop through the network step by step.",
+  "Entdecken, Szenen & aufräumen": "Discover, scenes & tidy up",
+  "<b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, entfernst du am Punkt mit <b>×</b>; „<b>Unverknüpfte aufräumen</b>\" unter „⋯\" räumt allein übrig gebliebene {P}.": "<b>Discover</b> highlights related <b>scenes</b> as color areas (their names in the legend, bottom left) and shows <b>bridges</b> between them. Remove anything that doesn't fit with <b>×</b> on its dot; \"<b>Remove unconnected</b>\" under \"⋯\" clears out {P} left on their own.",
   "Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> {P} nahe deinem Geschmack vor — mit Klartext-Begründung und „{L}\" in einem Klick.": "The <b>radar</b> suggests <b>small, still undiscovered</b> {P} close to your taste — with plain-language reasoning and \"{L}\" in one click.",
   "Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?\". Viel Spaß!": "With <b>{L}</b>, favorites go to your <b>{B}</b> — exportable as CSV. Dark mode, backup &amp; more live under \"?\". Have fun!",
   "Willkommen bei {T}": "Welcome to {T}",
@@ -1946,11 +1948,14 @@ function applyCfg() {
       T: esc(CFG.title), P: esc(CFG.item.plur),
       S1: `<span style="color:var(--edge-similar)">${t("— blau")}</span>`, L1: esc(CFG.edges.similar.label),
       S2: `<span style="color:var(--edge-together)">${t("— orange")}</span>`, L2: esc(CFG.edges.together.label) });
-    $("tourP2").innerHTML = tf(`Such oben z.B. „{X}". <b>Doppelklick</b> auf einen Punkt lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.`, { X: esc(CFG.exampleSeed) });
+    $("tourP2").innerHTML = tf(`Such oben z.B. „{X}". Ein <b>Klick</b> auf einen Punkt öffnet seine Info, ein <b>Doppelklick</b> lädt seine Nachbarn — so hangelst du dich Schritt für Schritt durchs Netz.`, { X: esc(CFG.exampleSeed) });
     $("tourT3").textContent = CFG.radarTitle || t("Das Radar");
     $("tourP3").innerHTML = tf(`Das <b>Radar</b> schlägt dir <b>kleine, noch unentdeckte</b> {P} nahe deinem Geschmack vor — mit Klartext-Begründung und „{L}" in einem Klick.`, { P: esc(CFG.item.plur), L: ll });
     $("tourP4").innerHTML = tf(`Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?". Viel Spaß!`, { L: ll, B: bl });
     $("tourPill").textContent = CFG.likeLabel || "merken!";
+    // FB20/#87: Slide 5 pack-neutral — der handgetextete Slide sagt „Acts" und „hören" (nur Musik).
+    $("tourT5").textContent = t("Entdecken, Szenen & aufräumen");
+    $("tourP5").innerHTML = tf(`<b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, entfernst du am Punkt mit <b>×</b>; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene {P}.`, { P: esc(CFG.item.plur) });
   }
   // Fun/Work-Umschalter: aktiven Modus markieren; außerhalb von Musik heißt Work „Profi"
   $("modeFun").classList.toggle("on", MODE === "fun");

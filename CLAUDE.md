@@ -8,6 +8,7 @@
 
 ## Arbeitsweise
 - Backlog-Runden stehen in `BACKLOG.md` (auf `main`), bekannte Testbefunde in `BUGS.md`,
-  Testannahmen in `NOTES.md`.
+  Testannahmen in `NOTES.md`. Die Funktions-/UI-Referenz (was sitzt wo) steht in `USABILITY.md` —
+  bei UI-Änderungen mitpflegen (Single Source für Intro-Tour + Hilfe).
 - Verifizieren: `npm run check` (Config + Smoke) und `npm run test:ci` (Playwright;
   Setup-Hinweise für Agent-Umgebungen in `NOTES.md`).
