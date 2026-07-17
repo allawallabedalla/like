@@ -240,6 +240,12 @@
   .panel.open { transform: none; }
   .panel h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
   .panel .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 8px; }
+  /* FB29/#97: Standort-Mini-Karte im Info-Panel (nur Travel) */
+  .pmap { margin: 0 0 14px; }
+  .pmap a { text-decoration: none; color: inherit; }
+  .pmap svg { width: 100%; height: auto; display: block; border: 1px solid var(--line-soft); border-radius: 8px; }
+  .pmap .cap { margin-top: 5px; font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .pmap .cap a { color: var(--muted); text-decoration: underline; }
   .playbtn { flex: none; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line-soft); background: var(--bg);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; }
   .playbtn:hover { border-color: var(--edge-together); color: var(--edge-together); }
@@ -1270,6 +1276,8 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <button class="close" id="closePanel" title="Panel schließen (Esc)">×</button>
     <h2 id="pName">–</h2>
     <div class="sub" id="pSub"></div>
+    <!-- FB29/#97: kleine Standort-Karte (nur Travel, wenn Koordinaten vorliegen) -->
+    <div id="pMap" class="pmap" style="display:none"></div>
     <div id="pGenres" class="genres"></div>
     <div id="pBooking" class="booking"></div>
     <div class="row">
@@ -1358,6 +1366,9 @@ const T = LANG !== "en" ? null : {
   "Aufräumen — Netz ordentlich anordnen: Szenen gruppieren, möglichst wenige gekreuzte Linien": "Tidy up — arrange the network neatly: group scenes, as few crossing lines as possible",
   "Bedienung & Tastatur-Shortcuts": "Controls & keyboard shortcuts",
   "🚧 Diese Seite entsteht gerade — es kann noch etwas haken.": "🚧 This site is still a work in progress — things may occasionally break.",
+  "Genaue Lage auf OpenStreetMap ansehen": "View exact location on OpenStreetMap",
+  "Ungefähre Lage: {C}": "Approximate location: {C}",
+  "Karte ↗": "Map ↗",
   "Feedback / Fehler melden": "Feedback / report a bug",
   "Geheimtipp-Radar: kleine Acts im sichtbaren Kartenausschnitt, nah an deinen Likes — mit Begründung": "Hidden-gem radar: small acts in the visible part of the map, close to your likes — with reasoning",
   "Entdeck-Werkzeuge: Zufallsfund, Szenen, Brückenbauer": "Discovery tools: random find, scenes, bridge builder",
@@ -4041,6 +4052,36 @@ cv.addEventListener("touchend", (e) => {
 cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null; }, { passive: false });
 
 // ---- Panel ----
+// FB29/#97: kleine Standort-Karte im Info-Panel. Bewusst key-/netzfrei: eine inline gezeichnete
+// Weltkarte (äquidistante Projektion mit Gradnetz) + Marker aus Lat/Lon, wie vom Travel-Pack
+// mitgeliefert (n.coord). Ein Klick öffnet die genaue Stelle auf OpenStreetMap (echte Karte).
+// Nur für Travel und nur, wenn Koordinaten vorliegen; sonst bleibt das Widget verborgen.
+function renderMiniMap(n) {
+  const el = document.getElementById("pMap");
+  if (!el) return;
+  const c = n && n.coord;
+  if (CFG.id !== "travel" || !c || !isFinite(c.lat) || !isFinite(c.lon)) { el.style.display = "none"; el.innerHTML = ""; return; }
+  const lat = Math.max(-90, Math.min(90, c.lat)), lon = Math.max(-180, Math.min(180, c.lon));
+  const W = 232, H = 116;
+  const px = ((lon + 180) / 360) * W, py = ((90 - lat) / 180) * H;
+  let grid = "";
+  for (let L = -120; L <= 120; L += 60) { const gx = ((L + 180) / 360 * W).toFixed(1); grid += `<line x1="${gx}" y1="0" x2="${gx}" y2="${H}"/>`; }
+  for (let L = -60; L <= 60; L += 30) { const gy = ((90 - L) / 180 * H).toFixed(1); grid += `<line x1="0" y1="${gy}" x2="${W}" y2="${gy}"/>`; }
+  const eqY = (H / 2).toFixed(1), pmX = (W / 2).toFixed(1);
+  const coordTxt = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? "E" : "W"}`;
+  const osm = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=5/${lat.toFixed(3)}/${lon.toFixed(3)}`;
+  el.innerHTML =
+    `<a href="${osm}" target="_blank" rel="noreferrer" title="${esc(t("Genaue Lage auf OpenStreetMap ansehen"))}">` +
+      `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tf("Ungefähre Lage: {C}", { C: coordTxt }))}">` +
+        `<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" fill="var(--bg)"/>` +
+        `<g stroke="var(--line-soft)" stroke-width="0.5" fill="none">${grid}</g>` +
+        `<g stroke="var(--line)" stroke-width="0.8" fill="none"><line x1="0" y1="${eqY}" x2="${W}" y2="${eqY}"/><line x1="${pmX}" y1="0" x2="${pmX}" y2="${H}"/></g>` +
+        `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4.6" fill="var(--accent)" stroke="#fff" stroke-width="1.6"/>` +
+      `</svg>` +
+    `</a>` +
+    `<div class="cap"><span>${esc(coordTxt)}</span><a href="${osm}" target="_blank" rel="noreferrer">${esc(t("Karte ↗"))}</a></div>`;
+  el.style.display = "";
+}
 // Genre-Pills im Panel: Klick toggelt das Genre als Karten-Filter (ODER-verknüpft
 // mit anderen ausgewählten Genres, so wie der Genre-Filter oben in der Topbar).
 function renderGenrePills(genres) {
@@ -4087,6 +4128,7 @@ function selectNode(n) {
   // W4: Auswahl-Wechsel für Screenreader ansagen (Name + Vernetzungsgrad).
   announce(`${n.name} — ${tf(n.deg === 1 ? "{N} Verbindung" : "{N} Verbindungen", { N: n.deg || 0 })}`);
   renderSub(n, null);
+  renderMiniMap(n); // FB29/#97: Standort-Karte (Travel)
   renderGenrePills(n.genres);
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
   document.getElementById("status").value = n.status || "";

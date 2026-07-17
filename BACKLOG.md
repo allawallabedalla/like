@@ -1218,7 +1218,7 @@ eingetragen.
   wäre ein optionales `image`/`thumb`-Feld pro Pack (nur wo es eine gute, lizenzklare Quelle gibt) +
   eine Bildzeile im Panel mit Quellen-/Lizenzhinweis. Scope: Bildquelle + Lizenz + Panel-Layout.
 
-- [ ] **FB29 — Kleine Karte im Info-Sidebar bei Travel (#97).** Wunsch: bei `travel` eine Mini-Karte
+- [x] **FB29 — Kleine Karte im Info-Sidebar bei Travel (#97).** Wunsch: bei `travel` eine Mini-Karte
   „wo liegt das?" im Info-Panel — Nutzer selbst schlägt vor, dass notfalls **Land genügt**. **Analyse:**
   keine Google-API nötig; Optionen (a) statisches, gemeinfreies SVG-Weltkarten-Mini mit gesetztem
   Marker aus Lat/Lon (kein Netz, keine Keys — bevorzugt), (b) eingebettete OSM-/Wikimedia-Karte
@@ -1237,6 +1237,16 @@ eingetragen.
     Asset hinzufügen (Lizenz klären: Natural Earth / Wikimedia BlankMap, PD), Marker per
     Equirektangular-Projektion, (3) Land+Flagge als Fallback ohne Koordinaten. **Offen:** nur der Seed
     hat sicher `coord` (Nachbarknoten ggf. via `enrich` nachladen); SVG-Lizenz.
+  - **✅ Umgesetzt (2026-07-17):** (1) `coord` wird jetzt durchgereicht — `explore()` **und** `enrich()`
+    im Travel-Pack liefern `{lat,lon}`, der Server persistiert sie am Knoten (`src.coord`/`a.coord`,
+    überlebt `migrate` (Blacklist) + `materialize`). (2) Info-Panel-Widget `#pMap` (`renderMiniMap`,
+    nur `CFG.id==="travel"` mit Koordinaten): **key-/netzfrei** — inline gezeichnete äquidistante
+    Weltkarte (Gradnetz + betonter Äquator/Nullmeridian) mit Marker aus Lat/Lon; Klick öffnet die
+    genaue Stelle auf OpenStreetMap; Caption zeigt die Koordinaten. **Bewusst als self-contained v1
+    ohne externes Asset** (keine Lizenzfrage). *Mögliches Follow-up:* das Gradnetz später durch ein
+    gemeinfreies Küstenlinien-SVG (Natural Earth / Wikimedia BlankMap) ersetzen — dann ist die
+    Kontinent-Silhouette erkennbar. Projektion + Branch-Logik per Unit-Test verifiziert; Live-Explore
+    (Netz) im Browser noch gegenzusehen.
 
 ---
 
