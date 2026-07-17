@@ -372,9 +372,10 @@ export default {
           const k = r.name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
           if (isKnown(k) || seenNew.has(k)) continue;
           seenNew.add(k);
-          const reasons = [`Deezer-Nachbar von ${likeName}`];
-          if (r.fans != null) reasons.push(`${r.fans >= 1000 ? Math.round(r.fans / 1000) + "k" : r.fans} Fans`);
-          reasons.push("noch nicht auf deiner Karte");
+          // Begründungen sprachneutral als {key,vars}-Tokens (U-2a.4) — server-seitig übersetzt.
+          const reasons = [{ key: "dzNeighbor", vars: { name: likeName } }];
+          if (r.fans != null) reasons.push({ key: "fans", vars: { n: r.fans >= 1000 ? Math.round(r.fans / 1000) + "k" : r.fans } });
+          reasons.push({ key: "notOnMap" });
           const small = r.fans == null ? 0.5 : r.fans < 3000 ? 1 : r.fans < 10000 ? 0.85 : r.fans < 30000 ? 0.65 : r.fans < 100000 ? 0.4 : r.fans < 300000 ? 0.2 : 0.08;
           out.push({ name: r.name, score: 0.55 * small, reasons, url: r.link });
         }
@@ -388,7 +389,7 @@ export default {
           seenNew.add(k);
           out.push({
             name: it.artist, score: 0.45, url: it.url,
-            reasons: [`frisch auf Bandcamp (${it.genre})`, it.title ? `Release: „${it.title}"` : null, "noch nicht auf deiner Karte"].filter(Boolean),
+            reasons: [{ key: "bcFresh", vars: { genre: it.genre } }, it.title ? { key: "release", vars: { title: it.title } } : null, { key: "notOnMap" }].filter(Boolean),
           });
         }
       } catch { /* Bandcamp aus -> weiter */ }

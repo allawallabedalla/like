@@ -1791,6 +1791,22 @@ const server = createServer(async (req, res) => {
       const M = lang === "en"
         ? { empty: "Search or like a few entries first — then the radar has a taste to work from.", near: "close to", month: "/month", together: "directly connected" }
         : { empty: "Erst ein paar Einträge suchen oder liken — dann hat das Radar einen Geschmack, an dem es sich orientieren kann.", near: "nah an", month: "/Monat", together: "direkt verbunden" };
+      // radarExtras liefern ihre Begründungen sprachneutral als {key,vars}-Tokens; hier zentral
+      // übersetzt (U-2a.4). Rückwärtskompatibel: rohe Strings gehen unverändert durch, damit
+      // Packs, die noch Klartext zurückgeben, nicht brechen.
+      const trExtra = (r) => {
+        if (typeof r === "string") return r;
+        if (!r || !r.key) return "";
+        const v = r.vars || {};
+        const T = {
+          dzNeighbor: { de: `Deezer-Nachbar von ${v.name}`, en: `Deezer neighbour of ${v.name}` },
+          fans:       { de: `${v.n} Fans`,                    en: `${v.n} fans` },
+          notOnMap:   { de: `noch nicht auf deiner Karte`,    en: `not on your map yet` },
+          bcFresh:    { de: `frisch auf Bandcamp (${v.genre})`, en: `fresh on Bandcamp (${v.genre})` },
+          release:    { de: `Release: „${v.title}"`,          en: `Release: "${v.title}"` },
+        }[r.key];
+        return T ? T[lang] : (r.text || "");
+      };
       const g = await loadGraph(GRAPH);
       const extra = new Set(extraLikes);
       // C8 (neu): Der sichtbare Ausschnitt ist der SUCHRAUM — Vorschläge kommen nur aus den
@@ -1904,7 +1920,7 @@ const server = createServer(async (req, res) => {
         out.push({ name: a.name, id: c.id, inGraph: true, listeners: a.listeners ?? null, growth, score, reasons, url: a.bcUrl || a.url || null });
       }
       for (const x of extras) {
-        out.push({ name: x.name, id: null, inGraph: false, score: x.score ?? 0.5, reasons: x.reasons || [], url: x.url || null });
+        out.push({ name: x.name, id: null, inGraph: false, score: x.score ?? 0.5, reasons: (x.reasons || []).map(trExtra), url: x.url || null });
       }
       out.sort((x, y) => y.score - x.score);
       const radar = out.slice(0, Math.max(3, Math.min(30, limit)));
