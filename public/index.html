@@ -6013,6 +6013,8 @@ async function doAuthSubmit() {
   // Der Server hat die aktuelle (anonyme) Karte bereits in den Account übernommen.
   // Kein Reload: der aktuelle Screen bleibt erhalten, künftige Änderungen landen im Konto.
   try { localStorage.removeItem("like_anon"); sessionStorage.removeItem("like_anon"); } catch {}
+  // Merkt fürs Interaktions-Signal (s. u.): in DIESER Sitzung wurde ein Konto neu angelegt.
+  if (authMode === "register") { try { sessionStorage.setItem("like_created", "1"); } catch {} }
   window.LIKE_USER = r.user;
   authModal.classList.remove("show");
   renderAcct();
@@ -6501,6 +6503,42 @@ addEventListener("visibilitychange", () => {
   // -> Canvas-Maße sichern und neu zeichnen, damit das Netz nicht „weg" bleibt.
   if (!document.hidden) { resize(); requestDraw(); }
 });
+
+// Interaktions-Signal (nur für den Betreiber, greift serverseitig nur bei gesetztem
+// LIKE_OWNER_SECRET): misst, wie lange dieser Tab offen ist, und meldet es beim Verlassen per
+// navigator.sendBeacon an /api/visit/end. Rein clientseitig, nichts wird gespeichert — der Server
+// macht daraus höchstens eine Pushover-Notiz „Verweildauer …, Konto angelegt: ja/nein". Die
+// Besuchs-ID lebt nur in sessionStorage (pro Tab), damit ein Reload den Besuch nicht neu zählt.
+(function () {
+  const KEY = "like_visit_id", TKEY = "like_visit_t0";
+  let id, t0;
+  try {
+    id = sessionStorage.getItem(KEY);
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+      sessionStorage.setItem(KEY, id);
+      sessionStorage.setItem(TKEY, String(Date.now()));
+    }
+    t0 = Number(sessionStorage.getItem(TKEY)) || Date.now();
+  } catch { return; } // ohne sessionStorage (strenge Privatsphäre-Einstellungen) einfach kein Signal
+  function report() {
+    if (!id || !navigator.sendBeacon) return;
+    let created = false;
+    try { created = sessionStorage.getItem("like_created") === "1"; } catch {}
+    const payload = JSON.stringify({
+      id,
+      seconds: Math.round((Date.now() - t0) / 1000),
+      account: !!window.LIKE_USER,   // aktuell angemeldet?
+      created,                        // in dieser Sitzung neu registriert?
+      ref: document.referrer || "",
+    });
+    try { navigator.sendBeacon("/api/visit/end", new Blob([payload], { type: "application/json" })); } catch {}
+  }
+  // Jeder Wechsel in den Hintergrund + der finale Weggang schicken den aktuellen Stand; der Server
+  // entprellt das zu genau EINER Meldung je Besuch (mit der längsten gemeldeten Dauer).
+  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") report(); });
+  addEventListener("pagehide", report);
+})();
 
 // E7: Mobile-Suche — Lupe in der Topbar öffnet ein Vollbild-Suchfeld mit Autofokus und
 // denselben Vorschlägen wie die Desktop-Suche (statt zwei Taps ins generische ⋯-Menü).

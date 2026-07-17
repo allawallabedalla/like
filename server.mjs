@@ -291,12 +291,14 @@ function setCookie(res, name, val, req) {
 // simple In-Memory-Drossel gegen Spam: max. 6 Feedback-Nachrichten pro 5 Minuten (global).
 let fbHits = [];
 
-// Besuchs-Benachrichtigung: Pushover, wenn jemand ANDERES als du die Seite öffnet.
-// Aktiv nur, wenn LIKE_OWNER_SECRET gesetzt ist (sonst aus). Du selbst schließt dich aus,
-// indem du EINMAL die Seite mit ?owner=<secret> öffnest -> setzt ein like_owner-Cookie.
+// Interaktions-Benachrichtigung: Pushover meldet nicht mehr das bloße ÖFFNEN, sondern die
+// INTERAKTION — WIE LANGE jemand da war und OB in der Sitzung ein Konto entstanden ist.
+// Ausgelöst wird das beim VERLASSEN der Seite: der Browser schickt per navigator.sendBeacon
+// ein kleines „Ende"-Signal an /api/visit/end (siehe public/index.html), der Server macht daraus
+// die Notiz. Aktiv nur, wenn LIKE_OWNER_SECRET gesetzt ist (sonst aus). Du selbst schließt dich
+// aus, indem du EINMAL die Seite mit ?owner=<secret> öffnest -> setzt ein like_owner-Cookie.
 // Bewusst datensparsam: KEINE volle IP in der Nachricht (nur grob maskiert), nur Browser/Quelle.
 const OWNER_SECRET = (process.env.LIKE_OWNER_SECRET || "").trim();
-const visitNotified = new Map(); // ip -> letzter Push (Dedupe, damit Reloads nicht spammen)
 const isOwnerReq = (req) => /(?:^|;\s*)like_owner=1(?:;|$)/.test(req.headers.cookie || "");
 function clientIp(req) {
   const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -307,24 +309,57 @@ function maskIp(ip) {
   if (ip.includes(":")) return ip.split(":").slice(0, 2).join(":") + ":…"; // IPv6 grob
   return "?";
 }
-async function notifyVisitMaybe(req, pack) {
+function fmtDur(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return `${sec} s`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return s ? `${m} min ${s} s` : `${m} min`;
+  const h = Math.floor(m / 60);
+  return `${h} h ${m % 60} min`;
+}
+// Ein „Ende"-Signal kann pro Besuch mehrfach eintreffen (jeder Wechsel in den Hintergrund schickt
+// den aktuellen Stand). Wir entprellen darum pro Besuchs-ID: die Meldung geht erst ~15 s nach dem
+// letzten Signal raus und enthält dann die längste gemeldete Verweildauer — so genau EINE Notiz je
+// Besuch, mit realistischer Dauer. Alles rein In-Memory, kein Personenbezug auf Platte.
+const visitEnd = new Map(); // id -> { seconds, ctx, timer, notified }
+function notifyVisitEnd(req, body) {
   if (!OWNER_SECRET || isOwnerReq(req)) return;   // Feature aus / oder du selbst
-  if (!(await hasPushover())) return;
-  const ip = clientIp(req), now = Date.now();
   const ua = String(req.headers["user-agent"] || "").slice(0, 140);
-  // Crawler/Link-Preview-Bots nicht melden — seit dem SEO-Ausbau (W1) kommen die regelmäßig
-  // und würden das "neuer Besuch"-Signal entwerten.
+  // Crawler/Link-Preview-Bots ignorieren (die führen zwar kaum JS aus, aber Headless-Bots schon).
   if (/bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|curl|wget|python|headless|lighthouse/i.test(ua)) return;
-  // Dedupe pro GERÄT (IP + Browser), nicht nur pro IP — zwei Rechner im selben Netz (gleiche
-  // öffentliche IP) melden so getrennt. Fenster 2 h, damit Reloads nicht spammen.
-  const key = ip + "|" + ua;
-  if (now - (visitNotified.get(key) || 0) < 2 * 3600e3) return;
-  visitNotified.set(key, now);
-  if (visitNotified.size > 800) for (const [k, t] of visitNotified) if (now - t > 24 * 3600e3) visitNotified.delete(k);
-  const ref = String(req.headers["referer"] || "").slice(0, 140);
-  const where = !pack ? " (Startseite)" : pack.id !== "music" ? ` (${pack.id})` : "";
-  const msg = `Jemand hat „like"${where} geöffnet.\nRegion: ${maskIp(ip)}${ua ? `\n${ua}` : ""}${ref ? `\nvon: ${ref}` : ""}`;
-  sendFeedback({ title: "like — neuer Besuch", message: msg }).catch(() => {}); // best effort, blockiert die Seite nicht
+  const id = String(body?.id || "").slice(0, 64);
+  if (!id) return;
+  const seconds = Math.min(24 * 3600, Math.max(0, Number(body?.seconds) || 0));
+  const rec = visitEnd.get(id) || { seconds: 0, notified: false, timer: null };
+  if (rec.notified) return;                       // für diesen Besuch schon gemeldet
+  rec.seconds = Math.max(rec.seconds, seconds);   // längste gemeldete Dauer gewinnt
+  // Kontext: IP/UA aus dem Beacon-Request, Konto-Status + Quelle vom Client mitgeschickt.
+  rec.ctx = {
+    ip: clientIp(req), ua,
+    ref: String(body?.ref || "").slice(0, 140),
+    account: !!body?.account, created: !!body?.created,
+  };
+  if (rec.timer) clearTimeout(rec.timer);
+  rec.timer = setTimeout(() => {
+    rec.notified = true;
+    const c = rec.ctx || {};
+    const konto = c.created ? "ja — neues Konto angelegt"
+      : c.account ? "nein (bereits angemeldetes Konto)"
+      : "nein";
+    const msg =
+      `Verweildauer: ${fmtDur(rec.seconds)}\n` +
+      `Konto angelegt: ${konto}\n` +
+      `Region: ${maskIp(c.ip || "?")}` +
+      (c.ua ? `\n${c.ua}` : "") +
+      (c.ref ? `\nvon: ${c.ref}` : "");
+    notifyQuiet({ title: "like — Besuch beendet", message: msg }); // best effort; still, wenn kein Pushover
+    // Eintrag noch kurz halten, damit spät nachziehende Beacons keine zweite Meldung auslösen.
+    setTimeout(() => visitEnd.delete(id), 5 * 60 * 1000).unref?.();
+  }, 15000);
+  rec.timer.unref?.();
+  visitEnd.set(id, rec);
+  // Map-Wachstum begrenzen (grober Backstop, falls sehr viele Besuche gleichzeitig laufen).
+  if (visitEnd.size > 2000) { const k = visitEnd.keys().next().value; if (k && k !== id) visitEnd.delete(k); }
 }
 
 // Nur Text-Formate komprimieren — Bilder/Binärformate sind schon komprimiert.
@@ -819,6 +854,14 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
 
+    // Interaktions-Signal: der Browser meldet beim Verlassen der Seite die Verweildauer (+ ob in
+    // der Sitzung ein Konto entstand). Wird per sendBeacon geschickt, darf also nie blockieren.
+    if (req.method === "POST" && url.pathname === "/api/visit/end") {
+      const b = await readBody(req).catch(() => ({}));
+      notifyVisitEnd(req, b); // fire-and-forget; entprellt intern und meldet nur an den Betreiber
+      return send(res, 200, { ok: true });
+    }
+
     // Landing/Übersicht: nackte URL ohne ?pack= -> die „Kugeln"-Auswahlseite.
     // Mit ?pack=<id> geht es (weiter unten) direkt in die jeweilige Karte.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html") && !url.searchParams.has("pack")) {
@@ -827,7 +870,6 @@ const server = createServer(async (req, res) => {
         setCookie(res, "like_owner", "1", req);
         res.writeHead(302, { location: "/" }); return res.end();
       }
-      notifyVisitMaybe(req, null); // Besuch der Startseite melden (nur Fremde, gedrosselt, keine Bots)
       return send(res, 200, landingPage(isUnlocked(req), req), "text/html; charset=utf-8");
     }
 
@@ -1005,7 +1047,6 @@ const server = createServer(async (req, res) => {
         setCookie(res, "like_owner", "1", req);
         res.writeHead(302, { location: "/" }); return res.end();
       }
-      notifyVisitMaybe(req, pack); // Besuch melden (nur Fremde, gedrosselt) — läuft nebenher
       countUsage("view", pack.id); // W7: aggregierter Tageszähler, kein Personenbezug
       return send(res, 200, await indexHtml(pack, isUnlocked(req), authUser, req), "text/html; charset=utf-8");
     }
