@@ -495,7 +495,15 @@ function send(res, code, body, type = "application/json", cacheControl = "no-sto
     "referrer-policy": "strict-origin-when-cross-origin",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
   };
-  if (type.startsWith("text/html")) headers["x-frame-options"] = "SAMEORIGIN"; // Clickjacking-Schutz für die Seiten
+  if (type.startsWith("text/html")) {
+    headers["x-frame-options"] = "SAMEORIGIN"; // Clickjacking-Schutz für die Seiten
+    // U-2c.2: CSP — bewusst NUR die Direktiven, die die inline-Scripts/-Styles der App NICHT
+    // betreffen und daher gefahrlos ENFORCED werden können: Plugins aus (object-src none),
+    // <base>-Injection aus (base-uri self), Framing/Clickjacking (frame-ancestors self),
+    // Formular-Hijack (form-action self). Die volle script-src/connect-src-Härtung braucht
+    // Nonces statt unsafe-inline und bleibt ein eigenes Vorhaben (§7 PHASE2-PLAN).
+    headers["content-security-policy"] = "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'";
+  }
   if (NOINDEX) headers["x-robots-tag"] = "noindex, nofollow"; // U-2c.1: Nicht-Prod aus dem Suchindex halten
   // HSTS nur hinter dem HTTPS-Proxy (Render) — lokal/Electron (http://localhost) wäre es falsch.
   if (res.req?.headers["x-forwarded-proto"] === "https") headers["strict-transport-security"] = "max-age=31536000";
