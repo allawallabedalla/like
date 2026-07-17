@@ -1083,10 +1083,9 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   Tuning-Wert — im Browser gegensehen.
 
 - [ ] **FB19 — „Seite ist im Entstehen"-Hinweis (#86).** Nutzer fragt nach einem dezenten Beta-
-  Hinweis („die Seite ist im Entstehen, es kann noch ab und zu was schiefgehen"). Klein: einmaliger,
-  wegklickbarer Hinweis-Streifen (wie der Login-Hinweis aus N4/FB13-Mechanik) oder eine Zeile im
-  Hilfe-Popover. **Entscheidung nötig:** dauerhafter Footer-Vermerk vs. einmaliger Dismiss-Hinweis —
-  Ersteres ehrlicher, Letzteres unaufdringlicher. Vorschlag: einmalig pro Gerät, dismissbar.
+  Hinweis („die Seite ist im Entstehen, es kann noch ab und zu was schiefgehen"). **Entscheidung
+  getroffen (2026-07-17): dauerhafter Footer-Vermerk** — kleiner, immer sichtbarer Hinweis (DE+EN),
+  nicht wegklickbar. Dezent stylen, damit er nicht mit der Bedienung konkurriert.
 
 - [ ] **FB22 — „Überrasch mich" lädt neues Buch → Zentralstern ruckelt (#89, Books).** Beim
   Nachladen über Surprise bekommt der neue Eintrag eine frische Position und der Force-Solver
@@ -1121,32 +1120,29 @@ Scope-/Datenschutz-Entscheidung (unten markiert).
   Entdeck-Werkzeuge (Radar, Überrasch mich, Szenen, Brückenbauer) an *einem* Ort bündeln und die
   Dubletten entfernen; Beschriftungen schärfen. UX-Umbau, kein Bug — erst Konzept, dann umsetzen.
 
-- [ ] **FB26 — „like papers" ist missverständlich („Papier") → evtl. „like Science" (#94).**
-  Pack-Umbenennung `papers`→ Anzeigename „Science" o. Ä. Betrifft Landing-Kachel, Titel, Copy in
-  mehreren Sprachen. **Betreiber-Entscheidung** (Namensgebung/Branding, ggf. URL/`?pack=papers`
-  soll aus Kompatibilität bleiben — nur das *Label* ändern, nicht die Pack-ID). Klein umzusetzen,
-  aber bewusst entscheiden.
+- [ ] **FB26 — „like papers" ist missverständlich („Papier") → „like Science" (#94).**
+  **Entscheidung getroffen (2026-07-17): Anzeigename → „Science"**, **Pack-ID/URL `?pack=papers`
+  bleibt** (Kompatibilität). Nur das Label ändern: Landing-Kachel, Titel/`<title>`, Intro/Copy in
+  DE+EN. Pack-interne IDs, Datenpfade und Endpoints unangetastet lassen.
 
 - [ ] **FB17 — Geschmacks-Knopf raus, „Aufräumen" kontextabhängig als Ecken-Modal (#84, Music).**
   Zwei Wünsche: (1) den **◈ Geschmacks-Fingerabdruck-Knopf** (`#tasteBtn`, öffnet die Cross-Domain-
-  Taste-Übersicht) aus der Topbar entfernen; (2) den **Aufräumen-Knopf** (`#tidyBtn`) nicht mehr
-  dauerhaft anzeigen, sondern erst als dezentes Modal in der Bildecke einblenden, **sobald ein
-  gewisser Füllgrad/Chaos erkannt** wird (Knoten-/Kreuzungszahl-Schwelle). **Entscheidung nötig:** ob
-  der Taste-Knopf ganz weg soll (oder nur ins ⋯-Menü wandert) und welche Heuristik „Chaos" auslöst.
-  UX-Umbau — Konzept zuerst.
+  Taste-Übersicht) → **Entscheidung getroffen (2026-07-17): ganz entfernen** (Button + `#tasteBtn`-
+  Verdrahtung + zugehöriges Panel/Handler; auf tote Referenzen achten, vgl. F4-Aufräumen). (2) den
+  **Aufräumen-Knopf** (`#tidyBtn`) nicht mehr dauerhaft anzeigen, sondern erst als dezentes Modal in
+  der Bildecke einblenden, **sobald ein gewisser Füllgrad/Chaos erkannt** wird. **Noch offen:** die
+  Heuristik für „Chaos" (Knoten-/Kreuzungszahl-Schwelle) — Vorschlag beim Umsetzen, dann abstimmen.
 
 ### Betreiber-/Datenschutz-Entscheidung (Pushover-Tracking)
 - [ ] **FB23 — Screen & Sprache ins Pushover-Signal (#91, Books).** `notifyVisitMaybe` meldet heute
-  Pack, maskierte IP-Region, User-Agent, Referer. Screen-Größe und UI-Sprache liegen **nur im Client**
-  — sie müssten (einmalig, dezent) mitgeschickt werden (z. B. an `/api/health`/Visit-Ping als Query,
-  ohne neue Identifikatoren). Aus dem UA lässt sich Mobile/Desktop grob schon ableiten; echte
-  Viewport-Größe + `navigator.language` wären präziser. **Datenschutz-Entscheidung** (NOTES/Impressum
-  betonen „keine IP/kein Konto" beim Feedback — hier geht es um das *Besuchs*-Signal an den Betreiber).
-- [ ] **FB24 — Letzten Klick/letzte Aktion ins Pushover-Signal (#92, Books).** Wunsch: „was war der
-  letzte Klick der Person". Das ist **Verhaltens-Tracking** — deutlich sensibler als FB23. Technisch:
-  letzte Nutzer-Aktion clientseitig puffern und beim nächsten Signal mitgeben. **Klare Betreiber-/
-  Datenschutz-Entscheidung nötig**, inkl. ob/wie das mit der bisherigen „anonym, keine Session"-
-  Zusage (Impressum) vereinbar ist. Default-Empfehlung: **nicht** ohne bewusste Entscheidung umsetzen.
+  Pack, maskierte IP-Region, User-Agent, Referer. **Entscheidung getroffen (2026-07-17): Screen-Größe
+  + UI-Sprache zusätzlich melden.** Beide liegen nur im Client → einmalig, dezent an den Visit-Ping
+  mitgeben (Viewport-Größe + `navigator.language`), **ohne neuen Identifikator**, in `notifyVisitMaybe`
+  an die bestehende Meldung anhängen. Kein Personenbezug über das bisherige Besuchs-Signal hinaus.
+- [ ] ~~**FB24 — Letzten Klick/letzte Aktion ins Pushover-Signal (#92, Books).**~~ **Entscheidung
+  getroffen (2026-07-17): NICHT umsetzen.** Wäre Verhaltens-Tracking und kollidiert mit der „anonym,
+  keine Session"-Zusage im Impressum. Bewusst verworfen — Issue #92 wird mit dieser Begründung
+  geschlossen.
 
 ### Große Bretter (eigene Vorhaben)
 - [ ] **FB20 — Intro-Tour packübergreifend korrekt + USABILITY.md (#87, Boardgames).** Die Tour-Slides
