@@ -252,6 +252,13 @@ export default {
     // GETRENNTE Hosts/Gates — parallel statt seriell spart ~370-500 ms pro kaltem Ausbau
     // (Taskforce R13). Schluck-Semantik wie vorher: jeder Zweig scheitert für sich still;
     // die Genre-Mischreihenfolge (RA vor Tags, unten) bleibt unverändert.
+    // NAMENSVETTER-GRENZE (U-2a.6, ehrlich dokumentiert): Die `mbid`-Schärfe wirkt NUR auf der
+    // Last.fm-Achse (getSimilar/getTopTags nehmen mbid). RA (`coAppearances`) hat KEINEN
+    // MBID-Endpunkt und löst rein über `canonical` (Name) auf — ebenso Deezer/Bandcamp in enrich().
+    // Bei gleichnamigen Acts kann die orange „zusammen aufgetreten"-Kante daher das Umfeld des
+    // FALSCHEN Namensvetters treffen. Eine echte MBID-Durchreichung an RA/Deezer ist mangels
+    // MBID-Lookup dort nicht möglich (geparkt, §7 PHASE2-PLAN); die Autocomplete/Namensvetter-
+    // Auswahl (N1) davor bleibt die primäre Absicherung.
     let booking = null, togetherDegraded = false;
     const [tagsR, caR] = await Promise.allSettled([getTopTags(canonical, { mbid }), coAppearances(canonical)]);
     if (tagsR.status === "fulfilled") tags = tagsR.value;
