@@ -1214,6 +1214,8 @@ const server = createServer(async (req, res) => {
         if (r.genres?.length) src.genres = r.genres.slice(0, 6);
         // FB29/#97: Koordinaten am Knoten festhalten (Info-Panel-Mini-Karte, z. B. Travel).
         if (r.coord && Number.isFinite(r.coord.lat) && Number.isFinite(r.coord.lon)) src.coord = { lat: r.coord.lat, lon: r.coord.lon };
+        // FB27/#95: Bild fürs Info-Panel (z. B. Plants) mit Attribution festhalten.
+        if (r.image && r.image.src) src.image = { src: String(r.image.src).slice(0, 400), credit: String(r.image.credit || "").slice(0, 300), href: r.image.href ? String(r.image.href).slice(0, 400) : null };
         if (r.meta) { src.booking = r.meta; }
         if (r.active !== undefined) src.active = r.active;
         // Fan-out drosseln: nur die Top-N stärksten „ähnlich"-Nachbarn kommen sofort in die
@@ -1582,8 +1584,10 @@ const server = createServer(async (req, res) => {
         if (patch.location && !a.booking?.area && !a.bcLocation) { a.bcLocation = patch.location; a.bcUrl = patch.locationUrl || null; changed = true; }
         // FB29/#97: Koordinaten nachtragen, falls der Knoten noch keine hat (Info-Panel-Mini-Karte).
         if (patch.coord && Number.isFinite(patch.coord.lat) && Number.isFinite(patch.coord.lon) && !a.coord) { a.coord = { lat: patch.coord.lat, lon: patch.coord.lon }; changed = true; }
+        // FB27/#95: Bild nachtragen, falls der Knoten noch keins hat (Info-Panel, z. B. Plants).
+        if (patch.image && patch.image.src && !a.image) { a.image = { src: String(patch.image.src).slice(0, 400), credit: String(patch.image.credit || "").slice(0, 300), href: patch.image.href ? String(patch.image.href).slice(0, 400) : null }; changed = true; }
         if (changed) await persist(g);
-        return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null });
+        return send(res, 200, { ok: true, genres: a.genres || [], listeners: a.listeners ?? null, growth, location: a.booking?.area || a.bcLocation || null, bcUrl: a.bcUrl || null, image: a.image || null, coord: a.coord || null });
       });
     }
 

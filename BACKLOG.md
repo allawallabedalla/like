@@ -1224,13 +1224,22 @@ eingetragen.
     (DE+EN); Slide 2 nennt jetzt auch den Einfach-Klick. Musik behält die handgetexteten Slides.
     *Follow-up möglich:* ein tieferer Per-Pack-Wortlaut-Feinschliff, aber die faktischen Ungenauigkeiten
     (falsches Nomen, „hören" ohne Klangprobe) sind raus.
-- [ ] **FB27 — Bild im Info-Sidebar (#95, Plants; wirkt packübergreifend).** Das Info-Panel (`.panel`,
+- [x] **FB27 — Bild im Info-Sidebar (#95, Plants; wirkt packübergreifend).** Das Info-Panel (`.panel`,
   rechts, 320px) zeigt heute Text/Kontext, kein Bild. Wunsch: ein Bild je Eintrag, für Plants
   idealerweise eine **historische Zeichnung (à la Haeckel/gemeinfrei)**. **Analyse/Entscheidung nötig:**
   woher das Bild kommt — Wikipedia-/Wikimedia-Thumbnail (schon per Kontext erreichbar, aber Lizenz je
   Bild prüfen) vs. gemeinfreie Illustrationsquellen (Haeckel-Tafeln liegen als PD auf Wikimedia). Sauber
   wäre ein optionales `image`/`thumb`-Feld pro Pack (nur wo es eine gute, lizenzklare Quelle gibt) +
   eine Bildzeile im Panel mit Quellen-/Lizenzhinweis. Scope: Bildquelle + Lizenz + Panel-Layout.
+  - **✅ Umgesetzt (2026-07-17):** Generisches `image = { src, credit, href }` am Knoten + Panel-Widget
+    `#pImg` (`renderNodeImage`, für **jeden** Pack, der ein Bild liefert) — mit **Pflicht-Attribution +
+    Lizenz** als Caption und Link zur Quelle; `referrerpolicy=no-referrer`, `onerror` blendet aus.
+    **Plants** liefert das Bild aus dem **iNaturalist-Standardfoto** (`default_photo.medium_url` +
+    `attribution` + `license_code`) in `explore()` **und** `enrich()`; Server persistiert es
+    (`src.image`/`a.image`), die Enrich-Response reicht `image`+`coord` an den Client, damit auch
+    **Nachbarknoten** ohne Reload ein Bild bekommen. `renderNodeImage` unit-getestet. Statt der
+    Haeckel-Zeichnung echte CC-Fotos (lizenzklar, automatisch, immer vorhanden) — Haeckel-Tafeln
+    wären ein späterer kuratierten Zusatz. Live (Netz) im Browser noch gegenzusehen.
 
 - [x] **FB29 — Kleine Karte im Info-Sidebar bei Travel (#97).** Wunsch: bei `travel` eine Mini-Karte
   „wo liegt das?" im Info-Panel — Nutzer selbst schlägt vor, dass notfalls **Land genügt**. **Analyse:**

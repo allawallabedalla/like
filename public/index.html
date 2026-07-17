@@ -240,6 +240,11 @@
   .panel.open { transform: none; }
   .panel h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
   .panel .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 8px; }
+  /* FB27/#95: Bild im Info-Panel (mit Attribution/Lizenz) */
+  .pimg { margin: 0 0 14px; }
+  .pimg img { width: 100%; height: auto; max-height: 200px; object-fit: cover; display: block; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--line-soft); }
+  .pimg .cred { margin-top: 4px; font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+  .pimg .cred a { color: var(--muted); text-decoration: underline; }
   /* FB29/#97: Standort-Mini-Karte im Info-Panel (nur Travel) */
   .pmap { margin: 0 0 14px; }
   .pmap a { text-decoration: none; color: inherit; }
@@ -1276,6 +1281,8 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <button class="close" id="closePanel" title="Panel schließen (Esc)">×</button>
     <h2 id="pName">–</h2>
     <div class="sub" id="pSub"></div>
+    <!-- FB27/#95: Bild mit Attribution (z. B. Plants), wenn der Knoten eins hat -->
+    <div id="pImg" class="pimg" style="display:none"></div>
     <!-- FB29/#97: kleine Standort-Karte (nur Travel, wenn Koordinaten vorliegen) -->
     <div id="pMap" class="pmap" style="display:none"></div>
     <div id="pGenres" class="genres"></div>
@@ -4060,6 +4067,19 @@ cv.addEventListener("touchend", (e) => {
 cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null; }, { passive: false });
 
 // ---- Panel ----
+// FB27/#95: Bild im Info-Panel (mit Pflicht-Attribution/Lizenz für CC-Fotos). Generisch: jeder Pack
+// kann am Knoten ein `image = { src, credit, href }` liefern (aktuell Plants via iNaturalist).
+function renderNodeImage(n) {
+  const el = document.getElementById("pImg");
+  if (!el) return;
+  const im = n && n.image;
+  if (!im || !im.src) { el.style.display = "none"; el.innerHTML = ""; return; }
+  const cred = im.credit
+    ? `<div class="cred">${im.href ? `<a href="${esc(im.href)}" target="_blank" rel="noreferrer">` : ""}${esc(im.credit)}${im.href ? "</a>" : ""}</div>`
+    : "";
+  el.innerHTML = `<img src="${esc(im.src)}" alt="${esc(n.name || "")}" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.pimg').style.display='none'">${cred}`;
+  el.style.display = "";
+}
 // FB29/#97: kleine Standort-Karte im Info-Panel. Bewusst key-/netzfrei: eine inline gezeichnete
 // Weltkarte (äquidistante Projektion mit Gradnetz) + Marker aus Lat/Lon, wie vom Travel-Pack
 // mitgeliefert (n.coord). Ein Klick öffnet die genaue Stelle auf OpenStreetMap (echte Karte).
@@ -4136,6 +4156,7 @@ function selectNode(n) {
   // W4: Auswahl-Wechsel für Screenreader ansagen (Name + Vernetzungsgrad).
   announce(`${n.name} — ${tf(n.deg === 1 ? "{N} Verbindung" : "{N} Verbindungen", { N: n.deg || 0 })}`);
   renderSub(n, null);
+  renderNodeImage(n); // FB27/#95: Bild mit Attribution (z. B. Plants)
   renderMiniMap(n); // FB29/#97: Standort-Karte (Travel)
   renderGenrePills(n.genres);
   document.getElementById("pBooking").innerHTML = bookingHtml(n);
@@ -4311,8 +4332,12 @@ async function loadDetails(n) {
     // Hörer-Trend (aus der App-Historie) am Knoten merken — nur gesetzt, wenn GENUG Daten da
     // sind (growthPerMonth liefert sonst null). Wird fürs Teilen genutzt.
     n._growth = (res.growth != null) ? res.growth : null;
+    // FB27/#95 + FB29/#97: nachgeladenes Bild / Koordinaten am Knoten übernehmen (Nachbarknoten
+    // bekommen sie erst per enrich) und das Panel aktualisieren, wenn der Knoten noch gewählt ist.
+    if (res.image?.src && !n.image) { n.image = res.image; if (graph.artists[n.id]) graph.artists[n.id].image = res.image; }
+    if (res.coord && !n.coord) { n.coord = res.coord; if (graph.artists[n.id]) graph.artists[n.id].coord = res.coord; }
     if (res.genres?.length) computeGenreColors(); // nachgeladene Genres in die Cluster-Farben einbeziehen
-    if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); }
+    if (selected && selected.id === n.id) { renderGenrePills(n.genres); renderSub(n, res.growth); renderNodeImage(n); renderMiniMap(n); }
     requestDraw();
   } catch {}
 }
