@@ -1225,6 +1225,10 @@ eingetragen.
     Single Source verlinkt. (2) Tour pack-neutral vervollständigt: Slide 1–4 waren es schon (via `tf()`
     aus `CFG`), **Slide 5 (`tourT5`/`tourP5`) war noch hart „Acts"/„hören"** → jetzt aus `CFG.item.plur`
     (DE+EN); Slide 2 nennt jetzt auch den Einfach-Klick. Musik behält die handgetexteten Slides.
+    **Hinweis/Regression gefixt:** Slide 5 ist der **Profi-Slide** (Szenen/Brücken) und wird im
+    Fun-Modus (Default) bewusst entfernt (`.slide[data-s="4"].remove()`); das unbedingte Setzen von
+    `tourT5`/`tourP5` warf dort einen null-Zugriff (PAGEERROR) → jetzt defensiv geguardet. Im
+    Profi-Modus erscheint Slide 5 pack-neutral, im Fun-Modus bleibt er ausgeblendet.
     *Follow-up möglich:* ein tieferer Per-Pack-Wortlaut-Feinschliff, aber die faktischen Ungenauigkeiten
     (falsches Nomen, „hören" ohne Klangprobe) sind raus.
 - [x] **FB27 — Bild im Info-Sidebar (#95, Plants; wirkt packübergreifend).** Das Info-Panel (`.panel`,
