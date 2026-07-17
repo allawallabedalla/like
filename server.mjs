@@ -317,6 +317,19 @@ function fmtDur(sec) {
   const h = Math.floor(m / 60);
   return `${h} h ${m % 60} min`;
 }
+// Grobe Geräte-/Browser-Einordnung aus dem User-Agent (der ohnehin bei jedem Request mitkommt) —
+// nur fürs Lagebild in der Notiz, kein Fingerprinting, nichts wird gespeichert.
+function uaInfo(ua) {
+  const dev = /iPad|Tablet/i.test(ua) ? "Tablet" : /Mobi|Android|iPhone|iPod/i.test(ua) ? "Handy" : "Desktop";
+  const os = /iPhone|iPad|iPod/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android"
+    : /Windows/.test(ua) ? "Windows" : /Mac OS X|Macintosh/.test(ua) ? "macOS"
+    : /Linux/.test(ua) ? "Linux" : "?";
+  const br = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox"
+    : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "?";
+  return [dev, os, br].filter((x) => x && x !== "?").join(" · ");
+}
+// Menschliche Labels für die vom Client gemeldeten, genutzten Funktionen.
+const FEAT_LABEL = { erkunden: "Suche/Erkunden", radar: "Radar", überrasch: "Überrasch mich", feedback: "Feedback" };
 // Ein „Ende"-Signal kann pro Besuch mehrfach eintreffen (jeder Wechsel in den Hintergrund schickt
 // den aktuellen Stand). Wir entprellen darum pro Besuchs-ID: die Meldung geht erst ~15 s nach dem
 // letzten Signal raus und enthält dann die längste gemeldete Verweildauer — so genau EINE Notiz je
@@ -333,11 +346,19 @@ function notifyVisitEnd(req, body) {
   const rec = visitEnd.get(id) || { seconds: 0, notified: false, timer: null };
   if (rec.notified) return;                       // für diesen Besuch schon gemeldet
   rec.seconds = Math.max(rec.seconds, seconds);   // längste gemeldete Dauer gewinnt
-  // Kontext: IP/UA aus dem Beacon-Request, Konto-Status + Quelle vom Client mitgeschickt.
+  // Kontext: IP/UA/Sprache aus dem Beacon-Request; Konto-Status, Quelle, Pack, Kartengröße,
+  // genutzte Funktionen und „aktiv interagiert" kommen vom Client mit. Alles nur für DIESE Sitzung,
+  // nichts wird gespeichert, keine sitzungsübergreifende Kennung (die Besuchs-ID lebt nur im Tab).
+  const feats = Array.isArray(body?.feats) ? body.feats.slice(0, 8).map((f) => FEAT_LABEL[f] || null).filter(Boolean) : [];
   rec.ctx = {
     ip: clientIp(req), ua,
+    lang: String(req.headers["accept-language"] || "").split(",")[0].trim().slice(0, 12),
     ref: String(body?.ref || "").slice(0, 140),
     account: !!body?.account, created: !!body?.created,
+    pack: String(body?.pack || "").slice(0, 24),
+    entries: Math.min(100000, Math.max(0, Math.round(Number(body?.entries) || 0))),
+    interacted: !!body?.interacted,
+    feats,
   };
   if (rec.timer) clearTimeout(rec.timer);
   rec.timer = setTimeout(() => {
@@ -346,11 +367,19 @@ function notifyVisitEnd(req, body) {
     const konto = c.created ? "ja — neues Konto angelegt"
       : c.account ? "nein (bereits angemeldetes Konto)"
       : "nein";
+    // „Karte": wie viele Einträge am Ende dranhingen. 0 + keine Interaktion = nur kurz reingeschaut.
+    const karte = c.entries > 0 ? `${c.entries} ${c.entries === 1 ? "Eintrag" : "Einträge"} erkundet`
+      : c.interacted ? "nichts erkundet (aber interagiert)"
+      : "nur angeschaut (keine Interaktion)";
+    const geraet = [uaInfo(c.ua || ""), c.lang].filter(Boolean).join(" · ");
     const msg =
       `Verweildauer: ${fmtDur(rec.seconds)}\n` +
+      `Karte: ${karte}\n` +
+      (c.feats?.length ? `Genutzt: ${c.feats.join(", ")}\n` : "") +
       `Konto angelegt: ${konto}\n` +
+      (c.pack ? `Pack: ${c.pack}\n` : "") +
+      (geraet ? `Gerät: ${geraet}\n` : "") +
       `Region: ${maskIp(c.ip || "?")}` +
-      (c.ua ? `\n${c.ua}` : "") +
       (c.ref ? `\nvon: ${c.ref}` : "");
     notifyQuiet({ title: "like — Besuch beendet", message: msg }); // best effort; still, wenn kein Pushover
     // Eintrag noch kurz halten, damit spät nachziehende Beacons keine zweite Meldung auslösen.

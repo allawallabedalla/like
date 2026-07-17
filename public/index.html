@@ -2116,6 +2116,10 @@ addEventListener("load", () => { resize(); reheat(0.3); }); // Fallback: Fenster
 
 // ---- Zustand ----
 let graph = { artists: {}, edges: [] };
+// Fürs Interaktions-Signal (s. u.): welche Funktionen wurden in DIESER Sitzung genutzt. Nur ein
+// paar Schlüssel im Speicher, nichts wird gespeichert, keine Reihenfolge, kein Personenbezug.
+const likeFeat = new Set();
+const markFeat = (n) => { try { likeFeat.add(n); } catch {} };
 let nodes = [];          // {id,name,x,y,vx,vy,deg,seed,known}
 let links = [];          // {a,b,type,weight}
 const nodeById = new Map();
@@ -4452,6 +4456,7 @@ function showDemoBar() {
 async function exploreByName(name, { select = true, center = true, reheatAmt = 0.4, mbid = null, fromNamesake = false } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
+  markFeat("erkunden");
   endDemo(false); // erste eigene Suche: reload() ersetzt die Beispiel-Karte gleich durch den echten Graphen
   hideNamesakeHint(); // N1: alten Namensvetter-Hinweis wegnehmen, solange der neue Act lädt
   busy = true;
@@ -5382,7 +5387,7 @@ function syncRadarBtn() { document.getElementById("radarBtn").classList.toggle("
 function closeRadar() { radarEl.classList.remove("show"); syncRadarBtn(); }
 document.getElementById("radarClose").onclick = closeRadar;
 document.getElementById("radarBtn").onclick = () => {
-  if (radarEl.classList.contains("show")) closeRadar(); else { radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
+  if (radarEl.classList.contains("show")) closeRadar(); else { markFeat("radar"); radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
 };
 document.addEventListener("mousedown", (e) => {
   if (radarEl.classList.contains("show") && !radarEl.contains(e.target) && e.target.id !== "radarBtn" && !document.getElementById("radarBtn").contains(e.target)) closeRadar();
@@ -6030,6 +6035,7 @@ refreshLoginHint();
 
 // Zufalls-Streifzug: gewichteter Random-Walk von einem Like weg, Pfad pulsiert nach.
 function surpriseMe() {
+  markFeat("überrasch");
   const real = nodes.filter((n) => !n.venue);
   if (real.length < 2) { toast("Erst ein paar Einträge laden — dann gibt's was zu entdecken."); return; }
   const liked = real.filter((n) => n.seed || n.status);
@@ -6303,7 +6309,7 @@ async function checkKey() {
 
 // ---- Feedback (Pushover) ----
 const feedbackModal = document.getElementById("feedbackModal");
-function openFeedback() { feedbackModal.classList.add("show"); document.getElementById("feedbackText").focus(); }
+function openFeedback() { markFeat("feedback"); feedbackModal.classList.add("show"); document.getElementById("feedbackText").focus(); }
 function closeFeedback() { feedbackModal.classList.remove("show"); }
 document.getElementById("feedbackBtn").onclick = openFeedback;
 document.getElementById("feedbackCancel").onclick = closeFeedback;
@@ -6521,15 +6527,26 @@ addEventListener("visibilitychange", () => {
     }
     t0 = Number(sessionStorage.getItem(TKEY)) || Date.now();
   } catch { return; } // ohne sessionStorage (strenge Privatsphäre-Einstellungen) einfach kein Signal
+  // „Aktiv interagiert?" — nur ein Ja/Nein-Zähler, keine Positionen, keine Eingaben.
+  let gestures = 0;
+  addEventListener("pointerdown", () => { gestures++; }, { passive: true });
+  addEventListener("keydown", () => { gestures++; }, { passive: true });
   function report() {
     if (!id || !navigator.sendBeacon) return;
     let created = false;
     try { created = sessionStorage.getItem("like_created") === "1"; } catch {}
+    // Wie viele echte Einträge (ohne Venue-Knoten) hingen am Ende an der Karte.
+    let entries = 0;
+    try { entries = Array.isArray(nodes) ? nodes.filter((n) => !n.venue).length : 0; } catch {}
     const payload = JSON.stringify({
       id,
       seconds: Math.round((Date.now() - t0) / 1000),
       account: !!window.LIKE_USER,   // aktuell angemeldet?
       created,                        // in dieser Sitzung neu registriert?
+      pack: (window.LIKE_CFG && window.LIKE_CFG.id) || "",
+      entries,                        // Kartengröße = Erkundungstiefe
+      feats: Array.from(likeFeat),    // genutzte Funktionen (Suche, Radar, …)
+      interacted: gestures > 0,       // überhaupt interagiert, oder nur angeschaut?
       ref: document.referrer || "",
     });
     try { navigator.sendBeacon("/api/visit/end", new Blob([payload], { type: "application/json" })); } catch {}
