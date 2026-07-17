@@ -8,7 +8,6 @@
 import { cached } from "../../lib/cache.mjs";
 import { jfetch } from "../../lib/jfetch.mjs";
 import { similarByTaste, hasTastediveKey } from "../../lib/tastedive.mjs";
-import { surpriseFrom } from "../../lib/surprise.mjs";
 
 const ITUNES = "https://itunes.apple.com";
 
@@ -194,7 +193,26 @@ export default {
   },
 
   // „Überrasch mich" (Kaltstart): Zufallszug aus dem Pool, der UNBEKANNTESTE gewinnt.
-  async surprise() { return surpriseFrom(SURPRISE_SEEDS, (n) => this.popularity(n)); },
+  // FB28/#96: iTunes ist die EINZIGE Quelle, über die explore() den Namen auflöst. Der geteilte
+  // surpriseFrom() gibt aber nie null zurück (`return best || pick()`) — ein bei Apple NICHT
+  // auffindbarer Seed rutschte so bis in explore() durch und löste dort den technischen
+  // „…" nicht bei Apple Podcasts gefunden"-Fehler-Toast aus (leakte den Quellennamen). Deshalb hier
+  // eigene Logik: nur einen Seed zurückgeben, den searchPodcast() TATSÄCHLICH auflöst — sonst null
+  // (der Client zeigt dann den neutralen „gerade keine Überraschung"-Hinweis statt eines Fehlers).
+  async surprise() {
+    const picks = new Set();
+    while (picks.size < Math.min(6, SURPRISE_SEEDS.length)) {
+      picks.add(SURPRISE_SEEDS[Math.floor(Math.random() * SURPRISE_SEEDS.length)]);
+    }
+    let best = null, bestP = Infinity;
+    for (const name of picks) {
+      let hit; try { hit = await searchPodcast(name); } catch { hit = null; }
+      if (!hit) continue;                                  // bei Apple nicht auffindbar -> überspringen
+      const p = hit.trackCount || 0;                       // „unbekanntester" = wenigste Episoden
+      if (best == null || p < bestP) { best = name; bestP = p; }
+    }
+    return best;                                           // null, wenn KEIN Kandidat auflöst
+  },
 
   // BREITE Nachbarschaft NUR für die Brücke (Routenplaner): Genre-Nachbarn (+ TasteDive)
   // PLUS weitere Podcasts desselben Anbieters/Netzwerks. Die Katalog-Straße ist dünner,

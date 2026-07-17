@@ -1115,7 +1115,7 @@ eingetragen.
     **Im Browser (Space+Flat, Books + ein weiteres Nicht-Music-Pack) gegensehen.**
 
 ### Zu verifizieren / entscheiden (Bugs & UX)
-- [ ] **FB21 — „Überrasch mich" bei Boardgames: Fehler-401-Toast (#88).** `/api/surprise` liefert
+- [x] **FB21 — „Überrasch mich" bei Boardgames: Fehler-401-Toast (#88).** `/api/surprise` liefert
   nur einen Namen (`surpriseFrom(SURPRISE_SEEDS, popularity)`); den lädt der Client anschließend
   über `/api/explore`. Der 401 kommt **nicht** aus `/api/surprise`, sondern sehr wahrscheinlich aus
   dem „Coming soon"-Gate: gesperrte Packs antworten mit `send(res, 401, {error:"locked"})`
@@ -1134,7 +1134,7 @@ eingetragen.
     deaktivieren. Deckt Surprise + Explore + alle gated Calls in einem Rutsch ab. **Live mit gesetztem
     `LIKE_UNLOCK_PASSWORD` + gelöschtem Cookie exakt reproduzieren.**
 
-- [ ] **FB28 — „Überrasch mich" bei Podcasts: nur Apple, Fehlermeldung nennt alle Quellen (#96).**
+- [x] **FB28 — „Überrasch mich" bei Podcasts: nur Apple, Fehlermeldung nennt alle Quellen (#96).**
   Der Podcasts-Pack sucht ausschließlich über iTunes (`searchPodcast` → `itunes.apple.com/search`).
   Findet Apple den Surprise-Seed nicht, scheitert das Laden und der Fehler-Toast listet offenbar die
   Quellen auf. Zwei Teile: (1) **Quelle** — Fallback über eine zweite Quelle (z. B. TasteDive/

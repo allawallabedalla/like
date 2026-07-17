@@ -1754,6 +1754,14 @@ async function unlockThen(id, go) {
     else { toast("Falsches Passwort"); }
   } catch { toast("Freischalten fehlgeschlagen"); }
 }
+// FB21/#88: Ein API-Fehler mit e.locked bedeutet, dass die Session-Freischaltung fehlt/abgelaufen ist
+// (Gate-401). Statt eines nackten Fehler-Toasts das Passwort abfragen und nach Erfolg neu laden.
+// Gibt true zurück, wenn der Fehler ein Sperr-Fehler war (Aufrufer unterdrückt dann seinen Toast).
+function handleLocked(e) {
+  if (!e || !e.locked) return false;
+  unlockThen(CFG.id, () => location.reload());
+  return true;
+}
 
 // ---- Domain-Pack-Config ----
 // Der Server (bzw. export-static) injiziert window.LIKE_CFG aus packs/<id>/pack.mjs.
@@ -2000,7 +2008,11 @@ async function parseRes(r) {
     // durchreichen (sonst „langer kryptischer Code" im Toast). Nur kurzer, unverdächtiger Text.
     let m = data && (data.error || data.message);
     if (!m) { const t = (txt || "").trim(); m = (t && t.length <= 100 && !/[<>]/.test(t)) ? t : ("Server-Fehler (" + r.status + ")"); }
-    const e = new Error(m); e.status = r.status; e.bodySnippet = (txt || "").slice(0, 200); throw e; // Status/Body fürs Debugging anhängen
+    const e = new Error(m); e.status = r.status; e.bodySnippet = (txt || "").slice(0, 200); // Status/Body fürs Debugging anhängen
+    // FB21/#88: gesperrtes Pack -> Gate antwortet mit 401 {error:"locked"}. Markieren, damit die
+    // Aufrufer statt eines nackten Fehler-Toasts den Freischalt-Dialog zeigen (handleLocked).
+    if (r.status === 401 && data && data.error === "locked") { e.locked = true; e.lockedPack = data.pack || null; }
+    throw e;
   }
   return data;
 }
@@ -4495,7 +4507,8 @@ async function exploreByName(name, { select = true, center = true, reheatAmt = 0
     // liefert Server-Fehler als HTTP-Fehlerstatus (parseRes() wirft dann), NIE als {error} in
     // einer 200er-Antwort — die Prüfung gehört daher hierher, nicht in einen res.error-Zweig
     // (der nie erreicht wird).
-    if (/API-Key/i.test(e.message) && CFG.key) { openKeyModal(); toast(`Erst den ${CFG.key.name} einrichten`); }
+    if (handleLocked(e)) { /* Gate: Freischalt-Dialog statt Fehler-Toast (FB21) */ }
+    else if (/API-Key/i.test(e.message) && CFG.key) { openKeyModal(); toast(`Erst den ${CFG.key.name} einrichten`); }
     else toast("Fehler: " + e.message);
   } finally { busy = false; busyId = null; }
 }
@@ -6533,7 +6546,7 @@ addEventListener("visibilitychange", () => {
         const r = await GET("/api/surprise" + (g ? "?genre=" + encodeURIComponent(g) : ""));
         if (r && r.ok && r.name) await exploreByName(r.name);
         else toast(g ? tf("Nichts fürs Genre {G} gefunden — versuch ein anderes", { G: g }) : "Gerade keine Überraschung zur Hand");
-      } catch { toast("Überraschung fehlgeschlagen"); }
+      } catch (e) { if (!handleLocked(e)) toast("Überraschung fehlgeschlagen"); }
       finally { sBtn.disabled = false; sBtn.textContent = label; }
     };
     sBtn.addEventListener("click", doSurprise);
