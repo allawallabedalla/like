@@ -707,9 +707,21 @@
   /* Onboarding-Intro (5 Slides, animierte SVG-Illustrationen — GIF-Feeling ohne GIF) */
   .introcard { position: relative; background: var(--bg); border: 1px solid var(--line);
     width: min(460px, calc(100vw - 32px)); padding: 26px 26px 18px; }
+  /* Beim Öffnen bekommt die Karte selbst den Fokus (Screenreader/Tastatur) — ohne den UA-Fokus-
+     kasten, der sonst wie ein Rahmen ums × wirkte. Tastatur-Nutzer sehen beim Tabben trotzdem
+     einen sauberen Ring (:focus-visible unten). */
+  .introcard:focus { outline: none; }
   .introcard .iclose { position: absolute; top: 10px; right: 12px; z-index: 3; background: none; border: none;
-    font-size: 20px; color: var(--muted); cursor: pointer; }
-  .introcard .iclose:hover { color: var(--text); }
+    line-height: 1; padding: 2px 4px; border-radius: 6px; font-size: 20px; color: var(--muted); cursor: pointer;
+    transition: color .12s ease, background .12s ease; }
+  .introcard .iclose:hover { color: var(--text); background: var(--line-soft); }
+  .introcard .iclose:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
+  /* Abschluss-Hinweis (z.B. Login-Vorteil) auf dem letzten Slide — dezent abgesetzt */
+  .slide .ihint { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line-soft);
+    font-size: 13px; line-height: 1.5; color: var(--muted); cursor: pointer; transition: color .12s ease; }
+  .slide .ihint:hover { color: var(--text); }
+  .slide .ihint b { color: var(--text); font-weight: 600; }
+  .slide .ihint .lh-i { opacity: .7; margin-right: 3px; }
   .istage { position: relative; }
   .iart svg { pointer-events: none; } /* Illustration ist reine Deko -> darf keine Klicks abfangen */
   .slide { display: none; }
@@ -1067,8 +1079,8 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
   </div>
 
   <div class="modal-back" id="intro">
-    <div class="introcard" role="dialog" aria-modal="true" aria-label="Einführung">
-      <button class="iclose" id="introSkip" title="Überspringen">×</button>
+    <div class="introcard" role="dialog" aria-modal="true" aria-label="Einführung" tabindex="-1">
+      <button class="iclose" id="introSkip" title="Überspringen" aria-label="Überspringen">×</button>
       <div class="istage">
         <!-- Slide 1: Was ist like -->
         <div class="slide active" data-s="0">
@@ -1158,7 +1170,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
           <h3 id="tourT5">Entdecken, hören &amp; aufräumen</h3>
           <p id="tourP5"><b>Entdecken</b> hebt zusammengehörige <b>Szenen</b> als Farbflächen hervor (Namen dazu
           in der Legende links unten) und zeigt <b>Brücken</b> zwischen ihnen. Was nicht passt, klickst du am
-          Punkt mit <b>×</b> weg; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene Acts.</p>
+          Punkt mit <b>×</b> weg; „<b>Unverknüpfte aufräumen</b>" unter „⋯" räumt allein übrig gebliebene Acts. Viel Spaß!</p>
         </div>
       </div>
       <div class="inav">
@@ -1521,6 +1533,10 @@ const T = LANG !== "en" ? null : {
   "Zurück": "Back", "Weiter": "Next", "Los geht's": "Let's go", "Überspringen": "Skip",
   // Auth / Feedback / Key
   "Anmelden": "Sign in", "Melde dich an, damit deine Karte auf allen Geräten gleich ist.": "Sign in so your map is the same on all devices.",
+  '<span class="lh-i">↗</span> <b>Anmelden</b> lohnt sich: dann bleiben Karte, Likes &amp; Notizen dauerhaft — und auf allen Geräten gleich.':
+    '<span class="lh-i">↗</span> <b>Signing in</b> pays off: your map, likes &amp; notes then stay permanent — and the same on all your devices.',
+  "Ohne Login liegt deine Karte nur auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt.":
+    "Without an account your map stays only on this device and is cleaned up after 30 days without a visit.",
   "Nutzername": "Username", "Passwort": "Password",
   "Feedback ans Team": "Feedback to the team",
   "Was ist dir aufgefallen? Idee, Fehler, Wunsch — alles hilft. Geht direkt als\n      Nachricht ans Team (mit Angabe der aktuellen Domäne &amp; Version).": "What did you notice? Idea, bug, wish — everything helps. Goes straight to the team (with the current domain & version).",
@@ -1783,7 +1799,7 @@ function translateDom() {
     tourT4: 'Collect &amp; export',
     tourP4: 'With <b>like!</b>, favorites go to your <b>lineup</b> — exportable as CSV for booking. Dark mode, backup &amp; more live under "?". Have fun!',
     tourT5: 'Discover, listen &amp; tidy up',
-    tourP5: '<b>Discover</b> highlights related <b>scenes</b> as color areas (their names in the legend, bottom left) and shows <b>bridges</b> between them. Anything that doesn\'t fit, remove with <b>×</b> on its dot; "<b>Remove unconnected</b>" under "⋯" cleans up acts left on their own.',
+    tourP5: '<b>Discover</b> highlights related <b>scenes</b> as color areas (their names in the legend, bottom left) and shows <b>bridges</b> between them. Anything that doesn\'t fit, remove with <b>×</b> on its dot; "<b>Remove unconnected</b>" under "⋯" cleans up acts left on their own. Have fun!',
   };
   for (const id in tour) { const el = document.getElementById(id); if (el) el.innerHTML = tour[id]; }
 }
@@ -2173,6 +2189,10 @@ addEventListener("load", () => { resize(); reheat(0.3); }); // Fallback: Fenster
 
 // ---- Zustand ----
 let graph = { artists: {}, edges: [] };
+// Fürs Interaktions-Signal (s. u.): welche Funktionen wurden in DIESER Sitzung genutzt. Nur ein
+// paar Schlüssel im Speicher, nichts wird gespeichert, keine Reihenfolge, kein Personenbezug.
+const likeFeat = new Set();
+const markFeat = (n) => { try { likeFeat.add(n); } catch {} };
 let nodes = [];          // {id,name,x,y,vx,vy,deg,seed,known}
 let links = [];          // {a,b,type,weight}
 const nodeById = new Map();
@@ -4610,6 +4630,7 @@ function showDemoBar() {
 async function exploreByName(name, { select = true, center = true, reheatAmt = 0.4, mbid = null, fromNamesake = false } = {}) {
   if (STATIC) { toast("Live-Suche nur im lokalen Tool"); return; }
   if (busy) return;
+  markFeat("erkunden");
   endDemo(false); // erste eigene Suche: reload() ersetzt die Beispiel-Karte gleich durch den echten Graphen
   hideNamesakeHint(); // N1: alten Namensvetter-Hinweis wegnehmen, solange der neue Act lädt
   busy = true;
@@ -5544,7 +5565,7 @@ function syncRadarBtn() { const b = document.getElementById("discRadar"); if (b)
 function closeRadar() { radarEl.classList.remove("show"); syncRadarBtn(); }
 function toggleRadar() {
   if (radarEl.classList.contains("show")) { closeRadar(); }
-  else { closeDiscover(); radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
+  else { markFeat("radar"); closeDiscover(); radarEl.classList.add("show"); syncRadarBtn(); runRadar(false); }
 }
 document.getElementById("radarClose").onclick = closeRadar;
 document.getElementById("discRadar").onclick = toggleRadar;
@@ -5666,7 +5687,24 @@ function renderIntro() {
   introBackBtn.style.visibility = introIdx === 0 ? "hidden" : "visible";
   introNextBtn.textContent = t(introIdx === introSlides.length - 1 ? "Los geht's" : "Weiter");
 }
-function openIntro() { introIdx = 0; renderIntro(); introEl.classList.add("show"); document.getElementById("introSkip").focus(); }
+// Login-Vorteil auf dem letzten Slide einblenden — nur live & solange nicht angemeldet.
+// Klick öffnet direkt die Registrierung (wie der Hinweis auf dem leeren Start-Screen).
+function placeIntroLogin() {
+  const last = introSlides[introSlides.length - 1];
+  let hint = document.getElementById("introLogin");
+  if (STATIC || window.LIKE_USER || !last) { if (hint) hint.remove(); return; }
+  if (!hint) {
+    hint = document.createElement("p");
+    hint.id = "introLogin"; hint.className = "ihint"; hint.setAttribute("role", "button"); hint.tabIndex = 0;
+    hint.innerHTML = t('<span class="lh-i">↗</span> <b>Anmelden</b> lohnt sich: dann bleiben Karte, Likes &amp; Notizen dauerhaft — und auf allen Geräten gleich.');
+    hint.title = t("Ohne Login liegt deine Karte nur auf diesem Gerät und wird nach 30 Tagen ohne Besuch aufgeräumt.");
+    const go = () => { closeIntro(); openAuth("register"); };
+    hint.addEventListener("click", go);
+    hint.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  }
+  last.appendChild(hint);
+}
+function openIntro() { introIdx = 0; placeIntroLogin(); renderIntro(); introEl.classList.add("show"); introEl.querySelector(".introcard").focus(); }
 function closeIntro() { introEl.classList.remove("show"); try { localStorage.setItem(LSK("like_intro_seen"), "1"); } catch {} }
 introNextBtn.onclick = () => { if (introIdx < introSlides.length - 1) { introIdx++; renderIntro(); } else closeIntro(); };
 introBackBtn.onclick = () => { if (introIdx > 0) { introIdx--; renderIntro(); } };
@@ -6195,6 +6233,8 @@ async function doAuthSubmit() {
   // Der Server hat die aktuelle (anonyme) Karte bereits in den Account übernommen.
   // Kein Reload: der aktuelle Screen bleibt erhalten, künftige Änderungen landen im Konto.
   try { localStorage.removeItem("like_anon"); sessionStorage.removeItem("like_anon"); } catch {}
+  // Merkt fürs Interaktions-Signal (s. u.): in DIESER Sitzung wurde ein Konto neu angelegt.
+  if (authMode === "register") { try { sessionStorage.setItem("like_created", "1"); } catch {} }
   window.LIKE_USER = r.user;
   authModal.classList.remove("show");
   renderAcct();
@@ -6210,6 +6250,7 @@ refreshLoginHint();
 
 // Zufalls-Streifzug: gewichteter Random-Walk von einem Like weg, Pfad pulsiert nach.
 function surpriseMe() {
+  markFeat("überrasch");
   const real = nodes.filter((n) => !n.venue);
   if (real.length < 2) { toast("Erst ein paar Einträge laden — dann gibt's was zu entdecken."); return; }
   const liked = real.filter((n) => n.seed || n.status);
@@ -6436,12 +6477,7 @@ document.getElementById("keySave").onclick = async () => {
 async function checkKey() {
   if (STATIC) return;
   try {
-    // FB23/#91: Screen-Größe + UI-Sprache einmalig an den Startup-Ping hängen — der Server nutzt sie
-    // (gedrosselt, ohne neuen Identifikator) fürs Besuchs-Signal an den Betreiber. Nur dieser
-    // /api/health-Aufruf trägt ?scr; andere Health-Calls lösen bewusst keine Meldung aus.
-    let scrLang = "";
-    try { scrLang = `?scr=${(screen?.width || 0)}x${(screen?.height || 0)}&lang=${LANG}`; } catch {}
-    const h = await GET("/api/health" + scrLang);
+    const h = await GET("/api/health");
     // Version + Deploy-Ref (PR bzw. Commit) im Header — verlinkt auf GitHub zur Nachverfolgung (E1).
     const verEl = document.getElementById("ver");
     if (h.version || h.build) {
@@ -6461,7 +6497,7 @@ async function checkKey() {
 
 // ---- Feedback (Pushover) ----
 const feedbackModal = document.getElementById("feedbackModal");
-function openFeedback() { feedbackModal.classList.add("show"); document.getElementById("feedbackText").focus(); }
+function openFeedback() { markFeat("feedback"); feedbackModal.classList.add("show"); document.getElementById("feedbackText").focus(); }
 function closeFeedback() { feedbackModal.classList.remove("show"); }
 document.getElementById("feedbackBtn").onclick = openFeedback;
 document.getElementById("feedbackCancel").onclick = closeFeedback;
@@ -6661,6 +6697,53 @@ addEventListener("visibilitychange", () => {
   // -> Canvas-Maße sichern und neu zeichnen, damit das Netz nicht „weg" bleibt.
   if (!document.hidden) { resize(); requestDraw(); }
 });
+
+// Interaktions-Signal (nur für den Betreiber, greift serverseitig nur bei gesetztem
+// LIKE_OWNER_SECRET): misst, wie lange dieser Tab offen ist, und meldet es beim Verlassen per
+// navigator.sendBeacon an /api/visit/end. Rein clientseitig, nichts wird gespeichert — der Server
+// macht daraus höchstens eine Pushover-Notiz „Verweildauer …, Konto angelegt: ja/nein". Die
+// Besuchs-ID lebt nur in sessionStorage (pro Tab), damit ein Reload den Besuch nicht neu zählt.
+(function () {
+  const KEY = "like_visit_id", TKEY = "like_visit_t0";
+  let id, t0;
+  try {
+    id = sessionStorage.getItem(KEY);
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+      sessionStorage.setItem(KEY, id);
+      sessionStorage.setItem(TKEY, String(Date.now()));
+    }
+    t0 = Number(sessionStorage.getItem(TKEY)) || Date.now();
+  } catch { return; } // ohne sessionStorage (strenge Privatsphäre-Einstellungen) einfach kein Signal
+  // „Aktiv interagiert?" — nur ein Ja/Nein-Zähler, keine Positionen, keine Eingaben.
+  let gestures = 0;
+  addEventListener("pointerdown", () => { gestures++; }, { passive: true });
+  addEventListener("keydown", () => { gestures++; }, { passive: true });
+  function report() {
+    if (!id || !navigator.sendBeacon) return;
+    let created = false;
+    try { created = sessionStorage.getItem("like_created") === "1"; } catch {}
+    // Wie viele echte Einträge (ohne Venue-Knoten) hingen am Ende an der Karte.
+    let entries = 0;
+    try { entries = Array.isArray(nodes) ? nodes.filter((n) => !n.venue).length : 0; } catch {}
+    const payload = JSON.stringify({
+      id,
+      seconds: Math.round((Date.now() - t0) / 1000),
+      account: !!window.LIKE_USER,   // aktuell angemeldet?
+      created,                        // in dieser Sitzung neu registriert?
+      pack: (window.LIKE_CFG && window.LIKE_CFG.id) || "",
+      entries,                        // Kartengröße = Erkundungstiefe
+      feats: Array.from(likeFeat),    // genutzte Funktionen (Suche, Radar, …)
+      interacted: gestures > 0,       // überhaupt interagiert, oder nur angeschaut?
+      ref: document.referrer || "",
+    });
+    try { navigator.sendBeacon("/api/visit/end", new Blob([payload], { type: "application/json" })); } catch {}
+  }
+  // Jeder Wechsel in den Hintergrund + der finale Weggang schicken den aktuellen Stand; der Server
+  // entprellt das zu genau EINER Meldung je Besuch (mit der längsten gemeldeten Dauer).
+  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") report(); });
+  addEventListener("pagehide", report);
+})();
 
 // E7: Mobile-Suche — Lupe in der Topbar öffnet ein Vollbild-Suchfeld mit Autofokus und
 // denselben Vorschlägen wie die Desktop-Suche (statt zwei Taps ins generische ⋯-Menü).

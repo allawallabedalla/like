@@ -1259,6 +1259,13 @@ eingetragen.
   + UI-Sprache zusätzlich melden.** Beide liegen nur im Client → einmalig, dezent an den Visit-Ping
   mitgeben (Viewport-Größe + `navigator.language`), **ohne neuen Identifikator**, in `notifyVisitMaybe`
   an die bestehende Meldung anhängen. Kein Personenbezug über das bisherige Besuchs-Signal hinaus.
+  - **⚠️ Beim Merge abgelöst (2026-07-17):** Parallel wurde auf `main` (PR #98) das Besuchs-Signal
+    grundlegend umgebaut — statt der „neuer Besuch"-Meldung (`notifyVisitMaybe`) gibt es jetzt ein
+    Sitzungs-Ende-Beacon (`/api/visit/end` → `notifyVisitEnd`), das **Sprache, Gerät/Browser, Pack,
+    Konto-Status, Kartengröße, genutzte Funktionen und Verweildauer** erfasst. Das deckt FB23s Ziel
+    (welche Sprache/welcher Screen) besser ab. Meine FB23-Ankunfts-Variante wurde beim Merge daher
+    **verworfen** (main's System übernommen). Einziger nicht übernommener Teil: die **exakte
+    Screen-Auflösung** — ließe sich bei Bedarf leicht in main's Beacon ergänzen (Follow-up).
 - [ ] ~~**FB24 — Letzten Klick/letzte Aktion ins Pushover-Signal (#92, Books).**~~ **Entscheidung
   getroffen (2026-07-17): NICHT umsetzen.** Wäre Verhaltens-Tracking und kollidiert mit der „anonym,
   keine Session"-Zusage im Impressum. Bewusst verworfen — Issue #92 wird mit dieser Begründung
@@ -1340,3 +1347,28 @@ Code/Browser verifizieren, sinnvolle Commits, PR — **nicht ungefragt mergen**.
 zuerst die klaren Frontend-Tweaks (FB18/FB19/FB22) und die Surprise-Bugs (FB21/FB28), dann die
 UX-Umbauten (FB25/FB17) und die großen Bretter (FB20/FB27/FB29); FB23/FB24/FB26 warten auf eine
 Betreiber-Entscheidung. Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
+## Runde 23 — Intro-Feinschliff: Kreuz-Fokuskasten + Login-Vorteil (2026-07-17)
+
+Kleiner UX-Befund aus dem Testnutzer-Screenshot: beim Öffnen der Willkommens-Tour lag ein
+brauner UA-Fokuskasten ums Schließen-„×" (rechts oben) — sah aus wie ein zweiter Rahmen.
+Ursache: `openIntro()` setzte den Fokus direkt auf `#introSkip`. Zusätzlicher Wunsch: die Tour
+soll warm mit „Viel Spaß!" enden UND dezent auf den Login-Vorteil hinweisen.
+
+- [x] **Fokuskasten ums „×" weg.** `openIntro()` fokussiert jetzt die Dialog-Karte selbst
+  (`.introcard` mit `tabindex="-1"`, `outline:none`) statt den Schließen-Knopf — Screenreader/
+  Tastatur bekommen den Fokus weiterhin in den Dialog (der Tab-Trap greift unverändert), aber
+  ohne sichtbaren Kasten. Das „×" bekam zudem einen dezenten Hover-Hintergrund + saubere
+  `:focus-visible`-Umrandung (Tastatur-Nutzer sehen weiter einen Ring).
+- [x] **„Viel Spaß!" auf dem letzten Slide.** Im Stöber-Modus (Standard) stand es schon auf dem
+  jetzt letzten Slide „Sammeln & exportieren"; im Profi/Booking-Modus fehlte es auf dem
+  Szenen-Slide (`tourP5`) — dort ergänzt (DE + EN-Fassung).
+- [x] **Login-Vorteil-Hinweis am Tour-Ende.** Dezent abgesetzte Zeile auf dem letzten Slide
+  (nur live & solange nicht angemeldet, nicht im STATIC-Export): „↗ Anmelden lohnt sich: dann
+  bleiben Karte, Likes & Notizen dauerhaft — und auf allen Geräten gleich." Klick öffnet direkt
+  die Registrierung (wie der Hinweis auf dem leeren Start-Screen), Enter/Space ebenso.
+
+**Verifiziert:** `npm run check`-Smoke grün (10 Packs, ein Server). Zusätzlich mit echtem
+Chromium gegen `server.mjs` gefahren: Tour öffnet automatisch, Fokus liegt auf `.introcard`
+(nicht mehr am „×"), Login-Hinweis + „Viel Spaß!" erscheinen DE & EN auf dem letzten Slide,
+keine neuen Konsolenfehler (nur der bekannte externe Zertifikatsfehler). Nur `public/index.html`
+geändert.
