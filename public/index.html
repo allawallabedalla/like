@@ -1035,7 +1035,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <div class="dtitle">Entdecken</div>
     <div class="ditem" id="discSurprise">
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 3.8 9.5 8 8 12.2 6.5 8Z"/></svg></span>
-      <span><b>Überrasch mich</b><small>Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.</small></span>
+      <span><b>Streifzug</b><small>Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem.</small></span>
     </div>
     <div class="ditem workonly" id="discScenes">
       <span class="dico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"><circle cx="6.1" cy="8" r="3.4"/><circle cx="9.9" cy="8" r="3.4"/></svg></span>
@@ -1690,6 +1690,7 @@ const T = LANG !== "en" ? null : {
   "— dann gilt deine Spende auf allen Geräten.": "— then your donation counts on all your devices.",
   "Schreib mir kurz, was besser werden soll": "Tell me briefly what should get better",
   "✦ Suche …": "✦ Searching …", "Streifzug: {P}": "Stroll: {P}",
+  "Streifzug": "Stroll", "✦ Streifzug": "✦ Stroll",
   "Radar öffnen": "Open radar",
   "und {N} weitere im Aufwind": "and {N} more on the rise",
   "Monat": "month",
@@ -1965,13 +1966,15 @@ function applyCfg() {
     $("focusBtn").replaceWith(share);
     share.classList.remove("iconbtn", "shareicon");
     share.appendChild(document.createTextNode(" " + t("Teilen")));
-    // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst
-    // „Überrasch mich" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile).
+    // „Entdecken" wäre im Stöbern-Modus ein Menü mit nur einem Eintrag — der Knopf löst den
+    // „Streifzug" deshalb direkt aus (gleicher Wortlaut auch im ⋯-Menü auf Mobile). FB25/#93: bewusst
+    // NICHT „Überrasch mich" — dieser Wortlaut gehört dem Empty-State-Knopf, der einen NEUEN Act lädt;
+    // der Streifzug springt durch das BESTEHENDE Netz. Gleiche Namen für Verschiedenes hatte verwirrt.
     const db = $("discoverBtn");
-    db.lastChild.textContent = t("Überrasch mich");
+    db.lastChild.textContent = t("Streifzug");
     db.title = t("Ein Zufalls-Streifzug durch dein Netz — landet irgendwo Neuem");
     db.onclick = () => surpriseMe();
-    $("mDiscover").textContent = t("✦ Überrasch mich");
+    $("mDiscover").textContent = t("✦ Streifzug");
     $("helpCtx").textContent = t("Menü (Erkunden, Merken …)");
     if (FEAT.tour) $("tourP4").innerHTML = tf("Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b>-Liste (links unten). Viel Spaß!",
       { L: esc(CFG.likeLabel || "like!"), B: esc(CFG.basketLabel || "Favoriten") });

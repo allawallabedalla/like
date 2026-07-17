@@ -1154,7 +1154,7 @@ eingetragen.
     Suchen **nicht** anfassen. **Live prüfen:** welche der dt. Seeds im US-Store durchfallen und ob
     `country=de` (analog `byGenre`) hilft; Cache ggf. leeren.
 
-- [ ] **FB25 — „Entdecken"-Menü: redundante/verwirrend ähnliche Funktionen (#93, Music).** Bestand
+- [~] **FB25 — „Entdecken"-Menü: redundante/verwirrend ähnliche Funktionen (#93, Music).** Bestand
   heute: der `#discoverBtn`-Popover (`discoverbox`) enthält **Überrasch mich · Szenen · Brückenbauer**,
   daneben gibt es separat **Radar** (`#radarBtn` bzw. `#mRadar` im Booking-Modus) und **✦ Überrasch
   mich** nochmal als Empty-State-Button (`#surpriseBtn`). „Überrasch mich" und „Radar" existieren also
@@ -1174,6 +1174,13 @@ eingetragen.
     **→ Entscheidung getroffen (2026-07-17): den Netz-Streifzug umbenennen** (Empty-State bleibt
     „✦ Überrasch mich" = Act laden; Popover-Eintrag `#discSurprise`/Fun-Modus wird zu „Streifzug",
     DE+EN). Radar zusätzlich ins Entdecken-Popover holen, `#radarBtn` aus der Topbar nehmen.
+  - **✅ Umgesetzt (2026-07-17) — Namenskollision aufgelöst (Kern von #93):** Der Netz-Streifzug heißt
+    jetzt überall **„Streifzug"** (Popover `#discSurprise`, Fun-Modus-`#discoverBtn`, `#mDiscover`,
+    DE+EN); **„✦ Überrasch mich" bleibt allein dem Empty-State-Act-Lader** (`#surpriseBtn`). Damit tun
+    die beiden nicht mehr Verschiedenes unter gleichem Namen.
+  - **⏸ Offen (Design-Entscheidung, NICHT Teil der Naming-Frage):** Radar ins Popover holen +
+    `#radarBtn` aus der Topbar nehmen. Zurückgestellt: Radar ist prominent (eigenes Tour-Slide) — es
+    zu vergraben senkt die Sichtbarkeit. Braucht eine bewusste Entscheidung.
 
 - [x] **FB26 — „like papers" ist missverständlich („Papier") → „like Science" (#94).**
   **Entscheidung getroffen (2026-07-17): Anzeigename → „Science"**, **Pack-ID/URL `?pack=papers`
