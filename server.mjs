@@ -745,16 +745,30 @@ function publicBase(req) {
 const escAttr = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function metaTags({ title, desc, path, base }) {
   const url = base && path != null ? `${base}${path}` : "";
+  const img = base ? `${base}/icons/icon-512.png` : "";
+  // U-2e: strukturierte Daten (JSON-LD) für Suchmaschinen. „<" escapen, damit der Content nicht
+  // aus dem <script> ausbrechen kann. Echtes 1200×630-Share-Bild + volle hreflang-Sprachvarianten
+  // bleiben Folge-Vorhaben (brauchen ein Bild-Asset bzw. serverseitige Sprachauslieferung, §7).
+  const ld = base ? `<script type="application/ld+json">${JSON.stringify({
+    "@context": "https://schema.org", "@type": "WebSite", name: "like", url: base,
+  }).replace(/</g, "\\u003c")}</script>` : "";
   return [
     `<meta name="description" content="${escAttr(desc)}" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:site_name" content="like" />`,
     `<meta property="og:title" content="${escAttr(title)}" />`,
     `<meta property="og:description" content="${escAttr(desc)}" />`,
-    base ? `<meta property="og:image" content="${base}/icons/icon-512.png" />` : "",
+    `<meta property="og:locale" content="de_DE" />`,
+    `<meta property="og:locale:alternate" content="en_US" />`,
+    img ? `<meta property="og:image" content="${img}" />` : "",
+    img ? `<meta property="og:image:width" content="512" />` : "",
+    img ? `<meta property="og:image:height" content="512" />` : "",
+    img ? `<meta property="og:image:alt" content="${escAttr(title)}" />` : "",
     url ? `<meta property="og:url" content="${escAttr(url)}" />` : "",
     url ? `<link rel="canonical" href="${escAttr(url)}" />` : "",
     `<meta name="twitter:card" content="summary" />`,
+    img ? `<meta name="twitter:image" content="${img}" />` : "",
+    ld,
   ].filter(Boolean).join("\n");
 }
 function packMeta(pack) {

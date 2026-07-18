@@ -1471,7 +1471,7 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 - [ ] **Kein primärer CTA / keine Desktop-Downloads auf der Landing.** [mittel/M · Landing] → CTA nahe der Tagline (→ /?pack=music) + „Als App laden" (W13); DE+EN.
 - [ ] **Schwaches Share-Preview: OG-Bild = App-Icon.** [mittel/M · SEO] → echtes 1200×630-Bild; twitter:card=summary_large_image + image; og:image:width/height/alt (server.mjs:673).
-- [ ] **Keine strukturierten Daten (JSON-LD).** [mittel/M · SEO] → WebSite/Organization (+ SoftwareApplication für Music) mit absoluten URLs.
+- [x] **Keine strukturierten Daten (JSON-LD).** [mittel/M · SEO] → WebSite/Organization (+ SoftwareApplication für Music) mit absoluten URLs.
 - [ ] **EN für Crawler unsichtbar — kein hreflang/og:locale.** [mittel/L · SEO/i18n] → og:locale de_DE + alternate en_US; mittelfristig serverseitig sprachvariante Auslieferung mit hreflang/canonical.
 - [ ] **Erst-Eindruck zeigt abstrakte Kugeln statt des Karten-Produkts.** [mittel/L · Landing] → produktnahes Vorschau-Element (Screenshot oder echtes Demo-Netz mit beiden Kantenarten).
 - [ ] **Labs-Freischaltung nutzt native prompt()/alert().** [mittel/M · Landing] → gestyltes Inline-Panel, das Labs erklärt; Fehler inline (landing.mjs:447-463).
