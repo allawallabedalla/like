@@ -644,6 +644,25 @@ async function sweepAnon() {
 sweepAnon().catch(() => {});
 setInterval(() => sweepAnon().catch(() => {}), 12 * 3600e3).unref();
 
+// U-2c.9: geteilte Snapshots (shares/) beschränken — sonst wächst die Platte mit jedem
+// geteilten Link unbegrenzt. Ein Share gilt als abgelaufen, wenn seine Datei älter als
+// LIKE_SHARE_TTL_DAYS ist (Default 365; 0 = aus). Off-hot-path beim Start und alle 12 h.
+const SHARE_TTL_DAYS = Math.max(0, Number(process.env.LIKE_SHARE_TTL_DAYS ?? 365) || 0);
+async function sweepShares() {
+  if (!SHARE_TTL_DAYS) return;
+  const cutoff = Date.now() - SHARE_TTL_DAYS * 864e5;
+  const base = join(DATA_DIR, "shares");
+  let files = [];
+  try { files = await readdir(base); } catch { return; } // noch keine Shares
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    const pp = join(base, f);
+    try { if ((await stat(pp)).mtimeMs < cutoff) await rm(pp, { force: true }); } catch {}
+  }
+}
+sweepShares().catch(() => {});
+setInterval(() => sweepShares().catch(() => {}), 12 * 3600e3).unref();
+
 // Zwei Graphen verlustfrei vereinen (Union): fehlende Acts/Kanten übernehmen, vorhandene
 // nur mit fehlenden Feldern ergänzen. So gehen weder die aktuelle Karte noch bereits im
 // Konto gespeicherte Likes verloren.

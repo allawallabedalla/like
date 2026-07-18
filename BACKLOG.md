@@ -1440,7 +1440,7 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 - [ ] **Keine Observability (Fehler/Quellenausfall).** [mittel/M · Betrieb] → strukturierte Request-Logs + Fehlerraten-/Quellenausfall-Alarm über Pushover; clienterror auswertbar.
 - [ ] **Backup/Disaster-Recovery.** [mittel/M · Datenhaltung] → Off-Disk-Snapshot von /data + Disk-Auslastungsalarm.
 - [x] **Sicherheits-Regressionstests fehlen.** [mittel/M · Test] → CSV-Formel-Escaping, Security-Header/Cookie-Flags, Auth-429, 413/400 assertieren. _(phase-2c: tests/security.spec.js — Header/CSP, Rate-Limit-429, 400/404; im CI-Gate)_
-- [ ] **Auth-/Session-Härtung.** [niedrig/M · Sicherheit] → Origin-Check auf POSTs; Zeitstempel/Session-Version in Signatur; .session-secret mode 0600 + LIKE_SESSION_SECRET erzwingen; generische Reset-Antwort; shares/-TTL-Sweep.
+- [ ] **Auth-/Session-Härtung.** [niedrig/M · Sicherheit] → Origin-Check auf POSTs; Zeitstempel/Session-Version in Signatur; .session-secret mode 0600 + LIKE_SESSION_SECRET erzwingen; generische Reset-Antwort; shares/-TTL-Sweep. _(phase-2c teilweise: .session-secret Mode 0600 + shares/-TTL-Sweep (LIKE_SHARE_TTL_DAYS) erledigt; Origin-Check/Session-Version/generische Reset-Antwort/LIKE_SESSION_SECRET-Pflicht geparkt §7)_
 
 ### Phase 2d — Labs: Ehrlichkeit, Inhalt & Freischalt-Blocker
 
