@@ -14,6 +14,9 @@ import { jfetch } from "../../lib/jfetch.mjs";
 import { surpriseFrom } from "../../lib/surprise.mjs";
 
 const INAT = "https://api.inaturalist.org/v1";
+// (U-2d) iNaturalist drosselt geteilte, key-lose Nutzung — der jfetch-Default (250 ms) taktet
+// zu dicht und provoziert 429er. Größerer Pro-Host-Abstand für alle iNat-Requests.
+const INAT_GAP = 800;
 
 // „Überrasch mich" (Kaltstart): kuratierter Pool bemerkenswerter Pflanzen (Urzeit-Relikte,
 // Fleischfresser, Rekordhalter). surprise() nimmt die mit den WENIGSTEN Beobachtungen.
@@ -28,6 +31,17 @@ const SURPRISE_SEEDS = [
 const PLANTAE = 47126; // iNat-Taxon-ID des Pflanzenreichs — hält Tiere/Pilze draußen
 
 const cap = (s) => String(s || "").replace(/\b\w/g, (c) => c.toUpperCase());
+// (U-2d) iNat liefert den Rang roh englisch ("species"/"genus"/…). Für den Systematik-Chip
+// auf Deutsch mappen; unbekannte Ränge fallen später über filter(Boolean) einfach weg,
+// statt roh englisch zu erscheinen.
+const RANK_DE = {
+  kingdom: "Reich", phylum: "Abteilung", subphylum: "Unterabteilung", class: "Klasse",
+  subclass: "Unterklasse", order: "Ordnung", suborder: "Unterordnung", family: "Familie",
+  subfamily: "Unterfamilie", tribe: "Tribus", genus: "Gattung", subgenus: "Untergattung",
+  section: "Sektion", species: "Art", subspecies: "Unterart", variety: "Varietät",
+  form: "Form", hybrid: "Hybride",
+};
+const rankDe = (r) => RANK_DE[String(r || "").toLowerCase()] || null;
 // Anzeigename: bevorzugt der deutsche Trivialname, sonst der wissenschaftliche.
 const display = (t) => t.preferred_common_name ? cap(t.preferred_common_name) : t.name;
 
@@ -40,14 +54,14 @@ async function searchTaxon(name) {
     u.searchParams.set("taxon_id", String(PLANTAE));
     u.searchParams.set("per_page", "1");
     u.searchParams.set("locale", "de");
-    const j = await jfetch(u.href);
+    const j = await jfetch(u.href, { gapMs: INAT_GAP }); // (U-2d) iNat-Drossel
     return j.results?.[0] || null;
   });
 }
 
 async function taxonById(id) {
   return cached("inat-byid", id, 30 * 864e5, async () => {
-    const j = await jfetch(`${INAT}/taxa/${id}?locale=de`);
+    const j = await jfetch(`${INAT}/taxa/${id}?locale=de`, { gapMs: INAT_GAP }); // (U-2d) iNat-Drossel
     return j.results?.[0] || null;
   });
 }
@@ -75,7 +89,7 @@ async function genusSiblings(taxon, { limit = 12 } = {}) {
     u.searchParams.set("per_page", String(limit));
     u.searchParams.set("order_by", "observations_count");
     u.searchParams.set("locale", "de");
-    const j = await jfetch(u.href);
+    const j = await jfetch(u.href, { gapMs: INAT_GAP }); // (U-2d) iNat-Drossel
     return (j.results || []).filter((t) => t.id !== taxon.id && t.rank === "species");
   });
 }
@@ -101,7 +115,7 @@ async function representativeLocations(taxonId, { n = 3, minSepKm = 80 } = {}) {
   u.searchParams.set("geo", "true");
   u.searchParams.set("order_by", "votes");
   u.searchParams.set("per_page", "20"); // Kandidatenpool, daraus verteilte auswählen
-  const results = (await jfetch(u.href)).results || [];
+  const results = (await jfetch(u.href, { gapMs: INAT_GAP })).results || []; // (U-2d) iNat-Drossel
   const locs = [];
   for (const obs of results) {
     const loc = obs?.location; if (!loc) continue;
@@ -135,7 +149,7 @@ async function sameHabitat(taxon, { limit = 12 } = {}) {
           su.searchParams.set("quality_grade", "research");
           su.searchParams.set("per_page", "40"); // größerer Pool je Standort, nach Filtern bleibt genug übrig
           su.searchParams.set("locale", "de");
-          const j = await jfetch(su.href);
+          const j = await jfetch(su.href, { gapMs: INAT_GAP }); // (U-2d) iNat-Drossel
           for (const r of j.results || []) {
             const t = r.taxon;
             if (!t || t.id === taxon.id) continue;
@@ -166,8 +180,11 @@ export default {
     item: { sing: "Pflanze", plur: "Pflanzen" },
     searchPlaceholder: "Pflanze suchen…   ( / )",
     searchTitle: "Pflanze bei iNaturalist suchen — lädt verwandte Arten + Pflanzen mit ähnlichen Standortansprüchen (Taste /)",
-    goTitle: "Pflanze laden: botanisch verwandt + gedeiht am selben Standort + Merkmale",
+    goTitle: "Pflanze laden: botanisch verwandt + gedeiht am selben Standort + Systematik", // (U-2d)
     exampleSeed: "Lavendel",
+    // (U-2d) kontrastierende Startpunkte (Eigennamen -> als Suchbegriff genutzt, nicht übersetzt):
+    // Zimmerpflanze / Baum / Wildblume.
+    seedChips: ["Monstera", "Ginkgo", "Klatschmohn"],
     emptyTitle: "Noch keine Pflanzen auf der Karte",
     emptyHint: "bringt gleich ihr Umfeld mit: verwandte Arten + Pflanzen mit ähnlichen Standortansprüchen.",
     edges: {
@@ -175,8 +192,8 @@ export default {
       together: { label: "gedeiht am selben Standort (iNat)", count: "mit ähnlichen Ansprüchen" },
     },
     popularity: { label: "Beobachtungen", big: 50000, dimLabel: "Allerweltsarten dämpfen", dimTitle: "Sehr häufig beobachtete Arten abdunkeln — nur die Seltenen leuchten" },
-    genreLabel: "Merkmale",
-    genreFilterPlaceholder: "Merkmal filtern…",
+    genreLabel: "Systematik", // (U-2d) ehem. „Merkmale" — es ist reine Taxonomie, kein Merkmalsprofil
+    genreFilterPlaceholder: "Systematik filtern…",
     statuses: [
       { value: "shortlist", label: "will ich pflanzen", color: "#000000" },
       { value: "contacted", label: "gesät", color: "#ff6a00" },
@@ -191,7 +208,7 @@ export default {
     contextHint: "(iNaturalist)",
     contextButton: "Familie laden",
     contextWait: "Lade Familien-Umfeld …",
-    basketLabel: "Pflanzliste",
+    basketLabel: "Pflanzenliste", // (U-2d) Tippfehler „Pflanzliste" korrigiert
     likeLabel: "merken!",
     profileLabel: "iNaturalist",
     searchLinks: [
@@ -208,7 +225,7 @@ export default {
       "Pflanzen": "Plants",
       "Pflanze suchen…   ( / )": "Search plant…   ( / )",
       "Pflanze bei iNaturalist suchen — lädt verwandte Arten + Pflanzen mit ähnlichen Standortansprüchen (Taste /)": "Search plant on iNaturalist - loads related species + plants with similar site requirements (key /)",
-      "Pflanze laden: botanisch verwandt + gedeiht am selben Standort + Merkmale": "Load plant: botanically related + thrives in the same habitat + traits",
+      "Pflanze laden: botanisch verwandt + gedeiht am selben Standort + Systematik": "Load plant: botanically related + thrives in the same habitat + systematics", // (U-2d)
       "Noch keine Pflanzen auf der Karte": "No plants on the map yet",
       "bringt gleich ihr Umfeld mit: verwandte Arten + Pflanzen mit ähnlichen Standortansprüchen.": "brings its surroundings along: related species + plants with similar site requirements.",
       "botanisch verwandt (Gattung)": "botanically related (genus)",
@@ -218,8 +235,8 @@ export default {
       "Beobachtungen": "Observations",
       "Allerweltsarten dämpfen": "Dim common species",
       "Sehr häufig beobachtete Arten abdunkeln — nur die Seltenen leuchten": "Dim very frequently observed species - only the rare ones glow",
-      "Merkmale": "Traits",
-      "Merkmal filtern…": "Filter traits…",
+      "Systematik": "Systematics", // (U-2d) ehem. „Merkmale"/„Traits"
+      "Systematik filtern…": "Filter systematics…",
       "will ich pflanzen": "want to plant",
       "gesät": "sown",
       "im Garten": "in the garden",
@@ -231,7 +248,7 @@ export default {
       "Familien-Umfeld": "Family context",
       "Familie laden": "Load family",
       "Lade Familien-Umfeld …": "Loading family context …",
-      "Pflanzliste": "Plant list",
+      "Pflanzenliste": "Plant list", // (U-2d)
       "merken!": "save!",
       "Radar — seltene Arten": "Radar - rare species",
       "gedeiht am selben Standort wie dein Like": "thrives in the same habitat as your like",
@@ -245,7 +262,7 @@ export default {
       u.searchParams.set("taxon_id", String(PLANTAE));
       u.searchParams.set("per_page", "6");
       u.searchParams.set("locale", "de");
-      const j = await jfetch(u.href);
+      const j = await jfetch(u.href, { gapMs: INAT_GAP }); // (U-2d) iNat-Drossel
       const seen = new Set();
       return (j.results || []).map(display).filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
     });
@@ -293,7 +310,8 @@ export default {
     const genus = (taxon.ancestors || []).find((a) => a.rank === "genus");
 
     const [sibs, co] = await Promise.all([genusSiblings(taxon), sameHabitat(taxon)]);
-    const genres = [family?.preferred_common_name || family?.name, genus?.name, taxon.rank].filter(Boolean).map(cap);
+    // (U-2d) Rang deutsch mappen statt roh englisch; unbekannter Rang fällt via filter(Boolean) weg.
+    const genres = [family?.preferred_common_name || family?.name, genus?.name, rankDe(taxon.rank)].filter(Boolean).map(cap);
 
     return {
       canonical: display(taxon),
@@ -346,7 +364,7 @@ export default {
     u.searchParams.set("per_page", "12");
     u.searchParams.set("order_by", "observations_count");
     u.searchParams.set("locale", "de");
-    const j = await jfetch(u.href);
+    const j = await jfetch(u.href, { gapMs: INAT_GAP }); // (U-2d) iNat-Drossel
     return {
       note: `Familie: ${cap(family.preferred_common_name || family.name)}`,
       groups: [{
@@ -359,7 +377,7 @@ export default {
   async diag() {
     return [
       { name: "iNaturalist Suche", probe: async () => !!(await searchTaxon("Lavandula")) },
-      { name: "iNaturalist Standort-Gemeinschaft", probe: async () => { const h = await searchTaxon("Lavandula"); const t = await taxonById(h.id) || h; return (await sameHabitat(t)).length >= 0; } },
+      { name: "iNaturalist Standort-Gemeinschaft", probe: async () => { const h = await searchTaxon("Lavandula"); if (!h) return false; /* (U-2d) Null-Guard: ohne Treffer kein h.id */ const t = await taxonById(h.id) || h; return (await sameHabitat(t)).length >= 0; } },
     ];
   },
 };

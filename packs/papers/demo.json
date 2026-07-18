@@ -85,15 +85,15 @@
     {
       "from": "attention is all you need (vaswani 2017)",
       "to": "transformer-xl (dai 2019)",
-      "type": "together",
-      "weight": 2,
+      "type": "similar",
+      "weight": 0.6,
       "source": "demo"
     },
     {
       "from": "attention is all you need (vaswani 2017)",
       "to": "set transformer (lee 2019)",
-      "type": "together",
-      "weight": 2,
+      "type": "similar",
+      "weight": 0.6,
       "source": "demo"
     },
     {
