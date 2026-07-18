@@ -4,8 +4,24 @@ docs
 cache
 .git
 .github
+.claude
+.e2e-data
+test-results
+playwright-report
 *.dmg
 *.exe
 graph*.json
 stats*.json
 digest*.json
+# Secrets/Keys nie ins Image (U-2c.6) — werden zur Laufzeit per ENV gesetzt.
+.env
+.env.*
+.lastfm-key
+.tmdb-key
+.tastedive-key
+.songkick-key
+.setlistfm-key
+.bandsintown-appid
+.pushover
+.session-secret
+*.key

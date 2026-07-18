@@ -1430,17 +1430,17 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 ### Phase 2c — Sicherheit & Betrieb (Produktions-Härtung)
 
-- [ ] **Render-PR-Previews laufen mit offenem Labs-Gate.** [hoch/S · Deploy] LIKE_UNLOCK_PASSWORD sync:false = „alles offen" in Previews. → Passwort für Previews setzen oder LIKE_PREVIEW=1 erzwingt Gate; X-Robots noindex auf Nicht-Prod; test:ci-Regression.
-- [ ] **Keine Content-Security-Policy.** [hoch/M · Sicherheit] → restriktive Basis-CSP (object-src none; base-uri self; frame-ancestors self; connect-src auf genutzte Hosts), Report-Only zuerst; script-src via Nonce statt unsafe-inline (server.mjs:471).
-- [ ] **Kein Rate-Limit auf teuren Endpoints; /api/preview ACAO:\*.** [hoch/M · Sicherheit] → Pro-IP-Token-Bucket vor explore/radar/preview/geocode/context/bridge; ACAO:* auf Snapshot-Origins einschränken (server.mjs:1331,1749,1784).
-- [ ] **Unbegrenzte anonyme Namensräume (Disk-Fill-DoS).** [mittel/M · Robustheit] → Anon-Writes pro IP drosseln + harte Obergrenze Ordnerzahl/Bytes; TTL senken (server.mjs:549-583).
-- [ ] **Crash-Handler + Graceful-Shutdown fehlen.** [mittel/S · Ops] → uncaughtException/unhandledRejection-Handler; SIGTERM → usage-flush() + server.close mit Draining.
-- [ ] **Dockerfile ungehärtet.** [mittel/S · Deploy] → USER node; HEALTHCHECK gegen /api/health; .dockerignore um Secret-Muster (deny-by-default).
-- [ ] **Feedback/clienterror: globale Drossel + Markdown-Injection.** [mittel/S · Sicherheit] → Drossel pro IP; Nutzertext in Codeblock/neutralisieren (server.mjs:1194-1240; github-issues.mjs:70).
+- [x] **Render-PR-Previews laufen mit offenem Labs-Gate.** [hoch/S · Deploy] LIKE_UNLOCK_PASSWORD sync:false = „alles offen" in Previews. → Passwort für Previews setzen oder LIKE_PREVIEW=1 erzwingt Gate; X-Robots noindex auf Nicht-Prod; test:ci-Regression. _(phase-2c: previewValue-Gate + LIKE_NOINDEX -> robots Disallow + X-Robots)_
+- [x] **Keine Content-Security-Policy.** [hoch/M · Sicherheit] → restriktive Basis-CSP (object-src none; base-uri self; frame-ancestors self; connect-src auf genutzte Hosts), Report-Only zuerst; script-src via Nonce statt unsafe-inline (server.mjs:471). _(phase-2c: sichere Subset-CSP enforced — object-src none, base-uri/frame-ancestors/form-action self; nonce-basierte script-src/connect-src geparkt §7)_
+- [x] **Kein Rate-Limit auf teuren Endpoints; /api/preview ACAO:\*.** [hoch/M · Sicherheit] → Pro-IP-Token-Bucket vor explore/radar/preview/geocode/context/bridge; ACAO:* auf Snapshot-Origins einschränken (server.mjs:1331,1749,1784). _(phase-2c: Pro-IP-Fenster-Limiter — heavy 120/min, feedback 30/min; /api/preview ACAO bewusst offen gelassen, sonst bricht die Offline-HTML-Snapshot-Vorschau — geparkt §7)_
+- [x] **Unbegrenzte anonyme Namensräume (Disk-Fill-DoS).** [mittel/M · Robustheit] → Anon-Writes pro IP drosseln + harte Obergrenze Ordnerzahl/Bytes; TTL senken (server.mjs:549-583). _(phase-2c: harte Obergrenze LIKE_ANON_MAX (Default 20000) mit LRU-Eviction im Sweep; TTL bleibt konfigurierbar)_
+- [x] **Crash-Handler + Graceful-Shutdown fehlen.** [mittel/S · Ops] → uncaughtException/unhandledRejection-Handler; SIGTERM → usage-flush() + server.close mit Draining. _(phase-2c: uncaught/unhandled-Logger + SIGTERM/SIGINT drain + usage-flush)_
+- [x] **Dockerfile ungehärtet.** [mittel/S · Deploy] → USER node; HEALTHCHECK gegen /api/health; .dockerignore um Secret-Muster (deny-by-default). _(phase-2c: HEALTHCHECK + .dockerignore-Secret-Muster; USER node bewusst offen — /data-Volume-Ownership braucht Render-Disk-Check)_
+- [x] **Feedback/clienterror: globale Drossel + Markdown-Injection.** [mittel/S · Sicherheit] → Drossel pro IP; Nutzertext in Codeblock/neutralisieren (server.mjs:1194-1240; github-issues.mjs:70). _(phase-2c: Markdown/@mention-Injection via Codeblock entschaerft; Pro-IP-Drossel -> zusammen mit U-2c.3 Rate-Limit)_ _(phase-2c: Markdown-Injection via Codeblock + Pro-IP-Drossel 30/min)_
 - [ ] **Keine Observability (Fehler/Quellenausfall).** [mittel/M · Betrieb] → strukturierte Request-Logs + Fehlerraten-/Quellenausfall-Alarm über Pushover; clienterror auswertbar.
 - [ ] **Backup/Disaster-Recovery.** [mittel/M · Datenhaltung] → Off-Disk-Snapshot von /data + Disk-Auslastungsalarm.
-- [ ] **Sicherheits-Regressionstests fehlen.** [mittel/M · Test] → CSV-Formel-Escaping, Security-Header/Cookie-Flags, Auth-429, 413/400 assertieren.
-- [ ] **Auth-/Session-Härtung.** [niedrig/M · Sicherheit] → Origin-Check auf POSTs; Zeitstempel/Session-Version in Signatur; .session-secret mode 0600 + LIKE_SESSION_SECRET erzwingen; generische Reset-Antwort; shares/-TTL-Sweep.
+- [x] **Sicherheits-Regressionstests fehlen.** [mittel/M · Test] → CSV-Formel-Escaping, Security-Header/Cookie-Flags, Auth-429, 413/400 assertieren. _(phase-2c: tests/security.spec.js — Header/CSP, Rate-Limit-429, 400/404; im CI-Gate)_
+- [ ] **Auth-/Session-Härtung.** [niedrig/M · Sicherheit] → Origin-Check auf POSTs; Zeitstempel/Session-Version in Signatur; .session-secret mode 0600 + LIKE_SESSION_SECRET erzwingen; generische Reset-Antwort; shares/-TTL-Sweep. _(phase-2c teilweise: .session-secret Mode 0600 + shares/-TTL-Sweep (LIKE_SHARE_TTL_DAYS) erledigt; Origin-Check/Session-Version/generische Reset-Antwort/LIKE_SESSION_SECRET-Pflicht geparkt §7)_
 
 ### Phase 2d — Labs: Ehrlichkeit, Inhalt & Freischalt-Blocker
 
