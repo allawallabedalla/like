@@ -1372,3 +1372,131 @@ Chromium gegen `server.mjs` gefahren: Tour öffnet automatisch, Fokus liegt auf 
 (nicht mehr am „×"), Login-Hinweis + „Viel Spaß!" erscheinen DE & EN auf dem letzten Slide,
 keine neuen Konsolenfehler (nur der bekannte externe Zertifikatsfehler). Nur `public/index.html`
 geändert.
+
+---
+
+## Runde 24 — Domänen-Reife-Bewertung (Phase 1: Assessment) (2026-07-17)
+
+Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 Packs plus der Querschnitt-Aspekte (Landing, SEO, PWA, i18n, Recht, Sicherheit, Tests/CI, A11y, Doku, Betrieb). Grundlage ist die Fokus-Entscheidung aus ROADMAP.md: **Like Music ist DAS Produkt (Produktionsqualität), die übrigen 9 Packs sind Labs** — für Labs gilt „Reife = wie nah an einer ehrlichen Freischaltung", für Music die höhere Messlatte Produktionsqualität. Externe Such-APIs waren in der Bewertungsumgebung nicht erreichbar; bewertet wurde der Code/die Logik. Phase 2 (die Abarbeitung) ist unten priorisiert und phasiert. Reihenfolge: hoch/S zuerst, Music-Qualität vor Labs-Parität, aber Ehrlichkeits-, Rechts- und Sicherheits-Defizite ranghoch.
+
+### Reifegrad-Matrix
+
+| Domäne / Aspekt | Tier | Fazit |
+| --- | --- | --- |
+| Like Music (music) | **mature** | Referenz-Pack: echte blau/orange-Relationen, volle Feature-Tiefe, EN praktisch vollständig, starke Robustheit. Restrisiken: RA inoffiziell, Songkick tot, Detailpolitur. |
+| Like Movies (movies) | solid | TMDB liefert echtes Blau + verhaltensbasiertes Orange, ehrliche Flags. Offen: de-DE-Verdrahtung, explore-Degradation, seedChips. |
+| Like Board Games (boardgames) | solid | Ehrliche verhaltensbasierte Relationen, EN vollständig. Offen: irreführendes „Designer/Verlag"-Label, Politur. |
+| Like Science (papers) | solid | Erstklassiges Blau (S2/SPECTER) + echte Ko-Autorschafts-Orange. Offen: falsche Demo-Kanten, radarExtras. |
+| Like Plants (plants) | solid | Ehrlich auf iNaturalist, echte Relationen, EN vollständig. Offen: iNat-Ratelimit, „Merkmale"-Mislabel, seedChips. |
+| Like Anything (anything) | solid | Freischalt-nächster Pack: keyfrei, EN vollständig, vorbildliche Cache-Disziplin. Offen: Knoten-Ausschlussfilter, Orange relevanz-ranken. |
+| Like Podcasts (podcasts) | beta | Ehrlich etikettiert, echte Episoden-Preview. Blocker: Blau = Genre-Topcharts, Null-Caching, seedChips. |
+| Like Books (books) | beta | Funktionsfähig, ehrlich, EN vollständig. Blocker: Blau = Genre-Kanon, Ausgaben-Dubletten. |
+| Like Games (games) | beta | Live Review-Popularität, echte Tag-Schnittmenge. Blocker: Orange unpräzise (Textsuche), keine Dedup, SteamSpy ohne Retry. |
+| Like Travel (travel) | beta | Beste Konzept-Passung. Blocker: Orange durch 10-km-Klemme degradiert (Labels lügen), Blau nur Rangproxy. |
+| Landing-Page | solid | Kohärent, echter Konzept-Transfer. Offen: Baustellen-Footer, primärer CTA, echtes Share-Preview, Produkt-nahe Erst-Ansicht. |
+| SEO / Meta / Social | solid | Durchdachtes Grundgerüst. Offen: JSON-LD, echte Share-Bilder, hreflang, SEO-Tests. |
+| PWA & Offline | solid | Sauberer Service-Worker, vollständiges Manifest. Offen: „Update verfügbar"-UX, Share-Meta, Manifest-Politur. |
+| i18n-System | solid | Vollständige Overlays. Offen: ~40 deutsche Server-Fehler, radarExtras-Reasons, CI-Absicherung. |
+| Recht & Datenschutz | solid | Reife, ehrliche Basis. Offen: Impressum-E-Mail/Anschrift, AGPL-§13, Teilen/Feedback-Transparenz, ToS-Risiko. |
+| Sicherheit & Server-Robustheit | solid | Starkes Fundament. Offen: CSP, Rate-Limits, anon-Namespaces, Security-Tests. |
+| Test-Abdeckung & CI | solid | Überdurchschnittlich. Offen: CI-Gate nur 6/10 Specs, keine a11y-Automatisierung, keine Server-Unit-Tests. |
+| Konsistenz & Doku | beta | Umfangreich, aber Drift: USABILITY (Radar/IDs), ROADMAP-Rumpf, Music-only-README, fehlende Wächter. |
+| Accessibility (A11y) | beta | Solides Fundament. WCAG-A/AA-Blocker: Seiten-Zoom aus, kein Toolbar-Fokusring, keine Fokus-Rückgabe, null a11y-Tests. |
+
+---
+
+### Phase 2a — Music-Produktionshärtung (Flaggschiff zuerst)
+
+- [ ] **Preview-Fallbacks umgehen den Namensvetter-Guard.** [mittel/S · music] plausibleFans greift nur im ersten preview-Zweig; trackPreviewSearch/previewByName können die Klangprobe des berühmten Gleichnamigen spielen. → fans/listeners-Plausi auf beide Fallback-Zweige anwenden (pack.mjs:304-311).
+- [ ] **radarExtras-Begründungen hart deutsch im LIVE-Radar.** [mittel/S · music/i18n] server.mjs:1907 reicht Reasons ungefiltert durch, pack.mjs:371-387 erzeugt sie deutsch. → sprachneutral als {key,vars} zurückgeben und via trPack übersetzen (lang liegt in /api/radar vor).
+- [ ] **Orange-Kante hängt einseitig an inoffizieller RA-Quelle.** [mittel/L · music] In Prod trägt fast nur RA das Booking-USP; bei Ausfall still auf blau-only. → zweite offizielle together-Quelle (ListenBrainz) einziehen und degradierte Quelle im UI signalisieren (coappear.mjs:26-38).
+- [ ] **Songkick-Adapter real tot, aber als together-Quelle gelistet.** [niedrig/S · music] → entfernen oder als deprecated markieren; Quellenliste ehrlich halten (coappear.mjs:37).
+- [ ] **MBID-Schärfe reicht nicht durch die Kette.** [niedrig/M · music] RA/Deezer/MB lösen nur namensbasiert auf → bei Namensvettern falsches Umfeld. → MBID durchreichen bzw. Fans-Plausi ergänzen; Doku ehrlich auf Last.fm einschränken.
+- [ ] **Demo-Daten zu dünn fürs Flaggschiff.** [niedrig/M · music] Nur ein Cluster, keine Booking-/Status-/Lineup-Demo. → 2-3 Cluster, together-Kanten mit Show-Metadaten, Beispiel-Status/Notizen (demo.json).
+- [ ] **MusicBrainz-Lucene-Query strippt Quote statt zu escapen.** [niedrig/S · music] → Quote sauber escapen, End-Backslash entfernen (musicbrainz.mjs:26,38).
+
+### Phase 2b — Ehrlichkeit, Recht & Compliance (rang-hoch)
+
+- [ ] **Impressum ohne E-Mail-Adresse (§ 5 Abs. 1 Nr. 2 TMG).** [hoch/S · Recht] → E-Mail aus LIKE_IMPRINT_EMAIL rendern (mailto, DE+EN), sonst todo-Hinweis; ENV als Pflicht dokumentieren (server.mjs:190,236).
+- [ ] **Ladungsfähige Anschrift/Name standardmäßig Platzhalter.** [hoch/S · Recht] → LIKE_IMPRINT_NAME/_ADDRESS als Pflicht-ENV; npm run check/Deploy-Smoke schlägt fehl bei „[Straße]" im /impressum (server.mjs:192-197).
+- [ ] **Baustellen-Footer widerspricht Music als Produktionsprodukt.** [hoch/S · Landing] → „🚧"-Vermerk aus dem globalen Footer entfernen, höchstens an gegatete Labs hängen (server.mjs:150; landing.mjs:427).
+- [ ] **boardgames-Label „Designer/Verlag", Code nur Designer.** [mittel/S · boardgames] → Labels DE+EN auf „vom selben Designer" kürzen oder gamesByPublisher() nachrüsten (pack.mjs:81,95,121,135).
+- [ ] **AGPL-§13-Quelltext-Angebot Netznutzern nicht sichtbar.** [mittel/S · Recht] → dauerhaften „Open Source (AGPL-3.0) — Quelltext: <Repo-URL>"-Hinweis in Footer/Impressum (REPO_URL existiert).
+- [ ] **Teilen-Links (/s/) und Feedback-Repo intransparent.** [mittel/S · Recht] → DS um öffentlichen Snapshot ergänzen (+ noindex); Feedback-Repo garantiert privat oder Formulierung abschwächen (github-issues.mjs:14; server.mjs:272,306).
+- [ ] **ToS-Risiko RA/Bandcamp im LIVE-Betrieb + Kill-Switch.** [mittel/L · Recht] → Feature-Degradation absichern, offizielle Quellen prüfen, ENV-Kill-Switch; Entscheidung in ROADMAP/NOTES dokumentieren.
+- [ ] **Durchgängige Datenquellen-Attribution (CC-BY-SA Text/Daten).** [mittel/M · Recht] → pro Pack Quellen-/Lizenzzeile im Info-Panel + Rechtstexten (Wikipedia CC BY-SA inkl. Link/Share-Alike), zentral generiert.
+- [ ] **Konto-Selbstlöschung + Datenexport (DSGVO Art. 17/20).** [niedrig/M · Recht] → „Konto löschen"-Endpoint/Button und „Meine Daten exportieren"; echte Kontakt-E-Mail (server.mjs:316).
+- [ ] **Rechts-Konsistenz: Quellenliste, § 25 TTDSG, AGB.** [niedrig/M · Recht] → Impressum/DS-Quellenlisten angleichen; like_anon-Erforderlichkeit benennen; schlanke /nutzung (DE+EN) ergänzen.
+
+### Phase 2c — Sicherheit & Betrieb (Produktions-Härtung)
+
+- [ ] **Render-PR-Previews laufen mit offenem Labs-Gate.** [hoch/S · Deploy] LIKE_UNLOCK_PASSWORD sync:false = „alles offen" in Previews. → Passwort für Previews setzen oder LIKE_PREVIEW=1 erzwingt Gate; X-Robots noindex auf Nicht-Prod; test:ci-Regression.
+- [ ] **Keine Content-Security-Policy.** [hoch/M · Sicherheit] → restriktive Basis-CSP (object-src none; base-uri self; frame-ancestors self; connect-src auf genutzte Hosts), Report-Only zuerst; script-src via Nonce statt unsafe-inline (server.mjs:471).
+- [ ] **Kein Rate-Limit auf teuren Endpoints; /api/preview ACAO:\*.** [hoch/M · Sicherheit] → Pro-IP-Token-Bucket vor explore/radar/preview/geocode/context/bridge; ACAO:* auf Snapshot-Origins einschränken (server.mjs:1331,1749,1784).
+- [ ] **Unbegrenzte anonyme Namensräume (Disk-Fill-DoS).** [mittel/M · Robustheit] → Anon-Writes pro IP drosseln + harte Obergrenze Ordnerzahl/Bytes; TTL senken (server.mjs:549-583).
+- [ ] **Crash-Handler + Graceful-Shutdown fehlen.** [mittel/S · Ops] → uncaughtException/unhandledRejection-Handler; SIGTERM → usage-flush() + server.close mit Draining.
+- [ ] **Dockerfile ungehärtet.** [mittel/S · Deploy] → USER node; HEALTHCHECK gegen /api/health; .dockerignore um Secret-Muster (deny-by-default).
+- [ ] **Feedback/clienterror: globale Drossel + Markdown-Injection.** [mittel/S · Sicherheit] → Drossel pro IP; Nutzertext in Codeblock/neutralisieren (server.mjs:1194-1240; github-issues.mjs:70).
+- [ ] **Keine Observability (Fehler/Quellenausfall).** [mittel/M · Betrieb] → strukturierte Request-Logs + Fehlerraten-/Quellenausfall-Alarm über Pushover; clienterror auswertbar.
+- [ ] **Backup/Disaster-Recovery.** [mittel/M · Datenhaltung] → Off-Disk-Snapshot von /data + Disk-Auslastungsalarm.
+- [ ] **Sicherheits-Regressionstests fehlen.** [mittel/M · Test] → CSV-Formel-Escaping, Security-Header/Cookie-Flags, Auth-429, 413/400 assertieren.
+- [ ] **Auth-/Session-Härtung.** [niedrig/M · Sicherheit] → Origin-Check auf POSTs; Zeitstempel/Session-Version in Signatur; .session-secret mode 0600 + LIKE_SESSION_SECRET erzwingen; generische Reset-Antwort; shares/-TTL-Sweep.
+
+### Phase 2d — Labs: Ehrlichkeit, Inhalt & Freischalt-Blocker
+
+- [ ] **travel: Geosuch-Radius auf 10 km gekappt — Orange verfehlt Tagesausflüge, Region-Labels lügen.** [hoch/M · travel] → mehrere versetzte Geosuchen + Haversine-Filter oder Link-Hierarchie ranken; Minimum: Kommentare/Labels ehrlich (travel.mjs:190; pack.mjs:210,272).
+- [ ] **games: Orange per Storefront-Textsuche statt Feld-Match.** [hoch/M · games] → Treffer via spy(appid).developer gegenfiltern (exakter Match), sonst [] (pack.mjs:108-119).
+- [ ] **podcasts & books: Blau liefert generischen Genre-Kanon.** [hoch/M · podcasts,books] → auf echte Genre-/Subject-Schnittmenge ranken (wie Games/E14), TasteDive bei Key höher; bis dahin ehrliche „ähnlich = Genre"-Etikettierung.
+- [ ] **anything: Listen-/Jahres-/Begriffsklärungsseiten ungefiltert.** [mittel/M · anything] → hubPenalty/SKIP_LINK_RE auch in explore(); Stoppliste (Liste/Kategorie/Jahre/BKS) (wiki.mjs:98-163; BACKLOG:544).
+- [ ] **anything: Orange alphabetisch verzerrt / kippt still auf einseitige Links.** [mittel/M · anything] → nach Backlinks/Aufrufen ranken; Fallback <4 transparent als „verlinkt"; falsche Kommentare korrigieren (wiki.mjs:112-131).
+- [ ] **movies: explore() degradiert nicht (hartes 502).** [mittel/S · movies] → jeden Call einzeln .catch(()=>null), defensiv zugreifen, nur bei fehlendem hit werfen (pack.mjs:178-198).
+- [ ] **movies: Sprache hart de-DE, Server-lang ignoriert.** [mittel/S · movies] → lang durch explore/similar/context/enrich reichen, api() language=en-US bei EN (pack.mjs:35; server.mjs:1328).
+- [ ] **podcasts: leere Apple-Treffer 14 Tage als null gecacht.** [mittel/S · podcasts] → Leerergebnisse nicht memoisieren (werfen/kurze TTL) (pack.mjs:25-34).
+- [ ] **games: SteamSpy-Tag-Chart ohne Retry/Backoff — Blau kann still wegfallen.** [mittel/M · games] → Retry/Backoff bei 429/503; bei leerem Ergebnis Diag-/UI-Hinweis (pack.mjs:88-97).
+- [ ] **plants: iNat-Requests zu dicht getaktet (gapMs 250).** [mittel/S · plants] → gapMs 700–1000 (Wrapper analog boardgames).
+- [ ] **plants: „Merkmale"-Label oversellt Taxonomie.** [mittel/S · plants] → Label „Systematik"; englischen rank-Chip weglassen/mappen (pack.mjs:178,296).
+- [ ] **papers: Demo-ORANGE-Kanten faktisch falsch.** [mittel/S · papers] → durch echte Ko-Autoren-Werke ersetzen oder auf „similar" umlabeln (demo.json:85-98).
+- [ ] **travel: Blaue Stil-Ähnlichkeit ist Stichwort-Rangproxy.** [mittel/L · travel] → über den vorhandenen styleTags-vector re-ranken (Kosinus) (travel.mjs:151,156-181).
+- [ ] **travel: Vibe-Tags/Distanz-Chip hart deutsch.** [mittel/M · travel] → Tags mit DE/EN-Schlüssel; „{km} km from home"; Fehlermeldung über t() (travel.mjs:19-32; pack.mjs:54,193).
+- [ ] **books: Ausgaben-/Übersetzungs-Dubletten unbehandelt.** [mittel/M · books] → Dedup über OL work-key statt Titel-String; optional namesakes-Variante (pack.mjs:39,239,249).
+- [ ] **Cross-Pack: Namensvetter/Editionen nicht disambiguiert (searchX limit=1).** [mittel/M · podcasts,games,boardgames,plants,papers,movies,anything] → mehrere Treffer, nach Popularität/Jahr/exaktem Match wählen bzw. an suggest()-UI übergeben.
+- [ ] **Cross-Pack: fehlende seedChips.** [niedrig/S · podcasts,movies,books,games,plants,travel] → je 3 kontrastierende seedChips (DE/EN) ergänzen (index.html:6778).
+- [ ] **Cross-Pack: Demo-Daten inkonsistent zur Live-Domäne.** [niedrig/M · 7 Packs] → Genres/Skalen/Kantensemantik an Live angleichen, Cluster verbreitern.
+- [ ] **Cross-Pack: context()/Laufzeit-Strings ohne EN-Overlay.** [niedrig/S · books,boardgames,papers] → über Config-Keys führen und ins en-Overlay aufnehmen.
+- [ ] **Cross-Pack: radar:true ohne radarExtras (Music-Parität).** [niedrig/M · movies,books,games,boardgames,papers,plants] → optional radarExtras je Pack oder radarTitle ehrlicher fassen; nicht blockierend.
+- [ ] **Labs-Politur: Null-Guards, Skalen, Tippfehler, Match-Spreizung.** [niedrig/S · movies,travel,boardgames,plants,podcasts] → diag/popularity Null-Guards; „Pflanzenliste"; similar-match spreizen; books-Skala; podcasts similar() { lang }.
+- [ ] **papers: Momentum-Kommentar tot; BLAU-Degradation transparent.** [niedrig/S · papers] → counts_by_year verdrahten oder Kommentar streichen; similarSource im UI anzeigen (pack.mjs:8,224-256).
+
+### Phase 2e — Website, Auffindbarkeit & Erstkontakt
+
+- [ ] **Kein primärer CTA / keine Desktop-Downloads auf der Landing.** [mittel/M · Landing] → CTA nahe der Tagline (→ /?pack=music) + „Als App laden" (W13); DE+EN.
+- [ ] **Schwaches Share-Preview: OG-Bild = App-Icon.** [mittel/M · SEO] → echtes 1200×630-Bild; twitter:card=summary_large_image + image; og:image:width/height/alt (server.mjs:673).
+- [ ] **Keine strukturierten Daten (JSON-LD).** [mittel/M · SEO] → WebSite/Organization (+ SoftwareApplication für Music) mit absoluten URLs.
+- [ ] **EN für Crawler unsichtbar — kein hreflang/og:locale.** [mittel/L · SEO/i18n] → og:locale de_DE + alternate en_US; mittelfristig serverseitig sprachvariante Auslieferung mit hreflang/canonical.
+- [ ] **Erst-Eindruck zeigt abstrakte Kugeln statt des Karten-Produkts.** [mittel/L · Landing] → produktnahes Vorschau-Element (Screenshot oder echtes Demo-Netz mit beiden Kantenarten).
+- [ ] **Labs-Freischaltung nutzt native prompt()/alert().** [mittel/M · Landing] → gestyltes Inline-Panel, das Labs erklärt; Fehler inline (landing.mjs:447-463).
+- [ ] **PWA: keine „Update verfügbar"-UX.** [mittel/M · PWA] → updatefound/controllerchange-Listener + Reload-Toast (sw.js:14-27).
+- [ ] **Onboarding-Tour music-lastig und pack-unneutral.** [mittel/M · UX] → Tour-Texte pack-neutral bzw. per config-Overlay; Verständlichkeit als eigenen Prüfpunkt (auch EN) (index.html:1099).
+- [ ] **Meta-/SEO-Konfig-Robustheit und Thin-Content.** [mittel/S · SEO] → LIKE_PUBLIC_URL erzwingen + Startup-Warnung; meta description; noindex,follow auf Rechtstexte/​/s; lastmod (server.mjs:651-660,1018).
+- [ ] **Landing-/PWA-Politur und No-JS-Fallback.** [niedrig/M · Landing/PWA] → noscript-Text-Links; BUILD_REF nur Staging; Manifest id/screenshots/shortcuts; gestylte /offline.html; background_color angleichen.
+- [ ] **Marken-/Namenskonsistenz „like" vs. „Like".** [niedrig/S · Branding] → verbindliche Schreibweise festlegen und durchziehen.
+
+### Phase 2f — A11y, Tests/CI, Doku & große Bretter
+
+- [ ] **A11y: Seiten-Zoom komplett deaktiviert.** [hoch/M · A11y] user-scalable=no/maximum-scale=1 sperrt die ganze Seite (WCAG 1.4.4). → entfernen; nur Canvas gegen Pinch abschotten (index.html:10).
+- [ ] **A11y: kein sichtbarer Tastatur-Fokus auf Toolbar-Buttons.** [hoch/S · A11y] → globale :focus-visible-Regel + .iconbtn/button mit klarem Ring (index.html:135).
+- [ ] **A11y: keine Fokus-Rückgabe nach Modal-Schließen + fehlende aria-Zustände.** [mittel/M · A11y] → opener merken/​focus(); aria-expanded/haspopup an Toggles; Close-Buttons ≥24×24px.
+- [ ] **A11y: Canvas role=application ohne Tastatur-Knoten; Kontrast Legal/Landing.** [mittel/L · A11y] → role=img + Listen-Einstieg bewerben (mittelfristig Pfeil-Navigation); Muted-Text ≥4.5:1; Planeten-Fokusring (index.html:2142; server.mjs:226; landing.mjs:92).
+- [ ] **CI-Gate führt nur 6 von 10 Specs.** [hoch/S · Test] i18n/support/expand-queue ungegatet. → volle Suite (visual als eigener Job) bzw. mindestens diese drei aufnehmen.
+- [ ] **Keine a11y-Automatisierung (W5 offen).** [hoch/M · Test] → @axe-core/playwright gegen /, /impressum, /datenschutz + Modale; erst nicht-blockierend, dann hochziehen.
+- [ ] **USABILITY.md nicht auf v2.7.0 nachgezogen (Radar/tote IDs).** [hoch/S · Doku] → Radar in §6 mit #discRadar; IDs korrigieren (#export/#bExport, #resetAll); Pflege-Regel in DoD.
+- [ ] **ROADMAP.md-Rumpf veraltet; README Music-only.** [hoch/M · Doku] → ROADMAP auf Runde-24+/Labs-Bedingung kürzen (v2.7.0); README-Kopf um Website-/Labs-Framing; papers-Quelle auf Semantic Scholar korrigieren.
+- [ ] **Server-Fehlermeldungen hart deutsch, nie übersetzt.** [hoch/M · i18n] ~40 Endpoints; toast('Fehler: '+…) umgeht t(). → Fehler-i18n (Codes) für Music-Pfade; Client auf tf() umstellen (server.mjs:939ff; index.html:2046,4432ff).
+- [ ] **Fehlende Config-/i18n-Wächter.** [mittel/M · Test/Doku] → scripts/check-packs.mjs (Pack-Schema) + EN-Vollständigkeits-Check über alle Packs, in npm run check/test:ci.
+- [ ] **Keine Server-Unit-Tests; Visual-Regression ungegatet; keine Coverage.** [mittel/M · Test] → node:test für pure Helfer; Auth-/share-E2E; Visual-Job mit Playwright-Docker-Image; c8-Coverage informativ.
+- [ ] **Große Bretter: Skalierung, Mobile-Touch, Konto-Sync, Demo-Katalog.** [mittel/L · Architektur/UX/Content] → Skalierungsgrenze dokumentieren + SQLite-Pfad einplanen; Mobile/Touch als Prüfpunkt (Safe-Area, Touch-Ziele, iOS-PWA); Merge-Verhalten dokumentieren/signalisieren/E2E; Demo-Mindestumfang (≥12) festlegen, travel/anything auffüllen.
+- [ ] **Doku-Kleinigkeiten: NOTES-Playwright-Version, PITCH-Scope.** [niedrig/S · Doku] → NOTES an ^1.61.1 angleichen; PITCH.md-Kopf „Bezieht sich auf Like Music".
+
+### Arbeitsweise
+
+Punkt für Punkt abarbeiten, nicht bündeln: pro Aufgabe die Änderung machen, **verifizieren** (`npm run check` und `npm run test:ci`; bei UI-Änderungen USABILITY.md mitpflegen), dann committen. Sinnvolle, thematisch geschnittene Commits — keine Sammel-Commits über mehrere Phasen. Reihenfolge respektieren (hoch/S zuerst; Music-Qualität vor Labs-Parität, aber Ehrlichkeits-, Rechts- und Sicherheits-Defizite ranghoch). **PRs nie ungefragt mergen; keine Session-/Chat-Links in Commits/PRs.**
