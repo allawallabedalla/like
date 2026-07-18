@@ -1449,9 +1449,9 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 - [ ] **podcasts & books: Blau liefert generischen Genre-Kanon.** [hoch/M · podcasts,books] → auf echte Genre-/Subject-Schnittmenge ranken (wie Games/E14), TasteDive bei Key höher; bis dahin ehrliche „ähnlich = Genre"-Etikettierung.
 - [ ] **anything: Listen-/Jahres-/Begriffsklärungsseiten ungefiltert.** [mittel/M · anything] → hubPenalty/SKIP_LINK_RE auch in explore(); Stoppliste (Liste/Kategorie/Jahre/BKS) (wiki.mjs:98-163; BACKLOG:544).
 - [ ] **anything: Orange alphabetisch verzerrt / kippt still auf einseitige Links.** [mittel/M · anything] → nach Backlinks/Aufrufen ranken; Fallback <4 transparent als „verlinkt"; falsche Kommentare korrigieren (wiki.mjs:112-131).
-- [ ] **movies: explore() degradiert nicht (hartes 502).** [mittel/S · movies] → jeden Call einzeln .catch(()=>null), defensiv zugreifen, nur bei fehlendem hit werfen (pack.mjs:178-198).
-- [ ] **movies: Sprache hart de-DE, Server-lang ignoriert.** [mittel/S · movies] → lang durch explore/similar/context/enrich reichen, api() language=en-US bei EN (pack.mjs:35; server.mjs:1328).
-- [ ] **podcasts: leere Apple-Treffer 14 Tage als null gecacht.** [mittel/S · podcasts] → Leerergebnisse nicht memoisieren (werfen/kurze TTL) (pack.mjs:25-34).
+- [x] **movies: explore() degradiert nicht (hartes 502).** [mittel/S · movies] → jeden Call einzeln .catch(()=>null), defensiv zugreifen, nur bei fehlendem hit werfen (pack.mjs:178-198).
+- [x] **movies: Sprache hart de-DE, Server-lang ignoriert.** [mittel/S · movies] → lang durch explore/similar/context/enrich reichen, api() language=en-US bei EN (pack.mjs:35; server.mjs:1328).
+- [x] **podcasts: leere Apple-Treffer 14 Tage als null gecacht.** [mittel/S · podcasts] → Leerergebnisse nicht memoisieren (werfen/kurze TTL) (pack.mjs:25-34).
 - [ ] **games: SteamSpy-Tag-Chart ohne Retry/Backoff — Blau kann still wegfallen.** [mittel/M · games] → Retry/Backoff bei 429/503; bei leerem Ergebnis Diag-/UI-Hinweis (pack.mjs:88-97).
 - [ ] **plants: iNat-Requests zu dicht getaktet (gapMs 250).** [mittel/S · plants] → gapMs 700–1000 (Wrapper analog boardgames).
 - [ ] **plants: „Merkmale"-Label oversellt Taxonomie.** [mittel/S · plants] → Label „Systematik"; englischen rank-Chip weglassen/mappen (pack.mjs:178,296).
