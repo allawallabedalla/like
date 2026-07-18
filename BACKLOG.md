@@ -1500,3 +1500,18 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 ### Arbeitsweise
 
 Punkt für Punkt abarbeiten, nicht bündeln: pro Aufgabe die Änderung machen, **verifizieren** (`npm run check` und `npm run test:ci`; bei UI-Änderungen USABILITY.md mitpflegen), dann committen. Sinnvolle, thematisch geschnittene Commits — keine Sammel-Commits über mehrere Phasen. Reihenfolge respektieren (hoch/S zuerst; Music-Qualität vor Labs-Parität, aber Ehrlichkeits-, Rechts- und Sicherheits-Defizite ranghoch). **PRs nie ungefragt mergen; keine Session-/Chat-Links in Commits/PRs.**
+
+---
+
+### Abschluss — Phase 2 umgesetzt & gemergt · Version 2.8.0 (2026-07-18)
+
+Phase 2 dieser Runde wurde weitgehend umgesetzt und in `main` gemergt (Phasen 2a–2f):
+Music-Produktionshärtung, Ehrlichkeit/Recht/Compliance, Sicherheit & Betrieb,
+Labs-Datenqualität (8 Packs), SEO/Meta und A11y/Tests/Doku. Offen bleiben die oben als
+**„geparkt (§7)"** markierten operator-nahen und großen Vorhaben sowie einzelne Rest-Punkte
+(offene Checkboxen oben).
+
+- [x] **Version auf 2.8.0 anheben.** Minor-Release für die gesammelte Phase-2-Arbeit
+  (Ehrlichkeit · Recht · Sicherheit · Labs-Datenqualität · A11y). Bumpt `package.json` +
+  `package-lock.json`; `APP_VERSION` (Footer, Feedback, `/api/key`) folgt automatisch, da
+  `server.mjs` die Version zur Laufzeit aus `package.json` liest.
