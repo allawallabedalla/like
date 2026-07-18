@@ -98,6 +98,7 @@ export default {
     searchTitle: "Paper bei OpenAlex suchen — lädt verwandte Arbeiten + Werke der Autor:innen (Taste /)",
     goTitle: "Paper laden: inhaltlich verwandt + von denselben Autor:innen + Themen",
     exampleSeed: "Attention Is All You Need",
+    seedChips: ["Attention Is All You Need", "A Mathematical Theory of Communication", "The Structure of DNA"],
     emptyTitle: "Noch keine Paper auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: verwandte Arbeiten + Werke der Autor:innen.",
     edges: {

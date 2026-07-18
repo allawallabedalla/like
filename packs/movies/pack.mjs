@@ -62,6 +62,7 @@ export default {
     searchTitle: "Film bei TMDB suchen — lädt inhaltlich Ähnliches + „Leute schauten auch“ (Taste /)",
     goTitle: "Film laden: inhaltlich ähnlich + Leute schauten auch + Genres",
     exampleSeed: "Paris, Texas (1984)",
+    seedChips: ["Paris, Texas (1984)", "In the Mood for Love (2000)", "Perfect Days (2023)"],
     emptyTitle: "Noch keine Filme auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: inhaltlich Ähnliches + „Leute schauten auch“.",
     edges: {

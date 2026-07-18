@@ -34,6 +34,7 @@ export default {
     searchTitle: "Beliebiges Thema bei Wikipedia suchen — lädt thematisch Ähnliches + eng Verknüpftes (Taste /)",
     goTitle: "Thema laden: thematisch ähnlich + eng verknüpft + Kategorien",
     exampleSeed: "Bauhaus",
+    seedChips: ["Bauhaus", "Schwarzes Loch", "Espresso"],
     emptyTitle: "Noch nichts auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: thematisch Ähnliches + eng Verknüpftes. Probier ruhig irgendwas.",
     edges: {
