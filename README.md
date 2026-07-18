@@ -3,6 +3,13 @@
 Persönliches Booking-/Kurations-Tool. Findet ähnliche Musiker\*innen und zeigt sie als
 klickbare Karte. **Zero Dependencies** — nur Node (eingebautes `fetch` + `http`), kein npm install.
 
+> **Website & Domänen-Framing.** Live als Website unter **[likelife.info](https://likelife.info)**.
+> Der Kern ist domänen-neutral und trägt **10 Packs** (siehe „Mehrere Domänen in EINER App").
+> Ausgeliefert wird ein **Produkt — Like Music** (öffentlich frei); die übrigen **9 Packs sind
+> Labs** und stecken in Produktion hinter einem **„Coming soon"-Gate** (`LIKE_PUBLIC_PACK=music`,
+> Freischaltung per Passwort). Die gezielte Feature-/Qualitätsarbeit fließt zuerst in Music
+> (Details zur Fokus-Entscheidung in `ROADMAP.md`).
+
 ## App herunterladen (Windows & Mac)
 **[Neueste Version →](https://github.com/allawallabedalla/like/releases/latest)** — eigenständige
 Downloads, **kein Node.js nötig** (Server + Browser sind eingebaut):
@@ -153,7 +160,7 @@ Verfügbare Packs (Musik ist Standard):
 | `books` | Bücher | Open Library, TasteDive (optional) | thematisch ähnlich / vom selben Autor |
 | `movies` | Filme | TMDB (**Gratis-Key**) | inhaltlich ähnlich / „Leute schauten auch" |
 | `plants` | Pflanzen | iNaturalist, GBIF | botanisch verwandt / gedeiht am selben Standort |
-| `papers` | Forschung | OpenAlex | inhaltlich verwandt / von denselben Autor:innen |
+| `papers` (**Like Science**) | Forschung | Semantic Scholar (SPECTER-Embeddings), OpenAlex (Basis/Fallback) | inhaltlich verwandt / von denselben Autor:innen |
 | `boardgames` | Brettspiele | BoardGameGeek | geteilte Mechaniken / vom selben Designer |
 | `podcasts` | Podcasts | Apple/iTunes, TasteDive (optional) | gleiches Genre / vom selben Anbieter |
 | `games` | (Indie-)Games | Steam, SteamSpy, TasteDive (optional) | geteilte Tags / vom selben Entwickler |

@@ -1,7 +1,14 @@
 # Like — Roadmap
 
-Stand: Suche + Doppelklick-Durchhangeln, Last.fm (ähnlicher Stil) + RA (zusammen aufgetreten),
-Genres, Einzel-/Massen-Löschen, bekannt/Notiz, flaches s/w-Design mit zwei Kantenfarben.
+Stand **v2.7.0**: Website unter [likelife.info](https://likelife.info) mit 10 Packs — **Like Music**
+als Produkt öffentlich, die 9 Labs-Packs hinter dem „Coming soon"-Gate. Kern: klickbare Knoten-Karte
+(Space/Flat), Suche + Durchhangeln, zwei Kantenfarben, Radar, Brücke-als-Routenplaner, Listen,
+Export/Snapshot, PWA/Docker-Deploy.
+
+> **Aktueller Arbeitsstand:** Die detaillierte, laufend gepflegte Planung steht in `BACKLOG.md`.
+> Maßgeblich ist **Runde 24** (Domänen-Reife-Bewertung + Phase-2-Abarbeitung): Reifegrad-Matrix aller
+> 10 Packs/Querschnitt-Aspekte, priorisiert nach „Music-Produktionsqualität vor Labs-Parität, plus
+> Ehrlichkeits-/Rechts-/Sicherheits-Defizite ranghoch". Diese Datei hält nur den groben Kurs.
 
 ## Fokus-Entscheidung (2026-07)
 
@@ -67,7 +74,10 @@ z. B. E14) zusammen mit der Freischaltung angegangen.
   Korb/Legende ohne Überlappung, Tooltip/Kontextmenü bleiben im Fenster
 
 ### Offen (braucht Keys → nicht autonom)
-- Songkick/Bandsintown aktivieren (Key/app_id) — Adapter liegen bereit
+- Bandsintown aktivieren (app_id) als zweite „zusammen aufgetreten"-Quelle neben RA — Adapter liegt
+  bereit. (Songkick ist inzwischen real tot und aus der Kette genommen, siehe BACKLOG Runde 24.)
+- Zweite **offizielle** together-Quelle (ListenBrainz) als Absicherung der orange Kante gegen
+  RA-Ausfall — in Runde 24 (Phase 2a) geparkt, weil Key/Aufwand nötig.
 
 > **Spotify Audio-Features gestrichen.** Spotify hat die dafür nötigen Endpoints
 > (`audio-features`, `audio-analysis`, `recommendations`, `related-artists`) am
@@ -81,58 +91,18 @@ z. B. E14) zusammen mit der Freischaltung angegangen.
 
 ---
 
-## 🟢 Quick Wins (klein, hoher Nutzen)
+## Offene Richtungen (grob; Details & Priorisierung in BACKLOG Runde 24)
 
-- **Booking-Infos aus RA ins Panel.** RAs Artist-Schema hat `bookingDetails` (Kontakt/Agentur),
-  `website`, `soundcloud`, `instagram`. Direkt im Panel anzeigen → vom Entdecken zum Kontaktieren.
-- **„Tritt auf?"-Signal.** RA `events(type:UPCOMING)` abfragen → Badge „aktiv / kommende Shows" vs.
-  „keine Termine". Für Booking entscheidend: wer ist überhaupt buchbar?
-- **Genres für ALLE Knoten.** Aktuell nur für geöffnete Acts. Last.fm-Tags beim Hinzufügen
-  (lazy, gedrosselt) nachladen → das ganze Netz wird lesbar.
-- **Lade-Indikator am Knoten.** Während Explore läuft, Spinner/Puls am Knoten statt nur Toast.
-- **Datenputz.** Alte `a.bl`-Backlink-Caches (aus dem früheren Auto-Lauf) + verwaiste Knoten
-  aus graph.json entfernen → kleiner, schneller.
+Die früher hier gepflegten Quick-Win-/Booking-Power-Listen sind abgearbeitet (siehe „Erledigt") bzw.
+in die feinkörnige BACKLOG-Planung übergegangen. Was als größere Richtung offen bleibt:
 
-## 🔵 Booking-Power (macht es zum echten Werkzeug)
-
-- **Caching-Layer.** RA/Last.fm-Antworten lokal cachen (z.B. `cache/`) → Re-Explore sofort,
-  weniger Requests, robuster gegen RA-Aussetzer. Wichtigster Robustheits-Hebel.
-- **Status-Pipeline statt nur „bekannt".** Mehrere Stati: Shortlist / angefragt / bestätigt / abgesagt.
-  Farbcodierte Ringe. Plus Freitext-Notiz (gibt's schon).
-- **Genre-Filter & -Highlight.** Per Genre filtern oder einfärben → „zeig mir alle Downtempo-Acts
-  im Umfeld von X".
-- **Region/Szene-Fokus.** RA `area` nutzen → „Acts, die zuletzt in Berlin/UK aufgetreten sind".
-- **Export.** Markierte Acts als CSV/Liste rausziehen (Name, Genre, Kontakt, Notiz) fürs Booking.
-- **Upcoming-Events-Ansicht.** Pro Act: wann/wo spielt er als Nächstes (RA) → Verfügbarkeit/Touring-Fenster.
-
-## 🟣 Datenqualität & weitere Quellen
-
-- **ListenBrainz „similar artists".** Aus echten Hördaten (MusicBrainz-basiert) eine dritte
-  Ähnlichkeits-Relation — gratis, kein OAuth, passt zur mbid-Mechanik. (Ersetzt die gestrichenen
-  Spotify-Audio-Features, deren Endpoints Spotify am 27.11.2024 für neue Apps abgeschaltet hat.)
-- **Songkick/Bandsintown aktivieren.** Adapter sind eingebaut — nur Key/app_id hinterlegen, dann
-  fließen sie automatisch in „zusammen aufgetreten" ein (breitere, nicht nur elektronische Abdeckung).
-- **Alias-/Dublettenabgleich.** RA `aliases`, MusicBrainz-IDs → denselben Act nicht doppelt.
-- **Blended Score.** Ähnlicher Stil + zusammen aufgetreten zu einer Relevanz verrechnen
-  (z.B. Knotengröße = wie stark mit deinem Kosmos verbunden).
-
-## ⚙️ Skalierung & Robustheit
-
-- **Quadtree fürs Force-Layout.** Aktuell O(n²) – ab ~800 Knoten ruckelig. Barnes-Hut → tausende
-  Knoten flüssig.
-- **SQLite statt graph.json.** Bei wachsendem Bestand; Schema ist schon 1:1 vorbereitet.
-- **Undo für Löschen.** Versehentliches Entfernen rückgängig machen.
-
-## 🟡 Später / ambitioniert
-
-- **Mobile/Touch.** Aktuell Desktop (Maus). Pinch-Zoom, Tap=Details, Doppeltap=hangeln.
-- **Zeitachse.** „Wer trat 2023 vs. 2024 zusammen auf" – Szene-Entwicklung über Zeit.
-- **Teilen/Export der Map** als Bild oder interaktiver Snapshot.
-- **Mehrere Graphen/Projekte** (z.B. pro Festival/Event, das du kuratierst).
-
----
-
-### Empfehlung als Nächstes
-1. **RA-Booking-Infos + „tritt auf?"-Badge** (Quick Win, direkt booking-relevant)
-2. **Caching** (macht alles schneller & robuster gegen RA-Aussetzer)
-3. **Status-Pipeline + Export** (vom Entdecken zur Aktion)
+- **Music-Produktionshärtung** (Flaggschiff zuerst): orange Kante gegen RA-Ausfall absichern
+  (zweite offizielle Quelle), MBID-Schärfe durch die Adapter-Kette, Namensvetter-Robustheit.
+- **Labs-Reife → Freischaltung:** je Labs-Pack die in der Reifegrad-Matrix genannten Blocker
+  schließen, dann Gate öffnen. „Like Anything" ist der freischalt-nächste Pack.
+- **Ehrlichkeit, Recht & Sicherheit** ranghoch: Impressum-Pflichtangaben, CSP/Rate-Limits,
+  Quellen-Attribution, DSGVO-Selbstlöschung/Export.
+- **Skalierung:** Quadtree/Barnes-Hut fürs Layout (ab ~800 Knoten), SQLite statt `graph.json`
+  bei wachsendem Bestand.
+- **Datenquellen:** ListenBrainz als dritte Ähnlichkeits-/together-Relation (ersetzt die von
+  Spotify am 27.11.2024 abgeschalteten Audio-Feature-Endpoints), Alias-/Dublettenabgleich.
