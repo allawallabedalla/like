@@ -1372,3 +1372,184 @@ Chromium gegen `server.mjs` gefahren: Tour öffnet automatisch, Fokus liegt auf 
 (nicht mehr am „×"), Login-Hinweis + „Viel Spaß!" erscheinen DE & EN auf dem letzten Slide,
 keine neuen Konsolenfehler (nur der bekannte externe Zertifikatsfehler). Nur `public/index.html`
 geändert.
+
+---
+
+# BACKLOG — Runde 24 (Mobile-Feedback · Intro-Kern · Altersgruppen-Audit · neue Feedbacks) (2026-07-18)
+
+**Angelegt:** 2026-07-18 (UTC) · **Status:** erfasst; FB30 bereits umgesetzt, Rest Punkt-für-Punkt offen.
+
+**Kontext.** Drei Auslöser: (1) direkt gemeldete Befunde des Betreibers (Mobile-Feedback-Knopf,
+Intro-Modal erklärt die Kernfunktionen nicht), (2) ein **neuer, alternativer Agent-Audit**, der die
+App je **Nutzer-Altersgruppe** simuliert (siehe unten), (3) frisch eingegangene `feedback`-Issues
+(#100, #101, #103, alle v2.7.0 — also nach Runde 23). IDs `FBn` laufen ab FB30 weiter (Runde 23
+endete bei FB29). Die `feedback`-Issues bleiben offen und werden beim Abhaken geschlossen.
+
+## Arbeitsweise (Runde 24)
+Backlog erst vollständig erfasst. Umsetzung danach **Punkt für Punkt**, je einzeln am echten
+Code/Browser verifizieren, sinnvolle Commits, PR — **nicht ungefragt mergen**. Reihenfolge-Vorschlag:
+zuerst die klaren, gruppenübergreifend hoch bewerteten UX-Punkte (FB31 Intro-Kern, FB36 Teilen,
+FB35 gestenfreier Standardweg), dann Barrierefreiheit (FB37/FB38), danach die Feature-/Naming-Punkte
+und die Betreiber-Entscheidungen (FB39–FB45). FB33/FB34 (Feedback) sind kleine, klar umsetzbare Tweaks.
+
+---
+
+## A) Direkt gemeldet
+
+- [x] **FB30 — Feedback-Knopf auf dem Handy: funktioniert nicht + sieht anders aus als Desktop.**
+  *Ursache:* Der Topbar-`✉ #feedbackBtn` wird ab ≤1180px (`index.html:170`) und nochmals ab ≤900px
+  (`:804`) per `display:none !important` ausgeblendet — es gab **keinen** Ersatz-Eintrag im ⋯-Menü
+  (dort lagen nur `mDiscover`/`mTidy`/`mHelp`). Auf dem Handy war Feedback damit gar nicht direkt
+  erreichbar; der einzige verbliebene Pfad (Feedback-Link im Spenden-Modal) sieht anders aus als der
+  Desktop-Knopf → „funktioniert nicht / sieht anders aus".
+  **✅ Umgesetzt (2026-07-18):** Neuer Eintrag **„✉ Feedback" (`#mFeedback`) im ⋯-Menü** (in
+  `#toolsRow2`, erbt die Handy-Sichtbarkeit der Werkzeug-Reihe). Klick öffnet **denselben**
+  `feedbackModal` wie der Desktop-Knopf (`openFeedback()`), inkl. `closeMore()`. Gleiches Sichtbarkeits-
+  Gate wie der Topbar-Knopf: startet `display:none` + `hideStatic`, wird erst eingeblendet, wenn
+  `/api/health` `feedback:true` meldet (im Health-Handler jetzt für **beide** Knöpfe gesetzt).
+  `USABILITY.md` §3 mitgepflegt. **Verifiziert:** `npm run check` grün; Responsive-Suite grün.
+
+- [ ] **FB31 — Intro-Modal erklärt die Kernfunktionen nicht (zu detailverliebt).** Betreiber-Befund,
+  **vom Altersgruppen-Audit über ALLE fünf Personas bestätigt** (Teens, 18–29, 30–49, 50–64, 65+ —
+  siehe C). Konkrete, wiederkehrende Punkte:
+  - Slide 1 (`tourP1`, `:1099`) packt **vier** Konzepte in einen Absatz (blau/orange **und** Größe=
+    Popularität **und** Nähe=Ähnlichkeit) — zu viel auf einmal; die Kernbotschaft „Karte mit Acts,
+    zwei Farben" verwässert.
+  - Die eigentliche **Kernaufgabe** (suchen → antippen → anhören → merken) tritt hinter Details
+    zurück; dem Radar (Nebenfeature) ist ein ganzer Slide gewidmet, den Profi-Kernabläufen (Status/
+    Notiz/Vergleich/Export) keiner.
+  - **Gesten statt Alternativen:** die Tour lehrt Doppelklick/▶, nennt aber weder „Weiter erkunden"
+    (sichtbarer Primärknopf), noch Listenansicht, noch die Zoom-Knöpfe (vgl. FB35/FB38).
+  - **Jargon:** „Streifzug/Szenen/Brücken/Lineup/hangeln/Space/Flat/Booking" in der Einsteiger-Tour.
+  *Empfehlung:* Tour auf die Kernaufgabe eindampfen (Stöbern: 2–3 klare Schritte mit Verben),
+  Farben/Größe/Nähe in Tooltip/Legende auslagern, Fachbegriffe aus der Standard-Tour nehmen,
+  gestenfreie Wege benennen. Danach `USABILITY.md` §13-Verweis + Tour-Texte gegenprüfen.
+
+---
+
+## B) Neue Feedback-Issues (nach Runde 23, v2.7.0)
+
+- [ ] **FB32 — Beispiel-Karte verschwindet am Anfang von selbst (#103, Music).** „Beispielseite ging
+  am Anfang automatisch weg." Die kuratierte Demo-Karte lädt nur bei leerem Graph (`index.html:6642`)
+  und läuft rein clientseitig (nie gespeichert). *Repro-Kandidaten zu prüfen:* (a) die Intro-Tour
+  öffnet automatisch darüber (`maybeShowIntro`, `:6523`) und beim Schließen wirkt die Demo „weg";
+  (b) ein Sprach-/Modus-Reload (`like_relayout`) oder `restoreLastPack` ersetzt sie; (c) `like_demo_off`
+  wird zu früh gesetzt. Erst **live reproduzieren**, dann entscheiden: Demo erst nach dem Tour-Ende
+  zeigen bzw. sicherstellen, dass sie bis zur ersten eigenen Suche bzw. bis zum ×-Klick stehen bleibt.
+
+- [ ] **FB33 — Plants: Filter nach Pflanzentyp (#101, Plants).** Wunsch: im `plants`-Pack nach Typ
+  filtern (Baum/Strauch/…). *Zu klären:* liefert die Plants-Quelle (`packs/plants/pack.mjs`) ein
+  Typ-/Wuchsform-Feld? Wenn ja, als Filter-Facette anbieten — sinnvollerweise über den bestehenden
+  Genre-Filter-Mechanismus (Genre-Pills/`genreFilter`), der pack-neutral schon existiert; „Genre"
+  im Plants-Pack ist ohnehin die Kategorie-Achse. Sonst: Typ aus den Daten ableiten/nachladen.
+
+- [ ] **FB34 — „Aufräumen/Löschen" im Menü ist nicht domänenspezifisch (#100, Plants).** Der Text der
+  Aufräum-/Lösch-Aktionen (⋯-Menü `#pruneOrphans` „Unverknüpfte aufräumen"; `#resetModal`, §11)
+  spricht teils in Music-Begriffen („Acts"), passt aber im Plants-/anderen Pack nicht. Betreiber-
+  Wunsch: **so formulieren, dass es überall passt** (Plan A, bevorzugt) — d. h. pack-neutrale Begriffe
+  aus `CFG.item.*` statt hart „Acts" (gleicher Ansatz wie FB20/FB26). Plan B (pro Pack individualisieren)
+  nur, falls neutrale Formulierung unklar würde. Betrifft Button-Label + die drei Umfänge im Reset-Dialog.
+
+---
+
+## C) Alternativer Agent-Audit: Altersgruppen-Simulation
+
+**Prozess (neu, reproduzierbar).** `scripts/audit-personas.mjs` hält den Audit als Skript fest: fünf
+**Alters-Personas** (13–17 · 18–29 · 30–49 Profi · 50–64 · 65+) × fünf **Dimensionen** (Eindeutigkeit
+der Bedienung · Darstellung · Funktionalität · gebotene Features · Verständlichkeit der Erklärungen).
+`node scripts/audit-personas.mjs` druckt pro Persona einen fertigen Audit-Brief; jeder Brief geht an
+einen eigenen Agenten, der die App aus dieser Alterssicht durchspielt (Quelle der Wahrheit:
+`USABILITY.md`, Code-Nachschlag in `public/index.html`). Erkenntnisse werden dedupliziert — **je mehr
+Gruppen einen Punkt treffen, desto höher die Priorität**. Dieser Lauf (2026-07-18) hat 5 Personas
+simuliert; die deduplizierten Befunde:
+
+- [ ] **FB35 — Kernnavigation hängt an versteckten Gesten (Doppelklick/Rechtsklick).**
+  *Gruppen: 13–17, 50–64, 65+ · Schwere: hoch.* „Weiterhangeln" wird als **Doppelklick** gelehrt
+  (`tourP2`), wichtige Aktionen (Fokus/Brücke/Merken) liegen im **Rechtsklick**-Kontextmenü — beides
+  auf Touch/mit eingeschränkter Feinmotorik unzuverlässig bzw. nicht vorhanden. *Vorschlag:* Im
+  Stöbern-Modus ist `#expand` („Weiter erkunden") bereits sichtbarer Primärknopf — den in Tour & UI
+  als **gestenfreien Standardweg** betonen (Doppelklick nur als Zusatz). Rechtsklick-Aktionen
+  zusätzlich als sichtbare Knöpfe im Info-Panel spiegeln; Einfach-Tap-Alternative zum „+N"-Chip.
+
+- [ ] **FB36 — „Teilen" öffnet das Mail-Programm statt des nativen Share-Sheets.**
+  *Gruppen: 13–17, 18–29 · Schwere: hoch.* Der Teilen-Knopf baut bewusst einen `mailto:`-Link
+  (`index.html` ~`:4479`), kein `navigator.share`. Auf dem Handy ein Dead-End — diese Gruppen teilen
+  über WhatsApp/Insta/Signal/Discord. *Vorschlag:* Auf Touch/Mobil `navigator.share({title,text,url})`
+  mit konkretem Track-/Last.fm-Link nutzen; `mailto` nur als Desktop-Fallback. „Karte als Link teilen"
+  (`#shareMap`) sichtbarer machen.
+
+- [ ] **FB37 — Icon-only-Knöpfe unbeschriftet + Zielflächen < 44px.**
+  *Gruppen: 50–64, 65+ · Schwere: hoch.* `#moreBtn` (⋯), `#helpBtn` (?), `#feedbackBtn` (✉),
+  `#tidyBtn` (reines SVG) tragen ihre Bedeutung nur im `title` (auf Touch unsichtbar); `.iconbtn` ist
+  nur 38×38px (`CSS :135`). *Vorschlag:* mind. „Hilfe"/„Menü" beschriften (wie `#discoverBtn`
+  „Entdecken" es vormacht), Zielgrößen der Topbar-Knöpfe auf ≥44×44px, Listen-Zeilen auf komfortable
+  Tap-Höhe.
+
+- [ ] **FB38 — Barrierefreiheits-Paket: Listenansicht auffindbar, Groß-/Kontrast-Modus, Schriftgrößen.**
+  *Gruppen: 65+ (hoch), 50–64.* Die gesten-freie **Listenansicht** (`#segList`, W15) ist der rettende
+  Zugang, liegt aber versteckt im ⋯-Menü. Viele Sekundärtexte sind 10–12px, `--muted` teils unter
+  WCAG-AA-Kontrast; Canvas-Labels profitieren nicht vom Browser-Seitenzoom. *Vorschlag:* `#segList`
+  als sichtbaren Top-Level-Umschalter (Karte ⇄ Liste); Minimalgrößen anheben (Fließ-/Meta-Text
+  ≥14–16px); sichtbarer „Große Schrift/Kontrast"-Umschalter; Canvas-Labels an die App-Zoomstufe koppeln.
+  (Positiv bereits vorhanden: `#zoomIn/Out/Fit`, `#ariaLive`+`announce()`, Canvas-`aria-label`, Undo
+  bei „Entfernen" — beibehalten.)
+
+- [ ] **FB39 — Anhören/Streaming prominenter machen.**
+  *Gruppen: 13–17, 18–29, 50–64 · Schwere: mittel–hoch.* Anhören = kleines ▶ **an** der Kugel (schwer
+  zu treffen, „öffnet bewusst kein Panel" → wirkt wie „nichts passiert"); geteilt/verlinkt wird nur eine
+  **YouTube-Suche**. Die `CFG.searchLinks` (Spotify/Apple/Tidal) sind nur generische Suche. *Vorschlag:*
+  klar beschrifteter „▶ Anhören"-Knopf **im Info-Panel** (großer, ruhiger Weg) zusätzlich zum ▶ am
+  Knoten; sichtbares Abspiel-Feedback; direkte Streaming-Deeplinks („In Spotify öffnen") im Panel.
+
+- [ ] **FB40 — Entdecken-Einstiege schärfen; Radar auf dem Handy sichtbar halten.**
+  *Gruppen: 18–29, 50–64 · Schwere: mittel.* „Entdecken/Streifzug/✦ Überrasch mich/Radar" klingen
+  ähnlich (Streifzug vs. Überrasch war schon FB25). *Vorschlag:* selbsterklärende Micro-Copy, die den
+  Unterschied trägt: „Überrasch mich" → „Neuen Act laden", „Streifzug" → „Durch meine Karte springen".
+  Das **Radar** (Killer-Feature für Festivalgänger) ist mobil nur im ⋯/Popover — als sichtbaren
+  Primär-Einstieg (Label „Geheimtipps") behalten.
+
+- [ ] **FB41 — Konzert-/Live-Info schon im Stöbern-Modus zeigen.**
+  *Gruppe: 18–29 · Schwere: hoch.* Live-Status („tritt auf") und Auftrittsorte sind `active/venues`
+  und damit nur im Booking-/Profi-Modus sichtbar (`fun` setzt sie `false`, `:1892`). Ausgerechnet die
+  Kernfrage der Konzertgänger („aktiv? wo spielt er?") ist versteckt. *Vorschlag:* leichter „spielt
+  live"-Hinweis/nächste Termine im Info-Panel auch im Stöbern-Modus, ohne den vollen Booking-Kasten.
+
+- [ ] **FB42 — Booking-/Profi-Modus auffindbar machen (+ USABILITY korrigieren).**
+  *Gruppe: 30–49 · Schwere: hoch.* Der Modus-Umschalter `#modeSeg` sitzt **im ⋯-Menü** (`:893`), nicht
+  in der Topbar; Default ist `fun`. Profis finden ihren Werkzeugkasten nicht. Zudem behauptet
+  `USABILITY.md` §2/§3 „`#modeSeg`, Topbar" — **Doku stimmt nicht mit dem Code überein**. *Vorschlag:*
+  Modus-Control sichtbarer (Topbar, wie dokumentiert) **oder** USABILITY an den Ist-Zustand angleichen;
+  ggf. beim Erststart nach Nutzungsart fragen.
+
+- [ ] **FB43 — Profi-Onboarding & Datenkonsistenz (Kuratieren).**
+  *Gruppe: 30–49 · Schwere: mittel.* Sammelposten aus dem Profi-Audit: (a) kein Tour-Slide für
+  Status/Notiz/Gage/Shift-Vergleich/Export; (b) **Notiz** speichert nur per Knopf, Gage on-blur,
+  Status sofort → beim Knotenwechsel geht eine getippte, ungespeicherte Notiz verloren (`:4230`) →
+  Notiz on-blur autospeichern; (c) Shift-Vergleich liefert nur eine Zahl, keine klickbare Schnittmengen-
+  Liste + „alle merken"/CSV; (d) CSV nur für die aktive Liste, kein Status-Filter, Export-Knopf tief im
+  ⋯-Menü → prominenter + optionaler Status-Filter. Punkte einzeln bewertbar/umsetzbar.
+
+- [ ] **FB44 — Freischalt-Passwort per In-App-Dialog statt `window.prompt`.**
+  *Gruppen: 50–64, 65+ · Schwere: niedrig–mittel.* Beim Wechsel auf ein gesperrtes Pack erscheint ein
+  nacktes `window.prompt(...)` (`unlockThen`, `:1818`) — ein grauer System-Dialog wirkt wie ein Fehler/
+  Betrug und lässt Vorsichtige abbrechen. *Vorschlag:* in den vorhandenen gestylten Modal-Stil
+  (`role="dialog"`, wie `#resetModal`/`#keyModal`) überführen, mit erklärendem Satz „Dieser Bereich ist
+  noch in Arbeit — Zugangscode:". (Der 401→Freischalt-Flow FB21 löst bereits das Modal aus; hier geht es
+  um den `unlockThen`-Prompt-Pfad.)
+
+- [ ] **FB45 — Dark Mode beim Erststart an der Systemeinstellung ausrichten.**
+  *Gruppe: 13–17 · Schwere: mittel.* Ohne gespeicherte Wahl startet die App hell
+  (`const dark = pref ? pref==="dark" : false`, `:5737`), obwohl `prefers-color-scheme` im `<head>`
+  schon abgefragt wird. *Vorschlag:* beim Erststart `matchMedia('(prefers-color-scheme: dark)')`
+  respektieren. **Achtung Kopplung:** Dark ist an die Space-Ansicht gebunden (`:5738`) — Theme und
+  View-Toggle ggf. entkoppeln, damit „dunkel" nicht zwingend „Planeten-Ansicht" heißt (Betreiber-
+  Entscheidung).
+
+---
+
+**Verifizierungs-Stand (2026-07-18).** Nur **FB30** ist umgesetzt und verifiziert (siehe oben).
+FB31–FB45 sind erfasst/analysiert, **noch nichts weiter umgesetzt**. Die Audit-Befunde (FB35–FB45)
+stammen aus der Persona-Simulation gegen `USABILITY.md` + Code; die konkreten UI-Wirkungen sind vor
+der Umsetzung je Punkt einmal live im Browser gegenzusehen (externe Such-APIs sind in der Agent-
+Umgebung blockiert, siehe `NOTES.md`). Betreiber-Entscheidungen offen bei FB41/FB42/FB45 (Umfang) und
+FB34 (Plan A/B).

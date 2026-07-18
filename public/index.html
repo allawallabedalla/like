@@ -914,6 +914,11 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
     <div class="mrow mobileonly" id="toolsRow2">
       <button id="mTidy" title="Netz sortieren">⌗ Sortieren</button>
       <button id="mHelp" title="Bedienung & Shortcuts">? Hilfe</button>
+      <!-- Handy-Weg zum Feedback: der ✉-Knopf der Topbar ist ≤1180px ausgeblendet (kein Platz),
+           daher hier derselbe Öffner. Gate wie beim Topbar-Knopf: erst wenn /api/health
+           feedback:true meldet, wird er per JS eingeblendet (bleibt sonst display:none).
+           hideStatic = nicht im Export. Die Sichtbarkeit auf Handy erbt er von toolsRow2. -->
+      <button id="mFeedback" class="hideStatic" style="display:none" title="Feedback / Fehler melden">✉ Feedback</button>
     </div>
     <input id="mGenre" class="gfilter mobileonly workonly" placeholder="Genre filtern…" autocomplete="off" style="width:100%;margin-top:2px" />
     <div class="mtitle hideStatic" id="homeTitle" style="display:none">Heimatort</div>
@@ -6123,6 +6128,7 @@ const closeMore = () => moreEl.classList.remove("show");
 document.getElementById("mDiscover").onclick = () => { closeMore(); document.getElementById("discoverBtn").click(); };
 document.getElementById("mTidy").onclick = () => { closeMore(); sortLayout(); toast("Netz sortiert"); ackTidy(); };
 document.getElementById("mHelp").onclick = () => { closeMore(); document.getElementById("helpBtn").click(); };
+document.getElementById("mFeedback").onclick = () => { closeMore(); openFeedback(); };
 // N7: „Meine Listen" öffnet den Listen-Umschalter (ansehen/wechseln/umbenennen/neu) — die
 // gespeicherten Playlists waren bisher nur über das ▾ am Listen-Panel erreichbar.
 document.getElementById("openLists").onclick = () => {
@@ -6488,8 +6494,12 @@ async function checkKey() {
       verEl.innerHTML = vtxt + btxt;
       if (h.build) verEl.title = "installierte Version · Deploy-Stand (GitHub)";
     }
-    // Feedback-Knopf nur zeigen, wenn der Build Pushover-Credentials hat
-    if (h.feedback) document.getElementById("feedbackBtn").style.display = "";
+    // Feedback-Knopf nur zeigen, wenn der Build Pushover-/Issue-Credentials hat — Topbar (Desktop)
+    // UND ⋯-Menü-Eintrag (Handy, wo der Topbar-Knopf ≤1180px ausgeblendet ist).
+    if (h.feedback) {
+      document.getElementById("feedbackBtn").style.display = "";
+      document.getElementById("mFeedback").style.display = "";
+    }
     // Key-Dialog nur, wenn das Pack einen Key braucht — und nicht gleichzeitig mit der Intro-Tour
     if (!h.key && CFG.key && !introEl.classList.contains("show")) openKeyModal();
   } catch {}
