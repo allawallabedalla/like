@@ -234,6 +234,7 @@ export default {
     return {
       together: ca.coacts.slice(0, 25).map((c) => ({ name: c.name, weight: c.weight, shows: c.shows })),
       togetherSource: ca.sources.join("+") || "ra",
+      togetherDegraded: !!ca.degraded,
       genres: ca.genres.slice(0, 6), // kuratierte RA-Genres — der Server mischt sie VOR die Tags
       meta: ca.booking || null,
       active: ca.booking ? ca.booking.upcoming > 0 : undefined,
@@ -251,10 +252,18 @@ export default {
     // GETRENNTE Hosts/Gates — parallel statt seriell spart ~370-500 ms pro kaltem Ausbau
     // (Taskforce R13). Schluck-Semantik wie vorher: jeder Zweig scheitert für sich still;
     // die Genre-Mischreihenfolge (RA vor Tags, unten) bleibt unverändert.
-    let booking = null;
+    // NAMENSVETTER-GRENZE (U-2a.6, ehrlich dokumentiert): Die `mbid`-Schärfe wirkt NUR auf der
+    // Last.fm-Achse (getSimilar/getTopTags nehmen mbid). RA (`coAppearances`) hat KEINEN
+    // MBID-Endpunkt und löst rein über `canonical` (Name) auf — ebenso Deezer/Bandcamp in enrich().
+    // Bei gleichnamigen Acts kann die orange „zusammen aufgetreten"-Kante daher das Umfeld des
+    // FALSCHEN Namensvetters treffen. Eine echte MBID-Durchreichung an RA/Deezer ist mangels
+    // MBID-Lookup dort nicht möglich (geparkt, §7 PHASE2-PLAN); die Autocomplete/Namensvetter-
+    // Auswahl (N1) davor bleibt die primäre Absicherung.
+    let booking = null, togetherDegraded = false;
     const [tagsR, caR] = await Promise.allSettled([getTopTags(canonical, { mbid }), coAppearances(canonical)]);
     if (tagsR.status === "fulfilled") tags = tagsR.value;
-    if (caR.status === "fulfilled") { const ca = caR.value; coacts = ca.coacts; raGenres = ca.genres; sources = ca.sources; booking = ca.booking; }
+    if (caR.status === "fulfilled") { const ca = caR.value; coacts = ca.coacts; raGenres = ca.genres; sources = ca.sources; booking = ca.booking; togetherDegraded = !!ca.degraded; }
+    else togetherDegraded = true; // coAppearances komplett gescheitert -> together konnte nicht geladen werden
 
     const genres = [], seenG = new Set();
     for (const x of [...raGenres, ...tags]) { const k = x.toLowerCase(); if (!seenG.has(k)) { seenG.add(k); genres.push(x); } }
@@ -266,6 +275,7 @@ export default {
       similar: similar.slice(0, 25).map((s) => ({ name: s.name, url: s.url, mbid: s.mbid || null, match: s.match || 0.5 })),
       together: coacts.slice(0, 25).map((c) => ({ name: c.name, weight: c.weight, shows: c.shows })),
       togetherSource: sources.join("+") || "ra",
+      togetherDegraded,
       meta: booking || null,
       active: booking ? booking.upcoming > 0 : undefined,
       sources,
@@ -306,8 +316,12 @@ export default {
       const p = await topTrackPreview(name);
       if (p?.url) return plausibleFans(p.fans) ? p : null; // unplausibel -> gar keine (kein fremder Fallback)
     } catch {}
+    // Fallbacks (Deezer-Track-Suche, iTunes) sind streng am Künstlernamen verankert, tragen aber
+    // meist KEIN Fananzahl-Signal -> plausibleFans wirkt dort nur, WENN fans vorliegt (sonst true).
+    // Trotzdem denselben Guard anlegen: sobald ein Fallback je fans mitgibt, greift der Namensvetter-
+    // Schutz auch hier, statt die Probe eines berühmten Gleichnamigen ungeprüft durchzureichen.
     for (const fn of [trackPreviewSearch, previewByName]) {
-      try { const p = await fn(name); if (p?.url) return p; } catch {}
+      try { const p = await fn(name); if (p?.url && plausibleFans(p.fans)) return p; } catch {}
     }
     return null;
   },
@@ -368,9 +382,10 @@ export default {
           const k = r.name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
           if (isKnown(k) || seenNew.has(k)) continue;
           seenNew.add(k);
-          const reasons = [`Deezer-Nachbar von ${likeName}`];
-          if (r.fans != null) reasons.push(`${r.fans >= 1000 ? Math.round(r.fans / 1000) + "k" : r.fans} Fans`);
-          reasons.push("noch nicht auf deiner Karte");
+          // Begründungen sprachneutral als {key,vars}-Tokens (U-2a.4) — server-seitig übersetzt.
+          const reasons = [{ key: "dzNeighbor", vars: { name: likeName } }];
+          if (r.fans != null) reasons.push({ key: "fans", vars: { n: r.fans >= 1000 ? Math.round(r.fans / 1000) + "k" : r.fans } });
+          reasons.push({ key: "notOnMap" });
           const small = r.fans == null ? 0.5 : r.fans < 3000 ? 1 : r.fans < 10000 ? 0.85 : r.fans < 30000 ? 0.65 : r.fans < 100000 ? 0.4 : r.fans < 300000 ? 0.2 : 0.08;
           out.push({ name: r.name, score: 0.55 * small, reasons, url: r.link });
         }
@@ -384,7 +399,7 @@ export default {
           seenNew.add(k);
           out.push({
             name: it.artist, score: 0.45, url: it.url,
-            reasons: [`frisch auf Bandcamp (${it.genre})`, it.title ? `Release: „${it.title}"` : null, "noch nicht auf deiner Karte"].filter(Boolean),
+            reasons: [{ key: "bcFresh", vars: { genre: it.genre } }, it.title ? { key: "release", vars: { title: it.title } } : null, { key: "notOnMap" }].filter(Boolean),
           });
         }
       } catch { /* Bandcamp aus -> weiter */ }

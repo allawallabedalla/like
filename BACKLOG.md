@@ -1407,13 +1407,13 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 ### Phase 2a — Music-Produktionshärtung (Flaggschiff zuerst)
 
-- [ ] **Preview-Fallbacks umgehen den Namensvetter-Guard.** [mittel/S · music] plausibleFans greift nur im ersten preview-Zweig; trackPreviewSearch/previewByName können die Klangprobe des berühmten Gleichnamigen spielen. → fans/listeners-Plausi auf beide Fallback-Zweige anwenden (pack.mjs:304-311).
-- [ ] **radarExtras-Begründungen hart deutsch im LIVE-Radar.** [mittel/S · music/i18n] server.mjs:1907 reicht Reasons ungefiltert durch, pack.mjs:371-387 erzeugt sie deutsch. → sprachneutral als {key,vars} zurückgeben und via trPack übersetzen (lang liegt in /api/radar vor).
-- [ ] **Orange-Kante hängt einseitig an inoffizieller RA-Quelle.** [mittel/L · music] In Prod trägt fast nur RA das Booking-USP; bei Ausfall still auf blau-only. → zweite offizielle together-Quelle (ListenBrainz) einziehen und degradierte Quelle im UI signalisieren (coappear.mjs:26-38).
-- [ ] **Songkick-Adapter real tot, aber als together-Quelle gelistet.** [niedrig/S · music] → entfernen oder als deprecated markieren; Quellenliste ehrlich halten (coappear.mjs:37).
-- [ ] **MBID-Schärfe reicht nicht durch die Kette.** [niedrig/M · music] RA/Deezer/MB lösen nur namensbasiert auf → bei Namensvettern falsches Umfeld. → MBID durchreichen bzw. Fans-Plausi ergänzen; Doku ehrlich auf Last.fm einschränken.
-- [ ] **Demo-Daten zu dünn fürs Flaggschiff.** [niedrig/M · music] Nur ein Cluster, keine Booking-/Status-/Lineup-Demo. → 2-3 Cluster, together-Kanten mit Show-Metadaten, Beispiel-Status/Notizen (demo.json).
-- [ ] **MusicBrainz-Lucene-Query strippt Quote statt zu escapen.** [niedrig/S · music] → Quote sauber escapen, End-Backslash entfernen (musicbrainz.mjs:26,38).
+- [x] **Preview-Fallbacks umgehen den Namensvetter-Guard.** [mittel/S · music] plausibleFans greift nur im ersten preview-Zweig; trackPreviewSearch/previewByName können die Klangprobe des berühmten Gleichnamigen spielen. → fans/listeners-Plausi auf beide Fallback-Zweige anwenden (pack.mjs:304-311). _(erledigt phase-2a: Guard auf beide Fallback-Zweige)_
+- [x] **radarExtras-Begründungen hart deutsch im LIVE-Radar.** [mittel/S · music/i18n] server.mjs:1907 reicht Reasons ungefiltert durch, pack.mjs:371-387 erzeugt sie deutsch. → sprachneutral als {key,vars} zurückgeben und via trPack übersetzen (lang liegt in /api/radar vor). _(erledigt phase-2a: {key,vars}-Tokens + zentrale trExtra-Übersetzung)_
+- [ ] **Orange-Kante hängt einseitig an inoffizieller RA-Quelle.** [mittel/L · music] In Prod trägt fast nur RA das Booking-USP; bei Ausfall still auf blau-only. → zweite offizielle together-Quelle (ListenBrainz) einziehen und degradierte Quelle im UI signalisieren (coappear.mjs:26-38). _(teilweise phase-2a: RA-Kill-Switch LIKE_DISABLE_RA + togetherDegraded-Signal end-to-end bis Client-Toast; zweite offizielle Quelle geparkt — braucht Key, §7)_
+- [x] **Songkick-Adapter real tot, aber als together-Quelle gelistet.** [niedrig/S · music] → entfernen oder als deprecated markieren; Quellenliste ehrlich halten (coappear.mjs:37). _(erledigt phase-2a: aus coappear-Kette genommen, Datei deprecated)_
+- [ ] **MBID-Schärfe reicht nicht durch die Kette.** [niedrig/M · music] RA/Deezer/MB lösen nur namensbasiert auf → bei Namensvettern falsches Umfeld. → MBID durchreichen bzw. Fans-Plausi ergänzen; Doku ehrlich auf Last.fm einschränken. _(teilweise phase-2a: Namensvetter-Grenze ehrlich im Code dokumentiert; funktionale MBID-Durchreichung an RA/Deezer nicht möglich — kein MBID-Endpunkt, geparkt §7)_
+- [x] **Demo-Daten zu dünn fürs Flaggschiff.** [niedrig/M · music] Nur ein Cluster, keine Booking-/Status-/Lineup-Demo. → 2-3 Cluster, together-Kanten mit Show-Metadaten, Beispiel-Status/Notizen (demo.json). _(erledigt phase-2a: 3 Cluster, 12 Acts, Status/Notizen, Show-Metadaten)_
+- [x] **MusicBrainz-Lucene-Query strippt Quote statt zu escapen.** [niedrig/S · music] → Quote sauber escapen, End-Backslash entfernen (musicbrainz.mjs:26,38). _(erledigt phase-2a: lucenePhrase-Escaping)_
 
 ### Phase 2b — Ehrlichkeit, Recht & Compliance (rang-hoch)
 

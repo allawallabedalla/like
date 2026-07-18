@@ -8,143 +8,135 @@
       "id": "bonobo",
       "name": "Bonobo",
       "seed": true,
-      "genres": [
-        "Downtempo",
-        "Electronic"
-      ],
-      "listeners": 890000
+      "genres": ["Downtempo", "Electronic"],
+      "listeners": 890000,
+      "note": "Headliner-Kandidat – schon zweimal angefragt, Timing prüfen"
     },
     "tycho": {
       "id": "tycho",
       "name": "Tycho",
       "seed": false,
-      "genres": [
-        "Ambient"
-      ],
+      "genres": ["Ambient", "Electronic"],
       "listeners": 620000
     },
     "rival consoles": {
       "id": "rival consoles",
       "name": "Rival Consoles",
       "seed": false,
-      "genres": [
-        "Electronic"
-      ],
-      "listeners": 90000
+      "genres": ["Electronic", "Techno"],
+      "listeners": 90000,
+      "status": "shortlist"
     },
     "nils frahm": {
       "id": "nils frahm",
       "name": "Nils Frahm",
       "seed": false,
-      "genres": [
-        "Neoclassical"
-      ],
+      "genres": ["Neoclassical", "Piano"],
       "listeners": 410000
     },
     "jon hopkins": {
       "id": "jon hopkins",
       "name": "Jon Hopkins",
       "seed": false,
-      "genres": [
-        "Electronic"
-      ],
+      "genres": ["Electronic", "Ambient"],
       "listeners": 520000
     },
     "floating points": {
       "id": "floating points",
       "name": "Floating Points",
       "seed": false,
-      "genres": [
-        "Electronic"
-      ],
+      "genres": ["Electronic", "Jazz"],
       "listeners": 300000
     },
     "four tet": {
       "id": "four tet",
       "name": "Four Tet",
       "seed": false,
-      "genres": [
-        "Electronic"
-      ],
+      "genres": ["Electronic", "Downtempo"],
       "listeners": 700000
+    },
+    "gogo penguin": {
+      "id": "gogo penguin",
+      "name": "GoGo Penguin",
+      "seed": false,
+      "genres": ["Nu Jazz", "Jazz"],
+      "listeners": 120000,
+      "status": "contacted",
+      "note": "Agentur angefragt – Slot im Frühjahr möglich?"
+    },
+    "portico quartet": {
+      "id": "portico quartet",
+      "name": "Portico Quartet",
+      "seed": false,
+      "genres": ["Nu Jazz", "Jazz"],
+      "listeners": 85000
+    },
+    "mammal hands": {
+      "id": "mammal hands",
+      "name": "Mammal Hands",
+      "seed": false,
+      "genres": ["Jazz", "Nu Jazz"],
+      "listeners": 40000
+    },
+    "skee mask": {
+      "id": "skee mask",
+      "name": "Skee Mask",
+      "seed": false,
+      "genres": ["Techno", "Breakbeat"],
+      "listeners": 60000,
+      "status": "confirmed",
+      "note": "bestätigt fürs späte Set"
+    },
+    "objekt": {
+      "id": "objekt",
+      "name": "Objekt",
+      "seed": false,
+      "genres": ["Techno", "Electro"],
+      "listeners": 55000
     }
   },
   "edges": [
-    {
-      "from": "bonobo",
-      "to": "tycho",
-      "type": "similar",
-      "weight": 0.6,
-      "source": "demo"
-    },
-    {
-      "from": "bonobo",
-      "to": "rival consoles",
-      "type": "similar",
-      "weight": 0.6,
-      "source": "demo"
-    },
-    {
-      "from": "bonobo",
-      "to": "nils frahm",
-      "type": "similar",
-      "weight": 0.6,
-      "source": "demo"
-    },
-    {
-      "from": "bonobo",
-      "to": "jon hopkins",
-      "type": "similar",
-      "weight": 0.6,
-      "source": "demo"
-    },
-    {
-      "from": "bonobo",
-      "to": "floating points",
-      "type": "together",
-      "weight": 2,
-      "source": "demo"
-    },
-    {
-      "from": "bonobo",
-      "to": "four tet",
-      "type": "together",
-      "weight": 2,
-      "source": "demo"
-    },
-    {
-      "from": "tycho",
-      "to": "jon hopkins",
-      "type": "similar",
-      "weight": 0.5,
-      "source": "demo"
-    },
-    {
-      "from": "four tet",
-      "to": "floating points",
-      "type": "together",
-      "weight": 3,
-      "source": "demo"
-    },
+    { "from": "bonobo", "to": "tycho", "type": "similar", "weight": 0.6, "source": "demo" },
+    { "from": "bonobo", "to": "rival consoles", "type": "similar", "weight": 0.6, "source": "demo" },
+    { "from": "bonobo", "to": "nils frahm", "type": "similar", "weight": 0.6, "source": "demo" },
+    { "from": "bonobo", "to": "jon hopkins", "type": "similar", "weight": 0.6, "source": "demo" },
+    { "from": "bonobo", "to": "floating points", "type": "together", "weight": 2, "source": "demo" },
+    { "from": "bonobo", "to": "four tet", "type": "together", "weight": 2, "source": "demo" },
+    { "from": "tycho", "to": "jon hopkins", "type": "similar", "weight": 0.5, "source": "demo" },
+    { "from": "four tet", "to": "floating points", "type": "together", "weight": 3, "source": "demo" },
     {
       "from": "bonobo",
       "to": "jon hopkins",
       "type": "together",
       "weight": 2,
       "shows": [
-        {
-          "event": "Melt Festival",
-          "date": "2019-07-19",
-          "venue": null,
-          "city": "Ferropolis"
-        },
-        {
-          "event": "Dekmantel",
-          "date": "2018-08-04",
-          "venue": null,
-          "city": "Amsterdam"
-        }
+        { "event": "Melt Festival", "date": "2019-07-19", "venue": null, "city": "Ferropolis" },
+        { "event": "Dekmantel", "date": "2018-08-04", "venue": null, "city": "Amsterdam" }
       ]
-    }
+    },
+    { "from": "floating points", "to": "gogo penguin", "type": "similar", "weight": 0.5, "source": "demo" },
+    { "from": "gogo penguin", "to": "portico quartet", "type": "similar", "weight": 0.7, "source": "demo" },
+    { "from": "portico quartet", "to": "mammal hands", "type": "similar", "weight": 0.6, "source": "demo" },
+    {
+      "from": "gogo penguin",
+      "to": "mammal hands",
+      "type": "together",
+      "weight": 2,
+      "shows": [
+        { "event": "EFG London Jazz Festival", "date": "2022-11-18", "venue": "Southbank Centre", "city": "London" }
+      ]
+    },
+    {
+      "from": "four tet",
+      "to": "skee mask",
+      "type": "together",
+      "weight": 2,
+      "shows": [
+        { "event": "Dekmantel", "date": "2023-08-02", "venue": null, "city": "Amsterdam" }
+      ]
+    },
+    { "from": "skee mask", "to": "objekt", "type": "similar", "weight": 0.7, "source": "demo" },
+    { "from": "objekt", "to": "four tet", "type": "similar", "weight": 0.4, "source": "demo" },
+    { "from": "rival consoles", "to": "objekt", "type": "similar", "weight": 0.4, "source": "demo" }
   ]
 }
