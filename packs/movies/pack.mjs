@@ -28,19 +28,23 @@ const KEY_INFO = { envVar: "TMDB_API_KEY", file: ".tmdb-key", name: "TMDB", crea
 const display = (m) => m.release_date ? `${m.title} (${m.release_date.slice(0, 4)})` : m.title;
 const stripYear = (name) => String(name).replace(/\s*\((19|20)\d\d\)\s*$/, "").trim();
 
-async function api(path, params = {}) {
+// U-2d: TMDB kennt die UI-Sprache — bei EN „en-US" statt hart „de-DE" (Default bleibt de,
+// damit Bestandsaufrufe/Cache-Keys ohne lang unverändert deutsch bleiben).
+async function api(path, params = {}, lang) {
   const key = await getKey(KEY_INFO); // wirft mit "API-Key" im Text -> Frontend öffnet den Dialog
   const u = new URL(TMDB + path);
   u.searchParams.set("api_key", key);
-  u.searchParams.set("language", "de-DE");
+  u.searchParams.set("language", lang === "en" ? "en-US" : "de-DE");
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   return jfetch(u.href);
 }
+// Cache-Key-Suffix je Sprache: „" für de (stabil) bzw. „|en", damit DE/EN nicht kollidieren.
+const langKey = (lang) => (lang === "en" ? "|en" : "");
 
-async function searchMovie(name) {
-  return cached("tmdb-search", name, 7 * 864e5, async () => {
+async function searchMovie(name, lang) {
+  return cached("tmdb-search", name + langKey(lang), 7 * 864e5, async () => {
     const year = name.match(/\((\d{4})\)\s*$/)?.[1];
-    const j = await api("/search/movie", { query: stripYear(name), ...(year ? { year } : {}) });
+    const j = await api("/search/movie", { query: stripYear(name), ...(year ? { year } : {}) }, lang);
     return j.results?.[0] || null;
   });
 }
@@ -58,6 +62,7 @@ export default {
     searchTitle: "Film bei TMDB suchen — lädt inhaltlich Ähnliches + „Leute schauten auch“ (Taste /)",
     goTitle: "Film laden: inhaltlich ähnlich + Leute schauten auch + Genres",
     exampleSeed: "Paris, Texas (1984)",
+    seedChips: ["Paris, Texas (1984)", "In the Mood for Love (2000)", "Perfect Days (2023)"],
     emptyTitle: "Noch keine Filme auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: inhaltlich Ähnliches + „Leute schauten auch“.",
     edges: {
@@ -172,26 +177,29 @@ export default {
     return { canonical: display(hit), list: out };
   },
 
-  async explore(name) {
-    const hit = await searchMovie(name);
+  async explore(name, { lang } = {}) {
+    const hit = await searchMovie(name, lang);
     if (!hit) throw new Error(`„${name}" nicht bei TMDB gefunden`);
+    // U-2d: NUR die Suche ist Pflicht (hit). Details/ähnlich/Empfehlungen einzeln abfangen —
+    // fällt eine Zusatzquelle aus, degradiert der Ausbau (weniger Kanten) statt hart mit 502.
     const [details, similar, recs] = await Promise.all([
-      cached("tmdb-det", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}`)),
-      cached("tmdb-sim", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}/similar`)),
-      cached("tmdb-rec", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}/recommendations`)),
+      cached("tmdb-det", hit.id + langKey(lang), 14 * 864e5, () => api(`/movie/${hit.id}`, {}, lang)).catch(() => null),
+      cached("tmdb-sim", hit.id + langKey(lang), 14 * 864e5, () => api(`/movie/${hit.id}/similar`, {}, lang)).catch(() => null),
+      cached("tmdb-rec", hit.id + langKey(lang), 14 * 864e5, () => api(`/movie/${hit.id}/recommendations`, {}, lang)).catch(() => null),
     ]);
+    const det = details || hit; // Details weg? Wenigstens die Trefferdaten nutzen.
     const url = `https://www.themoviedb.org/movie/${hit.id}`;
     return {
-      canonical: display(details),
+      canonical: display(det),
       url,
-      genres: (details.genres || []).map((g) => g.name).slice(0, 6),
+      genres: (det.genres || []).map((g) => g.name).slice(0, 6),
       similarSource: "tmdb",
       togetherSource: "tmdb",
-      similar: (similar.results || []).slice(0, 15).map((m, i) => ({
+      similar: (similar?.results || []).slice(0, 15).map((m, i) => ({
         name: display(m), url: `https://www.themoviedb.org/movie/${m.id}`, match: Math.max(0.3, 0.8 - i * 0.03),
       })),
       // Recommendations sind verhaltensbasiert — Reihenfolge = Stärke, als Gewicht abbilden
-      together: (recs.results || []).slice(0, 15).map((m, i) => ({
+      together: (recs?.results || []).slice(0, 15).map((m, i) => ({
         name: display(m), url: `https://www.themoviedb.org/movie/${m.id}`, weight: Math.max(1, 5 - Math.floor(i / 3)),
       })),
       sources: ["tmdb"],

@@ -77,6 +77,22 @@ async function popularityFor(appid, s) {
   return reviews ?? ownersMid(s);
 }
 
+// (U-2d) Kleiner Retry mit ansteigender Pause für die SteamSpy-Tag-Chart: sie ist die BLAUE
+// „ähnlich"-Quelle und fiel bei 429/503 bisher STILL komplett weg. Bis zu 2 Wiederholungen
+// mit wachsender Pause (400 ms, 800 ms), dann den Fehler durchreichen.
+async function fetchTagChart(tag) {
+  let lastErr;
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    try {
+      return await jfetch(`${SPY}?request=tag&tag=${encodeURIComponent(tag)}`);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // blau: Schnittmenge der Top-3-Tags statt nur des einen stärksten Tags — sonst landen alle
 // Spiele eines Genres beim selben Mega-Hit-Chart (widerspricht der Kleine-Acts-DNA). Rang =
 // wie viele der Top-3-Tags ein Kandidat mit dem Ausgangsspiel teilt; bei Gleichstand kleinere
@@ -85,9 +101,11 @@ async function tagIntersectionSimilar(s, excludeNameLower, { limit = 20 } = {}) 
   const top3 = topTagNames(s, 3);
   if (!top3.length) return [];
   const cand = new Map(); // name -> { app, hits }
+  let anyChart = false; // (U-2d) wurde überhaupt eine Tag-Chart geladen?
   for (const tag of top3) {
     try {
-      const j = await cached("steamspy-tag", tag, 7 * 864e5, () => jfetch(`${SPY}?request=tag&tag=${encodeURIComponent(tag)}`));
+      const j = await cached("steamspy-tag", tag, 7 * 864e5, () => fetchTagChart(tag)); // (U-2d) mit Retry/Backoff
+      anyChart = true;
       for (const app of Object.values(j || {})) {
         const nm = app?.name; if (!nm || nm.toLowerCase() === excludeNameLower) continue;
         const rec = cand.get(nm) || { app, hits: 0 };
@@ -95,6 +113,9 @@ async function tagIntersectionSimilar(s, excludeNameLower, { limit = 20 } = {}) 
       }
     } catch { /* ein Tag ohne Chart -> mit den übrigen weiter */ }
   }
+  // (U-2d) Ehrlich melden statt still verschwinden: keine einzige Tag-Chart erreichbar (429/503?)
+  // -> blau fällt dann leer aus; klarer diag-Hinweis statt stillem Totalausfall.
+  if (!anyChart) console.warn(`[games] blau leer — keine SteamSpy-Tag-Chart erreichbar (Tags: ${top3.join(", ")})`);
   const dampBig = (owners) => owners == null ? 1 : owners > 5000000 ? 0.6 : owners > 1000000 ? 0.8 : 1;
   return [...cand.values()]
     .sort((a, b) => b.hits - a.hits || (ownersMid(a.app) ?? 1e9) - (ownersMid(b.app) ?? 1e9))
@@ -106,15 +127,28 @@ async function tagIntersectionSimilar(s, excludeNameLower, { limit = 20 } = {}) 
 }
 
 async function byDeveloper(dev, { limit = 12 } = {}) {
-  // SteamSpy hat keinen sauberen Entwickler-Filter ohne Vollscan; die Storefront-Suche
-  // nach dem Entwicklernamen ist der pragmatische Weg (liefert dessen Titel gut).
+  // SteamSpy hat keinen sauberen Entwickler-Filter ohne Vollscan; die Storefront-Textsuche
+  // nach dem Entwicklernamen liefert dessen Titel gut — aber als Textsuche eben auch FREMDE
+  // Studios (z. B. Titel, die den Namen nur erwähnen).
+  // (U-2d) Darum jeden Kandidaten über die exakte SteamSpy-`developer`-Info gegen den
+  // Seed-Entwickler abgleichen und Nicht-Treffer verwerfen. Lieber eine leere Orange-Liste
+  // als falsche „vom selben Entwickler"-Kanten (Ehrlichkeits-Prinzip).
   return cached("steam-dev", dev + "|" + limit, 14 * 864e5, async () => {
     const u = new URL(STEAM + "/storesearch/");
     u.searchParams.set("term", dev);
     u.searchParams.set("cc", "de");
     u.searchParams.set("l", "en");
     const j = await jfetch(u.href);
-    return (j.items || []).slice(0, limit);
+    const want = String(dev).trim().toLowerCase(); // Seed-Entwickler, normalisiert
+    const out = [];
+    for (const it of j.items || []) {
+      if (out.length >= limit) break;
+      let candDev = null;
+      try { candDev = (await spy(it.id))?.developer || null; } catch { candDev = null; }
+      // exakter Feld-Abgleich (kein Substring): nur behalten, wenn der Entwickler exakt passt
+      if (candDev && String(candDev).trim().toLowerCase() === want) out.push(it);
+    }
+    return out;
   });
 }
 
@@ -131,6 +165,9 @@ export default {
     searchTitle: "Spiel bei Steam suchen — lädt Tag-Nachbarn + vom selben Entwickler (Taste /)",
     goTitle: "Spiel laden: geteilte Tags + vom selben Entwickler + Genres",
     exampleSeed: "Hades",
+    // (U-2d) Start-Chips (Kaltstart): drei kontrastierende Eigennamen — Metroidvania, Cozy-Sim,
+    // Narrativ-RPG. Eigennamen -> kein EN-Overlay nötig.
+    seedChips: ["Hollow Knight", "Stardew Valley", "Disco Elysium"],
     emptyTitle: "Noch keine Spiele auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: Tag-Nachbarn + vom selben Entwickler.",
     edges: {

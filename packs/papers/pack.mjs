@@ -5,7 +5,8 @@
 //            fällt explore()/similar() auf related_works zurück.
 //   orange = von denselben Autor:innen (weitere Werke der Ko-Autor:innen — Ko-Autorschaft
 //            ist hier wörtlich "zusammen aufgetreten")
-// Popularität = cited_by_count; Momentum kommt aus counts_by_year (Zitationsgeschwindigkeit).
+// Popularität = cited_by_count. (U-2d) Ein „Momentum" aus counts_by_year (Zitations-
+//   geschwindigkeit) war angedacht, ist aber nirgends verdrahtet — daher hier nicht behauptet.
 // Höflichkeit: OpenAlex bittet um eine mailto — via ENV OPENALEX_MAILTO ergänzbar.
 
 import { cached } from "../../lib/cache.mjs";
@@ -97,6 +98,7 @@ export default {
     searchTitle: "Paper bei OpenAlex suchen — lädt verwandte Arbeiten + Werke der Autor:innen (Taste /)",
     goTitle: "Paper laden: inhaltlich verwandt + von denselben Autor:innen + Themen",
     exampleSeed: "Attention Is All You Need",
+    seedChips: ["Attention Is All You Need", "A Mathematical Theory of Communication", "The Structure of DNA"],
     emptyTitle: "Noch keine Paper auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: verwandte Arbeiten + Werke der Autor:innen.",
     edges: {
@@ -223,6 +225,8 @@ export default {
     // fällt es auf OpenAlex related_works zurück (hält bis zu ~10 vor).
     const doi = doiOf(hit);
     let rel = doi ? (await s2Recommendations(doi, { limit: 15 })).map((r) => ({ ...r, match: 0.75 })) : [];
+    // (U-2d) usedS2 nur true, wenn S2 tatsächlich etwas lieferte -> similarSource (unten) bleibt
+    //   ehrlich: bei fehlender DOI oder leerem S2-Ergebnis steht dort "openalex", nicht "semanticscholar".
     const usedS2 = rel.length > 0;
     if (!rel.length) {
       for (const id of (hit.related_works || []).slice(0, 12).map(shortId)) {

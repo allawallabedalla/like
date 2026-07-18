@@ -1444,28 +1444,28 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 ### Phase 2d — Labs: Ehrlichkeit, Inhalt & Freischalt-Blocker
 
-- [ ] **travel: Geosuch-Radius auf 10 km gekappt — Orange verfehlt Tagesausflüge, Region-Labels lügen.** [hoch/M · travel] → mehrere versetzte Geosuchen + Haversine-Filter oder Link-Hierarchie ranken; Minimum: Kommentare/Labels ehrlich (travel.mjs:190; pack.mjs:210,272).
-- [ ] **games: Orange per Storefront-Textsuche statt Feld-Match.** [hoch/M · games] → Treffer via spy(appid).developer gegenfiltern (exakter Match), sonst [] (pack.mjs:108-119).
-- [ ] **podcasts & books: Blau liefert generischen Genre-Kanon.** [hoch/M · podcasts,books] → auf echte Genre-/Subject-Schnittmenge ranken (wie Games/E14), TasteDive bei Key höher; bis dahin ehrliche „ähnlich = Genre"-Etikettierung.
-- [ ] **anything: Listen-/Jahres-/Begriffsklärungsseiten ungefiltert.** [mittel/M · anything] → hubPenalty/SKIP_LINK_RE auch in explore(); Stoppliste (Liste/Kategorie/Jahre/BKS) (wiki.mjs:98-163; BACKLOG:544).
-- [ ] **anything: Orange alphabetisch verzerrt / kippt still auf einseitige Links.** [mittel/M · anything] → nach Backlinks/Aufrufen ranken; Fallback <4 transparent als „verlinkt"; falsche Kommentare korrigieren (wiki.mjs:112-131).
-- [ ] **movies: explore() degradiert nicht (hartes 502).** [mittel/S · movies] → jeden Call einzeln .catch(()=>null), defensiv zugreifen, nur bei fehlendem hit werfen (pack.mjs:178-198).
-- [ ] **movies: Sprache hart de-DE, Server-lang ignoriert.** [mittel/S · movies] → lang durch explore/similar/context/enrich reichen, api() language=en-US bei EN (pack.mjs:35; server.mjs:1328).
-- [ ] **podcasts: leere Apple-Treffer 14 Tage als null gecacht.** [mittel/S · podcasts] → Leerergebnisse nicht memoisieren (werfen/kurze TTL) (pack.mjs:25-34).
-- [ ] **games: SteamSpy-Tag-Chart ohne Retry/Backoff — Blau kann still wegfallen.** [mittel/M · games] → Retry/Backoff bei 429/503; bei leerem Ergebnis Diag-/UI-Hinweis (pack.mjs:88-97).
-- [ ] **plants: iNat-Requests zu dicht getaktet (gapMs 250).** [mittel/S · plants] → gapMs 700–1000 (Wrapper analog boardgames).
-- [ ] **plants: „Merkmale"-Label oversellt Taxonomie.** [mittel/S · plants] → Label „Systematik"; englischen rank-Chip weglassen/mappen (pack.mjs:178,296).
-- [ ] **papers: Demo-ORANGE-Kanten faktisch falsch.** [mittel/S · papers] → durch echte Ko-Autoren-Werke ersetzen oder auf „similar" umlabeln (demo.json:85-98).
-- [ ] **travel: Blaue Stil-Ähnlichkeit ist Stichwort-Rangproxy.** [mittel/L · travel] → über den vorhandenen styleTags-vector re-ranken (Kosinus) (travel.mjs:151,156-181).
-- [ ] **travel: Vibe-Tags/Distanz-Chip hart deutsch.** [mittel/M · travel] → Tags mit DE/EN-Schlüssel; „{km} km from home"; Fehlermeldung über t() (travel.mjs:19-32; pack.mjs:54,193).
-- [ ] **books: Ausgaben-/Übersetzungs-Dubletten unbehandelt.** [mittel/M · books] → Dedup über OL work-key statt Titel-String; optional namesakes-Variante (pack.mjs:39,239,249).
+- [x] **travel: Geosuch-Radius auf 10 km gekappt — Orange verfehlt Tagesausflüge, Region-Labels lügen.** [hoch/M · travel] → mehrere versetzte Geosuchen + Haversine-Filter oder Link-Hierarchie ranken; Minimum: Kommentare/Labels ehrlich (travel.mjs:190; pack.mjs:210,272).
+- [x] **games: Orange per Storefront-Textsuche statt Feld-Match.** [hoch/M · games] → Treffer via spy(appid).developer gegenfiltern (exakter Match), sonst [] (pack.mjs:108-119).
+- [x] **podcasts & books: Blau liefert generischen Genre-Kanon.** [hoch/M · podcasts,books] → auf echte Genre-/Subject-Schnittmenge ranken (wie Games/E14), TasteDive bei Key höher; bis dahin ehrliche „ähnlich = Genre"-Etikettierung.
+- [x] **anything: Listen-/Jahres-/Begriffsklärungsseiten ungefiltert.** [mittel/M · anything] → hubPenalty/SKIP_LINK_RE auch in explore(); Stoppliste (Liste/Kategorie/Jahre/BKS) (wiki.mjs:98-163; BACKLOG:544).
+- [x] **anything: Orange alphabetisch verzerrt / kippt still auf einseitige Links.** [mittel/M · anything] → nach Backlinks/Aufrufen ranken; Fallback <4 transparent als „verlinkt"; falsche Kommentare korrigieren (wiki.mjs:112-131).
+- [x] **movies: explore() degradiert nicht (hartes 502).** [mittel/S · movies] → jeden Call einzeln .catch(()=>null), defensiv zugreifen, nur bei fehlendem hit werfen (pack.mjs:178-198).
+- [x] **movies: Sprache hart de-DE, Server-lang ignoriert.** [mittel/S · movies] → lang durch explore/similar/context/enrich reichen, api() language=en-US bei EN (pack.mjs:35; server.mjs:1328).
+- [x] **podcasts: leere Apple-Treffer 14 Tage als null gecacht.** [mittel/S · podcasts] → Leerergebnisse nicht memoisieren (werfen/kurze TTL) (pack.mjs:25-34).
+- [x] **games: SteamSpy-Tag-Chart ohne Retry/Backoff — Blau kann still wegfallen.** [mittel/M · games] → Retry/Backoff bei 429/503; bei leerem Ergebnis Diag-/UI-Hinweis (pack.mjs:88-97).
+- [x] **plants: iNat-Requests zu dicht getaktet (gapMs 250).** [mittel/S · plants] → gapMs 700–1000 (Wrapper analog boardgames).
+- [x] **plants: „Merkmale"-Label oversellt Taxonomie.** [mittel/S · plants] → Label „Systematik"; englischen rank-Chip weglassen/mappen (pack.mjs:178,296).
+- [x] **papers: Demo-ORANGE-Kanten faktisch falsch.** [mittel/S · papers] → durch echte Ko-Autoren-Werke ersetzen oder auf „similar" umlabeln (demo.json:85-98).
+- [x] **travel: Blaue Stil-Ähnlichkeit ist Stichwort-Rangproxy.** [mittel/L · travel] → über den vorhandenen styleTags-vector re-ranken (Kosinus) (travel.mjs:151,156-181).
+- [x] **travel: Vibe-Tags/Distanz-Chip hart deutsch.** [mittel/M · travel] → Tags mit DE/EN-Schlüssel; „{km} km from home"; Fehlermeldung über t() (travel.mjs:19-32; pack.mjs:54,193).
+- [x] **books: Ausgaben-/Übersetzungs-Dubletten unbehandelt.** [mittel/M · books] → Dedup über OL work-key statt Titel-String; optional namesakes-Variante (pack.mjs:39,239,249).
 - [ ] **Cross-Pack: Namensvetter/Editionen nicht disambiguiert (searchX limit=1).** [mittel/M · podcasts,games,boardgames,plants,papers,movies,anything] → mehrere Treffer, nach Popularität/Jahr/exaktem Match wählen bzw. an suggest()-UI übergeben.
-- [ ] **Cross-Pack: fehlende seedChips.** [niedrig/S · podcasts,movies,books,games,plants,travel] → je 3 kontrastierende seedChips (DE/EN) ergänzen (index.html:6778).
+- [x] **Cross-Pack: fehlende seedChips.** [niedrig/S · podcasts,movies,books,games,plants,travel] → je 3 kontrastierende seedChips (DE/EN) ergänzen (index.html:6778).
 - [ ] **Cross-Pack: Demo-Daten inkonsistent zur Live-Domäne.** [niedrig/M · 7 Packs] → Genres/Skalen/Kantensemantik an Live angleichen, Cluster verbreitern.
 - [ ] **Cross-Pack: context()/Laufzeit-Strings ohne EN-Overlay.** [niedrig/S · books,boardgames,papers] → über Config-Keys führen und ins en-Overlay aufnehmen.
 - [ ] **Cross-Pack: radar:true ohne radarExtras (Music-Parität).** [niedrig/M · movies,books,games,boardgames,papers,plants] → optional radarExtras je Pack oder radarTitle ehrlicher fassen; nicht blockierend.
 - [ ] **Labs-Politur: Null-Guards, Skalen, Tippfehler, Match-Spreizung.** [niedrig/S · movies,travel,boardgames,plants,podcasts] → diag/popularity Null-Guards; „Pflanzenliste"; similar-match spreizen; books-Skala; podcasts similar() { lang }.
-- [ ] **papers: Momentum-Kommentar tot; BLAU-Degradation transparent.** [niedrig/S · papers] → counts_by_year verdrahten oder Kommentar streichen; similarSource im UI anzeigen (pack.mjs:8,224-256).
+- [x] **papers: Momentum-Kommentar tot; BLAU-Degradation transparent.** [niedrig/S · papers] → counts_by_year verdrahten oder Kommentar streichen; similarSource im UI anzeigen (pack.mjs:8,224-256).
 
 ### Phase 2e — Website, Auffindbarkeit & Erstkontakt
 

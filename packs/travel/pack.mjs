@@ -1,7 +1,7 @@
 // packs/travel/pack.mjs — Like Travel: Reiseziele entdecken über zwei unabhängige Achsen.
 //   blau   = ähnlicher Reisestil (gleicher „Vibe": Strand/Berge/Kultur/Party/… — via
 //            Wikivoyage-Volltextsuche nach dem Stil, bewusst OHNE Geo-Bezug)
-//   orange = gut kombinierbar (Nachbarziele im Umkreis — Wikivoyage-Geosuche)
+//   orange = gut kombinierbar (direkte Nachbarn ≤10 km — Wikivoyage-Geosuche, MediaWiki-Limit)
 // Zwei Kriterien, wie gewünscht getrennt:
 //   • Heimat-Distanz  = Luftlinie zum Heimatort (Standard „Berlin, Deutschland",
 //     überschreibbar per ENV LIKE_TRAVEL_HOME) — erscheint als Chip am Ziel.
@@ -12,7 +12,7 @@
 
 import {
   geocode, haversineKm, resolveTitle, suggestTitles, article, styleTags,
-  styleSimilar, geoNearby, voyUrl,
+  styleSimilar, geoNearby, voyUrl, rankBySimilarStyle, STYLE_TAG_EN,
 } from "../../lib/travel.mjs";
 import { surpriseFrom } from "../../lib/surprise.mjs";
 
@@ -27,7 +27,10 @@ const SURPRISE_SEEDS = [
   "Görlitz", "Bled", "Rovinj", "Zadar", "Mostar", "Thessaloniki", "Nafplio", "Kaunas",
   "Riga", "Lübeck", "Quedlinburg",
 ];
-const fmtKm = (km) => km.toLocaleString("de-DE");
+// (U-2d) Zahl + Vibe-Tag sprachbewusst. lang stammt aus dem Request (ctx.lang) — bei explore
+// gesetzt, sonst Deutsch (Quellsprache). vibe() nutzt die Single-Source-Map aus lib/travel.mjs.
+const fmtKm = (km, lang) => km.toLocaleString(lang === "en" ? "en-US" : "de-DE");
+const vibe = (tag, lang) => (lang === "en" && STYLE_TAG_EN[tag]) ? STYLE_TAG_EN[tag] : tag;
 
 let homePromise = null;
 function envHome() { return homePromise ??= geocode(HOME_NAME).catch(() => null); }
@@ -48,10 +51,14 @@ async function coordFor(art, name) {
 // Stil-Tags + Heimat-Distanz-Chip zu einer Genre-Liste bündeln (Distanz ans Ende, damit
 // die Cluster-Färbung weiter den Reisestil nimmt, nicht die eindeutige Kilometerzahl).
 async function genresFor(tags, coord, ctx) {
-  const g = [...tags];
+  // (U-2d) Vibe-Tags in die UI-Sprache übersetzen und den Distanz-Chip lokalisieren
+  // („{km} km ab Zuhause" ↔ „{km} km from home"). ctx.lang gibt es nur im explore()-Pfad;
+  // im enrich()-Pfad reicht der Server keine Sprache durch -> dort bleibt es bei Deutsch.
+  const lang = ctx?.lang === "en" ? "en" : "de";
+  const g = tags.map((t) => vibe(t, lang));
   const h = await homeCoord(ctx);
   const km = h && coord ? haversineKm(h, coord) : null;
-  if (km != null) g.push(`${fmtKm(km)} km ab Zuhause`);
+  if (km != null) g.push(lang === "en" ? `${fmtKm(km, lang)} km from home` : `${fmtKm(km, lang)} km ab Zuhause`);
   return g;
 }
 
@@ -68,11 +75,14 @@ export default {
     searchTitle: "Reiseziel bei Wikivoyage suchen — lädt Ziele mit ähnlichem Stil + Nachbarziele (Taste /)",
     goTitle: "Reiseziel laden: ähnlicher Reisestil + gut kombinierbar + Vibe & Heimat-Distanz",
     exampleSeed: "Lissabon",
+    // (U-2d) Drei kontrastierende Start-Ziele (Eigennamen, in DE/EN gleich geschrieben):
+    // Tropen-Strand ↔ Alpen/Ski ↔ Wüsten-Metropole — zeigt die Stil-Achse gleich beim Einstieg.
+    seedChips: ["Bali", "Zermatt", "Dubai"],
     emptyTitle: "Noch keine Reiseziele auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: ähnlicher Stil + Nachbarziele. Distanz zählt ab „" + HOME_NAME + "“.",
     edges: {
       similar: { label: "ähnlicher Reisestil (Wikivoyage)", count: "ähnlicher Vibe" },
-      together: { label: "gut kombinierbar (in der Nähe)", count: "Nachbarziele" },
+      together: { label: "gut kombinierbar (≤ 10 km)", count: "Nachbarziele" },
     },
     popularity: { label: "Aufrufe", big: 40000, dimLabel: "Touristenmagnete dämpfen", dimTitle: "Sehr populäre Ziele (≥40k Wikivoyage-Aufrufe) abdunkeln — nur die Geheimtipps leuchten" },
     genreLabel: "Vibe",
@@ -87,9 +97,9 @@ export default {
     notePlaceholder: "Beste Reisezeit, Anreise, Tipp, Idee…",
     similarLabel: "Ähnlicher Reisestil",
     togetherLabel: "Gut kombinierbar",
-    contextLabel: "In der Region",
+    contextLabel: "Ganz in der Nähe",
     contextHint: "(Wikivoyage)",
-    contextButton: "Region laden",
+    contextButton: "Nachbarziele laden",
     contextWait: "Lade Nachbarziele …",
     basketLabel: "Reiseliste",
     likeLabel: "merken!",
@@ -116,7 +126,7 @@ export default {
         "brings its surroundings along: similar style + nearby destinations. Distance measured from \"" + HOME_NAME + "\".",
       "ähnlicher Reisestil (Wikivoyage)": "similar travel style (Wikivoyage)",
       "ähnlicher Vibe": "similar vibe",
-      "gut kombinierbar (in der Nähe)": "combines well (nearby)",
+      "gut kombinierbar (≤ 10 km)": "combines well (within 10 km)",
       "Nachbarziele": "nearby destinations",
       "Aufrufe": "Views",
       "Touristenmagnete dämpfen": "Dim tourist magnets",
@@ -130,8 +140,8 @@ export default {
       "Beste Reisezeit, Anreise, Tipp, Idee…": "Best season, getting there, tip, idea…",
       "Ähnlicher Reisestil": "Similar travel style",
       "Gut kombinierbar": "Combines well",
-      "In der Region": "In the region",
-      "Region laden": "Load region",
+      "Ganz in der Nähe": "Right nearby",
+      "Nachbarziele laden": "Load nearby destinations",
       "Lade Nachbarziele …": "Loading nearby destinations …",
       "Reiseliste": "Travel list",
       "merken!": "save!",
@@ -139,15 +149,25 @@ export default {
       "Bilder": "Images",
       "Radar — Geheimtipps": "Radar - hidden gems",
       "liegt nah an deinem Like": "lies close to your like",
+      // (U-2d) Fehlermeldung mit {name}-Platzhalter — über tr() übersetzt, {name} wird ersetzt.
+      "„{name}\" nicht bei Wikivoyage gefunden (Reiseziele)": "\"{name}\" not found on Wikivoyage (destinations)",
+      // (U-2d) Vibe-Tags DE->EN aus der Single-Source-Map (lib/travel.mjs) einspiegeln.
+      ...STYLE_TAG_EN,
     },
   },
+
+  // (U-2d) Kleiner Sprach-Helfer: übersetzt einen deutschen Quellstring über das vorhandene
+  // EN-Overlay (config.en). {name}-Platzhalter bleibt stehen und wird vom Aufrufer ersetzt.
+  tr(lang, s) { return (lang === "en" && this.config.en[s]) ? this.config.en[s] : s; },
 
   async suggest(q) {
     try { return await suggestTitles(q, { limit: 6 }); } catch { return []; }
   },
 
   // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Stil-Nachbarn (blau),
-  // ohne Geo-Umkreis/Genres — schneller als explore().
+  // ohne Geo-Umkreis/Genres — schneller als explore(). (U-2d) Bewusst OHNE Kosinus-Re-Rank:
+  // der kostet je Peer einen Artikel-Abruf und bliebe auf dem latenzkritischen Brücken-Pfad zu
+  // teuer; das Vektor-Re-Ranking der blauen Kandidaten passiert im explore()-Pfad.
   async similar(name, { limit = 14 } = {}) {
     const hit = await resolveTitle(name);
     if (!hit) return { canonical: name, similar: [] };
@@ -189,22 +209,28 @@ export default {
   },
 
   async explore(name, ctx) {
+    const lang = ctx?.lang === "en" ? "en" : "de";
     const hit = await resolveTitle(name);
-    if (!hit) throw new Error(`„${name}" nicht bei Wikivoyage gefunden (Reiseziele)`);
+    if (!hit) throw new Error(this.tr(lang, `„{name}" nicht bei Wikivoyage gefunden (Reiseziele)`).replace("{name}", name));
     const art = await article(hit.lang, hit.title);
-    const { tags } = styleTags(art.wikitext);
+    const { tags, vector } = styleTags(art.wikitext);
     const coord = await coordFor(art, hit.title);
 
     const [peers, near] = await Promise.all([
       styleSimilar(hit.lang, tags, hit.title, { limit: 14 }),
       geoNearby(hit.lang, coord, hit.title, { limit: 14 }),
     ]);
+    // (U-2d) BLAU nach Stil-Vektor-Ähnlichkeit re-ranken (Kosinus der styleTags-Vektoren) statt
+    // bloßer Volltext-Suchreihenfolge; der match-Wert folgt danach dem echten Ähnlichkeits-Rang.
+    const rankedPeers = await rankBySimilarStyle(vector, peers);
 
     const seenSim = new Set();
-    const similar = peers.filter((p) => !seenSim.has(p.title.toLowerCase()) && seenSim.add(p.title.toLowerCase()))
+    const similar = rankedPeers.filter((p) => !seenSim.has(p.title.toLowerCase()) && seenSim.add(p.title.toLowerCase()))
       .map((p, i) => ({ name: p.title, url: voyUrl(p.lang, p.title), match: Math.max(0.35, 0.75 - i * 0.03) }));
 
-    // näher = höheres Gewicht (dickere orange Kante)
+    // ORANGE: Nähe = Kantengewicht. Ehrlich (U-2d): Die Geosuche liefert nur ≤10 km (MediaWiki-
+    // Limit), also greift praktisch immer die oberste Stufe — die feineren Schwellen bleiben als
+    // reversibler Vorrat, falls je ein größerer Radius machbar wird.
     const together = near.map((n) => ({
       name: n.title, url: voyUrl(n.lang, n.title),
       weight: n.km <= 20 ? 3 : n.km <= 50 ? 2.2 : n.km <= 90 ? 1.6 : 1,
@@ -258,18 +284,20 @@ export default {
     } catch { return null; }
   },
 
-  // „In der Region": Nachbarziele im weiteren Umkreis als Liste.
+  // „Ganz in der Nähe": direkte Nachbarn (≤10 km) als Liste. Ehrlich (U-2d): kein weiter
+  // Umkreis — die MediaWiki-Geosuche deckt nur ≤10 km ab (radiusKm wird in geoNearby gekappt).
+  // Der Server reicht hier keine UI-Sprache durch -> die Laufzeit-Strings bleiben Deutsch.
   async context(name) {
     const hit = await resolveTitle(name);
     if (!hit) return { groups: [] };
     const art = await article(hit.lang, hit.title);
     const coord = await coordFor(art, hit.title);
-    const near = await geoNearby(hit.lang, coord, hit.title, { radiusKm: 250, limit: 14 });
+    const near = await geoNearby(hit.lang, coord, hit.title, { limit: 14 });
     if (!near.length) return { groups: [] };
     return {
       note: `Nachbarziele um ${hit.title}`,
       groups: [{
-        label: "In der Region",
+        label: "Ganz in der Nähe",
         items: near.map((n) => ({ name: n.title, sub: `${fmtKm(n.km)} km entfernt` })),
       }],
     };

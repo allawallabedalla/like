@@ -23,14 +23,20 @@ const SURPRISE_SEEDS = [
 ];
 
 async function searchPodcast(name) {
+  // U-2d: Ein Leerergebnis NICHT 14 Tage als null cachen (sonst bleibt ein kurz nicht
+  // auffindbarer Podcast zwei Wochen „verschwunden"). Trick: bei keinem Treffer wirft die
+  // Funktion ein Sentinel -> cached() schreibt nichts; die .catch wandelt es in null zurück,
+  // sodass die Aufrufer wie bisher `null` sehen. Echte Netzfehler propagieren weiter.
   return cached("pod-search", name, 14 * 864e5, async () => {
     const u = new URL(ITUNES + "/search");
     u.searchParams.set("term", name);
     u.searchParams.set("media", "podcast");
     u.searchParams.set("limit", "1");
     const j = await jfetch(u.href);
-    return j.results?.[0] || null;
-  });
+    const r = j.results?.[0];
+    if (!r) throw new Error("__empty__");
+    return r;
+  }).catch((e) => { if (e && e.message === "__empty__") return null; throw e; });
 }
 
 // Beliebte Podcasts desselben Genres: Apples Top-Charts-RSS (echte Popularität,
@@ -83,6 +89,9 @@ export default {
     searchTitle: "Podcast bei Apple suchen — lädt Genre-Nachbarn + vom selben Anbieter (Taste /)",
     goTitle: "Podcast laden: Genre-Nachbarn + vom selben Anbieter + Genres",
     exampleSeed: "Lage der Nation",
+    // Cross-Pack (U-2d): drei kontrastierende Startpunkte (DE-Politik / US-Science-Story / Design),
+    // damit der erste Klick im leeren Zustand garantiert trägt. Eigennamen -> kein EN-Overlay nötig.
+    seedChips: ["Lage der Nation", "Radiolab", "99% Invisible"],
     emptyTitle: "Noch keine Podcasts auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: Genre-Nachbarn + vom selben Anbieter.",
     edges: {

@@ -31,6 +31,12 @@ const FIELDS = "key,title,author_name,subject,ratings_count,want_to_read_count,f
 const display = (d) => d.author_name?.length ? `${d.title} (${d.author_name[0]})` : d.title;
 const stripAuthor = (name) => String(name).replace(/\s*\([^)]*\)\s*$/, "").trim();
 
+// (U-2d) Dedup über den Open-Library work-key: mehrere Editionen/Übersetzungen teilen
+// denselben `/works/OL…W`-Key und dürfen nicht doppelt als Nachbarn erscheinen.
+// Fällt kein work-key an, Fallback wie bisher über den normalisierten Titel.
+const workKeyOf = (k) => { const m = String(k || "").match(/\/works\/OL\d+W/i); return m ? m[0].toLowerCase() : null; };
+const dedupKey = (workKey, title) => workKeyOf(workKey) ? "w:" + workKeyOf(workKey) : "t:" + String(title || "").trim().toLowerCase();
+
 // Suche mit vollem String (Titel + ggf. Autor in Klammern) — Open Library rankt gut.
 async function searchDoc(name) {
   return cached("ol-doc", name, 7 * 864e5, async () => {
@@ -95,6 +101,8 @@ export default {
     searchTitle: "Buch bei Open Library suchen — lädt thematisch Ähnliches + Bücher desselben Autors (Taste /)",
     goTitle: "Buch laden: thematisch ähnlich + vom selben Autor + Themen",
     exampleSeed: "Der Prozess (Franz Kafka)",
+    // (U-2d) drei kontrastierende Einstiegsbücher (SF / literarisch / Sachbuch) als Start-Chips
+    seedChips: ["Dune (Frank Herbert)", "Beloved (Toni Morrison)", "Sapiens (Yuval Noah Harari)"],
     emptyTitle: "Noch keine Bücher auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: thematisch Ähnliches + Bücher desselben Autors.",
     edges: {
@@ -157,6 +165,7 @@ export default {
       "Mehr vom Autor": "More by the author",
       "Autoren-Umfeld laden": "Load author context",
       "Lade Autoren-Umfeld …": "Loading author context …",
+      "Weitere Werke": "More works",
       "Leseliste": "Reading list",
       "merken!": "save!",
       "Buchhandel": "Bookstore",
@@ -183,25 +192,27 @@ export default {
     const doc = await searchDoc(name);
     if (!doc) return { canonical: name, similar: [] };
     const subjects = cleanSubjects(doc.subject);
+    const selfKey = workKeyOf(doc.key);
     const self = (t) => t && t.toLowerCase() === doc.title.toLowerCase();
+    const isSelf = (k, t) => (selfKey && workKeyOf(k) === selfKey) || self(t);
     const similar = [], seen = new Set();
     for (const s of subjects.slice(0, 2)) {
       try {
         for (const w of await worksBySubject(s, { limit: 12 })) {
-          if (self(w.title)) continue;
+          if (isSelf(w.key, w.title)) continue;
           const nm = w.author ? `${w.title} (${w.author})` : w.title;
-          const k = nm.toLowerCase();
-          if (seen.has(k)) continue;
-          seen.add(k);
+          const dk = dedupKey(w.key, nm); // (U-2d) work-key statt Titel
+          if (seen.has(dk)) continue;
+          seen.add(dk);
           similar.push({ name: nm, url: w.key ? OL + w.key : null, match: 0.5 });
         }
       } catch { /* Subject unbekannt -> weiter */ }
     }
     try {
       for (const t of await similarByTaste(doc.title, "book", { limit: 10 })) {
-        const k = t.name.toLowerCase();
-        if (self(t.name) || seen.has(k)) continue;
-        seen.add(k);
+        const dk = dedupKey(null, t.name);
+        if (self(t.name) || seen.has(dk)) continue;
+        seen.add(dk);
         similar.push({ name: t.name, url: null, match: 0.5 });
       }
     } catch {}
@@ -236,38 +247,50 @@ export default {
     if (!doc) throw new Error(`„${name}" nicht bei Open Library gefunden`);
     const canonical = display(doc);
     const subjects = cleanSubjects(doc.subject);
+    const selfKey = workKeyOf(doc.key);
     const self = (t) => t && t.toLowerCase() === doc.title.toLowerCase();
+    const isSelf = (k, t) => (selfKey && workKeyOf(k) === selfKey) || self(t);
 
-    // blau: Subject-Überlappung (Top-2-Themen) + optional TasteDive-Geschmacksnachbarn
-    const similar = [], seen = new Set();
-    for (const s of subjects.slice(0, 2)) {
+    // blau: thematische Nähe über die Subject-SCHNITTMENGE (U-2d) — je mehr der Top-Subjects
+    // des Ausgangsbuchs ein Werk teilt (= es taucht unter mehreren davon auf), desto näher
+    // rankt es. Dedup über den work-key, damit Editionen/Übersetzungen nicht doppeln.
+    const simMap = new Map(); // dedupKey -> { name, url, shared }
+    for (const s of subjects.slice(0, 5)) {
       try {
         for (const w of await worksBySubject(s, { limit: 12 })) {
-          if (self(w.title)) continue;
+          if (isSelf(w.key, w.title)) continue;
           const nm = w.author ? `${w.title} (${w.author})` : w.title;
-          const k = nm.toLowerCase();
-          if (seen.has(k)) continue;
-          seen.add(k);
-          similar.push({ name: nm, url: w.key ? OL + w.key : null, match: 0.5 });
+          const dk = dedupKey(w.key, nm);
+          const cur = simMap.get(dk);
+          if (cur) cur.shared++;                                     // weiteres geteiltes Subject
+          else simMap.set(dk, { name: nm, url: w.key ? OL + w.key : null, shared: 1 });
         }
       } catch { /* Subject unbekannt -> weiter */ }
     }
+    // mehr geteilte Subjects => höherer match (0.45 + 0.15·Schnittmenge, gedeckelt).
+    const similar = [...simMap.values()]
+      .sort((a, b) => b.shared - a.shared)
+      .map((x) => ({ name: x.name, url: x.url, match: Math.min(0.9, 0.45 + 0.15 * x.shared) }));
+    const seen = new Set(simMap.keys());
     try {
       for (const t of await similarByTaste(doc.title, "book", { limit: 10 })) {
-        const k = t.name.toLowerCase();
-        if (self(t.name) || seen.has(k)) continue;
-        seen.add(k);
-        similar.push({ name: t.name, url: null, match: 0.5 }); // Geschmacks-Signal wiegt mehr
+        const dk = dedupKey(null, t.name);
+        if (self(t.name) || seen.has(dk)) continue;
+        seen.add(dk);
+        similar.push({ name: t.name, url: null, match: 0.6 }); // Geschmacks-Signal wiegt mehr
       }
     } catch {}
 
-    // orange: weitere Bücher desselben Autors
-    const together = [];
+    // orange: weitere Bücher desselben Autors (U-2d: work-key-Dedup gegen Editionen)
+    const together = [], seenTogether = new Set(selfKey ? ["w:" + selfKey] : []);
     const author = doc.author_name?.[0];
     if (author) {
       try {
         for (const d of await worksByAuthor(author, { limit: 10 })) {
-          if (self(d.title)) continue;
+          if (isSelf(d.key, d.title)) continue;
+          const dk = dedupKey(d.key, display(d));
+          if (seenTogether.has(dk)) continue;
+          seenTogether.add(dk);
           together.push({ name: display(d), url: d.key ? OL + d.key : null, weight: 1 });
         }
       } catch {}

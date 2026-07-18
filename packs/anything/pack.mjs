@@ -6,7 +6,7 @@
 
 import {
   resolve, suggest as wikiSuggest, morelike, mutualLinks, pageLinks, hubPenalty,
-  pageInfo, categoryMembers, wikiUrl,
+  pageInfo, categoryMembers, wikiUrl, isJunkTitle,
 } from "../../lib/wiki.mjs";
 import { surpriseFrom } from "../../lib/surprise.mjs";
 
@@ -34,6 +34,7 @@ export default {
     searchTitle: "Beliebiges Thema bei Wikipedia suchen — lädt thematisch Ähnliches + eng Verknüpftes (Taste /)",
     goTitle: "Thema laden: thematisch ähnlich + eng verknüpft + Kategorien",
     exampleSeed: "Bauhaus",
+    seedChips: ["Bauhaus", "Schwarzes Loch", "Espresso"],
     emptyTitle: "Noch nichts auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: thematisch Ähnliches + eng Verknüpftes. Probier ruhig irgendwas.",
     edges: {
@@ -165,18 +166,30 @@ export default {
       pageInfo(lang, title),
     ]);
 
+    // (U-2d) Listen-/Jahres-/Kategorie-/Begriffsklärungsseiten sind als Knoten nur Lärm —
+    // vor der Weiterverarbeitung mit derselben Stoppliste wie in mutualLinks aussortieren.
+    // (morelike liefert zwar Namespace 0, aber „Liste der …", „1974" und BKS sind ebenfalls
+    // Namespace-0-Artikel und rutschen sonst ungefiltert als Knoten durch.)
+    const simClean = sim.filter((t) => !isJunkTitle(t));
+
     // „eng verknüpft" nicht doppeln, was schon als „ähnlich" auftaucht.
-    const simSet = new Set(sim.map((t) => t.toLowerCase()));
-    const similar = sim.map((t, i) => ({ name: t, url: wikiUrl(lang, t), match: Math.max(0.35, 0.75 - i * 0.025) }));
-    const together = mut.filter((t) => !simSet.has(t.toLowerCase()))
+    const simSet = new Set(simClean.map((t) => t.toLowerCase()));
+    const similar = simClean.map((t, i) => ({ name: t, url: wikiUrl(lang, t), match: Math.max(0.35, 0.75 - i * 0.025) }));
+    const together = mut.items.filter((t) => !simSet.has(t.toLowerCase()))
       .map((t, i) => ({ name: t, url: wikiUrl(lang, t), weight: Math.max(1, 3 - i * 0.2) }));
+
+    // (U-2d) EHRLICHKEIT: Nur bei echter Gegenseitigkeit (mut.exact) ist die orange Relation
+    // wirklich „eng verknüpft". Beim Fallback zeigt mutualLinks bloß EINSEITIGE Links — dann
+    // die Quelle transparent als „wikipedia:verlinkt" ausweisen, statt „eng verknüpft" zu
+    // behaupten. So bleibt die Kante als Beleg-Quelle am Knoten ehrlich zuordenbar.
+    const togetherSource = mut.exact ? "wikipedia" : "wikipedia:verlinkt";
 
     return {
       canonical: title,
       url: info.url,
       genres: info.categories.slice(0, 6),
       similarSource: "wikipedia",
-      togetherSource: "wikipedia",
+      togetherSource,
       similar: similar.slice(0, 20),
       together: together.slice(0, 12),
       sources: ["wikipedia"],
@@ -221,7 +234,7 @@ export default {
     return [
       { name: "Wikipedia Suche", probe: async () => !!(await resolve("Bauhaus")) },
       { name: "Wikipedia morelike", probe: async () => { const h = await resolve("Bauhaus"); return (await morelike(h.lang, h.title)).length >= 0; } },
-      { name: "Wikipedia Verlinkungen", probe: async () => { const h = await resolve("Bauhaus"); return (await mutualLinks(h.lang, h.title)).length >= 0; } },
+      { name: "Wikipedia Verlinkungen", probe: async () => { const h = await resolve("Bauhaus"); return (await mutualLinks(h.lang, h.title)).items.length >= 0; } },
     ];
   },
 };

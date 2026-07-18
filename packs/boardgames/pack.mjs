@@ -74,6 +74,7 @@ export default {
     searchTitle: "Brettspiel bei BoardGameGeek suchen — lädt Fans-mögen-auch + vom selben Designer (Taste /)",
     goTitle: "Spiel laden: Fans mögen auch + vom selben Designer + Kategorien",
     exampleSeed: "Catan (1995)",
+    seedChips: ["Catan (1995)", "Gloomhaven (2017)", "Azul (2017)"],
     emptyTitle: "Noch keine Spiele auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: Fans-mögen-auch + vom selben Designer.",
     edges: {
