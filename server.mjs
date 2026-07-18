@@ -609,12 +609,17 @@ function dataRootFor(req, authUser) {
 // darin jünger als LIKE_ANON_TTL_DAYS (Default 30, 0 = aus) ist — dann wird er gelöscht.
 // Läuft beim Start und danach alle 12 h; Fehler sind unkritisch (nächster Lauf räumt nach).
 const ANON_TTL_DAYS = Math.max(0, Number(process.env.LIKE_ANON_TTL_DAYS ?? 30) || 0);
+// U-2c.4: harte Obergrenze für die Zahl anonymer Namensräume (Disk-Fill-DoS-Schutz). Der
+// x-like-anon-Header ist frei wählbar -> ohne Deckel könnte eine Flut beliebig vieler Kennungen
+// die Platte füllen. 0 = aus. Greift off-hot-path im Sweep (LRU: am längsten inaktive zuerst).
+const ANON_MAX = Math.max(0, Number(process.env.LIKE_ANON_MAX ?? 20000) || 0);
 async function sweepAnon() {
-  if (!ANON_TTL_DAYS) return;
-  const cutoff = Date.now() - ANON_TTL_DAYS * 864e5;
+  if (!ANON_TTL_DAYS && !ANON_MAX) return;
+  const cutoff = ANON_TTL_DAYS ? Date.now() - ANON_TTL_DAYS * 864e5 : 0;
   const base = join(DATA_DIR, "anon");
   let dirs = [];
   try { dirs = await readdir(base, { withFileTypes: true }); } catch { return; } // noch keine Anon-Daten
+  const alive = []; // überlebende Namensräume mit jüngster Aktivität (für die Mengen-Obergrenze)
   for (const d of dirs) {
     if (!d.isDirectory()) continue;
     const root = join(base, d.name);
@@ -626,8 +631,14 @@ async function sweepAnon() {
         if (p.isFile()) { newest = Math.max(newest, (await stat(pp)).mtimeMs); continue; }
         for (const f of await readdir(pp)) newest = Math.max(newest, (await stat(join(pp, f))).mtimeMs);
       }
-      if (newest && newest < cutoff) await rm(root, { recursive: true, force: true });
+      if (cutoff && newest && newest < cutoff) { await rm(root, { recursive: true, force: true }); continue; } // TTL abgelaufen
+      alive.push({ root, newest });
     } catch {}
+  }
+  // Mengen-Deckel: über ANON_MAX hinaus die am längsten inaktiven Namensräume entsorgen.
+  if (ANON_MAX && alive.length > ANON_MAX) {
+    alive.sort((a, b) => a.newest - b.newest); // ältestes newest zuerst
+    for (const e of alive.slice(0, alive.length - ANON_MAX)) { try { await rm(e.root, { recursive: true, force: true }); } catch {} }
   }
 }
 sweepAnon().catch(() => {});
