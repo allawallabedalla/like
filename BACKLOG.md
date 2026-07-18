@@ -1487,7 +1487,7 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 - [x] **A11y: kein sichtbarer Tastatur-Fokus auf Toolbar-Buttons.** [hoch/S · A11y] → globale :focus-visible-Regel + .iconbtn/button mit klarem Ring (index.html:135).
 - [ ] **A11y: keine Fokus-Rückgabe nach Modal-Schließen + fehlende aria-Zustände.** [mittel/M · A11y] → opener merken/​focus(); aria-expanded/haspopup an Toggles; Close-Buttons ≥24×24px.
 - [ ] **A11y: Canvas role=application ohne Tastatur-Knoten; Kontrast Legal/Landing.** [mittel/L · A11y] → role=img + Listen-Einstieg bewerben (mittelfristig Pfeil-Navigation); Muted-Text ≥4.5:1; Planeten-Fokusring (index.html:2142; server.mjs:226; landing.mjs:92).
-- [ ] **CI-Gate führt nur 6 von 10 Specs.** [hoch/S · Test] i18n/support/expand-queue ungegatet. → volle Suite (visual als eigener Job) bzw. mindestens diese drei aufnehmen.
+- [x] **CI-Gate führt nur 6 von 10 Specs.** [hoch/S · Test] i18n/support/expand-queue ungegatet. → volle Suite (visual als eigener Job) bzw. mindestens diese drei aufnehmen.
 - [ ] **Keine a11y-Automatisierung (W5 offen).** [hoch/M · Test] → @axe-core/playwright gegen /, /impressum, /datenschutz + Modale; erst nicht-blockierend, dann hochziehen.
 - [ ] **USABILITY.md nicht auf v2.7.0 nachgezogen (Radar/tote IDs).** [hoch/S · Doku] → Radar in §6 mit #discRadar; IDs korrigieren (#export/#bExport, #resetAll); Pflege-Regel in DoD.
 - [ ] **ROADMAP.md-Rumpf veraltet; README Music-only.** [hoch/M · Doku] → ROADMAP auf Runde-24+/Labs-Bedingung kürzen (v2.7.0); README-Kopf um Website-/Labs-Framing; papers-Quelle auf Semantic Scholar korrigieren.
