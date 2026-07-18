@@ -2,7 +2,7 @@
 // (offen, kein Key; liefert XML). "Ähnlich" gibt es dort nicht als offizielle API, deshalb:
 //   blau   = "Fans Also Like" (BGGs eigene, verhaltensbasierte Empfehlung; inoffizielles
 //            JSON-API, Fallback bei Nichttreffer: geteilte BGG-Familie/Serie)
-//   orange = vom selben Designer / Verlag
+//   orange = vom selben Designer (BGG-Designer-Katalog; Verlag wird NICHT ausgewertet)
 // Popularität = usersrated (wie viele Menschen es bewertet haben).
 
 import { cached } from "../../lib/cache.mjs";
@@ -72,13 +72,13 @@ export default {
     item: { sing: "Spiel", plur: "Spiele" },
     searchPlaceholder: "Brettspiel suchen…   ( / )",
     searchTitle: "Brettspiel bei BoardGameGeek suchen — lädt Fans-mögen-auch + vom selben Designer (Taste /)",
-    goTitle: "Spiel laden: Fans mögen auch + vom selben Designer/Verlag + Kategorien",
+    goTitle: "Spiel laden: Fans mögen auch + vom selben Designer + Kategorien",
     exampleSeed: "Catan (1995)",
     emptyTitle: "Noch keine Spiele auf der Karte",
     emptyHint: "bringt gleich sein Umfeld mit: Fans-mögen-auch + vom selben Designer.",
     edges: {
       similar: { label: "Fans mögen auch (BGG)", count: "ähnliche" },
-      together: { label: "vom selben Designer/Verlag", count: "vom selben Designer" },
+      together: { label: "vom selben Designer", count: "vom selben Designer" },
     },
     popularity: { label: "Bewertungen", big: 20000, dimLabel: "Hits dämpfen", dimTitle: "Spiele mit ≥20k BGG-Bewertungen abdunkeln — nur die Geheimtipps leuchten" },
     genreLabel: "Mechaniken",
@@ -92,7 +92,7 @@ export default {
     noteLabel: "Notiz",
     notePlaceholder: "Spieleranzahl, wo gespielt, Eindruck…",
     similarLabel: "Fans mögen auch",
-    togetherLabel: "Vom selben Designer/Verlag",
+    togetherLabel: "Vom selben Designer",
     contextLabel: "Mehr vom Designer",
     contextHint: "(BGG)",
     contextButton: "Designer-Umfeld laden",
@@ -113,12 +113,11 @@ export default {
       "Spiele": "Games",
       "Brettspiel suchen…   ( / )": "Search board game…   ( / )",
       "Brettspiel bei BoardGameGeek suchen — lädt Fans-mögen-auch + vom selben Designer (Taste /)": "Search board game on BoardGameGeek - loads fans-also-like + by the same designer (key /)",
-      "Spiel laden: Fans mögen auch + vom selben Designer/Verlag + Kategorien": "Load game: fans also like + by the same designer/publisher + categories",
+      "Spiel laden: Fans mögen auch + vom selben Designer + Kategorien": "Load game: fans also like + by the same designer + categories",
       "Noch keine Spiele auf der Karte": "No games on the map yet",
       "bringt gleich sein Umfeld mit: Fans-mögen-auch + vom selben Designer.": "brings its surroundings along: fans-also-like + by the same designer.",
       "Fans mögen auch (BGG)": "fans also like (BGG)",
       "ähnliche": "similar",
-      "vom selben Designer/Verlag": "by the same designer/publisher",
       "vom selben Designer": "by the same designer",
       "Bewertungen": "Ratings",
       "Hits dämpfen": "Dim hits",
@@ -132,7 +131,7 @@ export default {
       "Notiz": "Note",
       "Spieleranzahl, wo gespielt, Eindruck…": "Player count, where played, impression…",
       "Fans mögen auch": "Fans also like",
-      "Vom selben Designer/Verlag": "By the same designer/publisher",
+      "Vom selben Designer": "By the same designer",
       "Mehr vom Designer": "More from the designer",
       "Designer-Umfeld laden": "Load designer context",
       "Lade Designer-Umfeld … (BGG drosselt)": "Loading designer context … (BGG throttles)",

@@ -1417,14 +1417,14 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 ### Phase 2b — Ehrlichkeit, Recht & Compliance (rang-hoch)
 
-- [ ] **Impressum ohne E-Mail-Adresse (§ 5 Abs. 1 Nr. 2 TMG).** [hoch/S · Recht] → E-Mail aus LIKE_IMPRINT_EMAIL rendern (mailto, DE+EN), sonst todo-Hinweis; ENV als Pflicht dokumentieren (server.mjs:190,236).
+- [x] **Impressum ohne E-Mail-Adresse (§ 5 Abs. 1 Nr. 2 TMG).** [hoch/S · Recht] → E-Mail aus LIKE_IMPRINT_EMAIL rendern (mailto, DE+EN), sonst todo-Hinweis; ENV als Pflicht dokumentieren (server.mjs:190,236). _(erledigt phase-2b: mailto aus LIKE_IMPRINT_EMAIL DE+EN, sonst sichtbarer todo-Hinweis)_
 - [ ] **Ladungsfähige Anschrift/Name standardmäßig Platzhalter.** [hoch/S · Recht] → LIKE_IMPRINT_NAME/_ADDRESS als Pflicht-ENV; npm run check/Deploy-Smoke schlägt fehl bei „[Straße]" im /impressum (server.mjs:192-197).
-- [ ] **Baustellen-Footer widerspricht Music als Produktionsprodukt.** [hoch/S · Landing] → „🚧"-Vermerk aus dem globalen Footer entfernen, höchstens an gegatete Labs hängen (server.mjs:150; landing.mjs:427).
-- [ ] **boardgames-Label „Designer/Verlag", Code nur Designer.** [mittel/S · boardgames] → Labels DE+EN auf „vom selben Designer" kürzen oder gamesByPublisher() nachrüsten (pack.mjs:81,95,121,135).
-- [ ] **AGPL-§13-Quelltext-Angebot Netznutzern nicht sichtbar.** [mittel/S · Recht] → dauerhaften „Open Source (AGPL-3.0) — Quelltext: <Repo-URL>"-Hinweis in Footer/Impressum (REPO_URL existiert).
-- [ ] **Teilen-Links (/s/) und Feedback-Repo intransparent.** [mittel/S · Recht] → DS um öffentlichen Snapshot ergänzen (+ noindex); Feedback-Repo garantiert privat oder Formulierung abschwächen (github-issues.mjs:14; server.mjs:272,306).
+- [x] **Baustellen-Footer widerspricht Music als Produktionsprodukt.** [hoch/S · Landing] → „🚧"-Vermerk aus dem globalen Footer entfernen, höchstens an gegatete Labs hängen (server.mjs:150; landing.mjs:427). _(erledigt phase-2b: 🚧 aus dem Landing-Footer entfernt)_
+- [x] **boardgames-Label „Designer/Verlag", Code nur Designer.** [mittel/S · boardgames] → Labels DE+EN auf „vom selben Designer" kürzen oder gamesByPublisher() nachrüsten (pack.mjs:81,95,121,135).
+- [x] **AGPL-§13-Quelltext-Angebot Netznutzern nicht sichtbar.** [mittel/S · Recht] → dauerhaften „Open Source (AGPL-3.0) — Quelltext: <Repo-URL>"-Hinweis in Footer/Impressum (REPO_URL existiert). _(erledigt phase-2b: Quelltext-Link im Footer + Impressum)_
+- [x] **Teilen-Links (/s/) und Feedback-Repo intransparent.** [mittel/S · Recht] → DS um öffentlichen Snapshot ergänzen (+ noindex); Feedback-Repo garantiert privat oder Formulierung abschwächen (github-issues.mjs:14; server.mjs:272,306).
 - [ ] **ToS-Risiko RA/Bandcamp im LIVE-Betrieb + Kill-Switch.** [mittel/L · Recht] → Feature-Degradation absichern, offizielle Quellen prüfen, ENV-Kill-Switch; Entscheidung in ROADMAP/NOTES dokumentieren.
-- [ ] **Durchgängige Datenquellen-Attribution (CC-BY-SA Text/Daten).** [mittel/M · Recht] → pro Pack Quellen-/Lizenzzeile im Info-Panel + Rechtstexten (Wikipedia CC BY-SA inkl. Link/Share-Alike), zentral generiert.
+- [x] **Durchgängige Datenquellen-Attribution (CC-BY-SA Text/Daten).** [mittel/M · Recht] → pro Pack Quellen-/Lizenzzeile im Info-Panel + Rechtstexten (Wikipedia CC BY-SA inkl. Link/Share-Alike), zentral generiert.
 - [ ] **Konto-Selbstlöschung + Datenexport (DSGVO Art. 17/20).** [niedrig/M · Recht] → „Konto löschen"-Endpoint/Button und „Meine Daten exportieren"; echte Kontakt-E-Mail (server.mjs:316).
 - [ ] **Rechts-Konsistenz: Quellenliste, § 25 TTDSG, AGB.** [niedrig/M · Recht] → Impressum/DS-Quellenlisten angleichen; like_anon-Erforderlichkeit benennen; schlanke /nutzung (DE+EN) ergänzen.
 
