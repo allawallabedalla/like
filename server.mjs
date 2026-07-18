@@ -399,6 +399,26 @@ function clientIp(req) {
   const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
   return xff[xff.length - 1] || req.socket.remoteAddress || "?";
 }
+
+// U-2c.3: schlanker In-Memory-Pro-IP-Rate-Limiter (fixes Fenster). Schützt teure/ausgehende
+// Endpoints (explore/radar/preview/context/bridge/geocode) und Feedback/clienterror vor Flut,
+// ohne externe Abhängigkeit. Limits bewusst großzügig -> legitime Nutzung & E2E-Tests bleiben
+// unberührt. Rückgabe true = Limit überschritten (Aufrufer schickt 429).
+const _rlHits = new Map(); // key "ip|bucket" -> { n, resetAt }
+function rateLimited(ip, bucket, max, windowMs) {
+  const now = Date.now();
+  if (_rlHits.size > 5000) for (const [k, v] of _rlHits) if (v.resetAt <= now) _rlHits.delete(k); // grobe Pflege
+  const key = `${ip}|${bucket}`;
+  let rec = _rlHits.get(key);
+  if (!rec || rec.resetAt <= now) { rec = { n: 0, resetAt: now + windowMs }; _rlHits.set(key, rec); }
+  rec.n++;
+  return rec.n > max;
+}
+// Endpoint-Klassen: teure/ausgehende Requests großzügig, Feedback/Fehler enger.
+const RL_RULES = [
+  { max: 120, win: 60000, test: (p, m) => m === "POST" && (p === "/api/explore" || p === "/api/explore2" || p === "/api/expand" || p === "/api/radar" || p === "/api/preview" || p === "/api/context" || p === "/api/geocode" || p === "/api/enrich" || p === "/api/reveal" || p.startsWith("/api/bridge")), bucket: "heavy" },
+  { max: 30, win: 60000, test: (p, m) => m === "POST" && (p === "/api/feedback" || p === "/api/clienterror"), bucket: "fb" },
+];
 function maskIp(ip) {
   if (ip.includes(".")) { const p = ip.split("."); return p.length === 4 ? `${p[0]}.${p[1]}.*.*` : ip; }
   if (ip.includes(":")) return ip.split(":").slice(0, 2).join(":") + ":…"; // IPv6 grob
@@ -941,6 +961,11 @@ async function bridgeResult(pack, s) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    // U-2c.3: Pro-IP-Rate-Limit vor teuren/ausgehenden Endpoints (früh, vor jeder Arbeit).
+    for (const r of RL_RULES) {
+      if (r.test(url.pathname, req.method) && rateLimited(clientIp(req), r.bucket, r.max, r.win))
+        return send(res, 429, { error: "Zu viele Anfragen — bitte einen Moment warten." });
+    }
     const authUser = userFromCookie(req.headers.cookie);      // eingeloggter Nutzer (oder null)
     const dataRoot = dataRootFor(req, authUser);              // Datenraum dieses Requests
 
