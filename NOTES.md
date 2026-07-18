@@ -4,7 +4,7 @@ Konservative Annahmen und Setup-Entscheidungen für die Playwright-E2E-Suite.
 Bei Unklarheiten wurde die jeweils konservativste Annahme gewählt (per Auftrag).
 
 ## Setup
-- **Runner:** `@playwright/test@1.56.1` (lokal als devDependency, `--ignore-scripts`
+- **Runner:** `@playwright/test@^1.61.1` (lokal als devDependency, `--ignore-scripts`
   installiert, damit Electrons Postinstall den Proxy nicht mit einem 403 blockiert).
   Vorinstalliertes Chromium (`/opt/pw-browsers/chromium-1194`) wird via `executablePath`
   angesteuert — kein Browser-Download.

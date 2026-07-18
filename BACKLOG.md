@@ -1483,20 +1483,35 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 ### Phase 2f — A11y, Tests/CI, Doku & große Bretter
 
-- [ ] **A11y: Seiten-Zoom komplett deaktiviert.** [hoch/M · A11y] user-scalable=no/maximum-scale=1 sperrt die ganze Seite (WCAG 1.4.4). → entfernen; nur Canvas gegen Pinch abschotten (index.html:10).
-- [ ] **A11y: kein sichtbarer Tastatur-Fokus auf Toolbar-Buttons.** [hoch/S · A11y] → globale :focus-visible-Regel + .iconbtn/button mit klarem Ring (index.html:135).
+- [x] **A11y: Seiten-Zoom komplett deaktiviert.** [hoch/M · A11y] user-scalable=no/maximum-scale=1 sperrt die ganze Seite (WCAG 1.4.4). → entfernen; nur Canvas gegen Pinch abschotten (index.html:10).
+- [x] **A11y: kein sichtbarer Tastatur-Fokus auf Toolbar-Buttons.** [hoch/S · A11y] → globale :focus-visible-Regel + .iconbtn/button mit klarem Ring (index.html:135).
 - [ ] **A11y: keine Fokus-Rückgabe nach Modal-Schließen + fehlende aria-Zustände.** [mittel/M · A11y] → opener merken/​focus(); aria-expanded/haspopup an Toggles; Close-Buttons ≥24×24px.
 - [ ] **A11y: Canvas role=application ohne Tastatur-Knoten; Kontrast Legal/Landing.** [mittel/L · A11y] → role=img + Listen-Einstieg bewerben (mittelfristig Pfeil-Navigation); Muted-Text ≥4.5:1; Planeten-Fokusring (index.html:2142; server.mjs:226; landing.mjs:92).
-- [ ] **CI-Gate führt nur 6 von 10 Specs.** [hoch/S · Test] i18n/support/expand-queue ungegatet. → volle Suite (visual als eigener Job) bzw. mindestens diese drei aufnehmen.
+- [x] **CI-Gate führt nur 6 von 10 Specs.** [hoch/S · Test] i18n/support/expand-queue ungegatet. → volle Suite (visual als eigener Job) bzw. mindestens diese drei aufnehmen.
 - [ ] **Keine a11y-Automatisierung (W5 offen).** [hoch/M · Test] → @axe-core/playwright gegen /, /impressum, /datenschutz + Modale; erst nicht-blockierend, dann hochziehen.
-- [ ] **USABILITY.md nicht auf v2.7.0 nachgezogen (Radar/tote IDs).** [hoch/S · Doku] → Radar in §6 mit #discRadar; IDs korrigieren (#export/#bExport, #resetAll); Pflege-Regel in DoD.
-- [ ] **ROADMAP.md-Rumpf veraltet; README Music-only.** [hoch/M · Doku] → ROADMAP auf Runde-24+/Labs-Bedingung kürzen (v2.7.0); README-Kopf um Website-/Labs-Framing; papers-Quelle auf Semantic Scholar korrigieren.
+- [x] **USABILITY.md nicht auf v2.7.0 nachgezogen (Radar/tote IDs).** [hoch/S · Doku] → Radar in §6 mit #discRadar; IDs korrigieren (#export/#bExport, #resetAll); Pflege-Regel in DoD.
+- [x] **ROADMAP.md-Rumpf veraltet; README Music-only.** [hoch/M · Doku] → ROADMAP auf Runde-24+/Labs-Bedingung kürzen (v2.7.0); README-Kopf um Website-/Labs-Framing; papers-Quelle auf Semantic Scholar korrigieren.
 - [ ] **Server-Fehlermeldungen hart deutsch, nie übersetzt.** [hoch/M · i18n] ~40 Endpoints; toast('Fehler: '+…) umgeht t(). → Fehler-i18n (Codes) für Music-Pfade; Client auf tf() umstellen (server.mjs:939ff; index.html:2046,4432ff).
 - [ ] **Fehlende Config-/i18n-Wächter.** [mittel/M · Test/Doku] → scripts/check-packs.mjs (Pack-Schema) + EN-Vollständigkeits-Check über alle Packs, in npm run check/test:ci.
 - [ ] **Keine Server-Unit-Tests; Visual-Regression ungegatet; keine Coverage.** [mittel/M · Test] → node:test für pure Helfer; Auth-/share-E2E; Visual-Job mit Playwright-Docker-Image; c8-Coverage informativ.
 - [ ] **Große Bretter: Skalierung, Mobile-Touch, Konto-Sync, Demo-Katalog.** [mittel/L · Architektur/UX/Content] → Skalierungsgrenze dokumentieren + SQLite-Pfad einplanen; Mobile/Touch als Prüfpunkt (Safe-Area, Touch-Ziele, iOS-PWA); Merge-Verhalten dokumentieren/signalisieren/E2E; Demo-Mindestumfang (≥12) festlegen, travel/anything auffüllen.
-- [ ] **Doku-Kleinigkeiten: NOTES-Playwright-Version, PITCH-Scope.** [niedrig/S · Doku] → NOTES an ^1.61.1 angleichen; PITCH.md-Kopf „Bezieht sich auf Like Music".
+- [x] **Doku-Kleinigkeiten: NOTES-Playwright-Version, PITCH-Scope.** [niedrig/S · Doku] → NOTES an ^1.61.1 angleichen; PITCH.md-Kopf „Bezieht sich auf Like Music".
 
 ### Arbeitsweise
 
 Punkt für Punkt abarbeiten, nicht bündeln: pro Aufgabe die Änderung machen, **verifizieren** (`npm run check` und `npm run test:ci`; bei UI-Änderungen USABILITY.md mitpflegen), dann committen. Sinnvolle, thematisch geschnittene Commits — keine Sammel-Commits über mehrere Phasen. Reihenfolge respektieren (hoch/S zuerst; Music-Qualität vor Labs-Parität, aber Ehrlichkeits-, Rechts- und Sicherheits-Defizite ranghoch). **PRs nie ungefragt mergen; keine Session-/Chat-Links in Commits/PRs.**
+
+---
+
+### Abschluss — Phase 2 umgesetzt & gemergt · Version 2.8.0 (2026-07-18)
+
+Phase 2 dieser Runde wurde weitgehend umgesetzt und in `main` gemergt (Phasen 2a–2f):
+Music-Produktionshärtung, Ehrlichkeit/Recht/Compliance, Sicherheit & Betrieb,
+Labs-Datenqualität (8 Packs), SEO/Meta und A11y/Tests/Doku. Offen bleiben die oben als
+**„geparkt (§7)"** markierten operator-nahen und großen Vorhaben sowie einzelne Rest-Punkte
+(offene Checkboxen oben).
+
+- [x] **Version auf 2.8.0 anheben.** Minor-Release für die gesammelte Phase-2-Arbeit
+  (Ehrlichkeit · Recht · Sicherheit · Labs-Datenqualität · A11y). Bumpt `package.json` +
+  `package-lock.json`; `APP_VERSION` (Footer, Feedback, `/api/key`) folgt automatisch, da
+  `server.mjs` die Version zur Laufzeit aus `package.json` liest.

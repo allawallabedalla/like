@@ -4,6 +4,10 @@ Kurzes, internes Positionierungs-Dokument: Worin der Mehrwert von „like" wirkl
 liegt, wie wir ihn ehrlich und angreifungssicher formulieren, und welche
 Startseiten-Headlines das in 5 Sekunden rüberbringen.
 
+> **Scope:** Dieser Pitch bezieht sich auf **Like Music** — das Produkt. Booker, Lineup,
+> „zusammen aufgetreten" und der Radar sind die Music-Argumente. Die übrigen 9 Packs sind
+> **Labs** (in Produktion hinter dem „Coming soon"-Gate) und hier nicht Gegenstand der Argumentation.
+
 ---
 
 ## Der Kern in einem Satz

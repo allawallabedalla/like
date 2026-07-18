@@ -1,6 +1,6 @@
 {
   "name": "like",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "description": "Like — Künstler-Nachbarschaften (Booking-/Entdeckungs-Tool)",
   "author": "Nicolas Reis",
   "license": "AGPL-3.0-only",
@@ -9,7 +9,7 @@
     "start": "electron .",
     "check": "node scripts/check-config.mjs && node scripts/smoke.mjs",
     "test:e2e": "playwright test",
-    "test:ci": "playwright test tests/api.spec.js tests/pages.spec.js tests/pwa.spec.js tests/lock.spec.js tests/responsive.spec.js tests/interactions.spec.js tests/security.spec.js",
+    "test:ci": "playwright test tests/api.spec.js tests/pages.spec.js tests/pwa.spec.js tests/lock.spec.js tests/responsive.spec.js tests/interactions.spec.js tests/security.spec.js tests/i18n.spec.js tests/support.spec.js tests/expand-queue.spec.js",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:e2e:report": "playwright show-report",
     "dist": "electron-builder --publish never",
