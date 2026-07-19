@@ -38,10 +38,27 @@ async function searchGame(name) {
     const doc = await xml(`/search?type=boardgame&query=${encodeURIComponent(stripYear(name))}`);
     const items = blocks(doc, "item");
     if (!items.length) return null;
-    // exakten (Jahr-)Treffer bevorzugen, sonst den ersten
+    // exakten (Jahr-)Treffer bevorzugen
     const wantYear = name.match(/\((\d{4})\)\s*$/)?.[1];
-    const pick = (wantYear && items.find((it) => yearOf(it) === wantYear)) || items[0];
-    return pick.id;
+    const exact = wantYear && items.find((it) => yearOf(it) === wantYear);
+    if (exact) return exact.id;
+    if (items.length === 1) return items[0].id;
+    // (U-2d) Namensvetter: ohne Jahr-Treffer bei mehreren Kandidaten den mit den MEISTEN
+    // Bewertungen (usersrated) nehmen statt blind items[0] — sonst landet ein obskures
+    // gleichnamiges Spiel statt des bekannten. Die Bewertungszahl steckt nicht in der
+    // Suchantwort, daher je Kandidat einmal thing() (gecacht); auf wenige Kandidaten begrenzt.
+    const cands = items.slice(0, 6);
+    let best = cands[0], bestRated = -1;
+    for (const it of cands) {
+      let rated = -1;
+      try {
+        const t = await thing(it.id);
+        if (t) rated = parseInt(tags(t._inner, "usersrated")[0]?.value, 10);
+      } catch { /* Kandidat nicht ladbar -> als unbekannt werten */ }
+      if (!Number.isFinite(rated)) rated = -1;
+      if (rated > bestRated) { bestRated = rated; best = it; }
+    }
+    return best.id;
   });
 }
 
@@ -139,6 +156,9 @@ export default {
       "merken!": "save!",
       "Radar — Brettspiel-Geheimtipps": "Radar - hidden board game gems",
       "vom selben Designer wie dein Like": "by the same designer as your like",
+      // (U-2d) Laufzeit-Strings aus context()/explore() nachgetragen
+      "Weitere Spiele": "More games",
+      "BGG-Detaildaten nicht ladbar": "BGG details not loadable",
     },
   },
 
@@ -277,11 +297,13 @@ export default {
     try {
       const id = await searchGame(a.name);
       if (id) {
-        const item = await thing(id);
-        const usersrated = tags(item._inner, "usersrated")[0]?.value;
-        if (usersrated) out.popularity = parseInt(usersrated, 10) || null;
         if (!a.url) out.url = `https://boardgamegeek.com/boardgame/${id}`;
-        if (!a.genres?.length) out.genres = linksOf(item, "boardgamemechanic").map((l) => l.value).slice(0, 6);
+        const item = await thing(id);
+        if (item) { // (U-2d) Null-Guard: ohne Detaildatensatz keine Stats/Genres
+          const usersrated = tags(item._inner, "usersrated")[0]?.value;
+          if (usersrated) out.popularity = parseInt(usersrated, 10) || null;
+          if (!a.genres?.length) out.genres = linksOf(item, "boardgamemechanic").map((l) => l.value).slice(0, 6);
+        }
       }
     } catch {}
     return out;
@@ -291,6 +313,7 @@ export default {
     const id = await searchGame(name);
     if (!id) return null;
     const item = await thing(id);
+    if (!item) return null; // (U-2d) Null-Guard: kein Detaildatensatz -> keine Popularität
     return parseInt(tags(item._inner, "usersrated")[0]?.value, 10) || null;
   },
 
@@ -309,7 +332,7 @@ export default {
   async diag() {
     return [
       { name: "BGG Suche", probe: async () => !!(await searchGame("Catan (1995)")) },
-      { name: "BGG Detaildaten", probe: async () => { const id = await searchGame("Catan (1995)"); return !!(await thing(id)); } },
+      { name: "BGG Detaildaten", probe: async () => { const id = await searchGame("Catan (1995)"); return !!(id && (await thing(id))); } },
     ];
   },
 };

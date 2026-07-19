@@ -11,11 +11,19 @@ const CACHE = "like-shell-v2";
 const NET_TIMEOUT_MS = 3000;
 
 self.addEventListener("install", (e) => {
-  self.skipWaiting();
+  // (U-2e) KEIN unbedingtes skipWaiting mehr: ein neuer SW wartet, bis die Seite per Nutzerklick
+  // („Neue Version verfügbar — Neu laden") das Signal gibt. So kommt kein ungefragter Reload;
+  // erst dann aktiviert er sich (siehe message-Handler) und übernimmt via clients.claim.
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll([
     "/", "/manifest.webmanifest",
     "/icons/icon-192.png", "/icons/icon-512.png",
   ]).catch(() => {})));
+});
+
+// (U-2e) Auf Nutzerwunsch aus der Seite die Wartephase beenden -> aktivieren -> clients.claim ->
+// controllerchange in der Seite -> einmaliger Reload auf die frische Version.
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {

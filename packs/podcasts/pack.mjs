@@ -22,6 +22,17 @@ const SURPRISE_SEEDS = [
   "Methodisch inkorrekt", "Der Rest ist Geschichte", "Soundtrack deines Lebens",
 ];
 
+// Namen normalisieren, um Treffer robust mit der Suchanfrage abzugleichen: Groß-/Klein-
+// schreibung, diakritische Zeichen und Zierrat (Satzzeichen/Whitespace) fallen weg, damit
+// z. B. „Lage der Nation" == „lage der nation".
+function normName(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")  // Akzente entfernen
+    .replace(/[^\p{L}\p{N}]+/gu, " ")                  // nur Buchstaben/Ziffern behalten
+    .trim();
+}
+
 async function searchPodcast(name) {
   // U-2d: Ein Leerergebnis NICHT 14 Tage als null cachen (sonst bleibt ein kurz nicht
   // auffindbarer Podcast zwei Wochen „verschwunden"). Trick: bei keinem Treffer wirft die
@@ -31,11 +42,24 @@ async function searchPodcast(name) {
     const u = new URL(ITUNES + "/search");
     u.searchParams.set("term", name);
     u.searchParams.set("media", "podcast");
-    u.searchParams.set("limit", "1");
+    // U-2d: Namensvetter-Disambiguierung — mehrere Treffer holen statt blind results[0].
+    // Apple sortiert term-Suchen grob nach Relevanz, aber bei gleichnamigen Podcasts
+    // (Namensvettern) landet nicht immer der gemeinte oben. Deshalb bewusst wählen (s. u.).
+    u.searchParams.set("limit", "10");
     const j = await jfetch(u.href);
-    const r = j.results?.[0];
-    if (!r) throw new Error("__empty__");
-    return r;
+    const results = j.results || [];
+    if (!results.length) throw new Error("__empty__");
+    // 1) Exakter (normalisierter) Namens-Treffer gewinnt; bei mehreren der mit den meisten
+    //    Episoden. 2) Sonst der offensichtlich gemeinte: schlicht der mit den meisten Episoden
+    //    (trackCount) als grober Aktivitäts-/Relevanz-Indikator. Fällt auf results[0] zurück,
+    //    falls keiner einen trackCount trägt.
+    const wanted = normName(name);
+    const tc = (r) => r.trackCount || 0;
+    const exact = results.filter((r) => normName(r.collectionName) === wanted);
+    const pool = exact.length ? exact : results;
+    let best = pool[0];
+    for (const r of pool) if (tc(r) > tc(best)) best = r;
+    return best;
   }).catch((e) => { if (e && e.message === "__empty__") return null; throw e; });
 }
 
@@ -175,14 +199,15 @@ export default {
 
   // Leichter „ähnlich"-Zugriff für die Brücke (Routenplaner): nur Genre-Nachbarn
   // (+ optional TasteDive), ohne Anbieter-Katalog — schneller als explore().
-  async similar(name, { limit = 18 } = {}) {
+  async similar(name, { limit = 18, lang } = {}) {
     const hit = await searchPodcast(name);
     if (!hit) return { canonical: name, similar: [] };
-    const canonical = hit.collectionName;
+    const canonical = hit.collectionName || name;                 // Null-Guard: sonst kippt .toLowerCase()
     const similar = [], seen = new Set([canonical.toLowerCase()]);
     if (hit.primaryGenreId || hit.genreIds?.[0]) {
       try {
-        for (const p of await byGenre(hit.primaryGenreId || hit.genreIds[0])) {
+        // E14: Storefront folgt der UI-Sprache (wie in explore) — EN-Nutzer bekommen US-Charts.
+        for (const p of await byGenre(hit.primaryGenreId || hit.genreIds[0], { store: lang === "en" ? "us" : "de" })) {
           const k = (p.collectionName || "").toLowerCase();
           if (!k || seen.has(k)) continue;
           seen.add(k);
@@ -245,7 +270,7 @@ export default {
   async explore(name, { lang } = {}) {
     const hit = await searchPodcast(name);
     if (!hit) throw new Error(`„${name}" nicht bei Apple Podcasts gefunden`);
-    const canonical = hit.collectionName;
+    const canonical = hit.collectionName || name;                 // Null-Guard: sonst kippt .toLowerCase()
     const genres = (hit.genres || []).filter((g) => g !== "Podcasts").slice(0, 6);
 
     // blau: Genre-Nachbarn + optional TasteDive

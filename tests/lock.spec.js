@@ -46,14 +46,18 @@ test.describe("Landing markiert gesperrte Packs als Coming soon", () => {
     assertClean(sink);
   });
 
-  test("Klick/Tap auf gesperrte Kachel navigiert NICHT, sondern fragt Passwort", async ({ page, isMobile }) => {
+  test("Klick/Tap auf gesperrte Kachel navigiert NICHT, sondern öffnet das Freischalt-Panel", async ({ page, isMobile }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    let prompted = false;
-    page.on("dialog", (d) => { prompted = true; d.dismiss().catch(() => {}); });
+    // U-2e: das native prompt()/alert() wurde durch ein gestyltes Inline-Panel ersetzt —
+    // ein natives Dialog-Event darf NICHT mehr auftreten.
+    let nativeDialog = false;
+    page.on("dialog", (d) => { nativeDialog = true; d.dismiss().catch(() => {}); });
     const locked = page.locator(".planet.locked").first();
     if (isMobile) await locked.tap({ force: true }); else await locked.click({ force: true });
-    await page.waitForTimeout(500);
-    expect(prompted, "Passwort-Prompt sollte erscheinen").toBeTruthy();
+    // Inline-Freischalt-Panel erscheint mit Passwortfeld (statt nativem Prompt)
+    await expect(page.locator(".labsov")).toBeVisible();
+    await expect(page.locator(".labsbox input[type=password]")).toBeVisible();
+    expect(nativeDialog, "kein natives prompt()/alert() mehr").toBeFalsy();
     // weiterhin auf der Landing (keine Freischaltung ohne Passwort)
     expect(new URL(page.url()).pathname).toBe("/");
   });
