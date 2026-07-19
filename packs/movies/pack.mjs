@@ -41,11 +41,38 @@ async function api(path, params = {}, lang) {
 // Cache-Key-Suffix je Sprache: „" für de (stabil) bzw. „|en", damit DE/EN nicht kollidieren.
 const langKey = (lang) => (lang === "en" ? "|en" : "");
 
+// U-2d: Titel normalisieren (klein, Akzente/Satzzeichen weg) — für den Namensvetter-Vergleich,
+// damit „WALL·E" ≈ „wall e" und „Léon" ≈ „leon" matchen.
+const normTitle = (s) => String(s ?? "").toLowerCase().normalize("NFKD")
+  .replace(/\p{Diacritic}/gu, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+// U-2d: Namensvetter-Disambiguierung — NICHT blind results[0] nehmen (das ist bei
+// gleichnamigen Filmen/Remakes oft der falsche Treffer). Bewusst wählen:
+//   1) exakter (normalisierter) Titel-Treffer bevorzugt (title ODER original_title),
+//   2) bei „Titel (Jahr)" das passende Erscheinungsjahr,
+//   3) sonst der populärste (vote_count führt, popularity bricht Gleichstände).
+function pickBestMatch(results, wanted, year) {
+  if (!Array.isArray(results) || results.length === 0) return null;
+  const want = normTitle(wanted);
+  const yearOf = (m) => (m?.release_date ? m.release_date.slice(0, 4) : null);
+  // vote_count dominiert, popularity nur als Tiebreak (deshalb *1000-Skalierung).
+  const pop = (m) => (m?.vote_count || 0) * 1000 + (m?.popularity || 0);
+  // Exakte Titel-Treffer (normalisiert) bevorzugen, sonst das ganze Feld betrachten.
+  const exact = results.filter((m) => normTitle(m?.title) === want || normTitle(m?.original_title) === want);
+  const pool = exact.length ? exact : results;
+  if (year) {
+    const byYear = pool.filter((m) => yearOf(m) === String(year));
+    if (byYear.length) return byYear.slice().sort((a, b) => pop(b) - pop(a))[0];
+  }
+  return pool.slice().sort((a, b) => pop(b) - pop(a))[0];
+}
+
 async function searchMovie(name, lang) {
   return cached("tmdb-search", name + langKey(lang), 7 * 864e5, async () => {
     const year = name.match(/\((\d{4})\)\s*$/)?.[1];
     const j = await api("/search/movie", { query: stripYear(name), ...(year ? { year } : {}) }, lang);
-    return j.results?.[0] || null;
+    // U-2d: bewusst wählen statt results[0] (Namensvetter/Remakes auseinanderhalten).
+    return pickBestMatch(j?.results, stripYear(name), year) || null;
   });
 }
 
@@ -215,8 +242,8 @@ export default {
       const hit = await searchMovie(a.name);
       if (hit) {
         const details = await cached("tmdb-det", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}`));
-        if (!a.genres?.length) out.genres = (details.genres || []).map((g) => g.name).slice(0, 6);
-        if (details.vote_count) out.popularity = details.vote_count;
+        if (!a.genres?.length) out.genres = (details?.genres || []).map((g) => g.name).slice(0, 6); // U-2d: Null-Guard
+        if (details?.vote_count) out.popularity = details.vote_count; // U-2d: Null-Guard
         if (!a.url) out.url = `https://www.themoviedb.org/movie/${hit.id}`;
       }
     } catch {}
@@ -227,7 +254,7 @@ export default {
     const hit = await searchMovie(name);
     if (!hit) return null;
     const details = await cached("tmdb-det", hit.id, 14 * 864e5, () => api(`/movie/${hit.id}`));
-    return details.vote_count || null;
+    return details?.vote_count || null; // U-2d: Null-Guard, falls Details ausfallen
   },
 
   // "Vom selben Regisseur": Credits -> Regie -> deren bekannteste Filme.
@@ -235,10 +262,10 @@ export default {
     const hit = await searchMovie(name);
     if (!hit) return { groups: [] };
     const credits = await cached("tmdb-cred", hit.id, 30 * 864e5, () => api(`/movie/${hit.id}/credits`));
-    const director = (credits.crew || []).find((c) => c.job === "Director");
+    const director = (credits?.crew || []).find((c) => c.job === "Director"); // U-2d: Null-Guard
     if (!director) return { groups: [] };
     const cr = await cached("tmdb-person", director.id, 30 * 864e5, () => api(`/person/${director.id}/movie_credits`));
-    const directed = (cr.crew || []).filter((c) => c.job === "Director" && c.id !== hit.id)
+    const directed = (cr?.crew || []).filter((c) => c.job === "Director" && c.id !== hit.id) // U-2d: Null-Guard
       .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0)).slice(0, 12);
     return {
       note: `Regie: ${director.name}`,
@@ -252,7 +279,7 @@ export default {
   async diag() {
     return [
       { name: "TMDB Suche", probe: async () => !!(await searchMovie("Alien (1979)")) },
-      { name: "TMDB Recommendations", probe: async () => { const h = await searchMovie("Alien (1979)"); const r = await api(`/movie/${h.id}/recommendations`); return (r.results || []).length > 0; } },
+      { name: "TMDB Recommendations", probe: async () => { const h = await searchMovie("Alien (1979)"); if (!h) return false; const r = await api(`/movie/${h.id}/recommendations`); return (r?.results || []).length > 0; } }, // U-2d: Null-Guard für h/r
     ];
   },
 };

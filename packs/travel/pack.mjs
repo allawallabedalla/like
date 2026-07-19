@@ -308,7 +308,10 @@ export default {
       { name: "Nominatim (OpenStreetMap)", probe: async () => !!(await geocode("Lissabon")) },
       { name: "Wikivoyage Suche", probe: async () => !!(await resolveTitle("Lissabon")) },
       { name: "Wikivoyage Geosuche", probe: async () => {
-          const h = await resolveTitle("Lissabon"); const art = await article(h.lang, h.title);
+          // (U-2d) Null-Guard: resolveTitle kann null liefern (nicht gefunden/leer) — dann nicht
+          // auf h.lang zugreifen, sondern die Probe sauber als fehlgeschlagen melden.
+          const h = await resolveTitle("Lissabon"); if (!h) return false;
+          const art = await article(h.lang, h.title);
           return (await geoNearby(h.lang, art.coord, h.title)).length >= 0;
         } },
     ];

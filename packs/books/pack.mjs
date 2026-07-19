@@ -37,15 +37,44 @@ const stripAuthor = (name) => String(name).replace(/\s*\([^)]*\)\s*$/, "").trim(
 const workKeyOf = (k) => { const m = String(k || "").match(/\/works\/OL\d+W/i); return m ? m[0].toLowerCase() : null; };
 const dedupKey = (workKey, title) => workKeyOf(workKey) ? "w:" + workKeyOf(workKey) : "t:" + String(title || "").trim().toLowerCase();
 
+// (U-2e) Titel normalisieren (Kleinschreibung, Diakritika + Satzzeichen raus), damit
+// „Der Prozeß" == „der prozess" für den Exakt-Treffer der Namensvetter-Disambiguierung zählt.
+const normTitle = (t) => String(t || "").toLowerCase().replace(/ß/g, "ss").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+const popOf = (d) => d?.want_to_read_count ?? d?.ratings_count ?? 0;
+
+// (U-2e) Namensvetter-Disambiguierung: aus mehreren Suchtreffern bewusst wählen, statt blind
+// docs[0] (das eine obskure Ausgabe statt des bekannten Werks sein kann):
+//   1) Autor (falls in Klammern genannt) grenzt gleichnamige Werke am schärfsten ein,
+//   2) exakter normalisierter Titel-Treffer schlägt den Rest,
+//   3) sonst der populärste (Merklisten „want to read", ersatzweise Editionszahl).
+// Der work-key-Dedup (U-2d) weiter unten bleibt davon unberührt.
+function pickDoc(docs, wantTitle, wantAuthor) {
+  const list = (docs || []).filter(Boolean);
+  if (!list.length) return null;
+  const want = normTitle(wantTitle), wa = normTitle(wantAuthor);
+  const byAuthor = wa
+    ? list.filter((d) => (d.author_name || []).some((a) => { const n = normTitle(a); return n && (n.includes(wa) || wa.includes(n)); }))
+    : [];
+  const scope = byAuthor.length ? byAuthor : list;
+  const exact = want ? scope.filter((d) => normTitle(d.title) === want) : [];
+  const pool = exact.length ? exact : scope;
+  return pool.reduce((best, d) => {
+    const dp = popOf(d), bp = popOf(best);
+    if (dp !== bp) return dp > bp ? d : best;                    // populärstes zuerst
+    return (d.edition_count || 0) > (best.edition_count || 0) ? d : best; // Gleichstand: mehr Editionen
+  }, pool[0]);
+}
+
 // Suche mit vollem String (Titel + ggf. Autor in Klammern) — Open Library rankt gut.
 async function searchDoc(name) {
   return cached("ol-doc", name, 7 * 864e5, async () => {
+    const author = name.match(/\(([^)]*)\)\s*$/)?.[1] || "";
     const u = new URL(OL + "/search.json");
-    u.searchParams.set("q", stripAuthor(name) + " " + (name.match(/\(([^)]*)\)\s*$/)?.[1] || ""));
-    u.searchParams.set("limit", "1");
+    u.searchParams.set("q", stripAuthor(name) + " " + author);
+    u.searchParams.set("limit", "5"); // (U-2e) mehrere holen, dann bewusst disambiguieren
     u.searchParams.set("fields", FIELDS);
     const j = await jfetch(u.href);
-    return j.docs?.[0] || null;
+    return pickDoc(j.docs, stripAuthor(name), author);
   });
 }
 
@@ -193,7 +222,7 @@ export default {
     if (!doc) return { canonical: name, similar: [] };
     const subjects = cleanSubjects(doc.subject);
     const selfKey = workKeyOf(doc.key);
-    const self = (t) => t && t.toLowerCase() === doc.title.toLowerCase();
+    const self = (t) => !!t && t.toLowerCase() === (doc.title || "").toLowerCase();
     const isSelf = (k, t) => (selfKey && workKeyOf(k) === selfKey) || self(t);
     const similar = [], seen = new Set();
     for (const s of subjects.slice(0, 2)) {
@@ -248,7 +277,7 @@ export default {
     const canonical = display(doc);
     const subjects = cleanSubjects(doc.subject);
     const selfKey = workKeyOf(doc.key);
-    const self = (t) => t && t.toLowerCase() === doc.title.toLowerCase();
+    const self = (t) => !!t && t.toLowerCase() === (doc.title || "").toLowerCase();
     const isSelf = (k, t) => (selfKey && workKeyOf(k) === selfKey) || self(t);
 
     // blau: thematische Nähe über die Subject-SCHNITTMENGE (U-2d) — je mehr der Top-Subjects
@@ -337,7 +366,7 @@ export default {
       note: `Autor: ${author}`,
       groups: [{
         label: "Weitere Werke",
-        items: docs.filter((d) => d.title.toLowerCase() !== doc.title.toLowerCase())
+        items: docs.filter((d) => d.title && d.title.toLowerCase() !== (doc.title || "").toLowerCase())
           .map((d) => ({ name: display(d), sub: [d.first_publish_year, d.want_to_read_count ? `${d.want_to_read_count} Merklisten` : null].filter(Boolean).join(" · ") })),
       }],
     };

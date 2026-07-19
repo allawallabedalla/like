@@ -45,6 +45,30 @@ const rankDe = (r) => RANK_DE[String(r || "").toLowerCase()] || null;
 // Anzeigename: bevorzugt der deutsche Trivialname, sonst der wissenschaftliche.
 const display = (t) => t.preferred_common_name ? cap(t.preferred_common_name) : t.name;
 
+// Namens-Normalisierung für den Treffervergleich: Akzente/Diakritika weg, Kleinschreibung,
+// Whitespace zusammenfassen — damit „Ophrys Apifera" == „ophrys  apifera" und „Café" == „cafe"
+// matchen, der Vergleich also robust gegen Groß-/Kleinschreibung und Zierzeichen ist.
+const normName = (s) => String(s || "")
+  .normalize("NFD").replace(/[̀-ͯ]/g, "") // Diakritika (kombinierende Zeichen) entfernen
+  .toLowerCase().replace(/\s+/g, " ").trim();
+
+// Namensvetter-Disambiguierung: unter mehreren gleichnamigen Taxa bewusst wählen, statt blind
+// den erstbesten Treffer zu nehmen. Zuerst ein exakter (normalisierter) Namens-Treffer —
+// wissenschaftlicher Name ODER gebräuchlicher (deutscher/englischer) Trivialname; sonst das
+// Taxon mit den meisten Beobachtungen. Verhindert, dass ein obskures gleichnamiges Taxon
+// (z.B. eine kaum beobachtete Art) statt der gemeinten, weit verbreiteten Pflanze landet.
+function pickTaxon(results, name) {
+  const list = (results || []).filter(Boolean);
+  if (!list.length) return null;
+  const q = normName(name);
+  // (U-2d) exakter Namens-Treffer gewinnt — wissenschaftlich oder Trivialname (bevorzugt/englisch).
+  const exact = list.find((t) => q && [t.name, t.preferred_common_name, t.english_common_name]
+    .some((n) => normName(n) === q));
+  if (exact) return exact;
+  // sonst der mit den meisten Beobachtungen (obskures gleichnamiges Taxon fällt so hinten runter)
+  return list.reduce((best, t) => ((t.observations_count || 0) > (best.observations_count || 0) ? t : best), list[0]);
+}
+
 // locale=de: iNaturalist liefert dann deutsche Trivialnamen ("Echter Lavendel"
 // statt "true lavender"), wo vorhanden — sonst fällt es auf Englisch/Latein zurück.
 async function searchTaxon(name) {
@@ -52,10 +76,11 @@ async function searchTaxon(name) {
     const u = new URL(INAT + "/taxa");
     u.searchParams.set("q", name);
     u.searchParams.set("taxon_id", String(PLANTAE));
-    u.searchParams.set("per_page", "1");
+    // (U-2d) mehrere Treffer holen und bewusst wählen (pickTaxon) — nicht blind den ersten.
+    u.searchParams.set("per_page", "10");
     u.searchParams.set("locale", "de");
     const j = await jfetch(u.href, { gapMs: INAT_GAP }); // (U-2d) iNat-Drossel
-    return j.results?.[0] || null;
+    return pickTaxon(j.results, name);
   });
 }
 
@@ -328,6 +353,7 @@ export default {
 
   async enrich(a) {
     const out = {};
+    if (!a || !a.name) return out; // (U-2d) Null-Guard: ohne Knoten/Name nichts nachzuladen
     try {
       const hit = await searchTaxon(a.name);
       if (hit) {
@@ -349,6 +375,7 @@ export default {
   },
 
   async popularity(name) {
+    if (!name) return null; // (U-2d) Null-Guard: ohne Namen keine Suche
     const hit = await searchTaxon(name);
     return hit?.observations_count || null;
   },

@@ -1459,12 +1459,12 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 - [x] **travel: Blaue Stil-Ähnlichkeit ist Stichwort-Rangproxy.** [mittel/L · travel] → über den vorhandenen styleTags-vector re-ranken (Kosinus) (travel.mjs:151,156-181).
 - [x] **travel: Vibe-Tags/Distanz-Chip hart deutsch.** [mittel/M · travel] → Tags mit DE/EN-Schlüssel; „{km} km from home"; Fehlermeldung über t() (travel.mjs:19-32; pack.mjs:54,193).
 - [x] **books: Ausgaben-/Übersetzungs-Dubletten unbehandelt.** [mittel/M · books] → Dedup über OL work-key statt Titel-String; optional namesakes-Variante (pack.mjs:39,239,249).
-- [ ] **Cross-Pack: Namensvetter/Editionen nicht disambiguiert (searchX limit=1).** [mittel/M · podcasts,games,boardgames,plants,papers,movies,anything] → mehrere Treffer, nach Popularität/Jahr/exaktem Match wählen bzw. an suggest()-UI übergeben.
+- [x] **Cross-Pack: Namensvetter/Editionen nicht disambiguiert (searchX limit=1).** [mittel/M · podcasts,games,boardgames,plants,papers,movies,anything] → mehrere Treffer, nach Popularität/Jahr/exaktem Match wählen bzw. an suggest()-UI übergeben.
 - [x] **Cross-Pack: fehlende seedChips.** [niedrig/S · podcasts,movies,books,games,plants,travel] → je 3 kontrastierende seedChips (DE/EN) ergänzen (index.html:6778).
 - [ ] **Cross-Pack: Demo-Daten inkonsistent zur Live-Domäne.** [niedrig/M · 7 Packs] → Genres/Skalen/Kantensemantik an Live angleichen, Cluster verbreitern.
-- [ ] **Cross-Pack: context()/Laufzeit-Strings ohne EN-Overlay.** [niedrig/S · books,boardgames,papers] → über Config-Keys führen und ins en-Overlay aufnehmen.
+- [x] **Cross-Pack: context()/Laufzeit-Strings ohne EN-Overlay.** [niedrig/S · books,boardgames,papers] → über Config-Keys führen und ins en-Overlay aufnehmen.
 - [ ] **Cross-Pack: radar:true ohne radarExtras (Music-Parität).** [niedrig/M · movies,books,games,boardgames,papers,plants] → optional radarExtras je Pack oder radarTitle ehrlicher fassen; nicht blockierend.
-- [ ] **Labs-Politur: Null-Guards, Skalen, Tippfehler, Match-Spreizung.** [niedrig/S · movies,travel,boardgames,plants,podcasts] → diag/popularity Null-Guards; „Pflanzenliste"; similar-match spreizen; books-Skala; podcasts similar() { lang }.
+- [x] **Labs-Politur: Null-Guards, Skalen, Tippfehler, Match-Spreizung.** [niedrig/S · movies,travel,boardgames,plants,podcasts] → diag/popularity Null-Guards; „Pflanzenliste"; similar-match spreizen; books-Skala; podcasts similar() { lang }.
 - [x] **papers: Momentum-Kommentar tot; BLAU-Degradation transparent.** [niedrig/S · papers] → counts_by_year verdrahten oder Kommentar streichen; similarSource im UI anzeigen (pack.mjs:8,224-256).
 
 ### Phase 2e — Website, Auffindbarkeit & Erstkontakt

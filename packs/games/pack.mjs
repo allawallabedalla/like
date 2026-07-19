@@ -27,6 +27,17 @@ const SURPRISE_SEEDS = [
 ];
 const SPY = "https://steamspy.com/api.php";
 
+// Normalisierung für den Namensvergleich: Kleinschreibung, Diakritika weg, alles
+// Nicht-Alphanumerische zu einem Leerzeichen. Zahlen bleiben erhalten (Teil-Nummern wie
+// „Hades II"/„2" sollen NICHT verschmelzen) — nur Interpunktion/Akzente werden geglättet.
+function normName(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 async function searchGame(name) {
   return cached("steam-search", name, 14 * 864e5, async () => {
     const u = new URL(STEAM + "/storesearch/");
@@ -34,7 +45,23 @@ async function searchGame(name) {
     u.searchParams.set("cc", "de");
     u.searchParams.set("l", "en");
     const j = await jfetch(u.href);
-    return j.items?.[0] || null; // { id, name, ... }
+    const items = j.items || [];
+    if (!items.length) return null;
+    // (U-2d) Namensvetter-Disambiguierung: NICHT blind items[0]. Die Storefront-Suche
+    // schiebt gerne ein gleichnamiges DLC/Franchise-Ergebnis vor das eigentliche Hauptspiel.
+    // Bewusste Wahl: 1) exakter (normalisierter) Namens-Treffer bevorzugt, sonst
+    // 2) der populärste Kandidat (meiste Reviews, ersatzweise Owner-Schätzung).
+    const want = normName(name);
+    const exact = items.filter((it) => normName(it.name) === want);
+    const pool = exact.length ? exact : items.slice(0, 5);
+    if (pool.length === 1) return pool[0]; // eindeutig -> ohne Zusatz-Abfragen zurück
+    let best = pool[0], bestPop = -1;
+    for (const it of pool) {
+      let pop = 0; // best effort: einzelne Fehlschläge zählen als 0, verwerfen den Kandidaten nicht
+      try { pop = (await popularityFor(it.id, await spy(it.id).catch(() => null))) || 0; } catch { pop = 0; }
+      if (pop > bestPop) { bestPop = pop; best = it; }
+    }
+    return best; // { id, name, ... }
   });
 }
 
@@ -122,7 +149,9 @@ async function tagIntersectionSimilar(s, excludeNameLower, { limit = 20 } = {}) 
     .slice(0, limit)
     .map((r) => ({
       name: r.app.name, url: `https://store.steampowered.com/app/${r.app.appid}`,
-      match: Math.min(1, 0.35 + 0.2 * r.hits) * dampBig(ownersMid(r.app)),
+      // (U-2d) Match = Anteil der geteilten Top-3-Tags (1/3 -> 0.5, 2/3 -> 0.75, 3/3 -> 1.0):
+      // klarere Spreizung als die alte 0.55/0.75/0.95-Staffel, danach Mega-Seller dämpfen.
+      match: Math.min(1, 0.25 + 0.25 * r.hits) * dampBig(ownersMid(r.app)),
     }));
 }
 
@@ -336,6 +365,7 @@ export default {
 
   async enrich(a) {
     const out = {};
+    if (!a?.name) return out; // (U-2d) Null-Guard: ohne Namen gibt es nichts anzureichern
     try {
       const hit = await searchGame(a.name);
       if (hit) {
@@ -352,7 +382,9 @@ export default {
   async popularity(name) {
     const hit = await searchGame(name);
     if (!hit) return null;
-    return popularityFor(hit.id, await spy(hit.id));
+    // (U-2d) Null-Guard: SteamSpy darf ausfallen — popularityFor fällt dann auf die
+    // Steam-Review-Zahl zurück (bzw. null), statt an spy()-Fehlern zu scheitern.
+    return popularityFor(hit.id, await spy(hit.id).catch(() => null));
   },
 
   async context(name) {
@@ -370,7 +402,7 @@ export default {
     const tdNote = (await hasTastediveKey()) ? "" : "kein Key (optional)";
     return [
       { name: "Steam Store-Suche", probe: async () => !!(await searchGame("Hades")) },
-      { name: "SteamSpy Details", probe: async () => { const h = await searchGame("Hades"); return !!(await spy(h.id)); } },
+      { name: "SteamSpy Details", probe: async () => { const h = await searchGame("Hades"); return !!(h && (await spy(h.id))); } }, // (U-2d) Null-Guard: h.id nicht auf null lesen
       { name: "TasteDive (Spieler mochten auch)", probe: async () => true, note: tdNote },
     ];
   },

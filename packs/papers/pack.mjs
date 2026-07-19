@@ -47,6 +47,29 @@ function display(w) {
   return tag ? `${parts[0]} (${tag})` : parts[0];
 }
 const cleanTitle = (name) => String(name).replace(/\s*\([^)]*\)\s*$/, "").trim();
+// (U-2d) Titel normalisieren für den Namensvetter-Vergleich: Kleinschreibung, Diakritika und
+//   Satzzeichen raus, Whitespace glätten — so zählt „Attention Is All You Need!" wie
+//   „attention is all you need" als derselbe Titel.
+const normTitle = (s) => String(s || "")
+  .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, " ")
+  .trim();
+// (U-2d) Aus mehreren Suchtreffern bewusst den kanonischen wählen statt blind den erstbesten:
+//   ein exakter (normalisierter) Titel-Treffer schlägt alles — bei mehreren (z. B. Preprint +
+//   Verlagsversion) gewinnt der meistzitierte. Ohne exakten Titel-Treffer (Themensuche) fällt
+//   es ebenfalls auf den meistzitierten/relevantesten zurück. Robust gegen fehlende Felder.
+const moreCited = (best, w) => ((w?.cited_by_count || 0) > (best?.cited_by_count || 0) ? w : best);
+function pickWork(results, name) {
+  const list = Array.isArray(results) ? results.filter(Boolean) : [];
+  if (!list.length) return null;
+  const want = normTitle(cleanTitle(name));
+  if (want) {
+    const exact = list.filter((w) => normTitle(w.title || w.display_name) === want);
+    if (exact.length) return exact.reduce(moreCited);
+  }
+  return list.reduce(moreCited);
+}
 
 async function oa(path, params = {}) {
   const u = new URL(OA + path);
@@ -57,8 +80,8 @@ async function oa(path, params = {}) {
 
 async function searchWork(name) {
   return cached("oa-search", name, 14 * 864e5, async () => {
-    const j = await oa("/works", { search: cleanTitle(name), "per-page": "1" });
-    return j.results?.[0] || null;
+    const j = await oa("/works", { search: cleanTitle(name), "per-page": "8" });
+    return pickWork(j.results, name);
   });
 }
 async function workById(id) {
@@ -163,6 +186,8 @@ export default {
       "merken!": "save!",
       "Radar — aufstrebende Arbeiten": "Radar - rising works",
       "teilt Autor:innen mit deinem Like": "shares authors with your like",
+      // Laufzeit-Strings aus context() (U-2d): bislang ohne EN-Overlay.
+      "Meistzitierte Werke": "Most cited works",
     },
   },
 
