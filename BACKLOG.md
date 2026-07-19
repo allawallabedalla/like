@@ -1437,10 +1437,10 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 - [x] **Crash-Handler + Graceful-Shutdown fehlen.** [mittel/S · Ops] → uncaughtException/unhandledRejection-Handler; SIGTERM → usage-flush() + server.close mit Draining. _(phase-2c: uncaught/unhandled-Logger + SIGTERM/SIGINT drain + usage-flush)_
 - [x] **Dockerfile ungehärtet.** [mittel/S · Deploy] → USER node; HEALTHCHECK gegen /api/health; .dockerignore um Secret-Muster (deny-by-default). _(phase-2c: HEALTHCHECK + .dockerignore-Secret-Muster; USER node bewusst offen — /data-Volume-Ownership braucht Render-Disk-Check)_
 - [x] **Feedback/clienterror: globale Drossel + Markdown-Injection.** [mittel/S · Sicherheit] → Drossel pro IP; Nutzertext in Codeblock/neutralisieren (server.mjs:1194-1240; github-issues.mjs:70). _(phase-2c: Markdown/@mention-Injection via Codeblock entschaerft; Pro-IP-Drossel -> zusammen mit U-2c.3 Rate-Limit)_ _(phase-2c: Markdown-Injection via Codeblock + Pro-IP-Drossel 30/min)_
-- [ ] **Keine Observability (Fehler/Quellenausfall).** [mittel/M · Betrieb] → strukturierte Request-Logs + Fehlerraten-/Quellenausfall-Alarm über Pushover; clienterror auswertbar.
+- [x] **Keine Observability (Fehler/Quellenausfall).** [mittel/M · Betrieb] → strukturierte Request-Logs + Fehlerraten-/Quellenausfall-Alarm über Pushover; clienterror auswertbar.
 - [ ] **Backup/Disaster-Recovery.** [mittel/M · Datenhaltung] → Off-Disk-Snapshot von /data + Disk-Auslastungsalarm.
 - [x] **Sicherheits-Regressionstests fehlen.** [mittel/M · Test] → CSV-Formel-Escaping, Security-Header/Cookie-Flags, Auth-429, 413/400 assertieren. _(phase-2c: tests/security.spec.js — Header/CSP, Rate-Limit-429, 400/404; im CI-Gate)_
-- [ ] **Auth-/Session-Härtung.** [niedrig/M · Sicherheit] → Origin-Check auf POSTs; Zeitstempel/Session-Version in Signatur; .session-secret mode 0600 + LIKE_SESSION_SECRET erzwingen; generische Reset-Antwort; shares/-TTL-Sweep. _(phase-2c teilweise: .session-secret Mode 0600 + shares/-TTL-Sweep (LIKE_SHARE_TTL_DAYS) erledigt; Origin-Check/Session-Version/generische Reset-Antwort/LIKE_SESSION_SECRET-Pflicht geparkt §7)_
+- [ ] **Auth-/Session-Härtung.** [niedrig/M · Sicherheit] → Origin-Check auf POSTs; Zeitstempel/Session-Version in Signatur; .session-secret mode 0600 + LIKE_SESSION_SECRET erzwingen; generische Reset-Antwort; shares/-TTL-Sweep. _(phase-2c/2f teilweise: generische Reset-Antwort (keine User-Enumeration) ergänzt; .session-secret Mode 0600 + shares/-TTL-Sweep (LIKE_SHARE_TTL_DAYS) erledigt; Origin-Check/Session-Version/generische Reset-Antwort/LIKE_SESSION_SECRET-Pflicht geparkt §7)_
 
 ### Phase 2d — Labs: Ehrlichkeit, Inhalt & Freischalt-Blocker
 
@@ -1469,30 +1469,30 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 
 ### Phase 2e — Website, Auffindbarkeit & Erstkontakt
 
-- [ ] **Kein primärer CTA / keine Desktop-Downloads auf der Landing.** [mittel/M · Landing] → CTA nahe der Tagline (→ /?pack=music) + „Als App laden" (W13); DE+EN.
+- [x] **Kein primärer CTA / keine Desktop-Downloads auf der Landing.** [mittel/M · Landing] → CTA nahe der Tagline (→ /?pack=music) + „Als App laden" (W13); DE+EN.
 - [ ] **Schwaches Share-Preview: OG-Bild = App-Icon.** [mittel/M · SEO] → echtes 1200×630-Bild; twitter:card=summary_large_image + image; og:image:width/height/alt (server.mjs:673).
 - [x] **Keine strukturierten Daten (JSON-LD).** [mittel/M · SEO] → WebSite/Organization (+ SoftwareApplication für Music) mit absoluten URLs.
 - [ ] **EN für Crawler unsichtbar — kein hreflang/og:locale.** [mittel/L · SEO/i18n] → og:locale de_DE + alternate en_US; mittelfristig serverseitig sprachvariante Auslieferung mit hreflang/canonical.
 - [ ] **Erst-Eindruck zeigt abstrakte Kugeln statt des Karten-Produkts.** [mittel/L · Landing] → produktnahes Vorschau-Element (Screenshot oder echtes Demo-Netz mit beiden Kantenarten).
-- [ ] **Labs-Freischaltung nutzt native prompt()/alert().** [mittel/M · Landing] → gestyltes Inline-Panel, das Labs erklärt; Fehler inline (landing.mjs:447-463).
-- [ ] **PWA: keine „Update verfügbar"-UX.** [mittel/M · PWA] → updatefound/controllerchange-Listener + Reload-Toast (sw.js:14-27).
+- [x] **Labs-Freischaltung nutzt native prompt()/alert().** [mittel/M · Landing] → gestyltes Inline-Panel, das Labs erklärt; Fehler inline (landing.mjs:447-463).
+- [x] **PWA: keine „Update verfügbar"-UX.** [mittel/M · PWA] → updatefound/controllerchange-Listener + Reload-Toast (sw.js:14-27).
 - [ ] **Onboarding-Tour music-lastig und pack-unneutral.** [mittel/M · UX] → Tour-Texte pack-neutral bzw. per config-Overlay; Verständlichkeit als eigenen Prüfpunkt (auch EN) (index.html:1099).
-- [ ] **Meta-/SEO-Konfig-Robustheit und Thin-Content.** [mittel/S · SEO] → LIKE_PUBLIC_URL erzwingen + Startup-Warnung; meta description; noindex,follow auf Rechtstexte/​/s; lastmod (server.mjs:651-660,1018).
-- [ ] **Landing-/PWA-Politur und No-JS-Fallback.** [niedrig/M · Landing/PWA] → noscript-Text-Links; BUILD_REF nur Staging; Manifest id/screenshots/shortcuts; gestylte /offline.html; background_color angleichen.
+- [x] **Meta-/SEO-Konfig-Robustheit und Thin-Content.** [mittel/S · SEO] → LIKE_PUBLIC_URL erzwingen + Startup-Warnung; meta description; noindex,follow auf Rechtstexte/​/s; lastmod (server.mjs:651-660,1018).
+- [x] **Landing-/PWA-Politur und No-JS-Fallback.** [niedrig/M · Landing/PWA] → noscript-Text-Links; BUILD_REF nur Staging; Manifest id/screenshots/shortcuts; gestylte /offline.html; background_color angleichen.
 - [ ] **Marken-/Namenskonsistenz „like" vs. „Like".** [niedrig/S · Branding] → verbindliche Schreibweise festlegen und durchziehen.
 
 ### Phase 2f — A11y, Tests/CI, Doku & große Bretter
 
 - [x] **A11y: Seiten-Zoom komplett deaktiviert.** [hoch/M · A11y] user-scalable=no/maximum-scale=1 sperrt die ganze Seite (WCAG 1.4.4). → entfernen; nur Canvas gegen Pinch abschotten (index.html:10).
 - [x] **A11y: kein sichtbarer Tastatur-Fokus auf Toolbar-Buttons.** [hoch/S · A11y] → globale :focus-visible-Regel + .iconbtn/button mit klarem Ring (index.html:135).
-- [ ] **A11y: keine Fokus-Rückgabe nach Modal-Schließen + fehlende aria-Zustände.** [mittel/M · A11y] → opener merken/​focus(); aria-expanded/haspopup an Toggles; Close-Buttons ≥24×24px.
+- [x] **A11y: keine Fokus-Rückgabe nach Modal-Schließen + fehlende aria-Zustände.** [mittel/M · A11y] → opener merken/​focus(); aria-expanded/haspopup an Toggles; Close-Buttons ≥24×24px.
 - [ ] **A11y: Canvas role=application ohne Tastatur-Knoten; Kontrast Legal/Landing.** [mittel/L · A11y] → role=img + Listen-Einstieg bewerben (mittelfristig Pfeil-Navigation); Muted-Text ≥4.5:1; Planeten-Fokusring (index.html:2142; server.mjs:226; landing.mjs:92).
 - [x] **CI-Gate führt nur 6 von 10 Specs.** [hoch/S · Test] i18n/support/expand-queue ungegatet. → volle Suite (visual als eigener Job) bzw. mindestens diese drei aufnehmen.
-- [ ] **Keine a11y-Automatisierung (W5 offen).** [hoch/M · Test] → @axe-core/playwright gegen /, /impressum, /datenschutz + Modale; erst nicht-blockierend, dann hochziehen.
+- [x] **Keine a11y-Automatisierung (W5 offen).** [hoch/M · Test] → @axe-core/playwright gegen /, /impressum, /datenschutz + Modale; erst nicht-blockierend, dann hochziehen.
 - [x] **USABILITY.md nicht auf v2.7.0 nachgezogen (Radar/tote IDs).** [hoch/S · Doku] → Radar in §6 mit #discRadar; IDs korrigieren (#export/#bExport, #resetAll); Pflege-Regel in DoD.
 - [x] **ROADMAP.md-Rumpf veraltet; README Music-only.** [hoch/M · Doku] → ROADMAP auf Runde-24+/Labs-Bedingung kürzen (v2.7.0); README-Kopf um Website-/Labs-Framing; papers-Quelle auf Semantic Scholar korrigieren.
 - [ ] **Server-Fehlermeldungen hart deutsch, nie übersetzt.** [hoch/M · i18n] ~40 Endpoints; toast('Fehler: '+…) umgeht t(). → Fehler-i18n (Codes) für Music-Pfade; Client auf tf() umstellen (server.mjs:939ff; index.html:2046,4432ff).
-- [ ] **Fehlende Config-/i18n-Wächter.** [mittel/M · Test/Doku] → scripts/check-packs.mjs (Pack-Schema) + EN-Vollständigkeits-Check über alle Packs, in npm run check/test:ci.
+- [x] **Fehlende Config-/i18n-Wächter.** [mittel/M · Test/Doku] → scripts/check-packs.mjs (Pack-Schema) + EN-Vollständigkeits-Check über alle Packs, in npm run check/test:ci.
 - [ ] **Keine Server-Unit-Tests; Visual-Regression ungegatet; keine Coverage.** [mittel/M · Test] → node:test für pure Helfer; Auth-/share-E2E; Visual-Job mit Playwright-Docker-Image; c8-Coverage informativ.
 - [ ] **Große Bretter: Skalierung, Mobile-Touch, Konto-Sync, Demo-Katalog.** [mittel/L · Architektur/UX/Content] → Skalierungsgrenze dokumentieren + SQLite-Pfad einplanen; Mobile/Touch als Prüfpunkt (Safe-Area, Touch-Ziele, iOS-PWA); Merge-Verhalten dokumentieren/signalisieren/E2E; Demo-Mindestumfang (≥12) festlegen, travel/anything auffüllen.
 - [x] **Doku-Kleinigkeiten: NOTES-Playwright-Version, PITCH-Scope.** [niedrig/S · Doku] → NOTES an ^1.61.1 angleichen; PITCH.md-Kopf „Bezieht sich auf Like Music".

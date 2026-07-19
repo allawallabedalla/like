@@ -110,6 +110,9 @@ const REPO_URL = "https://github.com/allawallabedalla/like";
 // U-2c.1: Nicht-Produktions-Instanzen (v. a. Render-PR-Previews) aus dem Index halten.
 // LIKE_NOINDEX=1 -> robots.txt verbietet alles + jede Antwort trägt X-Robots-Tag: noindex.
 const NOINDEX = /^(1|true|yes|on)$/i.test(process.env.LIKE_NOINDEX || "");
+// (U-2c) Optionales strukturiertes Request-Logging: nur aktiv, wenn LIKE_LOG=1 gesetzt ist,
+// sonst komplett still (kein Overhead, keine Log-Flut im Normalbetrieb).
+const LIKE_LOG = /^(1|true|yes|on)$/i.test(process.env.LIKE_LOG || "");
 const _BUILD_PR = (process.env.LIKE_BUILD_PR || "").replace(/\D/g, "");
 const _BUILD_SHA = (process.env.LIKE_BUILD_REF || process.env.RENDER_GIT_COMMIT || "").trim();
 const BUILD_REF = _BUILD_PR ? { label: `PR #${_BUILD_PR}`, href: `${REPO_URL}/pull/${_BUILD_PR}` }
@@ -506,9 +509,32 @@ function notifyVisitEnd(req, body) {
   if (visitEnd.size > 2000) { const k = visitEnd.keys().next().value; if (k && k !== id) visitEnd.delete(k); }
 }
 
+// (U-2c) Leichtgewichtige Fehlerraten-Überwachung ohne externe Dependency: 5xx-Antworten (und
+// damit auch im zentralen catch gefangene Handler-Fehler, die als 5xx rausgehen) in einem
+// gleitenden Fenster zählen. Übersteigt die Zahl die Schwelle, EINMAL pro Abkühlphase eine
+// Pushover-Notiz an den Betreiber — still, wenn Pushover nicht eingerichtet ist (notifyQuiet).
+const ERR_WINDOW_MS = Number(process.env.LIKE_ERR_WINDOW_MS) || 5 * 60 * 1000;    // Beobachtungsfenster
+const ERR_THRESHOLD = Number(process.env.LIKE_ERR_THRESHOLD) || 10;               // Alarm bei >N 5xx im Fenster
+const ERR_COOLDOWN_MS = Number(process.env.LIKE_ERR_COOLDOWN_MS) || 30 * 60 * 1000; // höchstens 1 Alarm/Phase
+let _errTimes = [];  // Zeitstempel der jüngsten 5xx
+let _errAlertAt = 0; // Zeitpunkt des letzten Alarms
+function noteServerError() {
+  const now = Date.now();
+  _errTimes.push(now);
+  if (_errTimes.length > 1000) _errTimes = _errTimes.slice(-1000); // grober Backstop gegen Wachstum
+  _errTimes = _errTimes.filter((t) => now - t < ERR_WINDOW_MS);    // Fenster beschneiden
+  if (_errTimes.length > ERR_THRESHOLD && now - _errAlertAt > ERR_COOLDOWN_MS) {
+    _errAlertAt = now;
+    const mins = Math.round(ERR_WINDOW_MS / 60000);
+    notifyQuiet({ title: "like — erhöhte Fehlerrate",
+      message: `${_errTimes.length} Serverfehler (5xx) in den letzten ${mins} min. Bitte Logs prüfen.` });
+  }
+}
+
 // Nur Text-Formate komprimieren — Bilder/Binärformate sind schon komprimiert.
 const COMPRESSIBLE = /^(application\/(json|manifest\+json|xml)|text\/|image\/svg)/;
 function send(res, code, body, type = "application/json", cacheControl = "no-store") {
+  if (code >= 500) noteServerError(); // (U-2c) Fehlerrate beobachten (zentraler Choke-Point für alle 5xx)
   let data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
   const headers = {
     "content-type": type, "cache-control": cacheControl, "x-content-type-options": "nosniff",
@@ -738,6 +764,19 @@ function publicBase(req) {
   if (!host) return "";
   const proto = req.headers["x-forwarded-proto"] || "http";
   return `${proto}://${String(host).split(",")[0].trim()}`;
+}
+
+// (U-2e) Betriebs-Warnung beim Start: In einer Prod-artigen Umgebung ohne konfigurierte
+// öffentliche Basis-URL fehlen bzw. hängen canonical/og:url/Sitemap-Links am Host-Header
+// (hinter Proxies/für Bots unzuverlässig). Einmalig warnen — kein Verhalten erzwingen.
+// Prod-artig: NODE_ENV=production ODER PORT gesetzt & Bind-Host nicht loopback.
+{
+  const _loopback = HOST === "127.0.0.1" || HOST === "localhost" || HOST === "::1";
+  const _prodLike = process.env.NODE_ENV === "production" || (!!process.env.PORT && !_loopback);
+  if (_prodLike && !(process.env.LIKE_PUBLIC_URL || "").trim()) {
+    console.warn("[U-2e] Keine öffentliche Basis-URL konfiguriert — canonical/og:url/Sitemap fehlen "
+      + "bzw. hängen am Host-Header. Für zuverlässige SEO/Share-Links LIKE_PUBLIC_URL=https://<domain> setzen.");
+  }
 }
 
 // SEO/Share-Metadaten (W1): description + OG/Twitter-Karten pro Pack, canonical wenn Basis-URL
@@ -1003,6 +1042,18 @@ async function bridgeResult(pack, s) {
 }
 
 const server = createServer(async (req, res) => {
+  // (U-2c) Optionales strukturiertes Request-Logging (nur bei LIKE_LOG=1). Hängt sich an das
+  // 'finish'-Event der Antwort — greift NICHT in send()/den Handler-try/catch ein und kann den
+  // Request daher nicht brechen. IP maskiert, sonst still.
+  if (LIKE_LOG) {
+    const _t0 = Date.now();
+    res.on("finish", () => {
+      try {
+        const p = (req.url || "").split("?")[0];
+        console.log(`[req] ${req.method} ${p} ${res.statusCode} ${Date.now() - _t0}ms ip=${maskIp(clientIp(req))}`);
+      } catch {}
+    });
+  }
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     // U-2c.3: Pro-IP-Rate-Limit vor teuren/ausgehenden Endpoints (früh, vor jeder Arbeit).
@@ -1046,7 +1097,15 @@ const server = createServer(async (req, res) => {
       if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
       const b = await readBody(req).catch(() => ({}));
       const r = await resetPassword(b.username, b.recovery, b.password);
-      if (r.error) return send(res, 400, { ok: false, error: r.error });
+      if (r.error) {
+        // (U-2c) Anti-User-Enumeration: resetPassword unterscheidet „Unbekannter Nutzer" (kein Konto)
+        // von „Recovery-Code stimmt nicht" (Konto existiert) — das verrät, ob ein Name registriert ist.
+        // Beide Credential-Fehler auf EINE generische Antwort vereinheitlichen; die reine Eingabe-
+        // Validierung (z. B. zu kurzes Passwort) bleibt als hilfreicher Hinweis unverändert.
+        const enumSafe = (r.error === "Unbekannter Nutzer" || r.error === "Recovery-Code stimmt nicht")
+          ? "Name oder Recovery-Code stimmt nicht." : r.error;
+        return send(res, 400, { ok: false, error: enumSafe });
+      }
       await migrateAnonToUser(req, r.user);
       setCookie(res, "like_session", makeSession(r.user), req);
       return send(res, 200, { ok: true, user: r.user, recovery: r.recovery });
