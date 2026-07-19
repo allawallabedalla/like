@@ -36,7 +36,7 @@ import { hasPushover, sendFeedback, notifyQuiet } from "./lib/pushover.mjs";
 import { hasIssueSink, collectFeedbackQuiet, createFeedbackIssue, listFeedbackIssues, feedbackTarget } from "./lib/github-issues.mjs";
 import { initUsage, countUsage, usageSnapshot, flushUsage } from "./lib/usage.mjs";
 import { landingHtml } from "./lib/landing.mjs";
-import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount } from "./lib/auth.mjs";
+import { initAuth, register, verify, resetPassword, makeSession, userFromCookie, userCount, deleteUser } from "./lib/auth.mjs";
 
 // Ungerichtete Kante hinzufügen/aktualisieren (dedupe über sortiertes from|to + type).
 function addEdge(g, a, b, type, weight, source, shows) {
@@ -296,7 +296,8 @@ function datenschutzPage() {
     "ds-external-h": "External services",
     "ds-external-p": "Content is assembled from external sources (incl. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). These queries run <b>server-side</b> — your IP address is <b>not</b> passed on to these services. Exceptions, where your browser loads directly from the respective provider (and your IP reaches them): the <b>30-second audio previews</b> (Deezer/iTunes CDN) and the <b>update notice</b> (GitHub). No analytics or advertising services are embedded.",
     "ds-rights-h": "Your rights",
-    "ds-rights-p": "You have the right to access, rectification, erasure, restriction, data portability and objection (Art. 15–21 GDPR) as well as the right to lodge a complaint with a supervisory authority. An account can be deleted along with its data on request; without an account, clearing your browser storage is enough.",
+    "ds-rights-p": "You have the right to access, rectification, erasure, restriction, data portability and objection (Art. 15–21 GDPR) as well as the right to lodge a complaint with a supervisory authority. <b>Account deletion (Art. 17) and a data export (Art. 20, your maps as JSON) are available to signed-in users directly in the app at any time — self-service.</b> Without an account, clearing your browser storage is enough; individual shared links are additionally deleted on request.",
+    "ds-ttdsg-p": "<b>Section 25 TTDSG:</b> the local storage named above (anonymous device identifier „like_anon“, the unlock cookie „like_unlock“ and the login cookie) is strictly necessary to provide the function you requested — keeping your map together, unlocking access and staying signed in — and is therefore used without consent. No analytics or advertising storage is set.",
     "ds-stand": "Status: template — please update and have it legally reviewed if operations change.",
   };
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
@@ -323,6 +324,7 @@ function datenschutzPage() {
     <li data-i18n="ds-cookies-2"><b>localStorage</b> (Theme, Ansicht, gemerkter Kartenausschnitt): reine Komfort-Einstellungen, verbleiben auf deinem Gerät.</li>
     <li data-i18n="ds-cookies-3"><b>Login-Cookie</b>: nur wenn du dir freiwillig ein Konto anlegst — hält dich angemeldet.</li>
   </ul>
+  <p class="muted" data-i18n="ds-ttdsg-p"><b>§ 25 TTDSG:</b> Die vorgenannten lokalen Speicher (anonyme Geräte-Kennung „like_anon“, das Freischalt-Cookie „like_unlock“ und das Login-Cookie) sind unbedingt erforderlich, um die von dir angeforderte Funktion bereitzustellen — die Karte zusammenzuhalten, den Zugang freizuschalten und dich angemeldet zu halten — und werden daher einwilligungsfrei genutzt. Analyse- oder Werbespeicher werden nicht gesetzt.</p>
   <h2 data-i18n="ds-account-h">Konto (optional)</h2>
   <p data-i18n="ds-account-p">Legst du ein Konto an, werden Nutzername, ein <b>gehashtes</b> Passwort und ein Recovery-Code gespeichert, damit deine Karte auf mehreren Geräten gleich ist (Art. 6 Abs. 1 lit. b DSGVO). Ohne Konto bleibt alles an eine anonyme Geräte-Kennung gebunden und verfällt nach 30 Tagen Inaktivität.</p>
   <h2 data-i18n="ds-map-h">Deine Karte</h2>
@@ -338,7 +340,7 @@ function datenschutzPage() {
   <h2 data-i18n="ds-external-h">Externe Dienste</h2>
   <p data-i18n="ds-external-p">Inhalte werden aus externen Quellen zusammengeführt (u. a. Last.fm, Resident Advisor, TMDB, MusicBrainz, Wikipedia/Wikivoyage). Diese Abfragen laufen <b>serverseitig</b> — deine IP-Adresse wird dabei <b>nicht</b> an diese Dienste weitergegeben. Ausnahmen, bei denen dein Browser direkt beim jeweiligen Anbieter lädt (und deine IP dorthin gelangt): die <b>30-Sekunden-Klangproben</b> (Deezer/iTunes-CDN) und der <b>Update-Hinweis</b> (GitHub). Es werden keine Analyse- oder Werbedienste eingebunden.</p>
   <h2 data-i18n="ds-rights-h">Deine Rechte</h2>
-  <p data-i18n="ds-rights-p">Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie ein Beschwerderecht bei einer Aufsichtsbehörde. Ein Konto lässt sich samt Daten auf Anfrage löschen; ohne Konto genügt das Leeren des Browser-Speichers.</p>
+  <p data-i18n="ds-rights-p">Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie ein Beschwerderecht bei einer Aufsichtsbehörde. <b>Konto-Löschung (Art. 17) und Datenexport (Art. 20, deine Karten als JSON) kannst du als angemeldeter Nutzer jederzeit direkt in der App vornehmen — Selbstbedienung.</b> Ohne Konto genügt das Leeren des Browser-Speichers; einzelne geteilte Links löschen wir zusätzlich auf Anfrage.</p>
   <p class="muted" style="margin-top:16px" data-i18n="ds-stand">Stand: Vorlage — bei geändertem Betrieb bitte aktualisieren und juristisch prüfen lassen.</p>
 </div>${legalI18nScript(enDict, "Privacy — like")}</body></html>`;
 }
@@ -1113,6 +1115,58 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/auth/logout") {
       setCookie(res, "like_session", "", req);
       return send(res, 200, { ok: true });
+    }
+
+    // ---- (U-2b) DSGVO-Selbstbedienung: Datenexport (Art. 20) & Konto-Löschung (Art. 17) ----
+    // Beide NUR für eingeloggte Nutzer (gültiges Login-Cookie) -> 401 sonst. Kein Enumerations-
+    // vektor: ohne eigene Session verrät nichts, ob ein fremder Nutzername existiert.
+    if (req.method === "GET" && url.pathname === "/api/account/export") {
+      if (!authUser) return send(res, 401, { ok: false, error: "Nicht angemeldet" });
+      try {
+        const userRoot = join(DATA_DIR, "users", sanitizeId(authUser));
+        // Kontostammdaten OHNE Geheimnisse (kein Passwort-/Recovery-Hash, kein Salt): nur
+        // Nutzername und — falls in der Konten-Datei vorhanden — die Erstellzeit.
+        const account = { username: authUser };
+        try {
+          const all = JSON.parse(await readFile(join(DATA_DIR, "users.json"), "utf8")) || {};
+          const rec = all[authUser];
+          if (rec && rec.created) account.created = new Date(rec.created).toISOString();
+        } catch {}
+        // Karten/Graphen je Pack aus dem Datenraum des Nutzers einsammeln (nur nicht-leere).
+        const packs = {};
+        for (const [id] of PACKS) {
+          try {
+            const g = await loadGraph(dataFile(userRoot, id, "graph.json"));
+            if (Object.keys(g.artists || {}).length) packs[id] = materialize(g);
+          } catch {}
+        }
+        const payload = { exportedAt: new Date().toISOString(), account, packs };
+        const fname = `like-export-${sanitizeId(authUser) || "account"}-${new Date().toISOString().slice(0, 10)}.json`;
+        // JSON-Download erzwingen (Content-Disposition bleibt erhalten — send() überschreibt es nicht).
+        res.setHeader("content-disposition", `attachment; filename="${fname}"`);
+        return send(res, 200, JSON.stringify(payload, null, 2), "application/json; charset=utf-8");
+      } catch {
+        return send(res, 500, { ok: false, error: "Export fehlgeschlagen" });
+      }
+    }
+    // Konto-Löschung: Datenraum hart entfernen (rm -rf users/<id>), Konto via auth.deleteUser()
+    // aus Store + users.json tilgen und das Login-Cookie wie beim Logout invalidieren.
+    // Idempotent und rate-limit-freundlich (setzt eine gültige Session voraus).
+    if (req.method === "POST" && url.pathname === "/api/account/delete") {
+      if (!authUser) return send(res, 401, { ok: false, error: "Nicht angemeldet" });
+      if (authThrottled(req)) return send(res, 429, { ok: false, error: "Zu viele Versuche — kurz warten." });
+      try {
+        const userRoot = join(DATA_DIR, "users", sanitizeId(authUser));
+        await rm(userRoot, { recursive: true, force: true }); // gesamter Datenraum des Nutzers weg
+        // U-2b: Konto auch aus dem In-Memory-Store + users.json entfernen (auth.deleteUser
+        // mutiert den Store und persistiert) — kein „Geister-Konto" nach dem nächsten persist(),
+        // und bestehende Sessions dieses Nutzers werden ungültig (Signatur-salt ist weg).
+        await deleteUser(authUser);
+        setCookie(res, "like_session", "", req); // wie /api/auth/logout
+        return send(res, 200, { ok: true });
+      } catch {
+        return send(res, 500, { ok: false, error: "Löschung fehlgeschlagen" });
+      }
     }
 
     // Interaktions-Signal: der Browser meldet beim Verlassen der Seite die Verweildauer (+ ob in

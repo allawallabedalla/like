@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "check": "node scripts/check-config.mjs && node scripts/check-packs.mjs && node scripts/smoke.mjs",
+    "test:unit": "node --test tests/unit/*.test.mjs",
     "test:e2e": "playwright test",
     "test:ci": "playwright test tests/api.spec.js tests/pages.spec.js tests/pwa.spec.js tests/lock.spec.js tests/responsive.spec.js tests/interactions.spec.js tests/security.spec.js tests/i18n.spec.js tests/support.spec.js tests/expand-queue.spec.js tests/a11y.spec.js",
     "test:e2e:update": "playwright test --update-snapshots",

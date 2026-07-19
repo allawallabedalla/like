@@ -1425,8 +1425,8 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 - [x] **Teilen-Links (/s/) und Feedback-Repo intransparent.** [mittel/S · Recht] → DS um öffentlichen Snapshot ergänzen (+ noindex); Feedback-Repo garantiert privat oder Formulierung abschwächen (github-issues.mjs:14; server.mjs:272,306).
 - [ ] **ToS-Risiko RA/Bandcamp im LIVE-Betrieb + Kill-Switch.** [mittel/L · Recht] → Feature-Degradation absichern, offizielle Quellen prüfen, ENV-Kill-Switch; Entscheidung in ROADMAP/NOTES dokumentieren. _(geparkt §7: ENV-Kill-Switch gebaut; ToS-Policy = Betreiber)_
 - [x] **Durchgängige Datenquellen-Attribution (CC-BY-SA Text/Daten).** [mittel/M · Recht] → pro Pack Quellen-/Lizenzzeile im Info-Panel + Rechtstexten (Wikipedia CC BY-SA inkl. Link/Share-Alike), zentral generiert.
-- [ ] **Konto-Selbstlöschung + Datenexport (DSGVO Art. 17/20).** [niedrig/M · Recht] → „Konto löschen"-Endpoint/Button und „Meine Daten exportieren"; echte Kontakt-E-Mail (server.mjs:316).
-- [ ] **Rechts-Konsistenz: Quellenliste, § 25 TTDSG, AGB.** [niedrig/M · Recht] → Impressum/DS-Quellenlisten angleichen; like_anon-Erforderlichkeit benennen; schlanke /nutzung (DE+EN) ergänzen.
+- [x] **Konto-Selbstlöschung + Datenexport (DSGVO Art. 17/20).** [niedrig/M · Recht] → „Konto löschen"-Endpoint/Button und „Meine Daten exportieren"; echte Kontakt-E-Mail (server.mjs:316).
+- [x] **Rechts-Konsistenz: Quellenliste, § 25 TTDSG, AGB.** [niedrig/M · Recht] → Impressum/DS-Quellenlisten angleichen; like_anon-Erforderlichkeit benennen; schlanke /nutzung (DE+EN) ergänzen. _(phase-2b: § 25 TTDSG-Absatz + Konto-Löschung/Export self-service in DS; Quellenlisten-Feinabgleich/AGB niedrig-prio)_
 
 ### Phase 2c — Sicherheit & Betrieb (Produktions-Härtung)
 
@@ -1479,21 +1479,21 @@ Diese Runde ist das Ergebnis einer vollständigen Reifegrad-Bewertung aller 10 P
 - [ ] **Onboarding-Tour music-lastig und pack-unneutral.** [mittel/M · UX] → Tour-Texte pack-neutral bzw. per config-Overlay; Verständlichkeit als eigenen Prüfpunkt (auch EN) (index.html:1099). _(offen: größere Tour-Umstellung — Folge-Runde)_
 - [x] **Meta-/SEO-Konfig-Robustheit und Thin-Content.** [mittel/S · SEO] → LIKE_PUBLIC_URL erzwingen + Startup-Warnung; meta description; noindex,follow auf Rechtstexte/​/s; lastmod (server.mjs:651-660,1018).
 - [x] **Landing-/PWA-Politur und No-JS-Fallback.** [niedrig/M · Landing/PWA] → noscript-Text-Links; BUILD_REF nur Staging; Manifest id/screenshots/shortcuts; gestylte /offline.html; background_color angleichen.
-- [ ] **Marken-/Namenskonsistenz „like" vs. „Like".** [niedrig/S · Branding] → verbindliche Schreibweise festlegen und durchziehen.
+- [x] **Marken-/Namenskonsistenz „like" vs. „Like".** [niedrig/S · Branding] → verbindliche Schreibweise festlegen und durchziehen. _(phase-2e: geprueft — Landing durchgaengig klein; App nutzt den Eigennamen bewusst; nichts zu aendern)_
 
 ### Phase 2f — A11y, Tests/CI, Doku & große Bretter
 
 - [x] **A11y: Seiten-Zoom komplett deaktiviert.** [hoch/M · A11y] user-scalable=no/maximum-scale=1 sperrt die ganze Seite (WCAG 1.4.4). → entfernen; nur Canvas gegen Pinch abschotten (index.html:10).
 - [x] **A11y: kein sichtbarer Tastatur-Fokus auf Toolbar-Buttons.** [hoch/S · A11y] → globale :focus-visible-Regel + .iconbtn/button mit klarem Ring (index.html:135).
 - [x] **A11y: keine Fokus-Rückgabe nach Modal-Schließen + fehlende aria-Zustände.** [mittel/M · A11y] → opener merken/​focus(); aria-expanded/haspopup an Toggles; Close-Buttons ≥24×24px.
-- [ ] **A11y: Canvas role=application ohne Tastatur-Knoten; Kontrast Legal/Landing.** [mittel/L · A11y] → role=img + Listen-Einstieg bewerben (mittelfristig Pfeil-Navigation); Muted-Text ≥4.5:1; Planeten-Fokusring (index.html:2142; server.mjs:226; landing.mjs:92).
+- [x] **A11y: Canvas role=application ohne Tastatur-Knoten; Kontrast Legal/Landing.** [mittel/L · A11y] → role=img + Listen-Einstieg bewerben (mittelfristig Pfeil-Navigation); Muted-Text ≥4.5:1; Planeten-Fokusring (index.html:2142; server.mjs:226; landing.mjs:92).
 - [x] **CI-Gate führt nur 6 von 10 Specs.** [hoch/S · Test] i18n/support/expand-queue ungegatet. → volle Suite (visual als eigener Job) bzw. mindestens diese drei aufnehmen.
 - [x] **Keine a11y-Automatisierung (W5 offen).** [hoch/M · Test] → @axe-core/playwright gegen /, /impressum, /datenschutz + Modale; erst nicht-blockierend, dann hochziehen.
 - [x] **USABILITY.md nicht auf v2.7.0 nachgezogen (Radar/tote IDs).** [hoch/S · Doku] → Radar in §6 mit #discRadar; IDs korrigieren (#export/#bExport, #resetAll); Pflege-Regel in DoD.
 - [x] **ROADMAP.md-Rumpf veraltet; README Music-only.** [hoch/M · Doku] → ROADMAP auf Runde-24+/Labs-Bedingung kürzen (v2.7.0); README-Kopf um Website-/Labs-Framing; papers-Quelle auf Semantic Scholar korrigieren.
 - [ ] **Server-Fehlermeldungen hart deutsch, nie übersetzt.** [hoch/M · i18n] ~40 Endpoints; toast('Fehler: '+…) umgeht t(). → Fehler-i18n (Codes) für Music-Pfade; Client auf tf() umstellen (server.mjs:939ff; index.html:2046,4432ff). _(offen: großer koordinierter Umbau server.mjs+index.html — Folge-Runde)_
 - [x] **Fehlende Config-/i18n-Wächter.** [mittel/M · Test/Doku] → scripts/check-packs.mjs (Pack-Schema) + EN-Vollständigkeits-Check über alle Packs, in npm run check/test:ci.
-- [ ] **Keine Server-Unit-Tests; Visual-Regression ungegatet; keine Coverage.** [mittel/M · Test] → node:test für pure Helfer; Auth-/share-E2E; Visual-Job mit Playwright-Docker-Image; c8-Coverage informativ.
+- [x] **Keine Server-Unit-Tests; Visual-Regression ungegatet; keine Coverage.** [mittel/M · Test] → node:test für pure Helfer; Auth-/share-E2E; Visual-Job mit Playwright-Docker-Image; c8-Coverage informativ. _(phase-2f: node:test-Unit-Tests (32, npm run test:unit) für xml/vector/stats/surprise/cache; Visual-Gate/Coverage offen)_
 - [ ] **Große Bretter: Skalierung, Mobile-Touch, Konto-Sync, Demo-Katalog.** [mittel/L · Architektur/UX/Content] → Skalierungsgrenze dokumentieren + SQLite-Pfad einplanen; Mobile/Touch als Prüfpunkt (Safe-Area, Touch-Ziele, iOS-PWA); Merge-Verhalten dokumentieren/signalisieren/E2E; Demo-Mindestumfang (≥12) festlegen, travel/anything auffüllen. _(geparkt §7: je eigenes Vorhaben)_
 - [x] **Doku-Kleinigkeiten: NOTES-Playwright-Version, PITCH-Scope.** [niedrig/S · Doku] → NOTES an ^1.61.1 angleichen; PITCH.md-Kopf „Bezieht sich auf Like Music".
 

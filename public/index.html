@@ -877,6 +877,9 @@
 setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.contains("done")){b.classList.add("done");setTimeout(function(){b.remove();},450);}},9000);</script>
 <div id="app">
   <canvas id="cv"></canvas>
+  <!-- U-2f: Screenreader-Zusammenfassung der Karte (die sonst eine Blackbox ist). Wird bei
+       jedem Rebuild gedrosselt aktualisiert; der Canvas verweist per aria-describedby darauf. -->
+  <div id="cvSummary" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"></div>
 
   <div class="bar">
     <div class="brand" id="brand" title="Zur Übersicht"><span id="brandName">like</span><span class="bdot">.</span><span class="ver" id="ver" title="installierte Version"></span></div>
@@ -957,7 +960,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
       <button id="shareMap" title="Unveränderliche Kopie deiner Karte als öffentlichen Read-Only-Link teilen (ohne Notizen/Status/Gagen)"><svg class="ic" viewBox="0 0 16 16" style="margin-right:4px"><path d="M6.3 7.1 10.8 4.5M6.3 8.9l4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4.4" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="3.6" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12.4" cy="12.4" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg><span id="shareMapLbl">Karte als Link teilen</span></button>
     </div>
     <div class="counts" id="counts" title="Größe der Karte: Acts und Verbindungen">–</div>
-    <div style="margin-top:8px;font-size:11.5px;opacity:.6"><a href="/impressum" target="_blank" style="color:inherit">Impressum</a> · <a href="/datenschutz" target="_blank" style="color:inherit">Datenschutz</a></div>
+    <div style="margin-top:8px;font-size:11.5px;opacity:.75"><a href="/impressum" target="_blank" style="color:inherit">Impressum</a> · <a href="/datenschutz" target="_blank" style="color:inherit">Datenschutz</a></div>
   </div>
 
   <!-- W15: Listenansicht — synchron zur Karte (gleiche Daten, gleiche Auswahl, gleicher Genre-Filter) -->
@@ -1784,6 +1787,14 @@ const T = LANG !== "en" ? null : {
   "Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b> — als CSV exportierbar. Dark Mode, Backup &amp; mehr findest du unter „?\". Viel Spaß!": "With <b>{L}</b>, favorites go to your <b>{B}</b> — exportable as CSV. Dark mode, backup &amp; more live under \"?\". Have fun!",
   "Willkommen bei {T}": "Welcome to {T}",
   "Mit <b>{L}</b> wandern Favoriten in deine <b>{B}</b>-Liste (links unten). Viel Spaß!": "With <b>{L}</b>, favorites go to your <b>{B}</b> list (bottom left). Have fun!",
+  "Karte mit {N} {ITEM}.": "Map with {N} {ITEM}.",
+  "Genannt: {NAMES}": "Named: {NAMES}",
+  "und {N} weitere.": "and {N} more.",
+  "Vollständige Bedienung über Suche und Info-Panel; die Listenansicht (Taste l) zeigt alle Einträge tastaturzugänglich.": "Full control via search and info panel; the list view (key l) shows all entries in a keyboard-accessible way.",
+  "Meine Daten exportieren": "Export my data",
+  "Konto löschen": "Delete account",
+  "Konto wirklich unwiderruflich löschen? Alle deine Karten, Listen und Kontodaten werden dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.": "Permanently delete your account? All your maps, lists and account data will be removed for good. This action cannot be undone.",
+  "Löschen fehlgeschlagen.": "Deletion failed.",
 };
 const t = (s) => (T && s != null && T[s] != null) ? T[s] : s;
 const tf = (s, vars) => { let out = t(s); for (const k in (vars || {})) out = out.split("{" + k + "}").join(vars[k]); return out; };
@@ -2160,6 +2171,8 @@ const cv = document.getElementById("cv");
 // (Auswahl/Status werden zusätzlich über die aria-live-Region angesagt, s. announce().)
 cv.setAttribute("role", "application");
 cv.setAttribute("aria-label", "Interaktive Karte: verbundene Einträge als Netz. Auswahl und Statusmeldungen werden automatisch vorgelesen; Suche und Listen sind über die Werkzeugleiste erreichbar.");
+// U-2f: Der Canvas verweist auf die (versteckte) Zusammenfassung mit Anzahl + Namen der Knoten.
+cv.setAttribute("aria-describedby", "cvSummary");
 const ctx = cv.getContext("2d");
 let view = { x: 0, y: 0, k: 1 };   // pan/zoom (früh deklariert: resize() rechnet damit)
 // Zoom-Schwellen für Beschriftungen: weit draußen bleibt die Karte ruhig, erst beim
@@ -2513,6 +2526,28 @@ function announce(text) {
   const live = document.getElementById("ariaLive"); if (!live) return;
   live.textContent = ""; setTimeout(() => { live.textContent = text; }, 30);
 }
+// U-2f: Versteckte Karten-Zusammenfassung für Screenreader aktualisieren — gedrosselt, damit
+// häufige Rebuilds (Layout/Suche/Erkunden) nicht dauernd neu vorgelesen werden. Nennt Anzahl,
+// die ersten Namen und den Tastatur-Einstieg (Suche + Info-Panel + Listenansicht).
+let _cvSummaryT = 0;
+function updateCanvasSummary() {
+  const el = document.getElementById("cvSummary"); if (!el) return;
+  clearTimeout(_cvSummaryT);
+  _cvSummaryT = setTimeout(() => {
+    const real = nodes.filter((n) => !n.venue);
+    const N = real.length;
+    const item = (N === 1 ? (CFG.item?.sing || CFG.item?.plur) : CFG.item?.plur) || "Acts";
+    const names = real.slice(0, 12).map((n) => n.name).filter(Boolean);
+    const rest = N - names.length;
+    let s = tf("Karte mit {N} {ITEM}.", { N, ITEM: item });
+    if (names.length) {
+      s += " " + tf("Genannt: {NAMES}", { NAMES: names.join(", ") });
+      s += rest > 0 ? " " + tf("und {N} weitere.", { N: rest }) : ".";
+    }
+    s += " " + t("Vollständige Bedienung über Suche und Info-Panel; die Listenansicht (Taste l) zeigt alle Einträge tastaturzugänglich.");
+    el.textContent = s;
+  }, 400);
+}
 function toastUndo(msg, fn) {
   const el = document.getElementById("toast");
   el.innerHTML = msg + ' · <a href="#" id="undoLink" style="color:var(--on-accent);text-decoration:underline">' + t("Rückgängig") + '</a>';
@@ -2804,6 +2839,7 @@ function rebuild(prev, reheatAmt = 1) {
 
   document.getElementById("counts").textContent = `${nodes.length} ${CFG.item.plur} · ${links.length} ${t("Kanten")}`;
   document.getElementById("empty").classList.toggle("show", nodes.length === 0);
+  updateCanvasSummary(); // U-2f: Screenreader-Zusammenfassung der Karte nachziehen (gedrosselt)
   computeGenreColors(); // Cluster-Farben an den neuen Bestand anpassen
   assignRevealK();      // LOD-Reveal-Schwellen rangweise neu verteilen (gleichmäßig pro Zoom-Step)
   communities = null;   // Szenen/Brücken neu berechnen lassen (Graph hat sich geändert)
@@ -6290,8 +6326,15 @@ function renderAcct() {
     ? `<div style="color:var(--muted);margin-top:5px;line-height:1.5">${onMap} ${item} · ${inLists} ${L("in Listen", "in lists")} · ${listIds.size} ${L("Listen", "lists")}</div>`
     : "";
   if (window.LIKE_USER) {
-    box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>${stats}`;
+    // U-2b (DSGVO): Datenexport + Kontolöschung direkt im Konto-Bereich, nur für Eingeloggte.
+    const gdpr = `<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">`
+      + `<a id="acctExport" style="cursor:pointer;text-decoration:underline">${t("Meine Daten exportieren")}</a>`
+      + `<a id="acctDelete" style="cursor:pointer;text-decoration:underline;color:#d23">${t("Konto löschen")}</a>`
+      + `</div>`;
+    box.innerHTML = `${t("Angemeldet als")} <b>${esc(window.LIKE_USER)}</b> · <a id="acctLogout" style="cursor:pointer;text-decoration:underline">${t("abmelden")}</a>${stats}${gdpr}`;
     box.querySelector("#acctLogout").onclick = doLogout;
+    box.querySelector("#acctExport").onclick = doAccountExport;
+    box.querySelector("#acctDelete").onclick = doAccountDelete;
   } else {
     box.innerHTML = `<button id="acctLogin" style="width:100%">${t("Anmelden / Registrieren")}</button>${stats}<div style="color:var(--muted);margin-top:6px;line-height:1.4">${t("Ohne Login: eigene Karte auf diesem Gerät (nach 30 Tagen Inaktivität aufgeräumt). Angemeldet: deine Karte auf allen Geräten.")}</div>`;
     box.querySelector("#acctLogin").onclick = () => { closeMore(); openAuth("login"); };
@@ -6356,6 +6399,20 @@ async function doAuthSubmit() {
 document.getElementById("authSubmit").onclick = doAuthSubmit;
 ["authPw", "authRec", "authUser"].forEach((id) => document.getElementById(id).addEventListener("keydown", (e) => { if (e.key === "Enter") doAuthSubmit(); }));
 async function doLogout() { try { await POST("/api/auth/logout", {}); } catch {} try { localStorage.removeItem("like_anon"); sessionStorage.removeItem("like_anon"); } catch {} location.reload(); }
+// U-2b (DSGVO): eigene Daten als Download holen (Server liefert die Datei mit Content-Disposition).
+function doAccountExport() {
+  const a = document.createElement("a");
+  a.href = API_BASE + "/api/account/export"; a.download = "";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+// U-2b (DSGVO): Konto nach ausdrücklicher Sicherheitsabfrage unwiderruflich löschen, dann neu laden.
+async function doAccountDelete() {
+  if (!confirm(t("Konto wirklich unwiderruflich löschen? Alle deine Karten, Listen und Kontodaten werden dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden."))) return;
+  try { await POST("/api/account/delete", {}); }
+  catch (e) { toast((e && e.message) || "Löschen fehlgeschlagen."); return; }
+  try { localStorage.removeItem("like_anon"); sessionStorage.removeItem("like_anon"); } catch {}
+  location.reload();
+}
 renderAcct();
 refreshLoginHint();
 
