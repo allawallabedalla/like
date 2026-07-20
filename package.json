@@ -21,7 +21,7 @@
     "@playwright/test": "^1.61.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "electron": "^43.1.0",
+    "electron": "^43.1.1",
     "electron-builder": "^26.0.12"
   },
   "build": {
