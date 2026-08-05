@@ -1601,14 +1601,126 @@ gemessen, nicht geschätzt.
   + Scroll (Stapel ≤46 dvh, Legende ≤30 dvh). Das „Beispiel-Karte"-Band saß unten mittig und
   lag damit auf dem Info-Sheet und über den Zoom-Knöpfen → weicht dem Sheet aus.
 
-### Offen / bewusst nicht angefasst
 
-- [ ] **U-3g — Landscape (844×390).** Ab 561 px greift wieder das Seiten-Panel (320 px breit,
-  volle Höhe) — auf einem quer gehaltenen iPhone bleibt vom Netz wenig übrig. Denkbar wäre
-  ein eigener Landscape-Fall (schmaleres Panel oder Sheet von rechts). Nicht dringend.
+---
 
-- [ ] **U-3h — Visual-Baselines sind in dieser Umgebung veraltet.** `tests/visual.spec.js`
-  scheitert an 8 von 9 Baselines — **auch auf unverändertem `main`** (Landing und Impressum
-  wurden gar nicht angefasst). Die Snapshots stammen aus einer anderen Rendering-Umgebung;
-  `visual.spec.js` läuft deshalb bewusst nicht in `npm run test:ci`. Bei Gelegenheit auf der
-  Zielumgebung neu erzeugen (`npm run test:e2e:update`).
+### Offener Backlog — Handy/iOS (Runde 26, Rest)
+
+Alle Punkte sind **gemessen**, nicht vermutet: Chromium-Emulation auf 390×844 und 375×812
+mit `isMobile`/`hasTouch`/`pointer: coarse` und echten Touch-Events (CDP `Input.dispatchTouchEvent`),
+plus `npm run check` und `npm run test:ci` als Regressionsnetz.
+
+**Modell-Wahl (Faustregel für diese Liste):**
+
+| Modell | Wofür in diesem Repo |
+|---|---|
+| **Opus 5** | Cross-cutting Entscheidungen, Gesten/Canvas-Interaktion (Touch-Handler ↔ Physik ↔ Zeichnung greifen ineinander), alles wo Geräte-Urteilsvermögen oder ein Trade-off nötig ist, riskante Umbauten an `public/index.html` (7 100 Zeilen, ein einziger Inline-Block). |
+| **Sonnet 5** | Sauber spezifizierte, abgegrenzte Umsetzung mit klarem Abnahmekriterium — CSS-Sweeps, ein Knopf ergänzen, eine Regel über N Selektoren ziehen, Tests dazu schreiben. |
+| **Haiku 4.5** | Mechanisch und risikoarm: Baselines neu erzeugen, Doku nachziehen, Suchen/Ersetzen ohne Designentscheidung. |
+
+Kurz: Wer die *Frage* noch beantworten muss → Opus 5. Wer nur die *Antwort* umsetzt → Sonnet 5.
+Wer nur einen Befehl ausführt und das Ergebnis einträgt → Haiku 4.5.
+
+---
+
+- [ ] **U-3i — iOS Safari zoomt beim Tippen in JEDES Eingabefeld hinein.** *(hoch · S–M)*
+  **Modell: Sonnet 5** — mechanischer Sweep mit hartem Abnahmekriterium, aber die Topbar
+  darf nicht überlaufen (deshalb nicht Haiku).
+  Gemessen auf 390×844: **24 Felder unter 16 px** — u. a. `#q` 15, `#mSearch` 13, `#mGenre` 13,
+  `#packSwitch` 13, `#lvFilter` 13.5, `#lvSort` 13, `#surpriseGenre` 13, `#importFile` 12.5,
+  `#note`/`#fee`/`#status`/`#authUser`/`#authPw`/`#feedbackText`/`#keyInput` je 15, die sechs
+  Ansicht-Checkboxen 12. iOS Safari zoomt die Seite beim Fokussieren automatisch hinein, sobald
+  die Schrift **< 16 px** ist. Seit U-2f (`user-scalable=no` entfernt, WCAG 1.4.4) zoomt es
+  **nicht mehr von selbst zurück** — die Seite bleibt vergrößert, und weil Topbar und Sheets
+  `position: fixed` sind, verrutscht danach das ganze Layout. Genau der Bruch, den der
+  Gesture-Blocker seinerzeit verhindern sollte.
+  *Umsetzung:* alle fokussierbaren Felder auf `font-size: 16px` unter `@media (pointer: coarse)`
+  (nur die *Schrift*, Höhen/Paddings unangetastet lassen). `#mq` (16 px) ist schon richtig und
+  dient als Vorlage. *Abnahme:* kein `input`/`select`/`textarea` mit `< 16px` in der Messung
+  oben; `responsive.spec.js` „Topbar ohne Überlauf" bleibt bei 375 px grün — 16 px in der
+  Topbar-Suche ist die Stelle, die kippen kann.
+
+- [ ] **U-3j — Live-Verifikation auf echtem iOS Safari.** *(hoch · M)*
+  **Modell: Opus 5** (+ ein Gerät) — Emulation kann diese Klasse von Fehlern grundsätzlich
+  nicht zeigen; hier ist Beurteilung gefragt, keine Umsetzung.
+  Der ganze Audit lief gegen **Chromium mit Mobile-Emulation**. Vier Dinge verhält iOS Safari
+  nachweislich anders und sie betreffen genau das, was Runde 26 gebaut hat:
+  1. **`dvh`** — die Sheets stehen auf `82dvh`/`62dvh`/`92dvh`. Safari ändert die dynamische
+     Viewport-Höhe beim Ein-/Ausfahren der URL-Leiste; ob die Sheets dabei springen, sieht man
+     nur echt.
+  2. **Momentum-Scrolling im Sheet** vs. die Wisch-Geste: `makeSheet()` startet den Zieh-Wisch
+     nur bei `scrollTop <= 0` — Safaris Rubber-Band kann `scrollTop` kurzzeitig negativ machen.
+  3. **`env(safe-area-inset-*)` im Querformat** (Notch links/rechts) und im
+     Home-Indicator-Bereich unten am Sheet.
+  4. **Long-Press auf DOM-Elementen** löst in Safari Text-Auswahl und das Teilen-Callout aus —
+     im Panel/Sheet fehlt bislang `-webkit-touch-callout: none`. (Auf dem Canvas nicht relevant,
+     der hat `touch-action: none` und eigene Handler.)
+  *Abnahme:* je ein Durchgang Hoch-/Querformat auf einem echten iPhone, Befunde als U-3j.1…n
+  hier eintragen.
+
+- [ ] **U-3k — `#morebox` und `#discoverbox` haben keinen Schließen-Knopf.** *(mittel · S)*
+  **Modell: Sonnet 5** — Umfang und Zielzustand sind eindeutig.
+  Gemessen: Panel, Hilfe und Radar haben ein `×`, die beiden anderen nicht. Sie gehen jetzt per
+  Wisch, per Tipp auf die Karte und per erneutem Tipp auf ⋯ zu — aber der **Griff ist
+  `aria-hidden`**, und auf dem Telefon gibt es kein `Esc`. Für VoiceOver-Nutzer:innen bleibt
+  damit kein angesagtes Bedienelement zum Schließen übrig.
+  *Umsetzung:* je ein `×` analog `.helpbox .hclose` (mit `aria-label`), auf grobem Zeiger
+  ≥ 44 px; Desktop-Layout darf sich nicht verschieben. USABILITY.md §6/§3 mitpflegen.
+
+- [ ] **U-3l — Modale Dialoge sind auf dem Telefon noch zentrierte Desktop-Boxen.** *(mittel · M)*
+  **Modell: Opus 5** — Designentscheidung (Sheet vs. Vollbild vs. lassen) über sieben Dialoge
+  mit Formularen; erst wenn die gefallen ist, wird es eine Sonnet-5-Aufgabe.
+  Betrifft `#authModal`, `#feedbackModal`, `#keyModal`, `#deleteModal`, `#namesakeModal`,
+  `#supportModal`, `#introModal`. Sie sind `width: min(440px, 100vw - 40px)`, zentriert, ohne
+  Deckel — die Intro-Tour füllt auf 390×844 schon fast den ganzen Schirm, und bei geöffneter
+  iOS-Tastatur schiebt sich der zentrierte Dialog unter das Feld. Die Sheet-Mechanik aus U-3a
+  (`makeSheet()`) ist wiederverwendbar; offen ist, ob **alle** Dialoge Sheets werden sollen
+  (Intro-Tour will eher Vollbild, Bestätigungsdialoge eher zentriert bleiben).
+
+- [ ] **U-3m — Querformat (844×390) fällt zurück aufs Desktop-Seitenpanel.** *(niedrig · M)*
+  **Modell: Opus 5** — es gibt keine offensichtlich richtige Lösung; das ist die Frage, nicht
+  die Umsetzung.
+  Ab 561 px greifen die Sheet-Regeln nicht mehr: quer gehaltenes iPhone bekommt das 320 px
+  breite Seitenpanel über die volle Höhe von 390 px — vom Netz bleibt ein schmaler Streifen.
+  Optionen: eigener `@media (orientation: landscape) and (max-height: 480px)`-Fall (Sheet von
+  rechts, schmaler), oder Panel auf ~40 % Breite deckeln, oder bewusst so lassen (wer die Karte
+  erkundet, hält quer ohnehin selten). Vorher messen, wie oft quer überhaupt vorkommt.
+
+- [ ] **U-3n — Kein haptisches/optisches Feedback beim langen Drücken auf iOS.** *(niedrig · S)*
+  **Modell: Sonnet 5.**
+  Der Long-Press ruft `navigator.vibrate(10)` — **iOS Safari unterstützt das nicht** (kein
+  Vibration-API). Auf dem iPhone passiert also 480 ms lang sichtbar nichts, bis das Menü
+  aufspringt; man weiß nicht, ob der Finger „zählt". *Umsetzung:* optische Quittung im Canvas
+  (z. B. wachsender Ring am gedrückten Knoten während der 480 ms, analog `expandPulse`).
+  Berührt `draw()` und den Touch-Handler — klein, aber am Canvas: bei Unsicherheit hochstufen.
+
+- [ ] **U-3o — Restliche `100vh` auf `dvh` vereinheitlichen.** *(niedrig · S)*
+  **Modell: Haiku 4.5** — reiner Suchen/Ersetzen-Job mit Fallback-Muster.
+  `.leftstack`, `.helpbox` und `.radarbox` rechnen in ihren **Basis**-Regeln noch mit
+  `calc(100vh - 80px)`; auf iOS ist `100vh` die *große* Viewport-Höhe, die Boxen reichen dort
+  also unter die eingefahrene Safari-Leiste. Die Sheet- und Coarse-Regeln aus Runde 26 nutzen
+  bereits `dvh`. *Muster:* die `vh`-Zeile stehen lassen und eine `dvh`-Zeile direkt dahinter
+  (Fallback für alte Browser), so wie es in den neuen Regeln schon gemacht ist.
+
+- [ ] **U-3p — Regressionstests für die neuen Touch-Gesten.** *(mittel · M)*
+  **Modell: Sonnet 5** — Testschreiben mit klarer Spezifikation; die Vorlagen für die
+  CDP-Gesten liegen in dieser Runde vor.
+  Runde 26 hat Verhalten eingeführt, das **kein** Test abdeckt: Wisch-schließt, Wisch-hoch-zieht-auf,
+  Zwei-Stufen-Rückweg (`tall` → normal → zu), Tipp-auf-Karte-schließt-Popover, ▶-Abzeichen am
+  gewählten Knoten, Klangprobe im Kontextmenü. `page.touchscreen.tap()` reicht dafür nicht —
+  gebraucht wird `Input.dispatchTouchEvent` über eine CDP-Session (Start/Move-Kette/Ende), wie
+  in dieser Runde verwendet. *Abnahme:* neue `tests/gestures.spec.js` nur im `mobile`-Projekt,
+  in `test:ci` aufgenommen.
+
+- [ ] **U-3q — Visual-Baselines neu erzeugen.** *(niedrig · S)*
+  **Modell: Haiku 4.5** — ein Befehl, ein Commit, keine Entscheidung.
+  `tests/visual.spec.js` scheitert an 8 von 9 Baselines — **auch auf unverändertem `main`**
+  (gegengeprüft per `git stash`; Landing und Impressum wurden nie angefasst). Die Snapshots
+  stammen aus einer anderen Rendering-Umgebung; deshalb läuft die Datei bewusst nicht in
+  `npm run test:ci`. Auf der Zielumgebung einmal `npm run test:e2e:update`, Ergebnis sichten,
+  committen. **Wichtig:** danach zeigen die 375-px-Baselines die neuen Sheet-/Coarse-Regeln —
+  das ist erwünscht, kein Fehler.
+
+**Empfohlene Reihenfolge:** U-3i (echter Layout-Bruch, billig zu fixen) → U-3j (bestimmt, ob
+und was danach noch nachzuarbeiten ist) → U-3k → U-3p (sichert das Gebaute ab) → U-3l → U-3o
+→ U-3n → U-3q → U-3m.
