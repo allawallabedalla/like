@@ -268,11 +268,12 @@
      -> auf dunklem Panel „unsichtbar"). So folgen sie der Textfarbe (dunkles Theme ~weiß). Tidal
      ist ein Outline-Logo und behält sein Inline-stroke="currentColor". */
   .svc a svg { width: 21px; height: 21px; fill: currentColor; }
-  .svc a.td svg { fill: none; }  /* Tidal bleibt Outline (CSS-fill würde die Rauten füllen) */
+  .svc a.td svg, .svc a.jn svg { fill: none; }  /* Tidal/Juno bleiben Outline (CSS-fill würde die Formen füllen) */
   .svc a:hover { opacity: 1; transform: scale(1.12); }
   .svc a.yt:hover { color: #ff0000; }
   .svc a.sp:hover { color: #1db954; }
   .svc a.td:hover { color: #00a0b4; }
+  .svc a.jn:hover { color: #7db320; }  /* Juno-Grün */
   .panel a { color: var(--text); }
   .field { margin: 14px 0; }
   .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
@@ -1893,6 +1894,7 @@ const CFG = window.LIKE_CFG || {
     { cls: "yt", label: "YouTube", url: "https://www.youtube.com/results?search_query={Q}+music" },
     { cls: "sp", label: "Spotify", url: "https://open.spotify.com/search/{Q}" },
     { cls: "td", label: "Tidal", url: "https://listen.tidal.com/search?q={Q}" },
+    { cls: "jn", label: "Juno", url: "https://www.junodownload.com/search/?q%5Bartist%5D%5B%5D={Q}" },
   ],
   radarTitle: "Radar — Geheimtipps",
   features: { preview: true, radar: true, context: true, active: true, booking: true, tour: true, venues: true },
@@ -2255,6 +2257,8 @@ const SVG_YT = '<svg viewBox="0 0 24 24"><path d="M23 7.5a3 3 0 0 0-2.1-2.1C19 5
 const SVG_SPOTIFY = '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.6 14.4a.62.62 0 0 1-.86.2c-2.35-1.44-5.3-1.76-8.8-.96a.62.62 0 1 1-.28-1.2c3.83-.88 7.1-.5 9.74 1.1.3.18.4.57.2.86zm1.23-2.74a.78.78 0 0 1-1.07.26c-2.7-1.66-6.8-2.14-9.99-1.17a.78.78 0 1 1-.45-1.49c3.64-1.1 8.16-.57 11.25 1.33.37.22.49.7.26 1.07zm.1-2.85C14.76 8.87 9.5 8.7 6.4 9.64a.94.94 0 1 1-.54-1.8c3.56-1.07 9.36-.86 13.05 1.33a.94.94 0 0 1-.96 1.61z"/></svg>';
 // TIDAL-Mark: drei überlappende Rauten (flach, als Outline).
 const SVG_TIDAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 9.5L11.5 13L8 16.5L4.5 13Z"/><path d="M16 9.5L19.5 13L16 16.5L12.5 13Z"/><path d="M12 5L15.5 8.5L12 12L8.5 8.5Z"/></svg>';
+// Juno Download: neutrale Vinyl-Platte mit „J"-Mittelloch-Anker (kein offizielles Logo nötig)
+const SVG_JUNO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/><path d="M15 8v5.2a2.6 2.6 0 1 1-2-2.53"/></svg>';
 const SVG_STOP = '<svg class="ic" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg>';
 const SVG_MOON = '<svg class="ic" viewBox="0 0 16 16"><path d="M11 10.5A5.5 5.5 0 0 1 5.5 5c0-1 .27-1.94.74-2.75A5.5 5.5 0 1 0 13.75 9.76 5.48 5.48 0 0 1 11 10.5z"/></svg>';
 const SVG_SUN = '<svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.4"/><g stroke="currentColor" stroke-width="1.4"><line x1="8" y1="1.5" x2="8" y2="3.4"/><line x1="8" y1="12.6" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="3.4" y2="8"/><line x1="12.6" y1="8" x2="14.5" y2="8"/><line x1="3.4" y1="3.4" x2="4.8" y2="4.8"/><line x1="11.2" y1="11.2" x2="12.6" y2="12.6"/><line x1="12.6" y1="3.4" x2="11.2" y2="4.8"/><line x1="4.8" y1="11.2" x2="3.4" y2="12.6"/></g></svg>';
@@ -4479,7 +4483,7 @@ function renderSub(n, growth) {
   if (n.url) bits.push(`<a href="${esc(n.url)}" target="_blank" rel="noreferrer">${esc(CFG.profileLabel || "Profil")} ↗</a>`);
   // externe Such-Links (Musik: YouTube/Spotify/Tidal; andere Packs eigene) — keine API nötig
   const q = encodeURIComponent(n.name);
-  const SVC_ICON = { yt: SVG_YT, sp: SVG_SPOTIFY, td: SVG_TIDAL };
+  const SVC_ICON = { yt: SVG_YT, sp: SVG_SPOTIFY, td: SVG_TIDAL, jn: SVG_JUNO };
   const svcLinks = (CFG.searchLinks || []).map((s) => {
     const href = s.url.replace("{Q}", q);
     const inner = SVC_ICON[s.cls] || esc(s.label);
