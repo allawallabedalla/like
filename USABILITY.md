@@ -144,6 +144,17 @@ keine Session. Nur sichtbar, wenn der Build Credentials hat (`/api/health` → `
   Panel-▶, Zoom-Regler, Now-Playing-Stop/Spulleiste …). Die Topbar wächst bewusst **nur in
   der Höhe** — breitere Icon-Knöpfe ließen sie auf 375 px überlaufen.
 - **Legende** ist gedeckelt und scrollt (sonst fraß sie ~43 % der Bildschirmhöhe).
+- **Langes Drücken** quittiert sichtbar: ein Ring am Knoten füllt sich über die 480 ms, bis das
+  Kontextmenü aufspringt (U-3n — `navigator.vibrate` gibt es auf iOS nicht).
+- **⋯-Menü und Entdecken** tragen ein `×` (`#moreClose`, `#discoverClose`) — der Sheet-Griff ist
+  `aria-hidden`, und auf dem Telefon gibt es kein `Esc` (U-3k).
+- **Eingabefelder** schreiben auf grobem Zeiger 16 px. Kleiner zoomt iOS Safari beim Fokussieren
+  die Seite hinein und (seit `user-scalable=no` weg ist) nicht wieder heraus (U-3i).
+- **Dialoge**: Formular-Dialoge (`#authModal`, `#feedbackModal`, `#keyModal`) sind Sheets; kurze
+  Rückfragen (`#deleteModal`, `#namesakeModal`, `#supportModal`) und die Intro-Tour bleiben
+  zentriert, aber gedeckelt und scrollbar (U-3l).
+- **Querformat** (≤ 520 px hoch): das Info-Panel bleibt rechts, gedeckelt auf `min(46vw, 340px)`
+  und mit Safe-Area am Notch — ein Sheet von unten ließe für die Karte keine Höhe übrig (U-3m).
 
 ## 15. Packs & Feature-Matrix
 

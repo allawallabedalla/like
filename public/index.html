@@ -224,7 +224,7 @@
 
   /* Korb + Legende teilen sich die linke untere Ecke als Stapel — nie mehr Überlappung */
   .leftstack { position: fixed; left: 14px; bottom: 14px; z-index: 9; display: flex; flex-direction: column;
-    gap: 10px; align-items: flex-start; max-height: calc(100vh - 80px); }
+    gap: 10px; align-items: flex-start; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); }
   .legend { background: var(--bg); border: 1px solid var(--line-soft); padding: 10px 12px; font-size: 12px; }
   .legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--muted); }
   /* Die Sammel-Container (Genres/Szenen) sind selbst divs -> ohne das hier würden ihre
@@ -585,13 +585,20 @@
     .morebox.show ~ .demobar, .helpbox.show ~ .demobar,
     .discoverbox.show ~ .demobar, .radarbox.show ~ .demobar { display: none; }
   }
+  /* Offener Dialog: Band weg. Nicht kosmetisch, sondern nötig — die Modale hängen im
+     fixierten #app-Container, und `position: fixed` öffnet einen eigenen Stacking-Context.
+     Ihr `z-index: 50` konkurriert deshalb gar nicht mit den direkt am <body> hängenden
+     Overlays: das Band (z-index 6) lag ÜBER dem Dialog und fing dessen Knöpfe ab, seit die
+     Dialoge auf dem Telefon bis an den unteren Rand reichen (U-3l). `:has()`, weil Band und
+     Dialog keine Geschwister sind. Der Stacking-Context selbst ist als U-3r notiert. */
+  body:has(.modal-back.show) .demobar { display: none; }
   /* offene Listenansicht: Hinweisband würde den Listen-Kopf überlappen (demoBar wird ans
      body-Ende gehängt, ist also ein späterer Sibling von #listView) */
   .listview.show ~ .demobar { display: none; }
 
   /* Hilfe-Popover (Shortcuts & Bedienung) */
   .helpbox { position: fixed; top: 60px; right: 14px; z-index: 35; background: var(--bg); border: 1px solid var(--line);
-    padding: 14px 16px; font-size: 12.5px; display: none; width: 320px; max-height: calc(100vh - 80px); overflow-y: auto; }
+    padding: 14px 16px; font-size: 12.5px; display: none; width: 320px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto; }
   .helpbox.show { display: block; }
   .helpbox h4 { margin: 10px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
   .helpbox h4:first-child { margin-top: 0; }
@@ -600,9 +607,12 @@
   .helpbox kbd { border: 1px solid var(--line-soft); padding: 0 5px; font: 11px inherit; border-radius: 3px; white-space: nowrap; }
   .helpbox .hbtns { display: flex; gap: 6px; margin: 4px 0 2px; }
   .helpbox .hbtns button { flex: 1; padding: 6px 8px; font-size: 12px; }
-  .helpbox .hclose { position: absolute; top: 6px; right: 8px; border: none; background: none; color: var(--muted);
+  /* U-3k: derselbe ×-Knopf in Hilfe, ⋯-Menü und Entdecken (Selektor bewusst nicht mehr an
+     .helpbox gebunden). Der Sheet-Griff ist aria-hidden — ohne × hätte VoiceOver auf dem
+     Telefon kein angesagtes Bedienelement zum Schließen. */
+  .hclose { position: absolute; top: 6px; right: 8px; z-index: 4; border: none; background: none; color: var(--muted);
     font-size: 22px; line-height: 1; cursor: pointer; padding: 2px 8px; border-radius: 6px; }
-  .helpbox .hclose:hover { color: var(--text); background: var(--line-soft); }
+  .hclose:hover { color: var(--text); background: var(--line-soft); }
 
   /* Entdecken-Popover */
   /* Aktiv-Zustand: Werkzeug-Knopf hervorheben, solange sein Fenster offen ist (C10, C9) */
@@ -686,7 +696,7 @@
 
   /* Radar-Panel (Geheimtipp-Score: kleine Acts nah an deinen Likes) */
   .radarbox { position: fixed; top: 60px; left: 14px; z-index: 34; background: var(--bg); border: 1px solid var(--line);
-    width: 340px; max-height: calc(100vh - 80px); overflow-y: auto; display: none; font-size: 13px; }
+    width: 340px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto; display: none; font-size: 13px; }
   .radarbox.show { display: block; }
   .radarbox h3 { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); font-size: 13px;
     display: flex; justify-content: space-between; align-items: center; }
@@ -871,7 +881,35 @@
     .discoverbox { --spt: 12px; --spl: 12px; --spr: 12px; }
     .radarbox { --spt: 0px; --spl: 0px; --spr: 0px; }
     /* Der ×-Knopf der Hilfe sitzt absolut oben rechts — unter dem Griff einen Tick tiefer. */
-    .helpbox .hclose { top: 12px; }
+    .hclose { top: 12px; }
+
+    /* ---- U-3l: Modale Dialoge auf dem Telefon ----
+       Bewusst NICHT alle gleich: Formular-Dialoge (Anmelden, Feedback, API-Key) werden Sheets
+       — sie sind hoch, tragen Eingabefelder, und die iOS-Tastatur schiebt von unten gegen ein
+       unten verankertes Fenster statt gegen ein zentriertes. Kurze Rückfragen (Löschen,
+       Namensvetter, Spenden) bleiben zentriert: ein Sheet sagt „stöbern", eine Rückfrage will
+       Aufmerksamkeit in der Mitte. Die Intro-Tour bleibt zentriert, bekommt aber einen
+       Höhen-Deckel mit Scroll — sie lief auf 390×844 sonst über. */
+    #authModal, #feedbackModal, #keyModal { align-items: flex-end; }
+    #authModal .modal, #feedbackModal .modal, #keyModal .modal {
+      width: 100%; max-width: none; max-height: 88vh; max-height: 88dvh; overflow-y: auto;
+      border-radius: 16px 16px 0 0; border-left: 0; border-right: 0; border-bottom: 0;
+      padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+    /* Zentriert bleibende Dialoge trotzdem deckeln, damit nichts unten abgeschnitten wird. */
+    .modal-back .modal, .introcard { max-height: 88vh; max-height: 88dvh; overflow-y: auto; }
+  }
+
+  /* ---- U-3m: iPhone im Querformat (z. B. 844×390) ----
+     Ab 561 px greifen die Sheet-Regeln nicht mehr, also bekam ein quer gehaltenes Telefon das
+     volle 320-px-Seitenpanel über 390 px Höhe — von der Karte blieb ein Streifen. Ein Sheet von
+     unten hilft hier nicht (bei 390 px Höhe bliebe für die Karte nichts übrig): das Panel bleibt
+     rechts, wird aber gedeckelt und respektiert die seitliche Safe-Area (Notch). */
+  @media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+    .panel { width: min(46vw, 340px); padding: 14px; padding-right: max(14px, env(safe-area-inset-right)); }
+    body.panel-open .zoomctl { display: none; }
+    .leftstack { max-height: calc(100dvh - 70px); }
+    .legend { max-height: 40dvh; }
+    .trail { display: none; }
   }
 
   /* ---- Finger statt Maus: Mindest-Trefferflächen (WCAG 2.5.5) ----
@@ -886,7 +924,7 @@
     .langseg, .iconbtn, .bar > button, .bar > select, .search input, .search button { height: 44px; }
     .basket .listswitch { padding: 6px 0; }
     .panel button, .radarbox button, .discoverbox .ditem { min-height: 44px; }
-    #demoOff, .tidynudge .x, .bridgebar .bhead .x, .helpbox .hclose, .radarbox h3 button,
+    #demoOff, .tidynudge .x, .bridgebar .bhead .x, .hclose, .radarbox h3 button,
     #lvClose { min-width: 40px; min-height: 40px; }
     .genres span { font-size: 12.5px; padding: 7px 12px; }
     .nowplaying #npStop { width: 40px; height: 40px; }
@@ -894,6 +932,23 @@
        auf 24px aufziehen (die sichtbare Leiste bleibt schlank). */
     .nowplaying #npBar { height: 8px; padding: 8px 0; background-clip: content-box; }
     .nowplaying #npBar .npfill { top: 8px; bottom: 8px; }
+    /* U-3i: iOS Safari zoomt die Seite beim Fokussieren automatisch hinein, sobald ein
+       Eingabefeld kleiner als 16 px schreibt — und seit U-2f (kein `user-scalable=no` mehr,
+       WCAG 1.4.4) zoomt es NICHT mehr von selbst zurück. Die Seite bleibt vergrößert, und
+       weil Topbar und Sheets `position: fixed` sind, verrutscht danach das ganze Layout.
+       Gemessen waren 24 Felder betroffen (11.5–15 px). Nur die SCHRIFT wächst — Höhen,
+       Paddings und Breiten bleiben, damit die Topbar auf 375 px nicht überläuft.
+       `!important`, weil die Größen aus spezifischeren Regeln und teils aus inline-`style`
+       kommen (z. B. #surpriseGenre); Checkboxen/Radios/Slider tragen keinen Text und lösen
+       den Zoom gar nicht erst aus. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select, textarea { font-size: 16px !important; }
+
+    /* Long-Press auf Sheet-Chrome soll das Fenster ziehen, nicht Safaris Textauswahl und
+       das Teilen-Callout öffnen (U-3j.4). Eingabefelder und Fließtext bleiben markierbar. */
+    .sheetgrip, .morebox .mtitle, .helpbox h4, .discoverbox .dtitle, .radarbox h3,
+    .panel h2, .panel .sub { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
     /* Legende + Korb fressen auf einem iPhone sonst fast die halbe Karte. */
     .leftstack { max-height: 46vh; max-height: 46dvh; }
     .legend { max-height: 30vh; max-height: 30dvh; overflow-y: auto; }
@@ -985,6 +1040,10 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
 
   <!-- „Ansicht & Export"-Menü: hält die Anzeige-Optionen + Export, damit die Topbar nie überläuft -->
   <div class="morebox" id="morebox">
+    <!-- U-3k: Schließen-Knopf. Wisch und Tipp auf die Karte schließen das Sheet zwar auch,
+         aber der Griff ist aria-hidden und auf dem Telefon gibt es kein Esc — ohne × hätte
+         VoiceOver kein angesagtes Bedienelement zum Schließen. -->
+    <button id="moreClose" class="hclose" type="button" title="Schließen" aria-label="Menü schließen">×</button>
     <div class="mtitle">Modus</div>
     <div class="modeseg" id="modeSeg" title="Stöbern: aufgeräumte Ansicht — suchen, erkunden, anhören, merken. Booking: alle Profi-Werkzeuge (Status, Notizen, Vergleich, Szenen, Export …)">
       <button type="button" id="modeFun">Stöbern</button>
@@ -1152,6 +1211,7 @@ setTimeout(function(){var b=document.getElementById("boot");if(b&&!b.classList.c
   </div>
 
   <div class="discoverbox" id="discoverbox">
+    <button id="discoverClose" class="hclose" type="button" title="Schließen" aria-label="Entdecken schließen">×</button>
     <div class="dtitle">Entdecken</div>
     <!-- FB25/#93: Radar ins Entdecken-Popover gebündelt (früher eigener Topbar-Knopf) — alle
          Entdeck-Werkzeuge an einem Ort, keine zwei fast gleichen Einstiege mehr. -->
@@ -1629,6 +1689,7 @@ const T = LANG !== "en" ? null : {
   "Quellen-Diagnose": "Source diagnostics", "Quellen testen": "Test sources", "Alle Datenquellen live anpingen": "Ping all data sources live",
   "Einführung": "Introduction", "▸ Kurz-Tour ansehen": "▸ Watch the quick tour", "Die Kurz-Tour noch einmal ansehen": "Watch the quick tour again",
   "Hilfe schließen": "Close help", "Schließen": "Close",
+  "Menü schließen": "Close menu", "Entdecken schließen": "Close discover",
   // Intro / Tour (Navigation; Slide-Inhalte werden per innerHTML gesetzt)
   "Zurück": "Back", "Weiter": "Next", "Los geht's": "Let's go", "Überspringen": "Skip",
   // Auth / Feedback / Key
@@ -3670,6 +3731,18 @@ function draw() {
     }
   }
 
+  // U-3n: Fortschritts-Ring, solange ein Knoten gedrückt gehalten wird. Ohne ihn passierte
+  // auf dem iPhone 480 ms lang nichts Sichtbares (Vibration gibt es dort nicht), und man
+  // wusste nicht, ob das lange Drücken überhaupt gezählt wird.
+  if (pressRing && nodeById.has(pressRing.node.id)) {
+    const n = pressRing.node, prog = Math.min(1, (Date.now() - pressRing.t0) / LONG_PRESS_MS);
+    const rr = radius(n) + 7 / view.k;
+    ctx.globalAlpha = 0.3 + 0.7 * prog;
+    ctx.strokeStyle = getCss("--edge-together"); ctx.lineWidth = 2.6 / view.k; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(n.x, n.y, rr, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.stroke();
+    ctx.lineCap = "butt"; ctx.globalAlpha = 1;
+  }
+
   // U-3b: ▶-Abzeichen am gewählten Knoten — nur auf Finger-Geräten, wo der Hover-▶ oben
   // mangels Maus nie erscheint. Position unten links (s. playBadge).
   if (showPlayBadge(selected)) {
@@ -3835,7 +3908,7 @@ function loop() {
     }
     const anims = stepNodeAnims();
     const npPlaying = previewName && audio.src && !audio.paused && !audio.ended; // C5: Vorschau-Ring pulsieren lassen
-    const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || togetherPending.size || anims || moonsLive || sizing || npPlaying || followMoved;
+    const animating = alpha >= ALPHA_MIN || dragNode || busyId != null || expandPulse.size || togetherPending.size || anims || moonsLive || sizing || npPlaying || followMoved || pressRing;
     if (animating || dirty) { draw(); dirty = false; idleTick = 0; }
     else if (++idleTick % 8 === 0) draw(); // Heartbeat gegen verpasste requestDraw()
   } catch (e) {
@@ -4275,6 +4348,11 @@ cv.addEventListener("wheel", (e) => {
 let touch = null, lastTapT = 0, lastTapNode = null, longTimer = null;
 // U-3a: wird weiter unten gesetzt, sobald die Popover-Referenzen existieren.
 let closeOverlaysOnMapTap = () => {};
+// U-3n: sichtbare Quittung fürs lange Drücken. `navigator.vibrate` gibt es auf iOS Safari
+// nicht — dort passierte 480 ms lang gar nichts und man wusste nicht, ob der Finger „zählt".
+// Solange gedrückt wird, füllt sich ein Ring um die Kugel (gezeichnet in draw()).
+const LONG_PRESS_MS = 480;
+let pressRing = null; // { node, t0 }
 const tp = (t) => { const r = cv.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
 cv.addEventListener("touchstart", (e) => {
   e.preventDefault();
@@ -4286,6 +4364,7 @@ cv.addEventListener("touchstart", (e) => {
     const p = tp(e.touches[0]);
     const n = pick(p.x, p.y);
     touch = { mode: n ? "node" : "pan", node: n, start: p, vx: view.x, vy: view.y, moved: false, t0: Date.now(), longFired: false };
+    pressRing = n ? { node: n, t0: Date.now() } : null; // U-3n
     longTimer = setTimeout(() => { // langes Drücken -> Kontextmenü
       if (touch && !touch.moved && touch.node) {
         const r = cv.getBoundingClientRect();
@@ -4293,7 +4372,8 @@ cv.addEventListener("touchstart", (e) => {
         showCtx(touch.node, touch.start.x + r.left, touch.start.y + r.top);
         touch.longFired = true; if (navigator.vibrate) navigator.vibrate(10);
       }
-    }, 480);
+      pressRing = null;
+    }, LONG_PRESS_MS);
   } else if (e.touches.length === 2) {
     const a = tp(e.touches[0]), b = tp(e.touches[1]);
     touch = { mode: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, k0: view.k, vx: view.x, vy: view.y,
@@ -4316,7 +4396,7 @@ cv.addEventListener("touchmove", (e) => {
   }
   const p = tp(e.touches[0]);
   const dx = p.x - touch.start.x, dy = p.y - touch.start.y;
-  if (Math.abs(dx) + Math.abs(dy) > 6) { touch.moved = true; clearTimeout(longTimer); }
+  if (Math.abs(dx) + Math.abs(dy) > 6) { touch.moved = true; clearTimeout(longTimer); pressRing = null; }
   if (touch.mode === "node" && touch.node) {
     if (!touch.moved) return;
     const w = world(p); touch.node.x = w.x; touch.node.y = w.y; touch.node.vx = 0; touch.node.vy = 0; requestDraw(); // kein reheat: keine Nachbarn mitziehen
@@ -4326,10 +4406,10 @@ cv.addEventListener("touchmove", (e) => {
 }, { passive: false });
 cv.addEventListener("touchend", (e) => {
   e.preventDefault();
-  clearTimeout(longTimer);
+  clearTimeout(longTimer); pressRing = null; requestDraw();
   if (!touch) return;
   if (touch.longFired) { touch = null; return; } // Long-Press-Menü offen lassen (schließt erst bei neuer Geste / Auswahl)
-  const isTap = touch.mode !== "pinch" && !touch.moved && (Date.now() - touch.t0 < 480);
+  const isTap = touch.mode !== "pinch" && !touch.moved && (Date.now() - touch.t0 < LONG_PRESS_MS);
   if (touch.mode === "node" && touch.moved && touch.node) touch.node.pinned = true;
   if (isTap) {
     const p = touch.start;
@@ -4354,7 +4434,7 @@ cv.addEventListener("touchend", (e) => {
   }
   touch = null;
 }, { passive: false });
-cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null; }, { passive: false });
+cv.addEventListener("touchcancel", () => { clearTimeout(longTimer); touch = null; pressRing = null; requestDraw(); }, { passive: false });
 
 // ---- Panel ----
 // FB27/#95: Bild im Info-Panel (mit Pflicht-Attribution/Lizenz für CC-Fotos). Generisch: jeder Pack
@@ -6745,6 +6825,9 @@ function toggleHelp() { helpEl.classList.contains("show") ? closeHelp() : openHe
 // es kein Esc gibt) + Klick außerhalb (Desktop). Sonst ließe sich die Hilfe auf dem Handy
 // gar nicht mehr schließen.
 document.getElementById("helpClose").onclick = closeHelp;
+// U-3k: ⋯-Menü und Entdecken haben jetzt denselben ×-Knopf (siehe .hclose).
+document.getElementById("moreClose").onclick = () => closeMore();
+document.getElementById("discoverClose").onclick = () => closeDiscover();
 document.addEventListener("mousedown", (e) => {
   if (helpEl.classList.contains("show") && !helpEl.contains(e.target)
       && e.target.id !== "helpBtn" && e.target.id !== "mHelp") closeHelp();
