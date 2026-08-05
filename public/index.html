@@ -575,7 +575,16 @@
   .demobar button { flex: none; border: none; background: none; color: var(--muted); font-size: 16px;
     cursor: pointer; padding: 2px 6px; border-radius: 6px; }
   .demobar button:hover { color: var(--text); background: var(--line-soft); }
-  @media (max-width: 640px) { .demobar { top: auto; bottom: 14px; font-size: 12px; } }
+  /* Handy: der Hinweis sitzt unten — dort lag er bisher mitten auf dem Info-Sheet und über den
+     Zoom-Knöpfen (U-3a). Jetzt weicht er dem Sheet aus und lässt die Zoom-Spalte frei. */
+  @media (max-width: 640px) {
+    .demobar { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); font-size: 12px;
+      max-width: calc(100vw - 92px); }
+    /* #demoBar hängt am body-Ende, ist also späterer Sibling aller Sheets. */
+    body.panel-open .demobar,
+    .morebox.show ~ .demobar, .helpbox.show ~ .demobar,
+    .discoverbox.show ~ .demobar, .radarbox.show ~ .demobar { display: none; }
+  }
   /* offene Listenansicht: Hinweisband würde den Listen-Kopf überlappen (demoBar wird ans
      body-Ende gehängt, ist also ein späterer Sibling von #listView) */
   .listview.show ~ .demobar { display: none; }
@@ -808,17 +817,86 @@
   @media (max-width: 1040px) { .gfilter { display: none !important; } }          /* Genre-Filter (auch via Panel-Chips) */
   @media (max-width: 900px)  { #feedbackBtn { display: none !important; } }
   @media (max-width: 760px)  { .bar { gap: 8px; } } /* Radar/Streifzug liegen im Entdecken-Popover */
-  @media (max-width: 480px) {
+  /* ---- Handy: alle Fenster sind Bottom-Sheets (U-3a) ----
+     Auf dem Telefon liegen Info-Panel UND die Popover (⋯-Menü, Hilfe, Entdecken, Radar)
+     unten am Bildschirmrand: volle Breite, abgerundete Oberkante, ein Griff („grabber")
+     oben — und sie lassen sich mit einem Wisch nach unten wegschieben (makeSheet()).
+     Wichtig: `max-height` + `overflow-y:auto`, sonst ragte z. B. das ⋯-Menü auf einem
+     iPhone unten aus dem Bild und die untere Hälfte (Karte/Export/Backup/Löschen) war
+     schlicht nicht erreichbar. `dvh` berücksichtigt Safaris ein-/ausfahrende Leisten. */
+  @media (max-width: 560px) {
     /* Panel als Bottom-Sheet: von unten hoch, volle Breite, abgerundete Oberkante.
        Höhe bewusst < 2/3, damit der Graph oben sichtbar bleibt (der fokussierte Knoten
        wird per centerOn in den freien Streifen ÜBER dem Sheet geschoben). */
-    .panel { width: 100%; top: auto; right: 0; left: 0; height: 62vh; bottom: 0;
+    .panel { width: 100%; top: auto; right: 0; left: 0; height: 62vh; height: 62dvh; bottom: 0;
       border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
       transform: translateY(103%); box-shadow: 0 -8px 34px rgba(0,0,0,.30);
       padding-bottom: max(16px, env(safe-area-inset-bottom)); }
     .panel.open { transform: none; }
-    body.panel-open .zoomctl, body.panel-open .minimap { right: 14px; }
+    /* Aufgezogen (Wisch nach oben am Griff): fast volle Höhe für lange Nachbarlisten. */
+    .panel.tall { height: 92vh; height: 92dvh; }
+    /* Die Zoom-Spalte (z-index 11) läge über dem Info-Sheet (z-index 9) und schwebte mitten
+       in den Nachbarlisten. Solange das Sheet offen ist: weg damit — gezoomt wird per Pinch.
+       (Die Popover liegen mit z-index 35 ohnehin darüber und brauchen die Regel nicht.) */
+    body.panel-open .zoomctl { display: none; }
+    body.panel-open .minimap { right: 14px; }
     .trail { display: none; }
+
+    /* Popover -> Sheet. Die Desktop-Positionierung (top/right/left) wird überschrieben;
+       #discoverbox setzt top/left zusätzlich inline (positionUnder) — daher !important. */
+    .morebox, .helpbox, .discoverbox, .radarbox {
+      position: fixed !important; top: auto !important; bottom: 0 !important;
+      left: 0 !important; right: 0 !important; width: auto !important;
+      max-width: none; max-height: 82vh; max-height: 82dvh; overflow-y: auto;
+      overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+      border-radius: 16px 16px 0 0; border-left: 0; border-right: 0; border-bottom: 0;
+      box-shadow: 0 -8px 34px rgba(0,0,0,.30);
+      padding-bottom: max(16px, env(safe-area-inset-bottom)) !important; }
+    /* Der Radar bringt eine eigene sticky Kopfzeile mit — die soll unter dem Griff kleben. */
+    .radarbox h3 { position: sticky; top: 0; background: var(--bg); z-index: 2; }
+    /* .morebox ist ein Flex-Container: mit max-height würden seine Kinder SCHRUMPFEN statt zu
+       scrollen (die Segmented Controls wurden 14 px flach). Kinder auf Naturhöhe festnageln. */
+    .morebox > * { flex: 0 0 auto; }
+
+    /* Griff („grabber") oben im Sheet. Er klebt beim Scrollen oben fest (sticky) und zieht
+       sich per negativer Margin über die Innenabstände des jeweiligen Sheets. */
+    .sheetgrip { position: sticky; top: calc(-1 * var(--spt)); z-index: 3; display: flex;
+      justify-content: center; align-items: center; background: inherit; touch-action: none;
+      margin: calc(-1 * var(--spt)) calc(-1 * var(--spr)) 6px calc(-1 * var(--spl));
+      padding: 9px 0 8px; }
+    .sheetgrip i { display: block; width: 42px; height: 5px; border-radius: 3px; background: var(--line); }
+    .panel { --spt: 18px; --spl: 18px; --spr: 18px; }
+    .morebox { --spt: 10px; --spl: 12px; --spr: 12px; }
+    .helpbox { --spt: 14px; --spl: 16px; --spr: 16px; }
+    .discoverbox { --spt: 12px; --spl: 12px; --spr: 12px; }
+    .radarbox { --spt: 0px; --spl: 0px; --spr: 0px; }
+    /* Der ×-Knopf der Hilfe sitzt absolut oben rechts — unter dem Griff einen Tick tiefer. */
+    .helpbox .hclose { top: 12px; }
+  }
+
+  /* ---- Finger statt Maus: Mindest-Trefferflächen (WCAG 2.5.5) ----
+     Nur für grobe Zeigegeräte, damit Desktop-Layout und Visual-Baselines unberührt bleiben. */
+  @media (pointer: coarse) {
+    .ctxmenu div { padding: 12px 14px; font-size: 14px; min-height: 44px; display: flex; align-items: center; }
+    .panel .close, #closePanel { width: 44px; height: 44px; font-size: 22px; }
+    .playbtn { width: 44px; height: 44px; }
+    .zoomctl button { width: 44px; height: 44px; }
+    /* Nur die HÖHE aufziehen — die Breiten müssen bleiben, sonst läuft die Topbar auf einem
+       375-px-iPhone über (getestet in responsive.spec.js). */
+    .langseg, .iconbtn, .bar > button, .bar > select, .search input, .search button { height: 44px; }
+    .basket .listswitch { padding: 6px 0; }
+    .panel button, .radarbox button, .discoverbox .ditem { min-height: 44px; }
+    #demoOff, .tidynudge .x, .bridgebar .bhead .x, .helpbox .hclose, .radarbox h3 button,
+    #lvClose { min-width: 40px; min-height: 40px; }
+    .genres span { font-size: 12.5px; padding: 7px 12px; }
+    .nowplaying #npStop { width: 40px; height: 40px; }
+    /* Die 6px-Spulleiste ist mit dem Finger kaum zu treffen — Trefferfläche unsichtbar
+       auf 24px aufziehen (die sichtbare Leiste bleibt schlank). */
+    .nowplaying #npBar { height: 8px; padding: 8px 0; background-clip: content-box; }
+    .nowplaying #npBar .npfill { top: 8px; bottom: 8px; }
+    /* Legende + Korb fressen auf einem iPhone sonst fast die halbe Karte. */
+    .leftstack { max-height: 46vh; max-height: 46dvh; }
+    .legend { max-height: 30vh; max-height: 30dvh; overflow-y: auto; }
   }
   /* sehr schmale Screens: Leiste enger schnüren, damit Space/Flat-Toggle + Pack-Umschalter
      ohne Überlauf passen (nach den 760px-Regeln, damit dieser Wert gewinnt) */
@@ -1471,6 +1549,7 @@ const T = LANG !== "en" ? null : {
   // Panel
   "Panel schließen (Esc)": "Close panel (Esc)",
   "Weiter erkunden": "Keep exploring", "Fokus": "Focus", "Brücke bauen…": "Build a bridge…",
+  "▶ Klangprobe (30 Sek.)": "▶ Play preview (30 sec)", "⏸ Klangprobe stoppen": "⏸ Stop preview",
   "Nachbarn dieses Acts laden: ähnlicher Stil + gemeinsame Auftritte (Taste e)": "Load this act's neighbors: similar style + shared gigs (key e)",
   "Nur diesen Act + direkte Nachbarn zeigen (Taste f)": "Show only this act + direct neighbors (key f)",
   "In dein Lineup aufnehmen (Taste b)": "Add to your lineup (key b)",
@@ -2288,9 +2367,10 @@ function refreshPreviewButtons(loadingName) {
     b.title = playing ? "Wiedergabe stoppen" : PREVIEW_TITLE;
   });
 }
-audio.addEventListener("ended", () => { previewName = null; refreshPreviewButtons(); updateNowPlaying(); });
-audio.addEventListener("pause", () => { refreshPreviewButtons(); updateNowPlaying(); });
-audio.addEventListener("play", () => { refreshPreviewButtons(); updateNowPlaying(); });
+// requestDraw: das ▶/⏸-Abzeichen am gewählten Knoten (U-3b) zeigt den Abspielzustand mit.
+audio.addEventListener("ended", () => { previewName = null; refreshPreviewButtons(); updateNowPlaying(); requestDraw(); });
+audio.addEventListener("pause", () => { refreshPreviewButtons(); updateNowPlaying(); requestDraw(); });
+audio.addEventListener("play", () => { refreshPreviewButtons(); updateNowPlaying(); requestDraw(); });
 // Globales Mini-Player-Band: erscheint, sobald eine Vorschau läuft, und lässt sich von ÜBERALL
 // stoppen — auch wenn man den Act längst verlassen hat (kein Zurückscrollen zum ▶ nötig).
 function updateNowPlaying() {
@@ -3590,6 +3670,24 @@ function draw() {
     }
   }
 
+  // U-3b: ▶-Abzeichen am gewählten Knoten — nur auf Finger-Geräten, wo der Hover-▶ oben
+  // mangels Maus nie erscheint. Position unten links (s. playBadge).
+  if (showPlayBadge(selected)) {
+    const b = playBadge(selected), pl = previewName === selected.name && !audio.paused;
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7);
+    ctx.fillStyle = getCss("--bg"); ctx.fill();
+    ctx.strokeStyle = getCss("--edge-together"); ctx.lineWidth = 1.4 / view.k; ctx.stroke();
+    ctx.fillStyle = getCss("--edge-together");
+    if (pl) { // ⏸
+      const bw = b.r * 0.22, bh = b.r * 0.72, gp = b.r * 0.14;
+      ctx.fillRect(b.x - bw - gp, b.y - bh / 2, bw, bh); ctx.fillRect(b.x + gp, b.y - bh / 2, bw, bh);
+    } else {  // ▶
+      const sz = b.r * 0.46;
+      ctx.beginPath(); ctx.moveTo(b.x - sz * 0.42, b.y - sz); ctx.lineTo(b.x - sz * 0.42, b.y + sz); ctx.lineTo(b.x + sz, b.y); ctx.closePath(); ctx.fill();
+    }
+  }
+
   // Planeten-Modus: am gehoverten Mond zwei kleine Aktionen — ＋ (zum eigenen Planeten
   // ausbauen) und ⓘ (Info-Karte öffnen). Nur am gerade gehoverten Mond.
   if (isMoonHover(hovG)) {
@@ -3944,6 +4042,26 @@ function onPlayBtn(px, py) {
   return gd <= R + 6 / view.k ? g : null; // Treffer im ▶-Kreis
 }
 
+// U-3b: Klangprobe auf dem Telefon. Der ▶ oben (onPlayBtn/draw) hängt an `mouseWorld` und
+// existiert auf einem Finger-Gerät folglich NIE — dort blieb nur der 28px-▶ im Info-Panel.
+// Deshalb bekommt der GEWÄHLTE Knoten auf Touch ein eigenes ▶-Abzeichen unten links an der
+// Kugel — an derselben Ecke wie die anderen Aktions-Abzeichen (＋ oben rechts, ⓘ oben links,
+// × unten rechts) und damit ohne Konflikt mit Tipp (Info) / Doppeltipp (erkunden) / Ziehen.
+// Sitz: direkt LINKS neben der Kugel. Die Diagonalen sind belegt (＋/ⓘ/×/„+K"), unten liegt
+// die Beschriftung — links ist der einzige Platz, der weder Abzeichen noch Namen verdeckt.
+function playBadge(n) {
+  return { x: n.x - (radius(n) + 15 / view.k), y: n.y, r: 11 / view.k };
+}
+function showPlayBadge(n) {
+  return !!(COARSE && FEAT.preview && n && !n.venue && (n.appear ?? 1) >= 1 && !interactionHidden(n));
+}
+function onPlayBadge(n, px, py) {
+  if (!showPlayBadge(n)) return false;
+  const w = world({ x: px, y: py }), b = playBadge(n);
+  const hit = Math.max(b.r + 9 / view.k, 26 / view.k); // fingerfreundlich (~26 px auf dem Schirm)
+  return (b.x - w.x) ** 2 + (b.y - w.y) ** 2 < hit * hit;
+}
+
 // „+K"-Chip (geparkte Nachbarn): Position unten rechts an der Kugel — bewusst der Griff, den
 // Nutzer ohnehin schon zum „mehr einblenden" antippen. Ein Tipp darauf ruft revealMore(n).
 function pendingBadge(n) {
@@ -4155,12 +4273,15 @@ cv.addEventListener("wheel", (e) => {
 // preventDefault schon bei touchstart -> wir besitzen die Geste komplett (kein Seiten-Scroll,
 // kein Doppeltipp-Browser-Zoom, keine Maus-Emulation, die die Maus-Handler doppelt auslöst).
 let touch = null, lastTapT = 0, lastTapNode = null, longTimer = null;
+// U-3a: wird weiter unten gesetzt, sobald die Popover-Referenzen existieren.
+let closeOverlaysOnMapTap = () => {};
 const tp = (t) => { const r = cv.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
 cv.addEventListener("touchstart", (e) => {
   e.preventDefault();
   clearTimeout(longTimer);
   stopFollow(); // eigene Geste beendet das automatische Mittig-Halten
   hideCtx(); // offenes Kontextmenü schließen, sobald eine neue Geste auf der Karte beginnt
+  closeOverlaysOnMapTap(); // U-3a: dito für ⋯-Menü/Hilfe/Entdecken/Radar (auf Touch gibt es keinen Außenklick)
   if (e.touches.length === 1) {
     const p = tp(e.touches[0]);
     const n = pick(p.x, p.y);
@@ -4212,6 +4333,9 @@ cv.addEventListener("touchend", (e) => {
   if (touch.mode === "node" && touch.moved && touch.node) touch.node.pinned = true;
   if (isTap) {
     const p = touch.start;
+    // U-3b: ▶ am gewählten Knoten zuerst prüfen — es liegt bewusst NEBEN der Kugel, ein Tipp
+    // darauf startet/stoppt nur die Klangprobe (kein Panel-Wechsel, kein Doppeltipp-Ausbau).
+    if (selected && onPlayBadge(selected, p.x, p.y)) { togglePreview(selected.name); touch = null; requestDraw(); return; }
     const gi = (bridge && bridge.cands.length) ? pickGhost(p.x, p.y) : -1;
     if (gi >= 0) { addBridge(gi); }
     else {
@@ -4307,6 +4431,7 @@ function selectVenue(n) {
     .map(l => ({ other: l.a.id === n.id ? l.b : l.a, w: l.weight, type: "venue", shows: [] }));
   fillNeighbors("nbSimilar", [], () => "");
   fillNeighbors("nbTogether", rows.sort((a, b) => b.w - a.w), r => `${r.w}×`);
+  nudgeAboveSheet(n);
 }
 function selectNode(n) {
   if (n.venue) return selectVenue(n);
@@ -4353,6 +4478,24 @@ function selectNode(n) {
   fillNeighbors("nbSimilar", rows.filter(r => r.type === "similar").sort((a, b) => b.w - a.w), r => `${(r.w * 100 | 0)}%`);
   appendRevealBtn(n); // „+K weitere ähnliche laden", falls beim Ausbau Nachbarn geparkt wurden
   fillTogether(rows.filter(r => r.type !== "similar").sort((a, b) => b.w - a.w));
+  nudgeAboveSheet(n);
+}
+// U-3c: Auf dem Telefon liegt die Info-Karte als Sheet über der unteren Bildschirmhälfte.
+// Ein Knoten, den man dort angetippt hat, verschwindet sonst darunter — man sieht nicht mehr,
+// worüber man gerade liest (und der neue ▶ am Knoten wäre unerreichbar). Also nach dem
+// Aufziehen in den freien Streifen darüber schieben — aber nur, wenn er wirklich verdeckt ist.
+function nudgeAboveSheet(n) {
+  if (!n || !sheetMode()) return;
+  setTimeout(() => {                                   // erst wenn das Sheet oben angekommen ist
+    if (selected !== n) return;
+    const p = document.getElementById("panel");
+    if (!p.classList.contains("open")) return;
+    const r = p.getBoundingClientRect();
+    if (!(r.top > 0 && r.top < innerHeight)) return;
+    const sy = view.y + n.y * view.k;                   // Bildschirm-Y des Knotens
+    const pad = 56;                                     // Luft für Beschriftung + ▶-Abzeichen
+    if (sy > r.top - pad || sy < 52 + pad) centerOn(n);
+  }, 220);
 }
 // Warteliste-Button unter die „Ähnlicher Stil"-Liste hängen (nur wenn es geparkte Nachbarn gibt).
 function appendRevealBtn(n) {
@@ -4407,7 +4550,7 @@ function fillTogether(rows) {
     if (wo && sh) wo.onclick = (e) => { e.stopPropagation(); sh.classList.toggle("open"); };
   });
 }
-function closePanel() { selected = null; document.getElementById("panel").classList.remove("open"); document.body.classList.remove("panel-open"); requestDraw(); }
+function closePanel() { selected = null; const p = document.getElementById("panel"); p.classList.remove("open"); p.classList.remove("tall"); document.body.classList.remove("panel-open"); requestDraw(); }
 // Zentriert einen Knoten im SICHTBAREN Bereich — berücksichtigt das offene Panel, damit der
 // fokussierte Knoten nicht rechts unter dem Seiten-Panel (Desktop) bzw. unter dem Bottom-Sheet
 // (Mobile) verschwindet.
@@ -5062,6 +5205,12 @@ function hideCtx() { ctxEl.classList.remove("show"); }
 function showCtx(n, x, y) {
   const bl = listName(activeListObj());
   const likeItem = [basket.has(n.id) ? tf(`Aus „{B}" entfernen`, { B: bl }) : `${CFG.likeLabel || "like!"} → ${bl}`, () => toggleBasket(n)];
+  // U-3b: Klangprobe direkt aus dem Kontextmenü — auf dem Telefon ist langes Drücken der
+  // bequemste Weg zur Hörprobe (der ▶ an der Kugel ist klein, das Panel muss erst aufgehen).
+  const playing = previewName === n.name && !audio.paused;
+  const playItem = (FEAT.preview && !n.venue)
+    ? [[playing ? "⏸ Klangprobe stoppen" : "▶ Klangprobe (30 Sek.)", () => togglePreview(n.name)]]
+    : [];
   const items = n.venue ? [
     ["Details öffnen", () => selectNode(n)],
     [focusId === n.id ? "Fokus aus" : "Fokus auf Nachbarschaft", () => toggleFocus(n)],
@@ -5070,12 +5219,14 @@ function showCtx(n, x, y) {
   ] : MODE === "fun" ? [
     // Stöbern-Modus: nur die vier Kern-Aktionen — Profi-Werkzeuge (Fokus, Vergleich, Brücke,
     // Fixieren) bleiben dem Booking-Modus vorbehalten.
+    ...playItem,
     ["Weiter erkunden", () => expandOrOpen(n)],
     ["Details öffnen", () => selectNode(n)],
     ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
     likeItem,
     ["Entfernen", () => removeNode(n)],
   ] : [
+    ...playItem,
     ["Weiter erkunden", () => expandOrOpen(n)],
     ["Details öffnen", () => selectNode(n)],
     ...(n.pending && !STATIC ? [[tf("＋ {K} weitere laden", { K: n.pending }), () => revealMore(n)]] : []),
@@ -6599,6 +6750,81 @@ document.addEventListener("mousedown", (e) => {
       && e.target.id !== "helpBtn" && e.target.id !== "mHelp") closeHelp();
 });
 helpBtnEl.onclick = toggleHelp;
+
+// ---- U-3a: Handy-Sheets — Wisch nach unten schließt das Fenster ----
+// Auf dem Telefon liegen Info-Panel und Popover als Bottom-Sheets unten am Rand (s. CSS).
+// Dort erwartet man die iOS-Geste: mit dem Finger nach unten wischen = Fenster wegschieben.
+// Vorher ging das nur über kleine ×-Knöpfe bzw. — beim ⋯-Menü — gar nicht, weil ein Tipp auf
+// die Karte kein mousedown auslöst (der Canvas verschluckt die Geste per preventDefault).
+const SHEET_MQ = "(max-width: 560px)";
+const sheetMode = () => { try { return matchMedia(SHEET_MQ).matches; } catch { return false; } };
+// Elemente, die eigene Gesten haben (Text markieren, Regler ziehen, Feld scrollen) —
+// von dort darf kein Sheet-Wisch starten.
+const SHEET_NODRAG = "input, textarea, select, #npBar, .neighbors, .labels-list";
+function makeSheet(el, close, opts = {}) {
+  if (!el) return;
+  const grip = document.createElement("div");
+  grip.className = "sheetgrip";
+  grip.setAttribute("aria-hidden", "true");           // rein visueller Griff; Schließen geht auch per ×/Esc
+  grip.innerHTML = "<i></i>";
+  el.insertBefore(grip, el.firstChild);
+  let s = null;
+  const onGripZone = (e) => grip.contains(e.target) || (e.touches[0].clientY - el.getBoundingClientRect().top) < 34;
+  el.addEventListener("touchstart", (e) => {
+    s = null;
+    if (!sheetMode() || e.touches.length !== 1) return;
+    const g = onGripZone(e);
+    if (!g && e.target.closest && e.target.closest(SHEET_NODRAG)) return;
+    s = { y0: e.touches[0].clientY, t0: Date.now(), dy: 0, grip: g, top: el.scrollTop, active: false };
+  }, { passive: true });
+  el.addEventListener("touchmove", (e) => {
+    if (!s || e.touches.length !== 1) return;
+    const dy = e.touches[0].clientY - s.y0;
+    if (!s.active) {
+      if (Math.abs(dy) < 6) return;
+      // Wisch nach oben am Griff = Sheet aufziehen (nur wo vorgesehen, aktuell das Info-Panel).
+      if (dy < 0) {
+        if (s.grip && opts.expand && !el.classList.contains("tall")) el.classList.add("tall");
+        s = null; return;
+      }
+      // Nach unten: nur wenn der Inhalt schon ganz oben steht — sonst gehört die Geste dem Scrollen.
+      if (!s.grip && s.top > 0) { s = null; return; }
+      s.active = true;
+      el.style.transition = "none";
+    }
+    s.dy = Math.max(0, dy);
+    el.style.transform = `translateY(${s.dy}px)`;
+    e.preventDefault(); // wir besitzen die Geste -> kein Seiten-Scroll, kein Klick am Ende
+  }, { passive: false });
+  const end = () => {
+    if (!s) return;
+    const { dy, t0, active } = s; s = null;
+    if (!active) return;
+    el.style.transition = "";
+    el.style.transform = "";
+    const flick = dy > 40 && Date.now() - t0 < 300;          // kurzer, schneller Wisch
+    const far = dy > Math.max(80, el.getBoundingClientRect().height * 0.25);
+    if (!flick && !far) return;                               // zu wenig -> zurückschnappen
+    // Aufgezogenes Panel geht zuerst auf Normalhöhe zurück, erst der nächste Wisch schließt.
+    if (opts.expand && el.classList.contains("tall")) { el.classList.remove("tall"); return; }
+    close();
+  };
+  el.addEventListener("touchend", end);
+  el.addEventListener("touchcancel", end);
+}
+makeSheet(document.getElementById("panel"), closePanel, { expand: true });
+makeSheet(moreEl, closeMore);
+makeSheet(helpEl, closeHelp);
+makeSheet(discoverEl, closeDiscover);
+makeSheet(radarEl, closeRadar);
+// Ein Tipp auf die Karte schließt offene Popover (Desktop macht das der mousedown-Außenklick;
+// auf Touch kommt der nie an, weil der Canvas die Geste per preventDefault für sich behält).
+closeOverlaysOnMapTap = () => {
+  if (moreEl.classList.contains("show")) closeMore();
+  if (discoverEl.classList.contains("show")) closeDiscover();
+  if (helpEl.classList.contains("show")) closeHelp();
+  if (radarEl.classList.contains("show")) closeRadar();
+};
 
 // ---- Tastatur-Shortcuts ----
 addEventListener("keydown", (e) => {

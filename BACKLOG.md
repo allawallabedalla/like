@@ -1548,3 +1548,67 @@ Displays wirkt das gedrängt.
 
 **Reihenfolge/Wirkung:** T1 zuerst (schneller, deckt das Feedback direkt ab), T2 nur, falls
 die feste Anhebung nicht genügt oder wir A11y-Punkte (vgl. W5/axe-core) mitnehmen wollen.
+
+---
+
+## Runde 26 — iPhone-Usability-Audit (2026-08-05)
+
+**Kontext:** Nutzer-Feedback aus dem Live-Betrieb: „Ich kann die Fenster nicht über Wischen
+nach unten klein machen, und die Play-Vorschau ist schwierig — vielleicht Tap and Hold?"
+Daraufhin ein gezielter Audit der App in iPhone-Größe (390×844, `pointer: coarse`, echte
+Touch-Events; zusätzlich 375×812 gegen die Responsive-Tests). Befunde B–F unten sind
+gemessen, nicht geschätzt.
+
+### Befunde
+
+- [x] **U-3a — Fenster ließen sich nicht wegwischen; das ⋯-Menü ragte aus dem Bild.**
+  Das Info-Panel war zwar schon ein Bottom-Sheet, hatte aber weder Griff noch Wisch-Geste.
+  Die Popover (⋯-Menü, Hilfe, Entdecken, Radar) blieben Desktop-Dropdowns: `.morebox` war
+  auf 390×844 **958 px hoch bei 844 px Viewport, ohne `overflow-y`** — alles ab „KARTE"
+  (Export, PNG, Snapshot, Teilen, Backup, Löschen, Impressum) war schlicht unerreichbar.
+  → Alle fünf Fenster sind auf ≤560 px jetzt Bottom-Sheets mit Griff, `max-height` (`dvh`),
+  Scroll und Wisch-nach-unten-schließt (`makeSheet()`); das Info-Panel lässt sich am Griff
+  zusätzlich auf 92 dvh **aufziehen** (Wisch nach unten: erst zurück auf Normalhöhe, dann zu).
+
+- [x] **U-3b — Klangprobe auf dem Telefon praktisch versteckt.** Der ▶ an der Kugel wird nur
+  gezeichnet, wenn `mouseWorld` gesetzt ist — das passiert ausschließlich bei `mousemove`.
+  Auf einem Finger-Gerät existierte er also **nie**; blieb der 28-px-▶ im Info-Panel.
+  → (1) Langes Drücken auf einen Knoten bietet „▶ Klangprobe (30 Sek.)" als **ersten**
+  Eintrag im Kontextmenü (genau der vorgeschlagene Tap-and-Hold). (2) Der **gewählte** Knoten
+  trägt auf Touch ein eigenes ▶/⏸-Abzeichen links neben der Kugel — bewusst neben der Kugel,
+  damit Tippen (Info), Doppeltippen (erkunden) und Ziehen unberührt bleiben.
+  (3) Der Panel-▶ ist auf grobem Zeiger 44×44 statt 28×28.
+
+- [x] **U-3c — Angetippter Knoten verschwand unter dem Sheet.** `selectNode()` rief nie
+  `centerOn()` — wer unten in die Karte tippte, sah den gewählten Knoten nicht mehr (das
+  Sheet deckt 62 % der Höhe). → `nudgeAboveSheet()` schiebt ihn nach dem Aufziehen in den
+  freien Streifen darüber, aber nur wenn er wirklich verdeckt ist.
+
+- [x] **U-3d — Tipp auf die Karte schloss offene Popover nicht.** Der Außenklick hängt an
+  `mousedown`; der Canvas ruft in `touchstart` `preventDefault()` und unterdrückt damit die
+  Maus-Emulation. Auf dem iPhone blieb das ⋯-Menü also offen, bis man ⋯ erneut traf.
+  → `closeOverlaysOnMapTap()` im Canvas-`touchstart`.
+
+- [x] **U-3e — Trefferflächen unter 44 px.** Gemessen: Panel-× 20×37, Panel-▶ 28×28,
+  Zoom-Knöpfe 34×34, Kontextmenü-Zeilen 33 px, Now-Playing-Stop 26×26, Spulleiste 6 px hoch,
+  DE/EN 29×36, Demo-Hinweis-× 22×27. → `@media (pointer: coarse)`-Block hebt sie auf ≥40–44 px
+  (Spulleiste: unsichtbare Trefferfläche 24 px, sichtbare Leiste bleibt schlank).
+  **Bewusst nicht angefasst:** die *Breiten* in der Topbar — 44 px breite Icon-Knöpfe lassen
+  die Leiste auf einem 375-px-iPhone überlaufen (`responsive.spec.js`). Nur die Höhe wächst.
+
+- [x] **U-3f — Legende fraß die halbe Karte; Demo-Band lag auf dem Sheet.** Die Legende war
+  auf 390×844 **362 px hoch** (43 % der Höhe) ohne Deckel. → Auf grobem Zeiger `max-height`
+  + Scroll (Stapel ≤46 dvh, Legende ≤30 dvh). Das „Beispiel-Karte"-Band saß unten mittig und
+  lag damit auf dem Info-Sheet und über den Zoom-Knöpfen → weicht dem Sheet aus.
+
+### Offen / bewusst nicht angefasst
+
+- [ ] **U-3g — Landscape (844×390).** Ab 561 px greift wieder das Seiten-Panel (320 px breit,
+  volle Höhe) — auf einem quer gehaltenen iPhone bleibt vom Netz wenig übrig. Denkbar wäre
+  ein eigener Landscape-Fall (schmaleres Panel oder Sheet von rechts). Nicht dringend.
+
+- [ ] **U-3h — Visual-Baselines sind in dieser Umgebung veraltet.** `tests/visual.spec.js`
+  scheitert an 8 von 9 Baselines — **auch auf unverändertem `main`** (Landing und Impressum
+  wurden gar nicht angefasst). Die Snapshots stammen aus einer anderen Rendering-Umgebung;
+  `visual.spec.js` läuft deshalb bewusst nicht in `npm run test:ci`. Bei Gelegenheit auf der
+  Zielumgebung neu erzeugen (`npm run test:e2e:update`).
