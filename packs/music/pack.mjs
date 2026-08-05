@@ -1,6 +1,6 @@
 // packs/music/pack.mjs — das ursprüngliche like: Künstler-Nachbarschaften.
 // Bündelt die Musik-Quellen (Last.fm, RA, Deezer, MusicBrainz, Bandcamp, iTunes,
-// Setlist.fm) hinter dem generischen Pack-Interface. Die Logik ist 1:1 aus dem
+// Setlist.fm, Juno) hinter dem generischen Pack-Interface. Die Logik ist 1:1 aus dem
 // alten server.mjs übernommen — Verhalten unverändert.
 
 import { getSimilar, getTopTags, getArtistInfo, searchArtists, searchArtistsDetailed, getTagArtists, clearKeyCache } from "../../lib/lastfm.mjs";
@@ -10,6 +10,7 @@ import { previewByName } from "../../lib/itunes.mjs";
 import { labelmates, artistByName as mbArtist, namesakes as mbNamesakes } from "../../lib/musicbrainz.mjs";
 import { searchBand, discoverTag } from "../../lib/bandcamp.mjs";
 import { hasKey as hasSetlistKey, sharedBills } from "../../lib/setlistfm.mjs";
+import { genreReleases as junoReleases, junoSlugFor } from "../../lib/junodownload.mjs";
 
 // „Überrasch mich" (Kaltstart): kuratierter Pool eher kleiner/nischiger Acts über viele
 // Ecken der elektronischen/instrumentalen Musik. surprise() zieht daraus eine Zufalls-
@@ -84,6 +85,9 @@ export default {
       { cls: "yt", label: "YouTube", url: "https://www.youtube.com/results?search_query={Q}+music" },
       { cls: "sp", label: "Spotify", url: "https://open.spotify.com/search/{Q}" },
       { cls: "td", label: "Tidal", url: "https://listen.tidal.com/search?q={Q}" },
+      // Kauf-/Fundstelle: Juno Download (DJ-/Vinyl-Shop) — reiner Deep-Link, kein API-Key.
+      // Suchparameter q[artist][] (URL-encodiert) — dokumentiertes Format der Juno-Suche.
+      { cls: "jn", label: "Juno", url: "https://www.junodownload.com/search/?q%5Bartist%5D%5B%5D={Q}" },
     ],
     radarTitle: "Radar — Geheimtipps",
     radarTogetherReason: "hat mit deinem Like gespielt",
@@ -404,6 +408,26 @@ export default {
         }
       } catch { /* Bandcamp aus -> weiter */ }
     }
+    // Juno (offizieller Genre-RSS-Feed): frische DJ-/Vinyl-Releases in den Genres deiner
+    // Likes — dritte Frische-Quelle neben Deezer-Nachbarn und Bandcamp. EIN Feed pro
+    // Radar-Lauf (Slug des ersten mappbaren Genres); Acts, die schon auf der Karte oder
+    // oben gesammelt sind, fallen raus. Juno down/Genre unbekannt -> still weiter.
+    try {
+      const slug = junoSlugFor(topGenres);
+      if (slug) {
+        for (const rel of await junoReleases(slug, { limit: 10 })) {
+          for (const artist of rel.artists) {
+            const k = artist.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (isKnown(k) || seenNew.has(k)) continue;
+            seenNew.add(k);
+            out.push({
+              name: artist, score: 0.45, url: rel.url,
+              reasons: [{ key: "jnFresh", vars: { genre: slug.replace(/-/g, " ") } }, rel.title ? { key: "release", vars: { title: rel.title } } : null, { key: "notOnMap" }].filter(Boolean),
+            });
+          }
+        }
+      }
+    } catch { /* Juno nicht erreichbar -> weiter */ }
     return out;
   },
 
@@ -415,6 +439,7 @@ export default {
       { name: "Deezer", probe: async () => !!(await dzArtist(T)) },
       { name: "MusicBrainz", probe: async () => !!(await mbArtist(T)) },
       { name: "Bandcamp", probe: async () => { await discoverTag("ambient", { limit: 1 }); return true; } },
+      { name: "Juno", probe: async () => (await junoReleases("deep-house", { limit: 1 })).length > 0 },
       { name: "iTunes", probe: async () => !!(await previewByName(T)) },
       { name: "Setlist.fm", probe: async () => (await hasSetlistKey()) ? !!(await sharedBills(T)) : true, note: setlistNote },
     ];

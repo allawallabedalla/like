@@ -2021,6 +2021,7 @@ const server = createServer(async (req, res) => {
           fans:       { de: `${v.n} Fans`,                    en: `${v.n} fans` },
           notOnMap:   { de: `noch nicht auf deiner Karte`,    en: `not on your map yet` },
           bcFresh:    { de: `frisch auf Bandcamp (${v.genre})`, en: `fresh on Bandcamp (${v.genre})` },
+          jnFresh:    { de: `frisch auf Juno (${v.genre})`,     en: `fresh on Juno (${v.genre})` },
           release:    { de: `Release: „${v.title}"`,          en: `Release: "${v.title}"` },
         }[r.key];
         return T ? T[lang] : (r.text || "");

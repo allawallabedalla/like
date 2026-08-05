@@ -62,6 +62,8 @@ Die maßgeblichen Schalter stehen in `packs/<id>/pack.mjs` unter `features: { �
 ## 5. Info-Panel (rechts, `#panel`)
 
 - **Name** (`#pName`) + „gesucht"-Badge · **Unterzeile** (`#pSub`): Popularität, Ort (Musik/Booking) usw.
+  Daneben die **Dienst-Icons** (`.svc`, aus `CFG.searchLinks`): bei Musik YouTube, Spotify, Tidal
+  und **Juno Download** (Kauf-/Vinyl-Suche zum Act; reiner Deep-Link, kein Key).
 - **Standort-Mini-Karte** (`#pMap`, FB29): nur **Travel** mit Koordinaten — key-/netzfreie Weltkarte
   mit Marker aus Lat/Lon; Klick öffnet die Stelle auf OpenStreetMap.
 - **Genres** (`#pGenres`): klickbare Pills = Karten-Filter.
@@ -83,7 +85,9 @@ Die maßgeblichen Schalter stehen in `packs/<id>/pack.mjs` unter `features: { �
 
 Öffnet über den **Radar**-Eintrag im Entdecken-Popover (§6, `#discRadar`; FB25). Schlägt **kleine,
 noch unentdeckte** Einträge nah am Geschmack vor — mit Klartext-Begründung und Merken in einem Klick.
-Bei Musik zusätzlich 30-Sek-Hörprobe. Neu berechnen: `#radarRefresh`.
+Bei Musik zusätzlich 30-Sek-Hörprobe. Neu berechnen: `#radarRefresh`. Frische-Quellen bei Musik:
+Deezer-Nachbarn deiner Likes, Bandcamp-Neuheiten und **Juno-Genre-Neuheiten** (offizieller RSS-Feed,
+Begründung „frisch auf Juno (…)").
 
 ## 8. Listen / Merken
 
