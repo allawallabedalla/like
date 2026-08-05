@@ -50,12 +50,14 @@ Die maßgeblichen Schalter stehen in `packs/<id>/pack.mjs` unter `features: { �
 |---|---|
 | **Klick** auf Punkt | Info-Panel öffnen (§5). |
 | **Doppelklick** | Nachbarn laden — Schritt für Schritt weiterhangeln. |
-| **▶ an der Kugel** | 30-Sek-Klangprobe (öffnet bewusst kein Panel). Nur `features.preview`. |
+| **▶ an der Kugel** | 30-Sek-Klangprobe (öffnet bewusst kein Panel). Nur `features.preview`. Erscheint per Maus-Näherung — auf Touch stattdessen das ▶-Abzeichen bzw. langes Drücken (s. u.). |
 | **„+N"-Chip** | Geparkte, zur Übersicht ausgeblendete Nachbarn einblenden (kein Netz-Aufruf). Skaliert mit der Kugel (FB11/FB18), Tooltip erklärt das „warum versteckt" (FB10). |
 | **Punkt ziehen** | Position fixieren; verbundene Knoten folgen über die Kanten-Federn (Flat wie Space, FB7). |
-| **Rechtsklick** | Kontextmenü: Fokus, Brücke bauen, Lineup/Merken … |
+| **Rechtsklick / langes Drücken** | Kontextmenü: **▶ Klangprobe (30 Sek.)** (nur `features.preview`), Fokus, Brücke bauen, Lineup/Merken … |
 | **Shift-Klick** | Einträge vergleichen (Schnittmenge). Nur Profi. |
 | **Fläche ziehen / Mausrad** | Verschieben / zoomen. Pinch auf Touch. |
+| **▶-Abzeichen links an der Kugel** | Nur Touch (`pointer: coarse`) und nur am **gewählten** Knoten: 30-Sek-Klangprobe starten/stoppen. Ersatz für den Hover-▶, den es ohne Maus nicht gibt (U-3b). |
+| **Tipp auf leere Fläche** | Info-Panel zu — und schließt auf Touch auch offene Popover (⋯/Hilfe/Entdecken/Radar), weil es dort keinen Maus-Außenklick gibt (U-3d). |
 
 ## 5. Info-Panel (rechts, `#panel`)
 
@@ -125,6 +127,34 @@ keine Session. Nur sichtbar, wenn der Build Credentials hat (`/api/health` → `
 `/` Suche · `e` gewählten Eintrag weiter erkunden · `f` Fokus auf Nachbarschaft ·
 `b` merken (in die Liste) · `Entf` Eintrag entfernen (mit Undo) · `+` `−` `0` zoomen / alles zeigen ·
 `Esc` Modus/Panel schließen.
+
+## 14a. Handy / iPhone (≤ 560 px, `pointer: coarse`)
+
+- **Alle Fenster sind Bottom-Sheets** (U-3a): Info-Panel (`#panel`), ⋯-Menü (`#morebox`),
+  Hilfe (`#helpbox`), Entdecken (`#discoverbox`) und Radar (`#radarbox`) liegen unten am
+  Rand, volle Breite, mit **Griff** (`.sheetgrip`) und eigenem Scrollbereich.
+- **Wisch nach unten am Griff (oder oben im Sheet) schließt** das Fenster — die Geste startet
+  nur, wenn der Inhalt schon ganz oben steht, sonst scrollt sie wie gewohnt (`makeSheet()`).
+- **Wisch nach oben am Griff** zieht das Info-Panel auf ~92 dvh auf (`.panel.tall`); der
+  nächste Wisch nach unten geht erst auf Normalhöhe zurück, der übernächste schließt.
+- Ein **Tipp auf die Karte** schließt offene Popover (U-3d).
+- Der **gewählte Knoten** wird in den freien Streifen über dem Sheet geschoben, falls er
+  darunter läge (`nudgeAboveSheet()`, U-3c).
+- **Trefferflächen** sind auf grobem Zeiger mindestens 40–44 px hoch (Kontextmenü, Panel-×,
+  Panel-▶, Zoom-Regler, Now-Playing-Stop/Spulleiste …). Die Topbar wächst bewusst **nur in
+  der Höhe** — breitere Icon-Knöpfe ließen sie auf 375 px überlaufen.
+- **Legende** ist gedeckelt und scrollt (sonst fraß sie ~43 % der Bildschirmhöhe).
+- **Langes Drücken** quittiert sichtbar: ein Ring am Knoten füllt sich über die 480 ms, bis das
+  Kontextmenü aufspringt (U-3n — `navigator.vibrate` gibt es auf iOS nicht).
+- **⋯-Menü und Entdecken** tragen ein `×` (`#moreClose`, `#discoverClose`) — der Sheet-Griff ist
+  `aria-hidden`, und auf dem Telefon gibt es kein `Esc` (U-3k).
+- **Eingabefelder** schreiben auf grobem Zeiger 16 px. Kleiner zoomt iOS Safari beim Fokussieren
+  die Seite hinein und (seit `user-scalable=no` weg ist) nicht wieder heraus (U-3i).
+- **Dialoge**: Formular-Dialoge (`#authModal`, `#feedbackModal`, `#keyModal`) sind Sheets; kurze
+  Rückfragen (`#deleteModal`, `#namesakeModal`, `#supportModal`) und die Intro-Tour bleiben
+  zentriert, aber gedeckelt und scrollbar (U-3l).
+- **Querformat** (≤ 520 px hoch): das Info-Panel bleibt rechts, gedeckelt auf `min(46vw, 340px)`
+  und mit Safe-Area am Notch — ein Sheet von unten ließe für die Karte keine Höhe übrig (U-3m).
 
 ## 15. Packs & Feature-Matrix
 

@@ -1548,3 +1548,199 @@ Displays wirkt das gedrängt.
 
 **Reihenfolge/Wirkung:** T1 zuerst (schneller, deckt das Feedback direkt ab), T2 nur, falls
 die feste Anhebung nicht genügt oder wir A11y-Punkte (vgl. W5/axe-core) mitnehmen wollen.
+
+---
+
+## Runde 26 — iPhone-Usability-Audit (2026-08-05)
+
+**Kontext:** Nutzer-Feedback aus dem Live-Betrieb: „Ich kann die Fenster nicht über Wischen
+nach unten klein machen, und die Play-Vorschau ist schwierig — vielleicht Tap and Hold?"
+Daraufhin ein gezielter Audit der App in iPhone-Größe (390×844, `pointer: coarse`, echte
+Touch-Events; zusätzlich 375×812 gegen die Responsive-Tests). Befunde B–F unten sind
+gemessen, nicht geschätzt.
+
+### Befunde
+
+- [x] **U-3a — Fenster ließen sich nicht wegwischen; das ⋯-Menü ragte aus dem Bild.**
+  Das Info-Panel war zwar schon ein Bottom-Sheet, hatte aber weder Griff noch Wisch-Geste.
+  Die Popover (⋯-Menü, Hilfe, Entdecken, Radar) blieben Desktop-Dropdowns: `.morebox` war
+  auf 390×844 **958 px hoch bei 844 px Viewport, ohne `overflow-y`** — alles ab „KARTE"
+  (Export, PNG, Snapshot, Teilen, Backup, Löschen, Impressum) war schlicht unerreichbar.
+  → Alle fünf Fenster sind auf ≤560 px jetzt Bottom-Sheets mit Griff, `max-height` (`dvh`),
+  Scroll und Wisch-nach-unten-schließt (`makeSheet()`); das Info-Panel lässt sich am Griff
+  zusätzlich auf 92 dvh **aufziehen** (Wisch nach unten: erst zurück auf Normalhöhe, dann zu).
+
+- [x] **U-3b — Klangprobe auf dem Telefon praktisch versteckt.** Der ▶ an der Kugel wird nur
+  gezeichnet, wenn `mouseWorld` gesetzt ist — das passiert ausschließlich bei `mousemove`.
+  Auf einem Finger-Gerät existierte er also **nie**; blieb der 28-px-▶ im Info-Panel.
+  → (1) Langes Drücken auf einen Knoten bietet „▶ Klangprobe (30 Sek.)" als **ersten**
+  Eintrag im Kontextmenü (genau der vorgeschlagene Tap-and-Hold). (2) Der **gewählte** Knoten
+  trägt auf Touch ein eigenes ▶/⏸-Abzeichen links neben der Kugel — bewusst neben der Kugel,
+  damit Tippen (Info), Doppeltippen (erkunden) und Ziehen unberührt bleiben.
+  (3) Der Panel-▶ ist auf grobem Zeiger 44×44 statt 28×28.
+
+- [x] **U-3c — Angetippter Knoten verschwand unter dem Sheet.** `selectNode()` rief nie
+  `centerOn()` — wer unten in die Karte tippte, sah den gewählten Knoten nicht mehr (das
+  Sheet deckt 62 % der Höhe). → `nudgeAboveSheet()` schiebt ihn nach dem Aufziehen in den
+  freien Streifen darüber, aber nur wenn er wirklich verdeckt ist.
+
+- [x] **U-3d — Tipp auf die Karte schloss offene Popover nicht.** Der Außenklick hängt an
+  `mousedown`; der Canvas ruft in `touchstart` `preventDefault()` und unterdrückt damit die
+  Maus-Emulation. Auf dem iPhone blieb das ⋯-Menü also offen, bis man ⋯ erneut traf.
+  → `closeOverlaysOnMapTap()` im Canvas-`touchstart`.
+
+- [x] **U-3e — Trefferflächen unter 44 px.** Gemessen: Panel-× 20×37, Panel-▶ 28×28,
+  Zoom-Knöpfe 34×34, Kontextmenü-Zeilen 33 px, Now-Playing-Stop 26×26, Spulleiste 6 px hoch,
+  DE/EN 29×36, Demo-Hinweis-× 22×27. → `@media (pointer: coarse)`-Block hebt sie auf ≥40–44 px
+  (Spulleiste: unsichtbare Trefferfläche 24 px, sichtbare Leiste bleibt schlank).
+  **Bewusst nicht angefasst:** die *Breiten* in der Topbar — 44 px breite Icon-Knöpfe lassen
+  die Leiste auf einem 375-px-iPhone überlaufen (`responsive.spec.js`). Nur die Höhe wächst.
+
+- [x] **U-3f — Legende fraß die halbe Karte; Demo-Band lag auf dem Sheet.** Die Legende war
+  auf 390×844 **362 px hoch** (43 % der Höhe) ohne Deckel. → Auf grobem Zeiger `max-height`
+  + Scroll (Stapel ≤46 dvh, Legende ≤30 dvh). Das „Beispiel-Karte"-Band saß unten mittig und
+  lag damit auf dem Info-Sheet und über den Zoom-Knöpfen → weicht dem Sheet aus.
+
+
+---
+
+### Offener Backlog — Handy/iOS (Runde 26, Rest), sortiert nach Modell
+
+Alle Punkte sind **gemessen**, nicht vermutet: Chromium-Emulation auf 390×844 und 375×812
+mit `isMobile`/`hasTouch`/`pointer: coarse` und echten Touch-Events (CDP `Input.dispatchTouchEvent`),
+plus `npm run check` und `npm run test:ci` als Regressionsnetz.
+
+**Faustregel für die Zuordnung:** Wer die *Frage* noch beantworten muss → **Opus 5**.
+Wer nur die *Antwort* umsetzt → **Sonnet 5**. Wer nur einen Befehl ausführt und das
+Ergebnis einträgt → **Haiku 4.5**.
+
+| Modell | Wofür in diesem Repo | Punkte |
+|---|---|---|
+| **Opus 5** | Cross-cutting Entscheidungen, Gesten/Canvas-Interaktion (Touch-Handler ↔ Physik ↔ Zeichnung greifen ineinander), Geräte-Urteil, riskante Umbauten an `public/index.html` (7 100 Zeilen, ein einziger Inline-Block). | U-3j · U-3l · U-3m · U-3r |
+| **Sonnet 5** | Sauber spezifizierte, abgegrenzte Umsetzung mit klarem Abnahmekriterium — CSS-Sweeps, ein Knopf ergänzen, Tests dazu schreiben. | U-3i · U-3k · U-3n · U-3p |
+| **Haiku 4.5** | Mechanisch und risikoarm: Baselines neu erzeugen, Doku nachziehen, Suchen/Ersetzen ohne Designentscheidung. | U-3o · U-3q |
+
+**Empfohlene Reihenfolge quer über die Modelle** (Wirkung vor Bequemlichkeit):
+U-3i → U-3j → U-3k → U-3p → U-3l → U-3o → U-3n → U-3q → U-3m (U-3r kam bei U-3l dazu).
+
+---
+
+## Opus 5
+
+- [ ] **U-3j — Live-Verifikation auf echtem iOS Safari.** *(hoch · M · blockiert: braucht ein Gerät)*
+  Emulation kann diese Fehlerklasse grundsätzlich nicht zeigen; hier ist Beurteilung gefragt,
+  keine Umsetzung. Der ganze Audit lief gegen **Chromium mit Mobile-Emulation**. Vier Dinge
+  verhält iOS Safari nachweislich anders, und sie betreffen genau das, was Runde 26 gebaut hat:
+  1. **`dvh`** — die Sheets stehen auf `82dvh`/`62dvh`/`92dvh`. Safari ändert die dynamische
+     Viewport-Höhe beim Ein-/Ausfahren der URL-Leiste; ob die Sheets dabei springen, sieht man
+     nur echt.
+  2. **Momentum-Scrolling im Sheet** vs. die Wisch-Geste: `makeSheet()` startet den Zieh-Wisch
+     nur bei `scrollTop <= 0` — Safaris Rubber-Band kann `scrollTop` kurzzeitig negativ machen.
+  3. **`env(safe-area-inset-*)` im Querformat** (Notch links/rechts) und im
+     Home-Indicator-Bereich unten am Sheet.
+  4. **Long-Press auf DOM-Elementen** löst in Safari Text-Auswahl und das Teilen-Callout aus.
+     *(Teil-Absicherung mit U-3l vorgezogen: `-webkit-touch-callout: none` +
+     `user-select: none` sitzen jetzt auf den Sheet-Griffen und der Sheet-Chrome — die
+     Bestätigung am Gerät steht weiter aus.)*
+  *Abnahme:* je ein Durchgang Hoch-/Querformat auf einem echten iPhone, Befunde als
+  U-3j.1…n hier eintragen.
+
+- [x] **U-3l — Modale Dialoge waren auf dem Telefon zentrierte Desktop-Boxen.** *(mittel · M)*
+  Betraf `#authModal`, `#feedbackModal`, `#keyModal`, `#deleteModal`, `#namesakeModal`,
+  `#supportModal`, `#introModal`: `width: min(440px, 100vw - 40px)`, zentriert, ohne Höhen-
+  Deckel — die Intro-Tour füllte auf 390×844 fast den ganzen Schirm, und bei geöffneter
+  iOS-Tastatur schob sich der zentrierte Dialog unter das Eingabefeld.
+  **Entscheidung (die eigentliche Opus-Arbeit):** *nicht* alle sieben gleich behandeln.
+  Formular-Dialoge (Anmelden, Feedback, API-Key) werden auf ≤560 px **Sheets** — sie sind
+  hoch, tragen Eingabefelder und profitieren davon, dass die Tastatur von unten gegen ein
+  unten verankertes Fenster schiebt statt gegen ein zentriertes. Kurze
+  **Bestätigungs**-Dialoge (Löschen, Namensvetter, Spenden) bleiben zentriert — ein Sheet
+  suggeriert „stöbern", eine Rückfrage will Aufmerksamkeit in der Mitte. Die **Intro-Tour**
+  bleibt zentriert, bekommt aber einen Höhen-Deckel mit Scroll, weil sie sonst überläuft.
+  **Dabei aufgefallen (→ U-3r):** sobald die Dialoge bis an den unteren Rand reichen, fing
+  das Demo-Hinweisband ihre Knöpfe ab — obwohl es `z-index: 6` hat und der Dialog `50`.
+  Ursache ist kein Zahlendreher, sondern der Stacking-Context (s. U-3r). Hier akut behoben,
+  indem das Band bei offenem Dialog ausgeblendet wird (`body:has(.modal-back.show)`).
+
+- [x] **U-3m — Querformat (844×390) fiel zurück aufs Desktop-Seitenpanel.** *(niedrig · M)*
+  Ab 561 px griffen die Sheet-Regeln nicht mehr: ein quer gehaltenes iPhone bekam das 320 px
+  breite Seitenpanel über die volle Höhe von 390 px — vom Netz blieb ein schmaler Streifen.
+  **Entscheidung:** kein Sheet von unten (bei 390 px Höhe bliebe für die Karte nichts übrig)
+  und kein Beibehalten — stattdessen ein eigener Fall
+  `@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse)`: das Panel
+  bleibt rechts, wird aber auf `min(46vw, 340px)` gedeckelt, sitzt unter der Topbar und
+  respektiert die seitliche Safe-Area (Notch). Die Karte behält so gut die Hälfte der Breite.
+
+- [ ] **U-3r — Modale Dialoge konkurrieren gar nicht im Root-Stacking-Context.** *(mittel · M)*
+  Bei U-3l aufgefallen und gemessen: `#keyModal` (`z-index: 50`) lag unter `#demoBar`
+  (`z-index: 6`). Kein Zahlendreher — **alle** Modale hängen im Container `#app`, und der ist
+  `position: fixed`. Ein fixiertes Element öffnet in Chromium/WebKit auch bei `z-index: auto`
+  einen **eigenen Stacking-Context**; der `z-index: 50` der Dialoge gilt also nur *innerhalb*
+  `#app`, während `#app` selbst auf Ebene 0 der Root-Ebene sitzt. Alles, was per JS direkt ans
+  `<body>` gehängt wird — `#demoBar` (6), `#toast` (20) — liegt damit strukturell **über**
+  jedem Dialog. Heute schmerzt nur das Band (per `:has()`-Regel entschärft); der Toast fällt
+  nicht auf, weil er `pointer-events: none` trägt.
+  *Zu entscheiden:* die body-nahen Overlays nach `#app` umhängen (dann greifen die z-index-Werte
+  wieder wie gelesen — aber die bestehenden Geschwister-Selektoren `.listview.show ~ .demobar`
+  und die Sheet-Regeln aus U-3a müssen mitgezogen werden), **oder** die z-Ebenen bewusst als
+  zwei getrennte Skalen dokumentieren (`#app`-intern vs. body-level) und dabei belassen.
+  Ein stiller Umbau der Stapelordnung wäre riskant — deshalb bewusst als Entscheidung notiert
+  statt nebenbei erledigt.
+
+---
+
+## Sonnet 5
+
+- [x] **U-3i — iOS Safari zoomte beim Tippen in JEDES Eingabefeld hinein.** *(hoch · S–M)*
+  Gemessen auf 390×844: **24 Felder unter 16 px** — u. a. `#q` 15, `#mSearch` 13, `#mGenre` 13,
+  `#packSwitch` 13, `#lvFilter` 13.5, `#lvSort` 13, `#surpriseGenre` 13, `#importFile` 12.5,
+  `#note`/`#fee`/`#status`/`#authUser`/`#authPw`/`#feedbackText`/`#keyInput` je 15, die sechs
+  Ansicht-Checkboxen 12. iOS Safari zoomt die Seite beim Fokussieren automatisch hinein, sobald
+  die Schrift **< 16 px** ist. Seit U-2f (`user-scalable=no` entfernt, WCAG 1.4.4) zoomt es
+  **nicht mehr von selbst zurück** — die Seite bleibt vergrößert, und weil Topbar und Sheets
+  `position: fixed` sind, verrutscht danach das ganze Layout.
+  → Alle fokussierbaren Felder stehen unter `@media (pointer: coarse)` auf `font-size: 16px`
+  (nur die Schrift; Höhen/Paddings unangetastet). Checkboxen sind ausgenommen — sie tragen
+  keinen Text und lösen keinen Zoom aus.
+
+- [x] **U-3k — `#morebox` und `#discoverbox` hatten keinen Schließen-Knopf.** *(mittel · S)*
+  Panel, Hilfe und Radar hatten ein `×`, die beiden anderen nicht. Sie gingen per Wisch, per
+  Tipp auf die Karte und per erneutem Tipp auf ⋯ zu — aber der **Griff ist `aria-hidden`**,
+  und auf dem Telefon gibt es kein `Esc`: für VoiceOver-Nutzer:innen blieb kein angesagtes
+  Bedienelement zum Schließen. → Beide tragen jetzt ein `×` mit `aria-label` (44 px auf
+  grobem Zeiger).
+
+- [x] **U-3n — Kein Feedback beim langen Drücken auf iOS.** *(niedrig · S)*
+  Der Long-Press rief nur `navigator.vibrate(10)` — **iOS Safari unterstützt das nicht**.
+  Auf dem iPhone passierte 480 ms lang sichtbar nichts, bis das Menü aufsprang; man wusste
+  nicht, ob der Finger „zählt". → Ein Ring am gedrückten Knoten füllt sich über die 480 ms
+  sichtbar auf (`pressRing` in `draw()`), Vibration bleibt zusätzlich für Android.
+
+- [x] **U-3p — Regressionstests für die neuen Touch-Gesten.** *(mittel · M)*
+  Runde 26 hatte Verhalten eingeführt, das **kein** Test abdeckte. `page.touchscreen.tap()`
+  reicht dafür nicht — gebraucht wird `Input.dispatchTouchEvent` über eine CDP-Session
+  (Start/Move-Kette/Ende). → `tests/gestures.spec.js`, nur im `mobile`-Projekt, in
+  `npm run test:ci` aufgenommen: Wisch-schließt, Wisch-hoch-zieht-auf, Zwei-Stufen-Rückweg
+  (`tall` → normal → zu), Scroll-im-Sheet-schließt-nicht, Tipp-auf-Karte-schließt-Popover,
+  ⋯-Menü vollständig im Bild und scrollbar, Klangprobe im Kontextmenü, Trefferflächen ≥ 44 px,
+  keine Felder < 16 px.
+
+---
+
+## Haiku 4.5
+
+- [x] **U-3o — Restliche `100vh` auf `dvh` vereinheitlicht.** *(niedrig · S)*
+  `.leftstack`, `.helpbox` und `.radarbox` rechneten in ihren **Basis**-Regeln noch mit
+  `calc(100vh - 80px)`; auf iOS ist `100vh` die *große* Viewport-Höhe, die Boxen reichten dort
+  also unter die eingefahrene Safari-Leiste. → `vh`-Zeile bleibt als Fallback stehen, `dvh`-Zeile
+  direkt dahinter (dasselbe Muster wie in den Sheet-Regeln).
+
+- [ ] **U-3q — Visual-Baselines neu erzeugen.** *(niedrig · S · blockiert: falsche Umgebung)*
+  `tests/visual.spec.js` scheitert an 8 von 9 Baselines — **auch auf unverändertem `main`**
+  (gegengeprüft per `git stash`; Landing und Impressum wurden nie angefasst). Die Snapshots
+  stammen aus einer anderen Rendering-Umgebung; deshalb läuft die Datei bewusst nicht in
+  `npm run test:ci`. **Bewusst NICHT in der Agent-Umgebung neu erzeugt** — das würde die
+  Baselines nur auf die *hiesige* Rendering-Umgebung umschreiben und den Defekt verschieben
+  statt beheben. Auf der Zielumgebung einmal `npm run test:e2e:update`, Ergebnis sichten,
+  committen. Danach zeigen die 375-px-Baselines die neuen Sheet-/Coarse-Regeln — das ist
+  erwünscht, kein Fehler.
