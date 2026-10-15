@@ -51,7 +51,7 @@ jobs:
 
       - name: Playwright-Browser cachen
         id: pwcache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pwver.outputs.v }}
